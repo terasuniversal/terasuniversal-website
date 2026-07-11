@@ -54,3 +54,19 @@ This version includes:
 - single-column mobile cards and forms
 - narrower mobile container spacing
 - responsive Google Maps and footer
+
+
+## Phase 2 premium upgrade
+
+This update adds:
+- larger corporate header logo
+- mobile hamburger navigation
+- premium hero visual without repeating the logo
+- expanded training programme section
+- corporate value section
+- four-step delivery approach
+- premium corporate CTA
+- refined WhatsApp button placement
+- improved desktop and mobile layouts
+
+No unverified client logos, testimonials or numerical claims have been included.
