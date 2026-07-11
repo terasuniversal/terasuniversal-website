@@ -42,3 +42,15 @@ training@terasuniversal.com.my
 
 A future upgrade can submit directly in the background using Formspree, Resend
 or another email API.
+
+
+## Mobile responsiveness fix
+
+This version includes:
+- explicit mobile viewport settings
+- horizontal overflow prevention
+- stacked hero layout below 590px
+- automatic logo resizing
+- single-column mobile cards and forms
+- narrower mobile container spacing
+- responsive Google Maps and footer
