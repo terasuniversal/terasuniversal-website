@@ -721,3 +721,93 @@ video {
     padding-top: 58px;
   }
 }
+
+
+/* ===== Desktop right-column alignment fix ===== */
+@media (min-width: 921px) {
+  .premium-visual {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: 1fr auto;
+    gap: 16px;
+    padding: 46px;
+    min-height: 455px;
+    align-content: stretch;
+  }
+
+  .visual-core {
+    position: relative;
+    inset: auto;
+    grid-column: 1 / -1;
+    z-index: 2;
+    align-self: center;
+    padding-right: 20px;
+  }
+
+  .visual-core h2 {
+    max-width: 520px;
+    margin-bottom: 16px;
+  }
+
+  .visual-core p {
+    max-width: 500px;
+  }
+
+  .visual-badges {
+    margin-top: 20px;
+  }
+
+  .floating-card {
+    position: relative;
+    inset: auto !important;
+    width: 100%;
+    min-height: 112px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    border-radius: 18px;
+  }
+
+  .card-one,
+  .card-two,
+  .card-three {
+    left: auto;
+    right: auto;
+    top: auto;
+    bottom: auto;
+  }
+
+  .card-one { grid-column: 1; }
+  .card-two { grid-column: 2; }
+  .card-three { grid-column: 3; }
+
+  .floating-card strong {
+    font-size: 20px;
+    margin-bottom: 4px;
+  }
+
+  .floating-card span {
+    line-height: 1.45;
+  }
+
+  .visual-orbit {
+    pointer-events: none;
+  }
+}
+
+@media (min-width: 921px) and (max-width: 1199px) {
+  .premium-visual {
+    padding: 34px;
+    gap: 12px;
+  }
+
+  .visual-core h2 {
+    font-size: 35px;
+  }
+
+  .floating-card {
+    min-height: 104px;
+    padding: 14px;
+  }
+}

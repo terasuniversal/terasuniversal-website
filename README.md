@@ -81,3 +81,12 @@ This patch:
 - balances desktop and laptop hero proportions
 - enlarges the desktop header logo
 - tidies the three floating desktop cards
+
+
+## Desktop right-column alignment fix
+
+This patch:
+- removes overlapping absolute-positioned cards on desktop
+- places the three cards in a clean row at the bottom
+- keeps the text and badges within the visual panel
+- improves laptop and desktop spacing
