@@ -70,3 +70,14 @@ This update adds:
 - improved desktop and mobile layouts
 
 No unverified client logos, testimonials or numerical claims have been included.
+
+
+## Safari iPhone and desktop optimisation patch
+
+This patch:
+- removes the decorative premium hero visual on phones
+- prevents Safari from reserving a large invisible hero area
+- reduces mobile hero bottom spacing
+- balances desktop and laptop hero proportions
+- enlarges the desktop header logo
+- tidies the three floating desktop cards

@@ -612,3 +612,112 @@ video {
     font-size:31px;
   }
 }
+
+
+/* ===== Safari iPhone blank-space + desktop balance fix ===== */
+
+/* Prevent grid/flex children from creating invisible overflow */
+.hero-grid,
+.hero-copy,
+.premium-visual,
+.visual-core,
+.about-grid,
+.split-heading {
+  min-width: 0;
+}
+
+/* Better desktop and laptop proportions */
+@media (min-width: 921px) {
+  .hero {
+    padding: 72px 0 66px;
+  }
+
+  .hero-grid {
+    grid-template-columns: minmax(0, 1.05fr) minmax(420px, .95fr);
+    gap: 46px;
+  }
+
+  .brand img {
+    width: 205px;
+    max-height: 66px;
+  }
+
+  .premium-visual {
+    min-height: 455px;
+  }
+
+  .visual-core {
+    inset: 62px 48px auto 48px;
+  }
+
+  .visual-core h2 {
+    font-size: 39px;
+  }
+
+  .floating-card {
+    width: 164px;
+  }
+
+  .card-one {
+    right: 24px;
+    bottom: 120px;
+  }
+
+  .card-two {
+    left: 26px;
+    bottom: 42px;
+  }
+
+  .card-three {
+    right: 30px;
+    bottom: 28px;
+  }
+}
+
+/* Laptop-specific sizing */
+@media (min-width: 921px) and (max-width: 1399px) {
+  h1 {
+    font-size: clamp(52px, 5vw, 66px);
+  }
+
+  .hero-lead {
+    font-size: 18px;
+  }
+
+  .premium-visual {
+    min-height: 430px;
+  }
+}
+
+/* On phones, remove the decorative desktop visual.
+   This prevents Safari from reserving a large empty area. */
+@media (max-width: 590px) {
+  .hero {
+    padding-bottom: 44px;
+  }
+
+  .hero-grid {
+    display: block;
+  }
+
+  .premium-visual {
+    display: none !important;
+    min-height: 0 !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .hero-copy {
+    width: 100%;
+  }
+
+  .trust-row {
+    margin-bottom: 0;
+  }
+
+  #about {
+    padding-top: 58px;
+  }
+}
