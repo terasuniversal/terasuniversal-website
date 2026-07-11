@@ -1,16 +1,44 @@
-# TERAS UNIVERSAL Website
+# TERAS UNIVERSAL — Phase 1 Website
 
-Official corporate landing page for TERAS UNIVERSAL SDN. BHD.
+This update includes:
 
-## Local development
+- New official logo and blue/gold corporate branding
+- Favicon and Apple touch icon
+- Professional SEO metadata
+- Open Graph and social sharing images
+- robots.txt and sitemap.xml
+- Google Maps location embed
+- Responsive contact enquiry form
+- Floating WhatsApp button
+- Professional footer with office address
+- Loading screen and responsive/mobile optimisation
+- Next.js image optimisation
 
-```bash
-npm install
-npm run dev
-```
+## Upload to GitHub
 
-Then open http://localhost:3000
+Upload the CONTENTS of this folder to the root of the existing
+`terasuniversal-website` repository.
 
-## Deploy
+Required root structure:
 
-This project is ready for Vercel.
+- app/
+- components/
+- public/
+- package.json
+- next.config.mjs
+- README.md
+
+Commit message:
+`Complete Phase 1 website improvements`
+
+Vercel will automatically deploy the update.
+
+## Contact form behaviour
+
+The form works without any paid service or API key. On submission it opens the
+visitor's default email application with the enquiry already addressed to:
+
+training@terasuniversal.com.my
+
+A future upgrade can submit directly in the background using Formspree, Resend
+or another email API.
