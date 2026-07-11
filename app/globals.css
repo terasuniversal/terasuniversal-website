@@ -1,7 +1,7 @@
 :root {
-  --green: #087a55;
-  --green-dark: #07543d;
-  --mint: #eaf7f2;
+  --green: #0a3d91;
+  --green-dark: #062d6d;
+  --mint: #eef4ff;
   --ink: #1f2937;
   --muted: #667085;
   --line: #dfe7e3;
@@ -47,7 +47,7 @@ img {
   z-index: 50;
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(14px);
-  border-bottom: 1px solid rgba(8, 122, 85, 0.12);
+  border-bottom: 1px solid rgba(10, 61, 145, 0.12);
 }
 
 .nav-wrap {
@@ -107,7 +107,7 @@ nav a:hover {
 .hero {
   padding: 88px 0 70px;
   background:
-    radial-gradient(circle at 12% 20%, rgba(8, 122, 85, 0.12), transparent 34%),
+    radial-gradient(circle at 12% 20%, rgba(10, 61, 145, 0.12), transparent 34%),
     linear-gradient(135deg, #fff 0%, #f6fbf9 100%);
 }
 
@@ -172,7 +172,7 @@ h1 span {
 .btn-primary {
   background: var(--green);
   color: white;
-  box-shadow: 0 10px 26px rgba(8, 122, 85, 0.22);
+  box-shadow: 0 10px 26px rgba(10, 61, 145, 0.22);
 }
 
 .btn-outline {
@@ -191,7 +191,7 @@ h1 span {
   border-radius: 28px;
   padding: 30px;
   box-shadow: var(--shadow);
-  border: 1px solid rgba(8, 122, 85, 0.12);
+  border: 1px solid rgba(10, 61, 145, 0.12);
 }
 
 .hero-card img {
@@ -331,7 +331,7 @@ section {
 }
 
 .wide-cta {
-  background: #102a22;
+  background: #0a2d63;
   color: #fff;
   border-radius: 30px;
   padding: 44px;
@@ -348,7 +348,7 @@ section {
 
 .wide-cta p {
   margin: 0;
-  color: #cbdad4;
+  color: #dce6f7;
 }
 
 .contact-grid {
@@ -386,14 +386,14 @@ section {
   border-radius: 50%;
   display: grid;
   place-items: center;
-  background: #25d366;
+  background: #d79a00;
   color: #fff;
   font-size: 27px;
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
 }
 
 footer {
-  background: #0d1f19;
+  background: #081a3a;
   color: #d7e3df;
   padding: 34px 0;
 }
@@ -407,12 +407,12 @@ footer {
 
 .footer-wrap span {
   display: block;
-  color: #98aaa3;
+  color: #b8c4d8;
   font-size: 13px;
 }
 
 .footer-wrap small {
-  color: #98aaa3;
+  color: #b8c4d8;
 }
 
 @media (max-width: 900px) {
@@ -459,3 +459,9 @@ footer {
     align-items: flex-start;
   }
 }
+
+.badge{border:1px solid rgba(215,154,0,.28)}
+.nav-cta,.btn-primary{background:linear-gradient(135deg,#0a3d91,#062d6d)}
+.feature-card>div,.stat-grid div{border:1px solid rgba(215,154,0,.22)}
+.cta-panel{background:linear-gradient(145deg,#062d6d,#0a3d91)}
+.wide-cta{background:linear-gradient(135deg,#081a3a,#0a2d63)}
