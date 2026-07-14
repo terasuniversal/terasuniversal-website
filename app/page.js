@@ -72,13 +72,15 @@ export default function HomePage() {
 
       <section id="about">
         <div className="container about-grid">
-          <div><span className="eyebrow">About TERAS UNIVERSAL</span><h2>The Standard of Competence.</h2></div>
+          <div><span className="eyebrow">About TERAS UNIVERSAL</span><h2>The Standard of Competence</h2></div>
           <div className="about-copy"><p>TERAS UNIVERSAL SDN. BHD. is a Malaysian training and industrial consultancy company specialising in occupational safety and health, scaffolding, working at height, confined space, technical competency and workforce development.</p><p>We integrate regulatory compliance, technical knowledge, practical workplace skills and structured assessment to help organisations close skill gaps, strengthen risk controls and build safer, more capable teams.</p></div>
         </div>
-        <div className="container value-grid">
-          <article><span>T</span><h3>Trust</h3><p>Integrity, transparency and consistent professional delivery.</p></article>
-          <article><span>E</span><h3>Excellence</h3><p>High standards in content, delivery, assessment and service.</p></article>
-          <article><span>S</span><h3>Safety</h3><p>Risk reduction and workforce protection at the centre of every solution.</p></article>
+        <div className="container value-grid" aria-label="TERAS core values">
+          <article><span className="value-letter">T</span><h3>Trust</h3><p>Integrity, transparency and consistent professional delivery.</p></article>
+          <article><span className="value-letter">E</span><h3>Excellence</h3><p>High standards in content, delivery, assessment and service.</p></article>
+          <article><span className="value-letter">R</span><h3>Responsibility</h3><p>Responsible solutions that consider people, operations and workplace impact.</p></article>
+          <article><span className="value-letter">A</span><h3>Accountability</h3><p>Clear ownership of quality, commitments and measurable outcomes.</p></article>
+          <article><span className="value-letter">S</span><h3>Safety</h3><p>Risk reduction and workforce protection at the centre of every solution.</p></article>
         </div>
       </section>
 
