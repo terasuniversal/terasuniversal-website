@@ -11,11 +11,11 @@ export const viewport = {
 export const metadata = {
   metadataBase: new URL("https://terasuniversal.com.my"),
   title: {
-    default: "TERAS UNIVERSAL SDN. BHD. | Industrial Safety Training & Consultancy",
+    default: "TERAS UNIVERSAL SDN. BHD. | Industrial Safety Training & Technical Competency Malaysia",
     template: "%s | TERAS UNIVERSAL",
   },
   description:
-    "Official website of TERAS UNIVERSAL SDN. BHD. Professional industrial safety training, competency development and consultancy services in Malaysia.",
+    "Official website of TERAS UNIVERSAL SDN. BHD. Industrial safety training, scaffolding, Working at Height, technical competency, consultancy and workforce development solutions in Malaysia.",
   keywords: [
     "industrial safety training Malaysia",
     "safety training Kedah",
@@ -24,6 +24,8 @@ export const metadata = {
     "competency development",
     "corporate training Malaysia",
     "industrial safety consultancy",
+    "HSE consultancy Malaysia",
+    "workforce development Malaysia",
     "TERAS UNIVERSAL",
   ],
   authors: [{ name: "TERAS UNIVERSAL SDN. BHD." }],
