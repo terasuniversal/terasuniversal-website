@@ -91,10 +91,19 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="why-section">
+      <section className="why-section" aria-labelledby="why-teras-title">
         <div className="container">
-          <div className="section-heading"><span className="eyebrow">Why Choose TERAS</span><h2>Built around real operational needs—not generic training.</h2></div>
-          <div className="reason-grid">{reasons.map(([title,text],index)=><article key={title}><span>{String(index+1).padStart(2,"0")}</span><div><h3>{title}</h3><p>{text}</p></div></article>)}</div>
+          <div className="section-heading why-heading">
+            <span className="eyebrow">Why Choose TERAS</span>
+            <h2 id="why-teras-title">Why Organisations Choose TERAS UNIVERSAL</h2>
+            <p>We combine practical industry learning, structured competency development and compliance-focused solutions to help organisations build safer, more capable workforces.</p>
+          </div>
+          <div className="reason-grid">
+            {reasons.map(([title,text],index)=><article key={title}>
+              <span className="reason-icon" aria-hidden="true">{["EX","PR","CB","CS","CF","FD"][index]}</span>
+              <div><h3>{title}</h3><p>{text}</p></div>
+            </article>)}
+          </div>
         </div>
       </section>
 
