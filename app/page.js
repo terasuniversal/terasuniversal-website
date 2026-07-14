@@ -3,10 +3,38 @@ import ContactForm from "../components/ContactForm";
 import MobileNav from "../components/MobileNav";
 
 const pillars = [
-  ["01", "Industrial Safety", "High-risk safety training that strengthens hazard awareness, procedural compliance and safe workplace performance.", ["Working at Height", "Confined Space", "Scaffolding"]],
-  ["02", "Technical Competency", "Structured technical learning and practical competency pathways for machinery, equipment and specialist tasks.", ["Equipment Handling", "Scaffold Inspection", "Competency Assessment"]],
-  ["03", "Industrial Consultancy", "Practical solutions that transform operational risks and compliance gaps into clear, actionable improvement plans.", ["HSE Audit", "Risk Assessment", "Site Inspection"]],
-  ["04", "Workforce Development", "Customised frameworks that connect employee development with operational requirements and business objectives.", ["Upskilling", "Supervisor Development", "Corporate Training"]],
+  {
+    number: "01",
+    code: "SAFETY",
+    title: "Industrial Safety",
+    text: "High-risk safety programmes designed to strengthen hazard recognition, procedural discipline and safe task execution in demanding workplaces.",
+    services: ["Working at Height", "Confined Space", "Scaffolding Competency", "Safety Awareness"],
+    outcome: "Safer execution and stronger compliance",
+  },
+  {
+    number: "02",
+    code: "SKILLS",
+    title: "Technical Competency",
+    text: "Structured technical pathways that combine knowledge, guided practice and competency assessment for machinery, equipment and specialist work.",
+    services: ["Equipment Handling", "Scaffold Inspection", "Machinery Skills", "Competency Assessment"],
+    outcome: "Measurable, job-ready technical capability",
+  },
+  {
+    number: "03",
+    code: "ADVISORY",
+    title: "Industrial Consultancy",
+    text: "Practical advisory services that identify operational weaknesses and translate safety or compliance gaps into prioritised improvement actions.",
+    services: ["HSE Audit", "Risk Assessment", "Site Inspection", "Safety Advisory"],
+    outcome: "Clearer controls and improved audit readiness",
+  },
+  {
+    number: "04",
+    code: "WORKFORCE",
+    title: "Workforce Development",
+    text: "Customised development frameworks that align training investments with job roles, operational requirements and long-term organisational capability.",
+    services: ["Upskilling", "Reskilling", "Supervisor Development", "Corporate Training"],
+    outcome: "A more capable and adaptable workforce",
+  },
 ];
 
 const programmes = [
@@ -86,8 +114,25 @@ export default function HomePage() {
 
       <section id="services" className="soft-section">
         <div className="container">
-          <div className="section-heading split-heading"><div><span className="eyebrow">Four Core Service Pillars</span><h2>Integrated solutions for competence, compliance and performance.</h2></div><p>From high-risk safety training to workforce strategy, every service is structured around measurable workplace requirements.</p></div>
-          <div className="pillar-grid">{pillars.map(([number,title,text,items])=><article key={title}><span>{number}</span><h3>{title}</h3><p>{text}</p><ul>{items.map(item=><li key={item}>{item}</li>)}</ul><a href="#contact">Discuss this service →</a></article>)}</div>
+          <div className="section-heading split-heading pillar-heading">
+            <div><span className="eyebrow">Four Core Service Pillars</span><h2>Integrated solutions for competence, compliance and performance.</h2></div>
+            <p>Each pillar addresses a specific organisational challenge—from controlling high-risk work to building long-term workforce capability.</p>
+          </div>
+          <div className="pillar-grid">
+            {pillars.map((pillar)=><article className="pillar-card" key={pillar.title}>
+              <div className="pillar-card-top">
+                <span className="pillar-number">{pillar.number}</span>
+                <span className="pillar-code">{pillar.code}</span>
+              </div>
+              <h3>{pillar.title}</h3>
+              <p className="pillar-description">{pillar.text}</p>
+              <div className="pillar-services" aria-label={`${pillar.title} services`}>
+                {pillar.services.map(service=><span key={service}>{service}</span>)}
+              </div>
+              <div className="pillar-outcome"><small>BUSINESS OUTCOME</small><strong>{pillar.outcome}</strong></div>
+              <a href="#contact" aria-label={`Discuss ${pillar.title}`}>Discuss this service <span aria-hidden="true">→</span></a>
+            </article>)}
+          </div>
         </div>
       </section>
 
