@@ -1,4 +1,4 @@
-import Image from "next/image";
+﻿import Image from "next/image";
 import ContactForm from "../components/ContactForm";
 import MobileNav from "../components/MobileNav";
 
@@ -57,7 +57,15 @@ const reasons = [
   ["Flexible Delivery", "Public, in-house, onsite and project-based delivery options according to programme requirements."],
 ];
 
-const methodology = ["Need Analysis", "Programme Planning", "Theory", "Practical", "Assessment", "Certification", "Continuous Improvement"];
+const methodology = [
+  { number: "01", code: "ANALYSE", title: "Need Analysis", text: "Identify operational requirements, participant profiles, competency gaps and measurable programme outcomes." },
+  { number: "02", code: "DESIGN", title: "Programme Planning", text: "Define the training scope, learning pathway, delivery method, assessment criteria and implementation plan." },
+  { number: "03", code: "UNDERSTAND", title: "Theory", text: "Build essential knowledge of principles, hazards, procedures, responsibilities and technical requirements." },
+  { number: "04", code: "APPLY", title: "Practical Training", text: "Translate knowledge into performance through demonstrations, guided exercises and workplace-based scenarios." },
+  { number: "05", code: "VERIFY", title: "Assessment", text: "Evaluate understanding and practical execution against clearly defined competency and safety criteria." },
+  { number: "06", code: "RECOGNISE", title: "Certification", text: "Record successful completion or verified competency according to the requirements of the programme." },
+  { number: "07", code: "IMPROVE", title: "Continuous Improvement", text: "Review participant results, client feedback and delivery findings to strengthen future programme effectiveness." },
+];
 const industries = ["Oil & Gas", "Petrochemical", "Construction", "Power & Utilities", "Manufacturing", "Marine & Offshore", "Heavy Industry", "Government & GLC"];
 
 export default function HomePage() {
@@ -79,7 +87,7 @@ export default function HomePage() {
       <section className="hero" id="home">
         <div className="container hero-grid">
           <div className="hero-copy">
-            <span className="eyebrow">Malaysia’s Industrial Safety & Competency Partner</span>
+            <span className="eyebrow">Malaysiaâ€™s Industrial Safety & Competency Partner</span>
             <h1>Building Competence for <span>Safer, Stronger Industries.</span></h1>
             <p className="hero-lead">TERAS UNIVERSAL provides competency-based industrial safety training, technical development, consultancy and workforce solutions for safety-critical organisations.</p>
             <div className="hero-actions">
@@ -116,7 +124,7 @@ export default function HomePage() {
         <div className="container">
           <div className="section-heading split-heading pillar-heading">
             <div><span className="eyebrow">Four Core Service Pillars</span><h2>Integrated solutions for competence, compliance and performance.</h2></div>
-            <p>Each pillar addresses a specific organisational challenge—from controlling high-risk work to building long-term workforce capability.</p>
+            <p>Each pillar addresses a specific organisational challengeâ€”from controlling high-risk work to building long-term workforce capability.</p>
           </div>
           <div className="pillar-grid">
             {pillars.map((pillar)=><article className="pillar-card" key={pillar.title}>
@@ -130,7 +138,7 @@ export default function HomePage() {
                 {pillar.services.map(service=><span key={service}>{service}</span>)}
               </div>
               <div className="pillar-outcome"><small>BUSINESS OUTCOME</small><strong>{pillar.outcome}</strong></div>
-              <a href="#contact" aria-label={`Discuss ${pillar.title}`}>Discuss this service <span aria-hidden="true">→</span></a>
+              <a href="#contact" aria-label={`Discuss ${pillar.title}`}>Discuss this service <span aria-hidden="true">â†’</span></a>
             </article>)}
           </div>
         </div>
@@ -155,7 +163,7 @@ export default function HomePage() {
       <section id="training" className="soft-section">
         <div className="container">
           <div className="section-heading split-heading"><div><span className="eyebrow">Featured Training Programmes</span><h2>Practical programmes for safer and stronger workplaces.</h2></div><p>Programme scope and duration can be tailored to participant profiles, site risks and operational objectives.</p></div>
-          <div className="programme-grid">{programmes.map(([number,title,text])=><article key={title}><span>{number}</span><h3>{title}</h3><p>{text}</p><a href="#contact">Enquire now →</a></article>)}</div>
+          <div className="programme-grid">{programmes.map(([number,title,text])=><article key={title}><span>{number}</span><h3>{title}</h3><p>{text}</p><a href="#contact">Enquire now â†’</a></article>)}</div>
         </div>
       </section>
 
@@ -165,20 +173,47 @@ export default function HomePage() {
           <div className="industry-grid">{industries.map((industry,index)=><article key={industry}><span>{String(index+1).padStart(2,"0")}</span><h3>{industry}</h3></article>)}</div>
         </div>
       </section>
+      <section id="methodology" className="method-section" aria-labelledby="methodology-title">
+        <div className="container">
+          <div className="section-heading split-heading method-heading">
+            <div>
+              <span className="eyebrow">Training Methodology</span>
+              <h2 id="methodology-title">A structured pathway from need to verified competence.</h2>
+            </div>
+            <p>Every programme follows a disciplined learning cycle designed to connect organisational needs with practical workplace performance.</p>
+          </div>
 
-      <section id="methodology" className="method-section">
-        <div className="container"><div className="section-heading"><span className="eyebrow">Training Methodology</span><h2>A structured pathway from need to competence.</h2></div><div className="method-grid">{methodology.map((step,index)=><article key={step}><span>{String(index+1).padStart(2,"0")}</span><h3>{step}</h3></article>)}</div></div>
+          <div className="method-timeline" aria-label="TERAS UNIVERSAL training methodology">
+            {methodology.map((step, index) => (
+              <article className="method-step" key={step.title}>
+                <div className="method-step-marker"><span>{step.number}</span></div>
+                <div className="method-step-content">
+                  <small>{step.code}</small>
+                  <h3>{step.title}</h3>
+                  <p>{step.text}</p>
+                </div>
+                {index < methodology.length - 1 && <span className="method-connector" aria-hidden="true">â†’</span>}
+              </article>
+            ))}
+          </div>
+
+          <div className="method-outcome">
+            <span>END RESULT</span>
+            <strong>Competent people. Safer execution. Stronger organisational performance.</strong>
+          </div>
+        </div>
       </section>
 
       <section className="premium-cta-section"><div className="container premium-cta"><div><span>Corporate & Custom Solutions</span><h2>Ready to strengthen your workforce competency?</h2><p>Speak with our team about a training or consultancy solution aligned with your operational requirements.</p></div><a className="btn btn-light" href="#contact">Request a Proposal</a></div></section>
 
       <section id="contact" className="contact-section">
-        <div className="container"><div className="section-heading"><span className="eyebrow">Contact Us</span><h2>Let us discuss your requirements.</h2></div><div className="contact-layout"><ContactForm /><div className="contact-details"><div className="detail-card"><h3>TERAS UNIVERSAL SDN. BHD.</h3><p>Industrial Safety Training · Technical Competency · Consultancy</p><dl><div><dt>Phone</dt><dd><a href="tel:+60195193834">+60 19-519 3834</a></dd></div><div><dt>Training</dt><dd><a href="mailto:training@terasuniversal.com.my">training@terasuniversal.com.my</a></dd></div><div><dt>Administration</dt><dd><a href="mailto:admin@terasuniversal.com.my">admin@terasuniversal.com.my</a></dd></div><div><dt>Address</dt><dd>Lot 1961, Jalan Tanah Merah, Kg Tanah Merah Dalam, 06000 Jitra, Kedah, Malaysia</dd></div></dl></div><div className="map-card"><iframe title="TERAS UNIVERSAL location" src="https://www.google.com/maps?q=Lot%201961%2C%20Jalan%20Tanah%20Merah%2C%20Kg%20Tanah%20Merah%20Dalam%2C%2006000%20Jitra%2C%20Kedah%2C%20Malaysia&output=embed" loading="lazy" referrerPolicy="no-referrer-when-downgrade" /></div></div></div></div>
+        <div className="container"><div className="section-heading"><span className="eyebrow">Contact Us</span><h2>Let us discuss your requirements.</h2></div><div className="contact-layout"><ContactForm /><div className="contact-details"><div className="detail-card"><h3>TERAS UNIVERSAL SDN. BHD.</h3><p>Industrial Safety Training Â· Technical Competency Â· Consultancy</p><dl><div><dt>Phone</dt><dd><a href="tel:+60195193834">+60 19-519 3834</a></dd></div><div><dt>Training</dt><dd><a href="mailto:training@terasuniversal.com.my">training@terasuniversal.com.my</a></dd></div><div><dt>Administration</dt><dd><a href="mailto:admin@terasuniversal.com.my">admin@terasuniversal.com.my</a></dd></div><div><dt>Address</dt><dd>Lot 1961, Jalan Tanah Merah, Kg Tanah Merah Dalam, 06000 Jitra, Kedah, Malaysia</dd></div></dl></div><div className="map-card"><iframe title="TERAS UNIVERSAL location" src="https://www.google.com/maps?q=Lot%201961%2C%20Jalan%20Tanah%20Merah%2C%20Kg%20Tanah%20Merah%20Dalam%2C%2006000%20Jitra%2C%20Kedah%2C%20Malaysia&output=embed" loading="lazy" referrerPolicy="no-referrer-when-downgrade" /></div></div></div></div>
       </section>
 
       <a className="floating-whatsapp" href="https://wa.me/60195193834?text=Hello%20TERAS%20UNIVERSAL%2C%20I%20would%20like%20to%20enquire%20about%20your%20training%20and%20consultancy%20services." target="_blank" rel="noreferrer" aria-label="Contact TERAS UNIVERSAL on WhatsApp">WA</a>
 
-      <footer><div className="container footer-grid"><div className="footer-brand"><Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL" width={210} height={135} /><p>Building Competence. Creating Opportunities.</p></div><div><h3>Core Services</h3><p>Industrial Safety<br/>Technical Competency<br/>Industrial Consultancy<br/>Workforce Development</p></div><div><h3>Contact</h3><p><a href="mailto:training@terasuniversal.com.my">training@terasuniversal.com.my</a><br/><a href="tel:+60195193834">+60 19-519 3834</a></p><p>Lot 1961, Jalan Tanah Merah,<br/>Kg Tanah Merah Dalam,<br/>06000 Jitra, Kedah, Malaysia</p></div></div><div className="container footer-bottom"><span>© 2026 TERAS UNIVERSAL SDN. BHD. All rights reserved.</span><span>terasuniversal.com.my</span></div></footer>
+      <footer><div className="container footer-grid"><div className="footer-brand"><Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL" width={210} height={135} /><p>Building Competence. Creating Opportunities.</p></div><div><h3>Core Services</h3><p>Industrial Safety<br/>Technical Competency<br/>Industrial Consultancy<br/>Workforce Development</p></div><div><h3>Contact</h3><p><a href="mailto:training@terasuniversal.com.my">training@terasuniversal.com.my</a><br/><a href="tel:+60195193834">+60 19-519 3834</a></p><p>Lot 1961, Jalan Tanah Merah,<br/>Kg Tanah Merah Dalam,<br/>06000 Jitra, Kedah, Malaysia</p></div></div><div className="container footer-bottom"><span>Â© 2026 TERAS UNIVERSAL SDN. BHD. All rights reserved.</span><span>terasuniversal.com.my</span></div></footer>
     </main>
   );
 }
+
