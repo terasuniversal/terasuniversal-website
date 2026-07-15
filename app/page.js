@@ -68,6 +68,13 @@ const methodology = [
 ];
 const industries = ["Oil & Gas", "Petrochemical", "Construction", "Power & Utilities", "Manufacturing", "Marine & Offshore", "Heavy Industry", "Government & GLC"];
 
+const facilities = [
+  ["01", "Classroom Learning", "A professional learning environment for theory sessions, briefings, group discussions and knowledge assessments.", "Photo placeholder — insert a verified TERAS UNIVERSAL classroom image."],
+  ["02", "Practical Training Area", "A controlled setting for demonstrations, guided exercises and practical competency development.", "Photo placeholder — insert a verified practical training image."],
+  ["03", "Scaffold Training Yard", "A dedicated space for scaffolding-related learning, inspection awareness and safe-use demonstrations.", "Photo placeholder — insert a verified scaffold yard image."],
+  ["04", "Assessment Area", "A designated area for practical demonstrations, performance evaluation and structured competency assessment.", "Photo placeholder — insert a verified assessment image."],
+];
+
 export default function HomePage() {
   return (
     <main>
@@ -234,6 +241,33 @@ export default function HomePage() {
               <p>Structured theoretical and practical evaluation based on defined programme and competency requirements.</p>
               <a href="#contact">Discuss your requirements <span aria-hidden="true">&rarr;</span></a>
             </article>
+          </div>
+        </div>
+      </section>
+      <section id="facilities" className="facilities-section" aria-labelledby="facilities-title">
+        <div className="container">
+          <div className="section-heading split-heading facilities-heading">
+            <div>
+              <span className="eyebrow">Training Facilities</span>
+              <h2 id="facilities-title">Learning environments designed for practical development.</h2>
+            </div>
+            <p>Our training environments are presented here as a structured framework. Verified photographs and facility details can be added as they become available.</p>
+          </div>
+          <div className="facilities-grid">
+            {facilities.map(([number, title, text, placeholder]) => (
+              <article className="facility-card" key={title}>
+                <div className="facility-media" aria-label={`${title} photo placeholder`}>
+                  <span className="facility-media-label">PHOTO PLACEHOLDER</span>
+                  <span className="facility-media-note">Verified TERAS UNIVERSAL image to be added</span>
+                </div>
+                <div className="facility-content">
+                  <span className="facility-number">{number}</span>
+                  <h3>{title}</h3>
+                  <p>{text}</p>
+                  <small>{placeholder}</small>
+                </div>
+              </article>
+            ))}
           </div>
         </div>
       </section>
