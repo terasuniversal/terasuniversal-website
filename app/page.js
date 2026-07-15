@@ -1,4 +1,4 @@
-﻿import Image from "next/image";
+import Image from "next/image";
 import ContactForm from "../components/ContactForm";
 import MobileNav from "../components/MobileNav";
 
@@ -72,10 +72,10 @@ const industries = ["Oil & Gas", "Petrochemical", "Construction", "Power & Utili
 const verifiedRecognitions = [];
 
 const facilities = [
-  ["01", "Classroom Learning", "A professional learning environment for theory sessions, briefings, group discussions and knowledge assessments.", "Photo placeholder — insert a verified TERAS UNIVERSAL classroom image."],
-  ["02", "Practical Training Area", "A controlled setting for demonstrations, guided exercises and practical competency development.", "Photo placeholder — insert a verified practical training image."],
-  ["03", "Scaffold Training Yard", "A dedicated space for scaffolding-related learning, inspection awareness and safe-use demonstrations.", "Photo placeholder — insert a verified scaffold yard image."],
-  ["04", "Assessment Area", "A designated area for practical demonstrations, performance evaluation and structured competency assessment.", "Photo placeholder — insert a verified assessment image."],
+  ["01", "Classroom Learning", "A professional learning environment for theory sessions, briefings, group discussions and knowledge assessments.", "/temporary/temp-training-safety-session.webp", "Temporary stock image of industrial workers receiving a safety briefing indoors."],
+  ["02", "Practical Training Area", "A controlled setting for demonstrations, guided exercises and practical competency development.", "/temporary/temp-safety-drill.webp", "Temporary stock image of a safety demonstration in an outdoor industrial setting."],
+  ["03", "Scaffold Training Yard", "A dedicated space for scaffolding-related learning, inspection awareness and safe-use demonstrations.", "/temporary/temp-hero-scaffolding.webp", "Temporary stock image of a construction worker on scaffolding in safety gear."],
+  ["04", "Assessment Area", "A designated area for practical demonstrations, performance evaluation and structured competency assessment.", "/temporary/temp-industrial-machinery.webp", "Temporary stock image of industrial workers operating machinery in safety gear."],
 ];
 
 export default function HomePage() {
@@ -119,6 +119,11 @@ export default function HomePage() {
           </div>
 
           <div className="premium-visual hero-command-panel" aria-label="TERAS UNIVERSAL capability highlights">
+            {/* TEMPORARY STOCK IMAGE: replace with a verified TERAS UNIVERSAL visual when available. */}
+            <div className="hero-stock-image">
+              <Image src="/temporary/temp-hero-scaffolding.webp" alt="Temporary stock image of a construction worker on scaffolding in safety gear." width={1600} height={900} priority />
+              <span className="temporary-image-label">Temporary stock image</span>
+            </div>
             <div className="hero-panel-label">THE STANDARD OF COMPETENCE</div>
             <div className="hero-panel-main">
               <span className="visual-kicker">Integrated Industrial Solutions</span>
@@ -205,6 +210,21 @@ export default function HomePage() {
         <div className="container">
           <div className="section-heading split-heading"><div><span className="eyebrow">Featured Training Programmes</span><h2>Practical programmes for safer and stronger workplaces.</h2></div><p>Programme scope and duration can be tailored to participant profiles, site risks and operational objectives.</p></div>
           <div className="programme-grid">{programmes.map(([number,title,text])=><article key={title}><span>{number}</span><h3>{title}</h3><p>{text}</p><a href="#contact">Enquire now <span aria-hidden="true">&rarr;</span></a></article>)}</div>
+          {/* TEMPORARY STOCK IMAGES: these visuals illustrate industry context only and do not depict TERAS UNIVERSAL programmes. */}
+          <div className="training-visual-strip" aria-label="Temporary stock images illustrating industrial training contexts">
+            <figure>
+              <Image src="/temporary/temp-training-safety-session.webp" alt="Temporary stock image of industrial workers in safety gear during an indoor training session." width={900} height={600} />
+              <figcaption>Temporary stock image - indoor safety training context</figcaption>
+            </figure>
+            <figure>
+              <Image src="/temporary/temp-safety-drill.webp" alt="Temporary stock image of a worker demonstrating a safety procedure outdoors." width={900} height={600} />
+              <figcaption>Temporary stock image - practical safety demonstration context</figcaption>
+            </figure>
+            <figure>
+              <Image src="/temporary/temp-industrial-machinery.webp" alt="Temporary stock image of industrial workers operating machinery in protective equipment." width={900} height={600} />
+              <figcaption>Temporary stock image - technical competency context</figcaption>
+            </figure>
+          </div>
         </div>
       </section>
 
@@ -257,17 +277,18 @@ export default function HomePage() {
             <p>Our training environments are presented here as a structured framework. Verified photographs and facility details can be added as they become available.</p>
           </div>
           <div className="facilities-grid">
-            {facilities.map(([number, title, text, placeholder]) => (
+            {facilities.map(([number, title, text, image, alt]) => (
               <article className="facility-card" key={title}>
-                <div className="facility-media" aria-label={`${title} photo placeholder`}>
-                  <span className="facility-media-label">PHOTO PLACEHOLDER</span>
-                  <span className="facility-media-note">Verified TERAS UNIVERSAL image to be added</span>
+                {/* TEMPORARY STOCK IMAGE: replace with a verified TERAS UNIVERSAL facility photo when available. */}
+                <div className="facility-media">
+                  <Image src={image} alt={alt} width={900} height={600} />
+                  <span className="temporary-image-label">Temporary stock image</span>
                 </div>
                 <div className="facility-content">
                   <span className="facility-number">{number}</span>
                   <h3>{title}</h3>
                   <p>{text}</p>
-                  <small>{placeholder}</small>
+                  <small>Temporary visual only - replace with a verified TERAS UNIVERSAL facility image.</small>
                 </div>
               </article>
             ))}
