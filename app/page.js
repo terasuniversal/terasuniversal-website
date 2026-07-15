@@ -83,26 +83,57 @@ export default function HomePage() {
           <MobileNav />
         </div>
       </header>
-
-      <section className="hero" id="home">
+      <section className="hero hero-corporate" id="home">
+        <div className="hero-industrial-grid" aria-hidden="true" />
         <div className="container hero-grid">
           <div className="hero-copy">
             <span className="eyebrow">Malaysiaâ€™s Industrial Safety & Competency Partner</span>
-            <h1>Building Competence for <span>Safer, Stronger Industries.</span></h1>
-            <p className="hero-lead">TERAS UNIVERSAL provides competency-based industrial safety training, technical development, consultancy and workforce solutions for safety-critical organisations.</p>
+            <h1>
+              Building Competence for
+              <span> Safer, Stronger Industries.</span>
+            </h1>
+            <p className="hero-lead">
+              TERAS UNIVERSAL delivers competency-based industrial safety training,
+              technical development, consultancy and workforce solutions for
+              organisations operating in safety-critical environments.
+            </p>
             <div className="hero-actions">
               <a className="btn btn-primary" href="#training">Explore Our Training</a>
               <a className="btn btn-outline" href="#contact">Request a Corporate Proposal</a>
             </div>
-            <div className="trust-row"><span>Practical learning</span><span>Compliance focused</span><span>Custom corporate programmes</span></div>
+            <div className="hero-proof" aria-label="TERAS UNIVERSAL strengths">
+              <span>Practical delivery</span>
+              <span>Compliance focused</span>
+              <span>Custom corporate programmes</span>
+            </div>
           </div>
-          <div className="premium-visual" aria-label="TERAS UNIVERSAL service highlights">
-            <div className="visual-orbit orbit-one" /><div className="visual-orbit orbit-two" />
-            <div className="visual-core"><span className="visual-kicker">The Standard of Competence</span><h2>Safety. Skills. Compliance.</h2><p>Structured learning and practical solutions designed around the realities of modern industry.</p><div className="visual-badges"><span>Industrial Safety</span><span>Technical Competency</span><span>Consultancy</span></div></div>
-            <div className="floating-card card-one"><strong>01</strong><span>Analyse operational needs</span></div>
-            <div className="floating-card card-two"><strong>02</strong><span>Develop practical capability</span></div>
-            <div className="floating-card card-three"><strong>03</strong><span>Verify workplace competence</span></div>
+
+          <div className="premium-visual hero-command-panel" aria-label="TERAS UNIVERSAL capability highlights">
+            <div className="hero-panel-label">THE STANDARD OF COMPETENCE</div>
+            <div className="hero-panel-main">
+              <span className="visual-kicker">Integrated Industrial Solutions</span>
+              <h2>Safety. Skills. Compliance.</h2>
+              <p>
+                Structured learning and practical solutions designed around real
+                operational risks, workforce needs and industry expectations.
+              </p>
+            </div>
+            <div className="hero-panel-services">
+              <article><strong>01</strong><span>Industrial Safety</span></article>
+              <article><strong>02</strong><span>Technical Competency</span></article>
+              <article><strong>03</strong><span>Industrial Consultancy</span></article>
+              <article><strong>04</strong><span>Workforce Development</span></article>
+            </div>
           </div>
+        </div>
+      </section>
+
+      <section className="capability-strip" aria-label="TERAS UNIVERSAL corporate capabilities">
+        <div className="container capability-grid">
+          <article><strong>4</strong><span>Core Service Pillars</span><small>Integrated industrial solutions</small></article>
+          <article><strong>7</strong><span>Methodology Stages</span><small>From need analysis to improvement</small></article>
+          <article><strong>3</strong><span>Flexible Delivery Modes</span><small>Public Â· In-house Â· Onsite</small></article>
+          <article><strong>360Â°</strong><span>Competency Focus</span><small>Theory Â· Practical Â· Assessment</small></article>
         </div>
       </section>
 
@@ -216,4 +247,5 @@ export default function HomePage() {
     </main>
   );
 }
+
 
