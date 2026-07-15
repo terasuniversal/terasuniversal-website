@@ -306,6 +306,22 @@ export default function HomePage() {
           <p className="recognition-note">Supporting documentation is available upon request.</p>
         </div>
       </section>
+      <section id="projects" className="projects-section" aria-labelledby="projects-title">
+        <div className="container">
+          <div className="section-heading split-heading projects-heading">
+            <div>
+              <span className="eyebrow">Projects &amp; Achievements</span>
+              <h2 id="projects-title">Evidence-led delivery for industry.</h2>
+            </div>
+            <p>Selected projects, programme outcomes and performance indicators will be published here after the supporting records have been verified.</p>
+          </div>
+          <div className="projects-empty" role="status">
+            <span className="projects-empty-label">PROJECT RECORDS</span>
+            <h3>No verified projects currently published</h3>
+            <p>Project names, dates, locations, participant figures and outcomes will be added only after they are confirmed through company records or approved client documentation.</p>
+          </div>
+        </div>
+      </section>
       <section id="industries">
         <div className="container">
           <div className="section-heading"><span className="eyebrow">Industries We Serve</span><h2>Supporting Safety-Critical Industries</h2><p>TERAS UNIVERSAL supports organisations operating in environments where safety, technical competence, operational reliability and compliance are essential.</p></div>
