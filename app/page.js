@@ -87,7 +87,7 @@ export default function HomePage() {
         <div className="hero-industrial-grid" aria-hidden="true" />
         <div className="container hero-grid">
           <div className="hero-copy">
-            <span className="eyebrow">Malaysiaâ€™s Industrial Safety & Competency Partner</span>
+            <span className="eyebrow">Malaysia&apos;s Industrial Safety &amp; Competency Partner</span>
             <h1>
               Building Competence for
               <span> Safer, Stronger Industries.</span>
@@ -132,8 +132,8 @@ export default function HomePage() {
         <div className="container capability-grid">
           <article><strong>4</strong><span>Core Service Pillars</span><small>Integrated industrial solutions</small></article>
           <article><strong>7</strong><span>Methodology Stages</span><small>From need analysis to improvement</small></article>
-          <article><strong>3</strong><span>Flexible Delivery Modes</span><small>Public Â· In-house Â· Onsite</small></article>
-          <article><strong>360Â°</strong><span>Competency Focus</span><small>Theory Â· Practical Â· Assessment</small></article>
+          <article><strong>3</strong><span>Flexible Delivery Modes</span><small>Public &middot; In-house &middot; Onsite</small></article>
+          <article><strong>360&deg;</strong><span>Competency Focus</span><small>Theory &middot; Practical &middot; Assessment</small></article>
         </div>
       </section>
 
@@ -155,7 +155,7 @@ export default function HomePage() {
         <div className="container">
           <div className="section-heading split-heading pillar-heading">
             <div><span className="eyebrow">Four Core Service Pillars</span><h2>Integrated solutions for competence, compliance and performance.</h2></div>
-            <p>Each pillar addresses a specific organisational challengeâ€”from controlling high-risk work to building long-term workforce capability.</p>
+            <p>Each pillar addresses a specific organisational challenge&mdash;from controlling high-risk work to building long-term workforce capability.</p>
           </div>
           <div className="pillar-grid">
             {pillars.map((pillar)=><article className="pillar-card" key={pillar.title}>
@@ -169,7 +169,7 @@ export default function HomePage() {
                 {pillar.services.map(service=><span key={service}>{service}</span>)}
               </div>
               <div className="pillar-outcome"><small>BUSINESS OUTCOME</small><strong>{pillar.outcome}</strong></div>
-              <a href="#contact" aria-label={`Discuss ${pillar.title}`}>Discuss this service <span aria-hidden="true">â†’</span></a>
+              <a href="#contact" aria-label={`Discuss ${pillar.title}`}>Discuss this service <span aria-hidden="true">&rarr;</span></a>
             </article>)}
           </div>
         </div>
@@ -194,7 +194,7 @@ export default function HomePage() {
       <section id="training" className="soft-section">
         <div className="container">
           <div className="section-heading split-heading"><div><span className="eyebrow">Featured Training Programmes</span><h2>Practical programmes for safer and stronger workplaces.</h2></div><p>Programme scope and duration can be tailored to participant profiles, site risks and operational objectives.</p></div>
-          <div className="programme-grid">{programmes.map(([number,title,text])=><article key={title}><span>{number}</span><h3>{title}</h3><p>{text}</p><a href="#contact">Enquire now â†’</a></article>)}</div>
+          <div className="programme-grid">{programmes.map(([number,title,text])=><article key={title}><span>{number}</span><h3>{title}</h3><p>{text}</p><a href="#contact">Enquire now <span aria-hidden="true">&rarr;</span></a></article>)}</div>
         </div>
       </section>
 
@@ -223,7 +223,7 @@ export default function HomePage() {
                   <h3>{step.title}</h3>
                   <p>{step.text}</p>
                 </div>
-                {index < methodology.length - 1 && <span className="method-connector" aria-hidden="true">â†’</span>}
+                {index < methodology.length - 1 && <span className="method-connector" aria-hidden="true">&rarr;</span>}
               </article>
             ))}
           </div>
@@ -238,14 +238,16 @@ export default function HomePage() {
       <section className="premium-cta-section"><div className="container premium-cta"><div><span>Corporate & Custom Solutions</span><h2>Ready to strengthen your workforce competency?</h2><p>Speak with our team about a training or consultancy solution aligned with your operational requirements.</p></div><a className="btn btn-light" href="#contact">Request a Proposal</a></div></section>
 
       <section id="contact" className="contact-section">
-        <div className="container"><div className="section-heading"><span className="eyebrow">Contact Us</span><h2>Let us discuss your requirements.</h2></div><div className="contact-layout"><ContactForm /><div className="contact-details"><div className="detail-card"><h3>TERAS UNIVERSAL SDN. BHD.</h3><p>Industrial Safety Training Â· Technical Competency Â· Consultancy</p><dl><div><dt>Phone</dt><dd><a href="tel:+60195193834">+60 19-519 3834</a></dd></div><div><dt>Training</dt><dd><a href="mailto:training@terasuniversal.com.my">training@terasuniversal.com.my</a></dd></div><div><dt>Administration</dt><dd><a href="mailto:admin@terasuniversal.com.my">admin@terasuniversal.com.my</a></dd></div><div><dt>Address</dt><dd>Lot 1961, Jalan Tanah Merah, Kg Tanah Merah Dalam, 06000 Jitra, Kedah, Malaysia</dd></div></dl></div><div className="map-card"><iframe title="TERAS UNIVERSAL location" src="https://www.google.com/maps?q=Lot%201961%2C%20Jalan%20Tanah%20Merah%2C%20Kg%20Tanah%20Merah%20Dalam%2C%2006000%20Jitra%2C%20Kedah%2C%20Malaysia&output=embed" loading="lazy" referrerPolicy="no-referrer-when-downgrade" /></div></div></div></div>
+        <div className="container"><div className="section-heading"><span className="eyebrow">Contact Us</span><h2>Let us discuss your requirements.</h2></div><div className="contact-layout"><ContactForm /><div className="contact-details"><div className="detail-card"><h3>TERAS UNIVERSAL SDN. BHD.</h3><p>Industrial Safety Training &middot; Technical Competency &middot; Consultancy</p><dl><div><dt>Phone</dt><dd><a href="tel:+60195193834">+60 19-519 3834</a></dd></div><div><dt>Training</dt><dd><a href="mailto:training@terasuniversal.com.my">training@terasuniversal.com.my</a></dd></div><div><dt>Administration</dt><dd><a href="mailto:admin@terasuniversal.com.my">admin@terasuniversal.com.my</a></dd></div><div><dt>Address</dt><dd>Lot 1961, Jalan Tanah Merah, Kg Tanah Merah Dalam, 06000 Jitra, Kedah, Malaysia</dd></div></dl></div><div className="map-card"><iframe title="TERAS UNIVERSAL location" src="https://www.google.com/maps?q=Lot%201961%2C%20Jalan%20Tanah%20Merah%2C%20Kg%20Tanah%20Merah%20Dalam%2C%2006000%20Jitra%2C%20Kedah%2C%20Malaysia&output=embed" loading="lazy" referrerPolicy="no-referrer-when-downgrade" /></div></div></div></div>
       </section>
 
       <a className="floating-whatsapp" href="https://wa.me/60195193834?text=Hello%20TERAS%20UNIVERSAL%2C%20I%20would%20like%20to%20enquire%20about%20your%20training%20and%20consultancy%20services." target="_blank" rel="noreferrer" aria-label="Contact TERAS UNIVERSAL on WhatsApp">WA</a>
 
-      <footer><div className="container footer-grid"><div className="footer-brand"><Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL" width={210} height={135} /><p>Building Competence. Creating Opportunities.</p></div><div><h3>Core Services</h3><p>Industrial Safety<br/>Technical Competency<br/>Industrial Consultancy<br/>Workforce Development</p></div><div><h3>Contact</h3><p><a href="mailto:training@terasuniversal.com.my">training@terasuniversal.com.my</a><br/><a href="tel:+60195193834">+60 19-519 3834</a></p><p>Lot 1961, Jalan Tanah Merah,<br/>Kg Tanah Merah Dalam,<br/>06000 Jitra, Kedah, Malaysia</p></div></div><div className="container footer-bottom"><span>Â© 2026 TERAS UNIVERSAL SDN. BHD. All rights reserved.</span><span>terasuniversal.com.my</span></div></footer>
+      <footer><div className="container footer-grid"><div className="footer-brand"><Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL" width={210} height={135} /><p>Building Competence. Creating Opportunities.</p></div><div><h3>Core Services</h3><p>Industrial Safety<br/>Technical Competency<br/>Industrial Consultancy<br/>Workforce Development</p></div><div><h3>Contact</h3><p><a href="mailto:training@terasuniversal.com.my">training@terasuniversal.com.my</a><br/><a href="tel:+60195193834">+60 19-519 3834</a></p><p>Lot 1961, Jalan Tanah Merah,<br/>Kg Tanah Merah Dalam,<br/>06000 Jitra, Kedah, Malaysia</p></div></div><div className="container footer-bottom"><span>&copy; 2026 TERAS UNIVERSAL SDN. BHD. All rights reserved.</span><span>terasuniversal.com.my</span></div></footer>
     </main>
   );
 }
+
+
 
 
