@@ -1,5 +1,6 @@
 ﻿import Image from "next/image";
 import ContactForm from "../components/ContactForm";
+import FaqAccordion from "../components/FaqAccordion";
 import MobileNav from "../components/MobileNav";
 
 const pillars = [
@@ -417,23 +418,19 @@ export default function HomePage() {
       </section>
 
       
+      
       <section id="faq" className="faq-section" aria-labelledby="faq-title">
         <div className="container">
           <div className="section-heading faq-heading">
             <span className="eyebrow">Frequently Asked Questions</span>
-            <h2 id="faq-title">Clear answers for your training requirements.</h2>
-            <p>Find practical information about our programmes, delivery arrangements and competency-focused approach.</p>
+            <h2 id="faq-title">Frequently Asked Questions</h2>
+            <p>Find quick answers about our training delivery, programme arrangements and corporate training solutions.</p>
           </div>
-          <div className="faq-grid">
-            <details><summary>What types of training does TERAS UNIVERSAL provide?</summary><p>We provide industrial safety training, technical competency development, consultancy and workforce development programmes for safety-critical environments.</p></details>
-            <details><summary>Can a programme be customised for our organisation?</summary><p>Yes. Programme scope, delivery method, content and assessment approach can be aligned with your workforce profile, operational environment and project requirements.</p></details>
-            <details><summary>Where can training be delivered?</summary><p>Training can be arranged as a public programme, in-house at your organisation or onsite at an approved workplace, plant, project site or operational facility.</p></details>
-            <details><summary>Do programmes include practical assessment?</summary><p>Where required, programmes can combine theory, demonstrations, guided practical work and structured competency assessment against defined requirements.</p></details>
-            <details><summary>Who can participate in the programmes?</summary><p>Programmes can be designed for individuals, workforce groups, supervisors, technical personnel and organisations seeking structured competency development.</p></details>
-            <details><summary>How do we request a corporate proposal?</summary><p>Contact our team through the enquiry form, email or WhatsApp with your workforce profile, training requirement and preferred arrangement.</p></details>
-          </div>
+          <FaqAccordion />
         </div>
-      </section><section className="premium-cta-section"><div className="container premium-cta"><div><span>Corporate & Custom Solutions</span><h2>Ready to strengthen your workforce competency?</h2><p>Speak with our team about a training or consultancy solution aligned with your operational requirements.</p></div><a className="btn btn-light" href="#contact">Request a Proposal</a></div></section>
+      </section>
+
+      <section className="premium-cta-section"><div className="container premium-cta"><div><span>Corporate & Custom Solutions</span><h2>Ready to strengthen your workforce competency?</h2><p>Speak with our team about a training or consultancy solution aligned with your operational requirements.</p></div><a className="btn btn-light" href="#contact">Request a Proposal</a></div></section>
 
       <section id="contact" className="contact-section">
         <div className="container"><div className="section-heading"><span className="eyebrow">Contact Us</span><h2>Let us discuss your requirements.</h2></div><div className="contact-layout"><ContactForm /><div className="contact-details"><div className="detail-card"><h3>TERAS UNIVERSAL SDN. BHD.</h3><p>Industrial Safety Training &middot; Technical Competency &middot; Consultancy</p><dl><div><dt>Phone</dt><dd><a href="tel:+60195193834">+60 19-519 3834</a></dd></div><div><dt>Training</dt><dd><a href="mailto:training@terasuniversal.com.my">training@terasuniversal.com.my</a></dd></div><div><dt>Administration</dt><dd><a href="mailto:admin@terasuniversal.com.my">admin@terasuniversal.com.my</a></dd></div><div><dt>Address</dt><dd>Lot 1961, Jalan Tanah Merah, Kg Tanah Merah Dalam, 06000 Jitra, Kedah, Malaysia</dd></div></dl></div><div className="map-card"><iframe title="TERAS UNIVERSAL location" src="https://www.google.com/maps?q=Lot%201961%2C%20Jalan%20Tanah%20Merah%2C%20Kg%20Tanah%20Merah%20Dalam%2C%2006000%20Jitra%2C%20Kedah%2C%20Malaysia&output=embed" loading="lazy" referrerPolicy="no-referrer-when-downgrade" /></div></div></div></div>
@@ -445,6 +442,8 @@ export default function HomePage() {
     </main>
   );
 }
+
+
 
 
 
