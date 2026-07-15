@@ -68,6 +68,9 @@ const methodology = [
 ];
 const industries = ["Oil & Gas", "Petrochemical", "Construction", "Power & Utilities", "Manufacturing", "Marine & Offshore", "Heavy Industry", "Government & GLC"];
 
+// Keep this list empty until supporting registration or certificate documents are verified.
+const verifiedRecognitions = [];
+
 const facilities = [
   ["01", "Classroom Learning", "A professional learning environment for theory sessions, briefings, group discussions and knowledge assessments.", "Photo placeholder — insert a verified TERAS UNIVERSAL classroom image."],
   ["02", "Practical Training Area", "A controlled setting for demonstrations, guided exercises and practical competency development.", "Photo placeholder — insert a verified practical training image."],
@@ -269,6 +272,38 @@ export default function HomePage() {
               </article>
             ))}
           </div>
+        </div>
+      </section>
+      <section id="recognition" className="recognition-section" aria-labelledby="recognition-title">
+        <div className="container">
+          <div className="section-heading split-heading recognition-heading">
+            <div>
+              <span className="eyebrow">Accreditation &amp; Recognition</span>
+              <h2 id="recognition-title">Accreditation, Registration &amp; Industry Recognition</h2>
+            </div>
+            <p>We publish registration and recognition details only when the supporting documentation has been verified and is current.</p>
+          </div>
+          {verifiedRecognitions.length > 0 ? (
+            <div className="recognition-grid">
+              {verifiedRecognitions.map((item) => (
+                <article className="recognition-card" key={item.name}>
+                  <span className="recognition-status">{item.status}</span>
+                  <h3>{item.name}</h3>
+                  <dl>
+                    <div><dt>Registration / Certificate No.</dt><dd>{item.number}</dd></div>
+                    <div><dt>Scope</dt><dd>{item.scope}</dd></div>
+                    <div><dt>Validity</dt><dd>{item.validity}</dd></div>
+                  </dl>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="recognition-empty" role="status">
+              <h3>No verified registrations currently published</h3>
+              <p>Registration and certificate details will be added after the relevant supporting documents are reviewed and confirmed.</p>
+            </div>
+          )}
+          <p className="recognition-note">Supporting documentation is available upon request.</p>
         </div>
       </section>
       <section id="industries">
