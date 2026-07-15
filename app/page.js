@@ -200,7 +200,7 @@ export default function HomePage() {
 
       <section id="industries">
         <div className="container">
-          <div className="section-heading"><span className="eyebrow">Industries We Serve</span><h2>Supporting safety-critical industries.</h2><p>Our programmes support organisations where technical competence, operational reliability and compliance are essential.</p></div>
+          <div className="section-heading"><span className="eyebrow">Industries We Serve</span><h2>Supporting Safety-Critical Industries</h2><p>TERAS UNIVERSAL supports organisations operating in environments where safety, technical competence, operational reliability and compliance are essential.</p></div>
           <div className="industry-grid">{industries.map((industry,index)=><article key={industry}><span>{String(index+1).padStart(2,"0")}</span><h3>{industry}</h3></article>)}</div>
         </div>
       </section>
@@ -247,6 +247,7 @@ export default function HomePage() {
     </main>
   );
 }
+
 
 
 
