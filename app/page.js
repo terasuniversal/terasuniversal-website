@@ -198,6 +198,45 @@ export default function HomePage() {
         </div>
       </section>
 
+      <section id="delivery" className="delivery-section" aria-labelledby="delivery-title">
+        <div className="container">
+          <div className="section-heading delivery-heading">
+            <span className="eyebrow">Training Delivery Options</span>
+            <h2 id="delivery-title">Flexible Training Solutions for Your Organisation</h2>
+            <p>Our programmes can be delivered according to your workforce profile, operational environment, project requirements and preferred training arrangement.</p>
+          </div>
+          <div className="delivery-grid">
+            <article className="delivery-card">
+              <span className="delivery-number">01</span>
+              <small>PUBLIC PROGRAMME</small>
+              <h3>Public Programme</h3>
+              <p>Scheduled programmes for individuals and employees from different organisations.</p>
+              <a href="#contact">Discuss your requirements <span aria-hidden="true">&rarr;</span></a>
+            </article>
+            <article className="delivery-card">
+              <span className="delivery-number">02</span>
+              <small>IN-HOUSE</small>
+              <h3>Corporate In-House Training</h3>
+              <p>Customised programmes delivered exclusively for one organisation, department or workforce group.</p>
+              <a href="#contact">Discuss your requirements <span aria-hidden="true">&rarr;</span></a>
+            </article>
+            <article className="delivery-card">
+              <span className="delivery-number">03</span>
+              <small>ONSITE</small>
+              <h3>Onsite Training</h3>
+              <p>Training conducted at the client&apos;s workplace, plant, project site or approved operational facility.</p>
+              <a href="#contact">Discuss your requirements <span aria-hidden="true">&rarr;</span></a>
+            </article>
+            <article className="delivery-card">
+              <span className="delivery-number">04</span>
+              <small>ASSESSMENT</small>
+              <h3>Competency Assessment</h3>
+              <p>Structured theoretical and practical evaluation based on defined programme and competency requirements.</p>
+              <a href="#contact">Discuss your requirements <span aria-hidden="true">&rarr;</span></a>
+            </article>
+          </div>
+        </div>
+      </section>
       <section id="industries">
         <div className="container">
           <div className="section-heading"><span className="eyebrow">Industries We Serve</span><h2>Supporting Safety-Critical Industries</h2><p>TERAS UNIVERSAL supports organisations operating in environments where safety, technical competence, operational reliability and compliance are essential.</p></div>
@@ -247,6 +286,7 @@ export default function HomePage() {
     </main>
   );
 }
+
 
 
 
