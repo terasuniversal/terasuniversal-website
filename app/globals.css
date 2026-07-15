@@ -1461,3 +1461,141 @@ video {
   .training-visual-strip img { height: 190px; }
   .facility-media img { height: 150px; }
 }
+/* ===== AI Training Facilities and Gallery ===== */
+.facilities-section {
+  background: var(--soft);
+}
+.facilities-heading,
+.gallery-heading {
+  max-width: 900px;
+}
+.facilities-grid,
+.training-gallery {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+}
+.facility-card {
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 12px 30px rgba(8, 26, 58, .06);
+  transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
+}
+.facility-card:hover {
+  transform: translateY(-6px);
+  border-color: rgba(225, 169, 37, .55);
+  box-shadow: 0 20px 40px rgba(8, 26, 58, .12);
+}
+.facility-media {
+  position: relative;
+  min-height: 190px;
+  overflow: hidden;
+  background: var(--navy);
+}
+.facility-media img {
+  display: block;
+  width: 100%;
+  height: 190px;
+  object-fit: cover;
+  transition: transform .35s ease;
+}
+.facility-card:hover .facility-media img {
+  transform: scale(1.04);
+}
+.facility-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 24px;
+}
+.facility-number {
+  color: var(--gold);
+  font-size: 1.25rem;
+  font-weight: 950;
+}
+.facility-content h3 {
+  min-width: 0;
+  margin: 12px 0 9px;
+  color: var(--navy);
+  font-size: 1.2rem;
+  line-height: 1.25;
+  overflow-wrap: break-word;
+}
+.facility-content p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.65;
+  overflow-wrap: break-word;
+}
+.facility-content small {
+  margin-top: auto;
+  padding-top: 16px;
+  color: var(--blue);
+  font-size: 11px;
+  line-height: 1.45;
+}
+.gallery-section {
+  background: #fff;
+}
+.gallery-card {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 12px 30px rgba(8, 26, 58, .06);
+}
+.gallery-card img {
+  display: block;
+  width: 100%;
+  height: 240px;
+  object-fit: cover;
+  transition: transform .35s ease;
+}
+.gallery-card:hover img {
+  transform: scale(1.05);
+}
+.gallery-card figcaption {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 16px 18px;
+  color: var(--navy);
+  font-size: 14px;
+  font-weight: 850;
+}
+.gallery-card figcaption small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+@media (max-width: 920px) {
+  .facilities-grid,
+  .training-gallery {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 590px) {
+  .facilities-grid,
+  .training-gallery {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .facility-media,
+  .facility-media img {
+    min-height: 170px;
+    height: 170px;
+  }
+  .gallery-card img {
+    height: 210px;
+  }
+}

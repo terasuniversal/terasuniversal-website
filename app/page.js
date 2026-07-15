@@ -1,4 +1,4 @@
-import Image from "next/image";
+﻿import Image from "next/image";
 import ContactForm from "../components/ContactForm";
 import MobileNav from "../components/MobileNav";
 
@@ -72,12 +72,22 @@ const industries = ["Oil & Gas", "Petrochemical", "Construction", "Power & Utili
 const verifiedRecognitions = [];
 
 const facilities = [
-  ["01", "Classroom Learning", "A professional learning environment for theory sessions, briefings, group discussions and knowledge assessments.", "/temporary/temp-training-safety-session.webp", "Temporary stock image of industrial workers receiving a safety briefing indoors."],
-  ["02", "Practical Training Area", "A controlled setting for demonstrations, guided exercises and practical competency development.", "/temporary/temp-safety-drill.webp", "Temporary stock image of a safety demonstration in an outdoor industrial setting."],
-  ["03", "Scaffold Training Yard", "A dedicated space for scaffolding-related learning, inspection awareness and safe-use demonstrations.", "/temporary/temp-hero-scaffolding.webp", "Temporary stock image of a construction worker on scaffolding in safety gear."],
-  ["04", "Assessment Area", "A designated area for practical demonstrations, performance evaluation and structured competency assessment.", "/temporary/temp-industrial-machinery.webp", "Temporary stock image of industrial workers operating machinery in safety gear."],
+  ["01", "Training Classroom", "A structured setting for theory sessions, safety briefings, group discussions and knowledge development.", "/images/temp-ai-industrial-safety-briefing.png"],
+  ["02", "Practical Training Yard", "A controlled environment for demonstrations, guided exercises and practical workplace scenarios.", "/images/temp-ai-training-yard.png"],
+  ["03", "Scaffold Training Area", "A dedicated visual setting for scaffolding learning, inspection awareness and safe-use demonstrations.", "/images/temp-ai-scaffolding-practical.png"],
+  ["04", "PPE & Safety Equipment", "A visual reference for equipment familiarisation, PPE awareness and safe preparation before practical work.", "/images/temp-ai-ppe-equipment.png"],
+  ["05", "Technical Equipment", "A workshop-style setting for technical familiarisation, equipment handling and supervised learning.", "/images/temp-ai-technical-equipment.png"],
+  ["06", "Competency Assessment Area", "A controlled setting representing theoretical and practical evaluation against defined requirements.", "/images/temp-ai-competency-assessment.png"],
 ];
 
+const trainingGallery = [
+  ["Industrial safety briefing", "/images/temp-ai-industrial-safety-briefing.png"],
+  ["Classroom training", "/images/temp-ai-industrial-safety-briefing.png"],
+  ["Scaffolding practical", "/images/temp-ai-scaffolding-practical.png"],
+  ["Working at height", "/images/temp-ai-training-yard.png"],
+  ["Equipment inspection", "/images/temp-ai-technical-equipment.png"],
+  ["Competency assessment", "/images/temp-ai-competency-assessment.png"],
+];
 export default function HomePage() {
   return (
     <main>
@@ -269,33 +279,47 @@ export default function HomePage() {
       </section>
       <section id="facilities" className="facilities-section" aria-labelledby="facilities-title">
         <div className="container">
-          <div className="section-heading split-heading facilities-heading">
-            <div>
-              <span className="eyebrow">Training Facilities</span>
-              <h2 id="facilities-title">Learning environments designed for practical development.</h2>
-            </div>
-            <p>Our training environments are presented here as a structured framework. Verified photographs and facility details can be added as they become available.</p>
+          <div className="section-heading facilities-heading">
+            <span className="eyebrow">Training Facilities</span>
+            <h2 id="facilities-title">Facilities Designed for Practical Competency Development</h2>
+            <p>Our training environment is structured to support theory, practical application, equipment familiarisation and competency assessment.</p>
           </div>
           <div className="facilities-grid">
-            {facilities.map(([number, title, text, image, alt]) => (
+            {facilities.map(([number, title, text, image]) => (
               <article className="facility-card" key={title}>
-                {/* TEMPORARY STOCK IMAGE: replace with a verified TERAS UNIVERSAL facility photo when available. */}
                 <div className="facility-media">
-                  <Image src={image} alt={alt} width={900} height={600} />
-                  <span className="temporary-image-label">Temporary stock image</span>
+                  <Image src={image} alt={`${title} AI-generated industrial training visual.`} width={900} height={600} />
                 </div>
                 <div className="facility-content">
                   <span className="facility-number">{number}</span>
                   <h3>{title}</h3>
                   <p>{text}</p>
-                  <small>Temporary visual only - replace with a verified TERAS UNIVERSAL facility image.</small>
+                  <small>AI-generated visual for presentation purposes.</small>
                 </div>
               </article>
             ))}
           </div>
         </div>
       </section>
-      <section id="recognition" className="recognition-section" aria-labelledby="recognition-title">
+
+      <section id="gallery" className="gallery-section" aria-labelledby="gallery-title">
+        <div className="container">
+          <div className="section-heading gallery-heading">
+            <span className="eyebrow">AI Training Gallery</span>
+            <h2 id="gallery-title">Training in Action</h2>
+            <p>Explore visual representations of industrial safety training, technical development and practical competency activities.</p>
+          </div>
+          <div className="training-gallery">
+            {trainingGallery.map(([title, image]) => (
+              <figure className="gallery-card" key={title}>
+                <Image src={image} alt={`${title} AI-generated industrial training visual.`} width={900} height={600} />
+                <figcaption>{title}<small>AI-generated visual for presentation purposes.</small></figcaption>
+              </figure>
+            ))}
+          </div>
+        </div>
+      </section>
+<section id="recognition" className="recognition-section" aria-labelledby="recognition-title">
         <div className="container">
           <div className="section-heading split-heading recognition-heading">
             <div>
@@ -392,6 +416,8 @@ export default function HomePage() {
     </main>
   );
 }
+
+
 
 
 
