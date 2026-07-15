@@ -1,4 +1,4 @@
-:root{
+﻿:root{
   --navy:#081a3a;--blue:#0a3d91;--blue2:#062d6d;--gold:#d79a00;
   --ink:#202733;--muted:#687386;--soft:#f4f7fb;--line:#e1e6ee;--white:#fff;
   --shadow:0 22px 60px rgba(8,26,58,.12);--radius:24px;
@@ -1380,9 +1380,9 @@ video {
 .projects-empty p { max-width: 760px; margin: 0; color: var(--muted); font-size: 14px; line-height: 1.65; }
 @media (max-width: 590px) { .projects-empty { padding: 24px; } }
 
-/* ===== Temporary stock image system ===== */
-/* All images in /public/temporary are royalty-free stock placeholders and must be replaced with verified TERAS UNIVERSAL visuals when available. */
-.temporary-image-label {
+/* ===== AI-generated image system ===== */
+/* All website imagery is generated for TERAS UNIVERSAL presentation purposes. */
+.ai-image-label {
   position: absolute;
   left: 14px;
   bottom: 14px;
@@ -1396,7 +1396,7 @@ video {
   letter-spacing: .08em;
   text-transform: uppercase;
 }
-.hero-stock-image {
+.hero-training-image {
   position: relative;
   z-index: 2;
   height: 170px;
@@ -1405,7 +1405,7 @@ video {
   border: 1px solid rgba(255,255,255,.16);
   border-radius: 18px;
 }
-.hero-stock-image img {
+.hero-training-image img {
   width: 100%;
   height: 100%;
   display: block;
@@ -1455,7 +1455,7 @@ video {
   .training-visual-strip figure:last-child { grid-column: 1 / -1; }
 }
 @media (max-width: 590px) {
-  .hero-stock-image { height: 150px; margin-bottom: -12px; }
+  .hero-training-image { height: 150px; margin-bottom: -12px; }
   .training-visual-strip { grid-template-columns: 1fr; }
   .training-visual-strip figure:last-child { grid-column: auto; }
   .training-visual-strip img { height: 190px; }
@@ -1597,5 +1597,122 @@ video {
   }
   .gallery-card img {
     height: 210px;
+  }
+}
+
+
+/* ===== Corporate quality refinement ===== */
+.projects-heading,
+.faq-heading {
+  max-width: 900px;
+}
+.projects-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+}
+.project-card {
+  min-width: 0;
+  min-height: 240px;
+  display: flex;
+  flex-direction: column;
+  padding: 28px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: linear-gradient(145deg, var(--navy), var(--blue2));
+  box-shadow: 0 14px 34px rgba(8, 26, 58, .1);
+  transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
+}
+.project-card:hover {
+  transform: translateY(-6px);
+  border-color: rgba(225, 169, 37, .65);
+  box-shadow: 0 22px 44px rgba(8, 26, 58, .18);
+}
+.project-card > span {
+  color: var(--gold);
+  font-size: 1.3rem;
+  font-weight: 950;
+}
+.project-card h3 {
+  margin: 28px 0 10px;
+  color: #fff;
+  font-size: 1.2rem;
+  line-height: 1.3;
+}
+.project-card p {
+  margin: 0;
+  color: #dce6f7;
+  font-size: 14px;
+  line-height: 1.65;
+  overflow-wrap: break-word;
+}
+.faq-section {
+  background: var(--soft);
+}
+.faq-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.faq-grid details {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fff;
+  transition: border-color .2s ease, box-shadow .2s ease;
+}
+.faq-grid details[open],
+.faq-grid details:hover {
+  border-color: rgba(225, 169, 37, .55);
+  box-shadow: 0 12px 26px rgba(8, 26, 58, .08);
+}
+.faq-grid summary {
+  cursor: pointer;
+  padding: 20px 22px;
+  color: var(--navy);
+  font-weight: 850;
+  list-style: none;
+}
+.faq-grid summary::-webkit-details-marker {
+  display: none;
+}
+.faq-grid summary::after {
+  content: "+";
+  float: right;
+  color: var(--gold);
+  font-size: 20px;
+  line-height: 1;
+}
+.faq-grid details[open] summary::after {
+  content: "−";
+}
+.faq-grid details p {
+  margin: -4px 22px 20px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.65;
+}
+.btn:focus-visible,
+a:focus-visible,
+summary:focus-visible {
+  outline: 3px solid rgba(225, 169, 37, .72);
+  outline-offset: 3px;
+}
+@media (max-width: 1050px) {
+  .projects-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 760px) {
+  .faq-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 590px) {
+  .projects-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .project-card {
+    min-height: 0;
   }
 }

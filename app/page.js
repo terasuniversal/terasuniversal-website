@@ -72,21 +72,35 @@ const industries = ["Oil & Gas", "Petrochemical", "Construction", "Power & Utili
 const verifiedRecognitions = [];
 
 const facilities = [
-  ["01", "Training Classroom", "A structured setting for theory sessions, safety briefings, group discussions and knowledge development.", "/images/temp-ai-industrial-safety-briefing.png"],
-  ["02", "Practical Training Yard", "A controlled environment for demonstrations, guided exercises and practical workplace scenarios.", "/images/temp-ai-training-yard.png"],
-  ["03", "Scaffold Training Area", "A dedicated visual setting for scaffolding learning, inspection awareness and safe-use demonstrations.", "/images/temp-ai-scaffolding-practical.png"],
-  ["04", "PPE & Safety Equipment", "A visual reference for equipment familiarisation, PPE awareness and safe preparation before practical work.", "/images/temp-ai-ppe-equipment.png"],
-  ["05", "Technical Equipment", "A workshop-style setting for technical familiarisation, equipment handling and supervised learning.", "/images/temp-ai-technical-equipment.png"],
-  ["06", "Competency Assessment Area", "A controlled setting representing theoretical and practical evaluation against defined requirements.", "/images/temp-ai-competency-assessment.png"],
+  ["01", "Training Classroom", "A structured setting for theory sessions, safety briefings, group discussions and knowledge development.", "/images/temp-ai-industrial-safety-briefing.webp"],
+  ["02", "Practical Training Yard", "A controlled environment for demonstrations, guided exercises and practical workplace scenarios.", "/images/temp-ai-training-yard.webp"],
+  ["03", "Scaffold Training Area", "A dedicated visual setting for scaffolding learning, inspection awareness and safe-use demonstrations.", "/images/temp-ai-scaffolding-practical.webp"],
+  ["04", "PPE & Safety Equipment", "A visual reference for equipment familiarisation, PPE awareness and safe preparation before practical work.", "/images/temp-ai-ppe-equipment.webp"],
+  ["05", "Technical Equipment", "A workshop-style setting for technical familiarisation, equipment handling and supervised learning.", "/images/temp-ai-technical-equipment.webp"],
+  ["06", "Competency Assessment Area", "A controlled setting representing theoretical and practical evaluation against defined requirements.", "/images/temp-ai-competency-assessment.webp"],
 ];
 
 const trainingGallery = [
-  ["Industrial safety briefing", "/images/temp-ai-industrial-safety-briefing.png"],
-  ["Classroom training", "/images/temp-ai-industrial-safety-briefing.png"],
-  ["Scaffolding practical", "/images/temp-ai-scaffolding-practical.png"],
-  ["Working at height", "/images/temp-ai-training-yard.png"],
-  ["Equipment inspection", "/images/temp-ai-technical-equipment.png"],
-  ["Competency assessment", "/images/temp-ai-competency-assessment.png"],
+  ["Industrial safety briefing", "/images/temp-ai-industrial-safety-briefing.webp"],
+  ["Classroom training", "/images/temp-ai-corporate-scene-01.webp"],
+  ["Scaffolding practical", "/images/temp-ai-scaffolding-practical.webp"],
+  ["Working at height", "/images/temp-ai-training-yard.webp"],
+  ["Equipment inspection", "/images/temp-ai-technical-equipment.webp"],
+  ["Competency assessment", "/images/temp-ai-competency-assessment.webp"],
+  ["Corporate discussion", "/images/temp-ai-corporate-scene-02.webp"],
+  ["Trainer presentation", "/images/temp-ai-corporate-scene-03.webp"],
+  ["Team collaboration", "/images/temp-ai-corporate-scene-04.webp"],
+  ["Confined space safety", "/images/temp-ai-corporate-scene-05.webp"],
+  ["PPE inspection", "/images/temp-ai-ppe-equipment.webp"],
+  ["Equipment handling", "/images/temp-ai-corporate-scene-06.webp"],
+  ["Machinery practical", "/images/temp-ai-corporate-scene-07.webp"],
+  ["Site inspection", "/images/temp-ai-corporate-scene-08.webp"],
+  ["HSE audit", "/images/temp-ai-corporate-scene-09.webp"],
+  ["Risk assessment", "/images/temp-ai-corporate-scene-10.webp"],
+  ["Client consultation", "/images/temp-ai-corporate-scene-11.webp"],
+  ["Coaching", "/images/temp-ai-corporate-scene-12.webp"],
+  ["Certificate presentation", "/images/temp-ai-corporate-scene-13.webp"],
+  ["Rescue procedure", "/images/temp-ai-corporate-scene-14.webp"],
 ];
 export default function HomePage() {
   return (
@@ -97,7 +111,7 @@ export default function HomePage() {
             <Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL logo" width={220} height={140} priority />
           </a>
           <nav className="desktop-nav" aria-label="Main navigation">
-            <a href="#about">About</a><a href="#services">Services</a><a href="#training">Training</a><a href="#industries">Industries</a><a href="#contact">Contact</a>
+            <a href="#about">About</a><a href="#services">Services</a><a href="#training">Training</a><a href="#industries">Industries</a><a href="#faq">FAQ</a><a href="#contact">Contact</a>
             <a className="nav-cta" href="https://wa.me/60195193834" target="_blank" rel="noreferrer">WhatsApp</a>
           </nav>
           <MobileNav />
@@ -129,10 +143,10 @@ export default function HomePage() {
           </div>
 
           <div className="premium-visual hero-command-panel" aria-label="TERAS UNIVERSAL capability highlights">
-            {/* TEMPORARY STOCK IMAGE: replace with a verified TERAS UNIVERSAL visual when available. */}
-            <div className="hero-stock-image">
-              <Image src="/temporary/temp-hero-scaffolding.webp" alt="Temporary stock image of a construction worker on scaffolding in safety gear." width={1600} height={900} priority />
-              <span className="temporary-image-label">Temporary stock image</span>
+            {/* AI-generated visual for presentation purposes. */}
+            <div className="hero-training-image">
+              <Image src="/images/temp-ai-industrial-safety-briefing.webp" alt="AI-generated industrial training visual for presentation purposes." width={1600} height={900} priority />
+              <span className="ai-image-label">AI-generated visual for presentation purposes</span>
             </div>
             <div className="hero-panel-label">THE STANDARD OF COMPETENCE</div>
             <div className="hero-panel-main">
@@ -220,19 +234,19 @@ export default function HomePage() {
         <div className="container">
           <div className="section-heading split-heading"><div><span className="eyebrow">Featured Training Programmes</span><h2>Practical programmes for safer and stronger workplaces.</h2></div><p>Programme scope and duration can be tailored to participant profiles, site risks and operational objectives.</p></div>
           <div className="programme-grid">{programmes.map(([number,title,text])=><article key={title}><span>{number}</span><h3>{title}</h3><p>{text}</p><a href="#contact">Enquire now <span aria-hidden="true">&rarr;</span></a></article>)}</div>
-          {/* TEMPORARY STOCK IMAGES: these visuals illustrate industry context only and do not depict TERAS UNIVERSAL programmes. */}
-          <div className="training-visual-strip" aria-label="Temporary stock images illustrating industrial training contexts">
+          {/* AI-generated visuals for presentation purposes only. */}
+          <div className="training-visual-strip" aria-label="AI-generated industrial training visuals for presentation purposes">
             <figure>
-              <Image src="/temporary/temp-training-safety-session.webp" alt="Temporary stock image of industrial workers in safety gear during an indoor training session." width={900} height={600} />
-              <figcaption>Temporary stock image - indoor safety training context</figcaption>
+              <Image src="/images/temp-ai-corporate-scene-01.webp" alt="AI-generated classroom training visual." width={900} height={600} />
+              <figcaption>AI-generated visual - classroom training context</figcaption>
             </figure>
             <figure>
-              <Image src="/temporary/temp-safety-drill.webp" alt="Temporary stock image of a worker demonstrating a safety procedure outdoors." width={900} height={600} />
-              <figcaption>Temporary stock image - practical safety demonstration context</figcaption>
+              <Image src="/images/temp-ai-corporate-scene-08.webp" alt="AI-generated industrial site inspection visual." width={900} height={600} />
+              <figcaption>AI-generated visual - site inspection context</figcaption>
             </figure>
             <figure>
-              <Image src="/temporary/temp-industrial-machinery.webp" alt="Temporary stock image of industrial workers operating machinery in protective equipment." width={900} height={600} />
-              <figcaption>Temporary stock image - technical competency context</figcaption>
+              <Image src="/images/temp-ai-corporate-scene-07.webp" alt="AI-generated technical machinery training visual." width={900} height={600} />
+              <figcaption>AI-generated visual - technical competency context</figcaption>
             </figure>
           </div>
         </div>
@@ -353,21 +367,19 @@ export default function HomePage() {
       </section>
       <section id="projects" className="projects-section" aria-labelledby="projects-title">
         <div className="container">
-          <div className="section-heading split-heading projects-heading">
-            <div>
-              <span className="eyebrow">Projects &amp; Achievements</span>
-              <h2 id="projects-title">Evidence-led delivery for industry.</h2>
-            </div>
-            <p>Selected projects, programme outcomes and performance indicators will be published here after the supporting records have been verified.</p>
+          <div className="section-heading projects-heading">
+            <span className="eyebrow">Projects &amp; Achievements</span>
+            <h2 id="projects-title">Capability built for demanding operations.</h2>
+            <p>Our work is structured around the practical capabilities organisations need to prepare people, control risk and strengthen operational performance.</p>
           </div>
-          <div className="projects-empty" role="status">
-            <span className="projects-empty-label">PROJECT RECORDS</span>
-            <h3>No verified projects currently published</h3>
-            <p>Project names, dates, locations, participant figures and outcomes will be added only after they are confirmed through company records or approved client documentation.</p>
+          <div className="projects-grid">
+            <article className="project-card"><span>01</span><h3>Safety-Critical Training</h3><p>Programmes built around operational hazards, safe work procedures and practical workplace execution.</p></article>
+            <article className="project-card"><span>02</span><h3>Technical Competency</h3><p>Learning pathways that connect technical understanding, guided practice and defined competency requirements.</p></article>
+            <article className="project-card"><span>03</span><h3>Workforce Readiness</h3><p>Role-focused development that helps teams prepare for project demands, changing responsibilities and site expectations.</p></article>
+            <article className="project-card"><span>04</span><h3>Consultancy &amp; Site Support</h3><p>Practical review and advisory support to help organisations identify improvement priorities and strengthen controls.</p></article>
           </div>
         </div>
-      </section>
-      <section id="industries">
+      </section><section id="industries">
         <div className="container">
           <div className="section-heading"><span className="eyebrow">Industries We Serve</span><h2>Supporting Safety-Critical Industries</h2><p>TERAS UNIVERSAL supports organisations operating in environments where safety, technical competence, operational reliability and compliance are essential.</p></div>
           <div className="industry-grid">{industries.map((industry,index)=><article key={industry}><span>{String(index+1).padStart(2,"0")}</span><h3>{industry}</h3></article>)}</div>
@@ -404,7 +416,24 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="premium-cta-section"><div className="container premium-cta"><div><span>Corporate & Custom Solutions</span><h2>Ready to strengthen your workforce competency?</h2><p>Speak with our team about a training or consultancy solution aligned with your operational requirements.</p></div><a className="btn btn-light" href="#contact">Request a Proposal</a></div></section>
+      
+      <section id="faq" className="faq-section" aria-labelledby="faq-title">
+        <div className="container">
+          <div className="section-heading faq-heading">
+            <span className="eyebrow">Frequently Asked Questions</span>
+            <h2 id="faq-title">Clear answers for your training requirements.</h2>
+            <p>Find practical information about our programmes, delivery arrangements and competency-focused approach.</p>
+          </div>
+          <div className="faq-grid">
+            <details><summary>What types of training does TERAS UNIVERSAL provide?</summary><p>We provide industrial safety training, technical competency development, consultancy and workforce development programmes for safety-critical environments.</p></details>
+            <details><summary>Can a programme be customised for our organisation?</summary><p>Yes. Programme scope, delivery method, content and assessment approach can be aligned with your workforce profile, operational environment and project requirements.</p></details>
+            <details><summary>Where can training be delivered?</summary><p>Training can be arranged as a public programme, in-house at your organisation or onsite at an approved workplace, plant, project site or operational facility.</p></details>
+            <details><summary>Do programmes include practical assessment?</summary><p>Where required, programmes can combine theory, demonstrations, guided practical work and structured competency assessment against defined requirements.</p></details>
+            <details><summary>Who can participate in the programmes?</summary><p>Programmes can be designed for individuals, workforce groups, supervisors, technical personnel and organisations seeking structured competency development.</p></details>
+            <details><summary>How do we request a corporate proposal?</summary><p>Contact our team through the enquiry form, email or WhatsApp with your workforce profile, training requirement and preferred arrangement.</p></details>
+          </div>
+        </div>
+      </section><section className="premium-cta-section"><div className="container premium-cta"><div><span>Corporate & Custom Solutions</span><h2>Ready to strengthen your workforce competency?</h2><p>Speak with our team about a training or consultancy solution aligned with your operational requirements.</p></div><a className="btn btn-light" href="#contact">Request a Proposal</a></div></section>
 
       <section id="contact" className="contact-section">
         <div className="container"><div className="section-heading"><span className="eyebrow">Contact Us</span><h2>Let us discuss your requirements.</h2></div><div className="contact-layout"><ContactForm /><div className="contact-details"><div className="detail-card"><h3>TERAS UNIVERSAL SDN. BHD.</h3><p>Industrial Safety Training &middot; Technical Competency &middot; Consultancy</p><dl><div><dt>Phone</dt><dd><a href="tel:+60195193834">+60 19-519 3834</a></dd></div><div><dt>Training</dt><dd><a href="mailto:training@terasuniversal.com.my">training@terasuniversal.com.my</a></dd></div><div><dt>Administration</dt><dd><a href="mailto:admin@terasuniversal.com.my">admin@terasuniversal.com.my</a></dd></div><div><dt>Address</dt><dd>Lot 1961, Jalan Tanah Merah, Kg Tanah Merah Dalam, 06000 Jitra, Kedah, Malaysia</dd></div></dl></div><div className="map-card"><iframe title="TERAS UNIVERSAL location" src="https://www.google.com/maps?q=Lot%201961%2C%20Jalan%20Tanah%20Merah%2C%20Kg%20Tanah%20Merah%20Dalam%2C%2006000%20Jitra%2C%20Kedah%2C%20Malaysia&output=embed" loading="lazy" referrerPolicy="no-referrer-when-downgrade" /></div></div></div></div>
@@ -416,6 +445,10 @@ export default function HomePage() {
     </main>
   );
 }
+
+
+
+
 
 
 
