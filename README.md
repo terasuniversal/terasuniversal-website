@@ -102,3 +102,27 @@ NEXT_PUBLIC_BING_VERIFICATION=
 ```
 
 GA4 does not load during development or when the measurement ID is blank. Page views are sent on App Router path changes. The analytics component also honours `window.__TERAS_ANALYTICS_CONSENT__ = false` and can listen to a future consent implementation without changing page layouts.
+
+## Request Proposal email delivery
+
+The `/request-proposal` form sends submissions through the server-only route
+`/api/request-proposal`. It uses Resend to send an internal notification to
+`training@terasuniversal.com.my` and a confirmation email to the requester.
+
+The route validates and sanitises fields server-side, uses a honeypot and
+minimum completion time for basic spam protection, applies a lightweight
+per-IP rate limit, and redirects to `/request-proposal/success` only after
+both emails are accepted by Resend. No database is used.
+
+### Required Vercel environment variables
+
+In Vercel Project Settings → Environment Variables, add these for Production
+(and Preview if needed):
+
+```env
+RESEND_API_KEY=re_...
+RESEND_FROM_EMAIL=TERAS UNIVERSAL <noreply@terasuniversal.com.my>
+```
+
+The sending domain must be verified in Resend. Keep `RESEND_API_KEY` server-only:
+do not prefix it with `NEXT_PUBLIC_` and do not commit it to Git.

@@ -4672,6 +4672,9 @@ img {
   line-height: 1.5;
   text-align: center;
 }
+.proposal-honeypot { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+.proposal-form-status { color: var(--navy); font-size: 13px; text-align: center; }
+.proposal-submit:disabled { cursor: wait; opacity: .7; }
 
 /* ===== Scaffolding competency course page ===== */
 .course-page { background: #fff; }

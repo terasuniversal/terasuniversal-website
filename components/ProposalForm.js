@@ -17,14 +17,16 @@ const requiredFields = {
 export default function ProposalForm() {
   const router = useRouter();
   const formRef = useRef(null);
+  const startedAtRef = useRef(Date.now());
   const [errors, setErrors] = useState({});
+  const [submitState, setSubmitState] = useState({ status: "idle", message: "" });
 
   function handleChange(event) {
     const field = event.target.name;
     if (errors[field]) setErrors((current) => ({ ...current, [field]: "" }));
   }
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
     const form = event.currentTarget;
     const data = new FormData(form);
@@ -44,8 +46,20 @@ export default function ProposalForm() {
       return;
     }
 
-    // This is intentionally a local simulation until a secure backend is connected.
-    router.push("/request-proposal/success");
+    setErrors({});
+    setSubmitState({ status: "submitting", message: "Sending your request securely…" });
+    try {
+      const response = await fetch("/api/request-proposal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(Object.fromEntries(data.entries())),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "We could not send your request. Please try again or contact us directly.");
+      router.push("/request-proposal/success");
+    } catch (submissionError) {
+      setSubmitState({ status: "error", message: submissionError.message || "We could not send your request. Please try again." });
+    }
   }
 
   const error = (name) => errors[name] ? <span id={`${name}-error`} className="proposal-field-error" role="alert">{errors[name]}</span> : null;
@@ -53,6 +67,7 @@ export default function ProposalForm() {
 
   return (
     <form className="proposal-form" ref={formRef} onSubmit={handleSubmit} onChange={handleChange} noValidate>
+      <input type="hidden" name="formStartedAt" value={startedAtRef.current} readOnly />
       <div className="proposal-form-grid">
         <label>Company Name *<input name="companyName" type="text" autoComplete="organization" aria-invalid={Boolean(errors.companyName)} aria-describedby={describedBy("companyName")} />{error("companyName")}</label>
         <label>Contact Person *<input name="contactPerson" type="text" autoComplete="name" aria-invalid={Boolean(errors.contactPerson)} aria-describedby={describedBy("contactPerson")} />{error("contactPerson")}</label>
@@ -69,10 +84,12 @@ export default function ProposalForm() {
       </div>
       <label>Training Objectives *<textarea name="objectives" rows="5" placeholder="Tell us what you would like the programme to achieve." aria-invalid={Boolean(errors.objectives)} aria-describedby={describedBy("objectives")} />{error("objectives")}</label>
       <label>Additional Notes<textarea name="notes" rows="5" placeholder="Share any other useful requirements or context." /></label>
+      <div className="proposal-honeypot" aria-hidden="true"><label>Website<input name="website" type="text" tabIndex="-1" autoComplete="off" /></label></div>
       <label className="proposal-consent"><input name="consent" type="checkbox" aria-invalid={Boolean(errors.consent)} aria-describedby={describedBy("consent")} /> <span>I confirm that the information provided is accurate and may be used by TERAS UNIVERSAL to respond to this enquiry.</span>{error("consent")}</label>
       {Object.keys(errors).length > 0 && <p className="proposal-form-error-summary" role="alert">Please review the highlighted fields before submitting.</p>}
-      <button className="btn btn-gold proposal-submit" type="submit">Submit Proposal Request <span aria-hidden="true">&rarr;</span></button>
-      <p className="proposal-simulation-note">This form is a simulated submission flow. No information is stored or sent to an external service.</p>
+      {submitState.status === "error" && <p className="proposal-form-error-summary" role="alert">{submitState.message}</p>}
+      <button className="btn btn-gold proposal-submit" type="submit" disabled={submitState.status === "submitting"}>{submitState.status === "submitting" ? "Sending…" : "Submit Proposal Request"} <span aria-hidden="true">&rarr;</span></button>
+      {submitState.status === "submitting" && <p className="proposal-form-status" role="status">{submitState.message}</p>}
     </form>
   );
 }
