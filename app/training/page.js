@@ -93,7 +93,7 @@ export default function TrainingPage() {
                   <div className="training-card-badges" aria-label="Programme features"><span>Practical</span><span>Theory</span><span>Assessment</span></div>
                   <div className="training-card-industries" aria-label="Relevant industries">{industries.map((industry) => <span key={industry}>{industry}</span>)}</div>
                   <p className="training-card-audience"><strong>Suitable for</strong>{audience}</p>
-                  <a className="training-card-link" href="/#contact">Enquire about this programme <span aria-hidden="true">&rarr;</span></a>
+                  <a className="training-card-link" href={title === "Scaffolding Competency" ? "/training/scaffolding-competency" : "/#contact"}>Enquire about this programme <span aria-hidden="true">&rarr;</span></a>
                 </div>
               </article>
             ))}
