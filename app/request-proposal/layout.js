@@ -1,0 +1,2 @@
+export const metadata = { title: "Request a Proposal", description: "Tell TERAS UNIVERSAL about your organisation's training requirements and preferred delivery method.", alternates: { canonical: "/request-proposal" } };
+export default function ProposalLayout({ children }) { return children; }

@@ -25,7 +25,7 @@ export default function ServicesPage() {
           <a className="brand" href="/" aria-label="TERAS UNIVERSAL home"><Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL logo" width={220} height={140} priority sizes="154px" /></a>
           <nav className="desktop-nav" aria-label="Main navigation">
             <a href="/#about">About</a><a href="/services">Services</a><a href="/training">Training</a><a href="/#industries">Industries</a><a href="/#faq">FAQ</a><a href="/#contact">Contact</a>
-            <a className="nav-cta" href="https://wa.me/60195193834" target="_blank" rel="noreferrer">WhatsApp</a>
+            <a className="nav-proposal" href="/request-proposal">Request Proposal</a><a className="nav-cta" href="https://wa.me/60195193834" target="_blank" rel="noreferrer">WhatsApp</a>
           </nav>
           <MobileNav basePath="/" />
         </div>
@@ -33,7 +33,7 @@ export default function ServicesPage() {
 
       <section className="services-hero" aria-labelledby="services-hero-title">
         <div className="container services-hero-grid">
-          <div className="services-hero-copy"><span className="eyebrow">Our Services</span><h1 id="services-hero-title">Industrial Safety,<br />Technical Competency<br /><span>&amp; Workforce Solutions</span></h1><p>TERAS UNIVERSAL delivers competency-based industrial training, consultancy and workforce development solutions designed to improve safety, compliance and operational performance.</p><div className="hero-actions"><a className="btn btn-primary" href="/training">Explore Training</a><a className="btn btn-outline" href="/#contact">Request Proposal</a></div></div>
+          <div className="services-hero-copy"><span className="eyebrow">Our Services</span><h1 id="services-hero-title">Industrial Safety,<br />Technical Competency<br /><span>&amp; Workforce Solutions</span></h1><p>TERAS UNIVERSAL delivers competency-based industrial training, consultancy and workforce development solutions designed to improve safety, compliance and operational performance.</p><div className="hero-actions"><a className="btn btn-primary" href="/training">Explore Training</a><a className="btn btn-outline" href="/request-proposal">Request Proposal</a></div></div>
           <figure className="services-hero-media"><Image src="/images/temp-ai-corporate-scene-08.webp" alt="AI-generated industrial site inspection visual for presentation purposes." width={1200} height={800} priority sizes="(max-width: 920px) 100vw, 52vw" /><figcaption>AI-generated visual for presentation purposes.</figcaption></figure>
         </div>
       </section>
@@ -48,7 +48,7 @@ export default function ServicesPage() {
 
       <section className="services-industries-section" aria-labelledby="services-industries-title"><div className="container"><div className="section-heading"><span className="eyebrow">Industries Supported</span><h2 id="services-industries-title">Built for safety-critical environments.</h2></div><div className="services-industries-grid">{industries.map((industry, index) => <article key={industry}><span>0{index + 1}</span><h3>{industry}</h3></article>)}</div></div></section>
 
-      <section className="services-cta"><div className="container"><div><span className="eyebrow">Corporate &amp; Custom Solutions</span><h2>Let&apos;s Build a Safer and More Competent Workforce</h2></div><div className="hero-actions"><a className="btn btn-light" href="/#contact">Request Proposal</a><a className="btn btn-gold" href="https://wa.me/60195193834" target="_blank" rel="noreferrer">WhatsApp Us</a></div></div></section>
+      <section className="services-cta"><div className="container"><div><span className="eyebrow">Corporate &amp; Custom Solutions</span><h2>Let&apos;s Build a Safer and More Competent Workforce</h2></div><div className="hero-actions"><a className="btn btn-light" href="/request-proposal">Request Proposal</a><a className="btn btn-gold" href="https://wa.me/60195193834" target="_blank" rel="noreferrer">WhatsApp Us</a></div></div></section>
 
       <footer><div className="container footer-grid"><div className="footer-brand"><Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL" width={210} height={135} sizes="190px" /><p>Building Competence. Creating Opportunities.</p></div><div><h3>Core Services</h3><p>Industrial Safety<br />Technical Competency<br />Industrial Consultancy<br />Workforce Development</p></div><div><h3>Contact</h3><p><a href="mailto:training@terasuniversal.com.my">training@terasuniversal.com.my</a><br /><a href="tel:+60195193834">+60 19-519 3834</a></p><p>Lot 1961, Jalan Tanah Merah,<br />Kg Tanah Merah Dalam,<br />06000 Jitra, Kedah, Malaysia</p></div></div><div className="container footer-bottom"><span>&copy; 2026 TERAS UNIVERSAL SDN. BHD. All rights reserved.</span><span>terasuniversal.com.my</span></div></footer>
     </main>
