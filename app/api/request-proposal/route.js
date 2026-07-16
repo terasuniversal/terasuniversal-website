@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
+import { Resend } from "resend";
 
 export const runtime = "nodejs";
 
@@ -15,10 +16,11 @@ function responseError(message, status = 400) { return NextResponse.json({ error
 
 export async function POST(request) {
   const apiKey = process.env.RESEND_API_KEY;
-  const fromEmail = process.env.RESEND_FROM_EMAIL;
+  const fromEmail = process.env.RESEND_FROM_EMAIL?.trim();
   const origin = request.headers.get("origin");
   const siteOrigin = new URL(request.url).origin;
-  if (!apiKey || !fromEmail) return responseError("Email service is not configured. Please contact us directly.", 503);
+  if (!apiKey) return responseError("Email service is not configured: RESEND_API_KEY is missing.", 503);
+  if (!fromEmail) return responseError("Email service is not configured: RESEND_FROM_EMAIL is missing.", 503);
   if (origin && origin !== siteOrigin && !origin.endsWith(".vercel.app")) return responseError("Invalid request origin.", 403);
 
   const ip = getClientIp(request);
@@ -41,16 +43,16 @@ export async function POST(request) {
 
   const requestedAt = new Date().toISOString();
   const rows = [["Company Name", data.companyName], ["Contact Person", data.contactPerson], ["Job Title", data.jobTitle], ["Business Email", data.email], ["Phone Number", data.phone], ["Industry", data.industry], ["Training Category", data.category], ["Specific Programme", data.programme], ["Participants", data.participants], ["Training Location", data.location], ["Preferred Month", data.month], ["Budget", data.budget], ["Training Objectives", data.objectives], ["Additional Notes", data.notes], ["Submitted", requestedAt]];
-  const text = rows.map(([label, value]) => `${label}: ${value || "—"}`).join("\n");
-  const htmlRows = rows.map(([label, value]) => `<tr><th align="left" style="padding:8px 12px;background:#f4f6f8">${escapeHtml(label)}</th><td style="padding:8px 12px">${escapeHtml(value || "—").replace(/\n/g, "<br>")}</td></tr>`).join("");
+  const text = rows.map(([label, value]) => `${label}: ${value || "â€”"}`).join("\n");
+  const htmlRows = rows.map(([label, value]) => `<tr><th align="left" style="padding:8px 12px;background:#f4f6f8">${escapeHtml(label)}</th><td style="padding:8px 12px">${escapeHtml(value || "â€”").replace(/\n/g, "<br>")}</td></tr>`).join("");
   const html = `<div style="font-family:Arial,sans-serif;color:#172b45"><h2>New TERAS UNIVERSAL proposal request</h2><table style="border-collapse:collapse;width:100%;max-width:720px">${htmlRows}</table></div>`;
-  const resend = (body) => fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const resend = new Resend(apiKey);
 
   try {
-    const internal = await resend({ from: fromEmail, to: [INTERNAL_RECIPIENT], reply_to: data.email, subject: `New proposal request — ${data.companyName}`, text, html });
-    if (!internal.ok) throw new Error("Internal email failed");
-    const confirmation = await resend({ from: fromEmail, to: [data.email], reply_to: INTERNAL_RECIPIENT, subject: "We received your TERAS UNIVERSAL proposal request", text: `Dear ${data.contactPerson},\n\nThank you for contacting TERAS UNIVERSAL. We have received your proposal request and our team will review the requirements provided.\n\nOur team: ${INTERNAL_RECIPIENT}\nPhone: +60 19-519 3834\n\nBuilding Competence. Creating Opportunities.`, html: `<div style="font-family:Arial,sans-serif;color:#172b45"><h2>Thank you for contacting TERAS UNIVERSAL</h2><p>Dear ${escapeHtml(data.contactPerson)},</p><p>We have received your proposal request. Our team will review the requirements provided and follow up with you.</p><p><strong>Email:</strong> ${INTERNAL_RECIPIENT}<br><strong>Phone:</strong> +60 19-519 3834</p><p>Building Competence. Creating Opportunities.</p></div>` });
-    if (!confirmation.ok) throw new Error("Confirmation email failed");
+    const internal = await resend.emails.send({ from: fromEmail, to: [INTERNAL_RECIPIENT], replyTo: data.email, subject: "New proposal request - " + data.companyName, text, html });
+    if (internal.error) throw new Error("Internal email failed: " + internal.error.message);
+    const confirmation = await resend.emails.send({ from: fromEmail, to: [data.email], replyTo: INTERNAL_RECIPIENT, subject: "We received your TERAS UNIVERSAL proposal request", text: "Dear " + data.contactPerson + "\n\nThank you for contacting TERAS UNIVERSAL. We have received your proposal request and our team will review the requirements provided.\n\nOur team: " + INTERNAL_RECIPIENT + "\nPhone: +60 19-519 3834\n\nBuilding Competence. Creating Opportunities.", html: "<div style=\"font-family:Arial,sans-serif;color:#172b45\"><h2>Thank you for contacting TERAS UNIVERSAL</h2><p>Dear " + escapeHtml(data.contactPerson) + ",</p><p>We have received your proposal request. Our team will review the requirements provided and follow up with you.</p><p><strong>Email:</strong> " + INTERNAL_RECIPIENT + "<br><strong>Phone:</strong> +60 19-519 3834</p><p>Building Competence. Creating Opportunities.</p></div>" });
+    if (confirmation.error) throw new Error("Confirmation email failed: " + confirmation.error.message);
     recentRequests.set(ip, now);
     return NextResponse.json({ ok: true });
   } catch (error) {
@@ -58,3 +60,5 @@ export async function POST(request) {
     return responseError("We could not send your request right now. Please try again or contact us directly.", 502);
   }
 }
+
+
