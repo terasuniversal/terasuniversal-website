@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { Resend } from "resend";
 
 export const runtime = "nodejs";
@@ -43,8 +43,8 @@ export async function POST(request) {
 
   const requestedAt = new Date().toISOString();
   const rows = [["Company Name", data.companyName], ["Contact Person", data.contactPerson], ["Job Title", data.jobTitle], ["Business Email", data.email], ["Phone Number", data.phone], ["Industry", data.industry], ["Training Category", data.category], ["Specific Programme", data.programme], ["Participants", data.participants], ["Training Location", data.location], ["Preferred Month", data.month], ["Budget", data.budget], ["Training Objectives", data.objectives], ["Additional Notes", data.notes], ["Submitted", requestedAt]];
-  const text = rows.map(([label, value]) => `${label}: ${value || "â€”"}`).join("\n");
-  const htmlRows = rows.map(([label, value]) => `<tr><th align="left" style="padding:8px 12px;background:#f4f6f8">${escapeHtml(label)}</th><td style="padding:8px 12px">${escapeHtml(value || "â€”").replace(/\n/g, "<br>")}</td></tr>`).join("");
+  const text = rows.map(([label, value]) => `${label}: ${value || "Ã¢â‚¬â€"}`).join("\n");
+  const htmlRows = rows.map(([label, value]) => `<tr><th align="left" style="padding:8px 12px;background:#f4f6f8">${escapeHtml(label)}</th><td style="padding:8px 12px">${escapeHtml(value || "Ã¢â‚¬â€").replace(/\n/g, "<br>")}</td></tr>`).join("");
   const html = `<div style="font-family:Arial,sans-serif;color:#172b45"><h2>New TERAS UNIVERSAL proposal request</h2><table style="border-collapse:collapse;width:100%;max-width:720px">${htmlRows}</table></div>`;
   const resend = new Resend(apiKey);
 
