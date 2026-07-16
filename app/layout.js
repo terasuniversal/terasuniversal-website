@@ -1,4 +1,5 @@
 import "./globals.css";
+import Analytics from "../components/Analytics";
 
 export const viewport = {
   width: "device-width",
@@ -6,6 +7,9 @@ export const viewport = {
   viewportFit: "cover",
   themeColor: "#0B2C56",
 };
+
+const googleSiteVerification = process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION || undefined;
+const bingVerification = process.env.NEXT_PUBLIC_BING_VERIFICATION || undefined;
 
 export const metadata = {
   metadataBase: new URL("https://terasuniversal.com.my"),
@@ -15,6 +19,7 @@ export const metadata = {
   authors: [{ name: "TERAS UNIVERSAL SDN. BHD." }],
   creator: "TERAS UNIVERSAL SDN. BHD.",
   publisher: "TERAS UNIVERSAL SDN. BHD.",
+  verification: { google: googleSiteVerification, other: { "msvalidate.01": bingVerification } },
   alternates: { canonical: "/" },
   openGraph: { type: "website", locale: "en_MY", url: "https://terasuniversal.com.my", siteName: "TERAS UNIVERSAL SDN. BHD.", title: "TERAS UNIVERSAL | Building Competence. Creating Opportunities.", description: "Industrial Safety Training & Consultancy for a competent, disciplined and industry-ready workforce.", images: [{ url: "/opengraph-image.png", width: 1200, height: 630, alt: "TERAS UNIVERSAL SDN. BHD." }] },
   twitter: { card: "summary_large_image", title: "TERAS UNIVERSAL | Industrial Safety Training & Consultancy", description: "Building Competence. Creating Opportunities.", images: ["/twitter-image.png"] },
@@ -67,6 +72,7 @@ export default function RootLayout({ children }) {
       </head>
       <body>
         {children}
+                <Analytics />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify([organizationSchema, localBusinessSchema, websiteSchema]) }} />
       </body>
     </html>

@@ -90,3 +90,15 @@ This patch:
 - places the three cards in a clean row at the bottom
 - keeps the text and badges within the visual panel
 - improves laptop and desktop spacing
+
+## Analytics and webmaster verification
+
+The site includes an optional production-only GA4 integration and environment-driven verification metadata. Copy `.env.example` to `.env.local` for local configuration, or add these values to the production deployment environment:
+
+```env
+NEXT_PUBLIC_GA_MEASUREMENT_ID=
+NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION=
+NEXT_PUBLIC_BING_VERIFICATION=
+```
+
+GA4 does not load during development or when the measurement ID is blank. Page views are sent on App Router path changes. The analytics component also honours `window.__TERAS_ANALYTICS_CONSENT__ = false` and can listen to a future consent implementation without changing page layouts.
