@@ -1,0 +1,14 @@
+{
+  "name": "TERAS UNIVERSAL SDN. BHD.",
+  "short_name": "TERAS UNIVERSAL",
+  "description": "Industrial safety training, technical competency and workforce development solutions in Malaysia.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#0B2C56",
+  "lang": "en-MY",
+  "icons": [
+    { "src": "/favicon.png", "sizes": "64x64", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/apple-icon.png", "sizes": "180x180", "type": "image/png", "purpose": "any" }
+  ]
+}
