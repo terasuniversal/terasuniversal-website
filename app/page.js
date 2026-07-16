@@ -1,7 +1,9 @@
-﻿import Image from "next/image";
+import Image from "next/image";
 import ContactForm from "../components/ContactForm";
 import FaqAccordion from "../components/FaqAccordion";
 import MobileNav from "../components/MobileNav";
+import TrainingGallery from "../components/TrainingGallery";
+import { trainingGallery } from "../data/trainingGallery";
 
 const pillars = [
   {
@@ -81,35 +83,13 @@ const facilities = [
   ["06", "Competency Assessment Area", "A controlled setting representing theoretical and practical evaluation against defined requirements.", "/images/temp-ai-competency-assessment.webp"],
 ];
 
-const trainingGallery = [
-  ["Industrial safety briefing", "/images/temp-ai-industrial-safety-briefing.webp"],
-  ["Classroom training", "/images/temp-ai-corporate-scene-01.webp"],
-  ["Scaffolding practical", "/images/temp-ai-scaffolding-practical.webp"],
-  ["Working at height", "/images/temp-ai-training-yard.webp"],
-  ["Equipment inspection", "/images/temp-ai-technical-equipment.webp"],
-  ["Competency assessment", "/images/temp-ai-competency-assessment.webp"],
-  ["Corporate discussion", "/images/temp-ai-corporate-scene-02.webp"],
-  ["Trainer presentation", "/images/temp-ai-corporate-scene-03.webp"],
-  ["Team collaboration", "/images/temp-ai-corporate-scene-04.webp"],
-  ["Confined space safety", "/images/temp-ai-corporate-scene-05.webp"],
-  ["PPE inspection", "/images/temp-ai-ppe-equipment.webp"],
-  ["Equipment handling", "/images/temp-ai-corporate-scene-06.webp"],
-  ["Machinery practical", "/images/temp-ai-corporate-scene-07.webp"],
-  ["Site inspection", "/images/temp-ai-corporate-scene-08.webp"],
-  ["HSE audit", "/images/temp-ai-corporate-scene-09.webp"],
-  ["Risk assessment", "/images/temp-ai-corporate-scene-10.webp"],
-  ["Client consultation", "/images/temp-ai-corporate-scene-11.webp"],
-  ["Coaching", "/images/temp-ai-corporate-scene-12.webp"],
-  ["Certificate presentation", "/images/temp-ai-corporate-scene-13.webp"],
-  ["Rescue procedure", "/images/temp-ai-corporate-scene-14.webp"],
-];
 export default function HomePage() {
   return (
     <main>
       <header className="site-header">
         <div className="container nav-wrap">
           <a className="brand" href="#home" aria-label="TERAS UNIVERSAL home">
-            <Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL logo" width={220} height={140} priority />
+            <Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL logo" width={220} height={140} priority sizes="154px" />
           </a>
           <nav className="desktop-nav" aria-label="Main navigation">
             <a href="#about">About</a><a href="#services">Services</a><a href="#training">Training</a><a href="#industries">Industries</a><a href="#faq">FAQ</a><a href="#contact">Contact</a>
@@ -144,25 +124,20 @@ export default function HomePage() {
           </div>
 
           <div className="premium-visual hero-command-panel" aria-label="TERAS UNIVERSAL capability highlights">
-            {/* AI-generated visual for presentation purposes. */}
-            <div className="hero-training-image">
-              <Image src="/images/temp-ai-industrial-safety-briefing.webp" alt="AI-generated industrial training visual for presentation purposes." width={1600} height={900} priority />
-              <span className="ai-image-label">AI-generated visual for presentation purposes</span>
-            </div>
-            <div className="hero-panel-label">THE STANDARD OF COMPETENCE</div>
-            <div className="hero-panel-main">
-              <span className="visual-kicker">Integrated Industrial Solutions</span>
-              <h2>Safety. Skills. Compliance.</h2>
-              <p>
-                Structured learning and practical solutions designed around real
-                operational risks, workforce needs and industry expectations.
-              </p>
+            {/* AI-generated visual for presentation purposes. */}            <div className="hero-training-image">
+              <Image src="/images/temp-ai-homepage-hero.webp" alt="AI-generated industrial trainer briefing trainees at a refinery for presentation purposes." width={1800} height={1200} priority sizes="(max-width: 920px) 100vw, 52vw" />
             </div>
             <div className="hero-panel-services">
               <article><strong>01</strong><span>Industrial Safety</span></article>
               <article><strong>02</strong><span>Technical Competency</span></article>
               <article><strong>03</strong><span>Industrial Consultancy</span></article>
               <article><strong>04</strong><span>Workforce Development</span></article>
+            </div>
+            <div className="hero-panel-label">THE STANDARD OF COMPETENCE</div>
+            <div className="hero-panel-main">
+              <span className="visual-kicker">Integrated Industrial Solutions</span>
+              <h2>Safety. Skills. Compliance.</h2>
+              <p>Structured learning and practical solutions designed around real operational risks, workforce needs and industry expectations.</p>
             </div>
           </div>
         </div>
@@ -238,15 +213,15 @@ export default function HomePage() {
           {/* AI-generated visuals for presentation purposes only. */}
           <div className="training-visual-strip" aria-label="AI-generated industrial training visuals for presentation purposes">
             <figure>
-              <Image src="/images/temp-ai-corporate-scene-01.webp" alt="AI-generated classroom training visual." width={900} height={600} />
+              <Image src="/images/temp-ai-corporate-scene-01.webp" alt="AI-generated classroom training visual." width={900} height={600} sizes="(max-width: 590px) 100vw, (max-width: 920px) 50vw, 33vw" />
               <figcaption>AI-generated visual - classroom training context</figcaption>
             </figure>
             <figure>
-              <Image src="/images/temp-ai-corporate-scene-08.webp" alt="AI-generated industrial site inspection visual." width={900} height={600} />
+              <Image src="/images/temp-ai-corporate-scene-08.webp" alt="AI-generated industrial site inspection visual." width={900} height={600} sizes="(max-width: 590px) 100vw, (max-width: 920px) 50vw, 33vw" />
               <figcaption>AI-generated visual - site inspection context</figcaption>
             </figure>
             <figure>
-              <Image src="/images/temp-ai-corporate-scene-07.webp" alt="AI-generated technical machinery training visual." width={900} height={600} />
+              <Image src="/images/temp-ai-corporate-scene-07.webp" alt="AI-generated technical machinery training visual." width={900} height={600} sizes="(max-width: 590px) 100vw, (max-width: 920px) 50vw, 33vw" />
               <figcaption>AI-generated visual - technical competency context</figcaption>
             </figure>
           </div>
@@ -303,13 +278,19 @@ export default function HomePage() {
             {facilities.map(([number, title, text, image]) => (
               <article className="facility-card" key={title}>
                 <div className="facility-media">
-                  <Image src={image} alt={`${title} AI-generated industrial training visual.`} width={900} height={600} />
+                  <Image src={image} alt={`${title} AI-generated industrial training visual.`} width={900} height={600} sizes="(max-width: 590px) 100vw, (max-width: 920px) 50vw, 33vw" />
                 </div>
                 <div className="facility-content">
                   <span className="facility-number">{number}</span>
                   <h3>{title}</h3>
                   <p>{text}</p>
-                  <small>AI-generated visual for presentation purposes.</small>
+                                    <div className="facility-features">
+                    <strong>Key Features</strong>
+                    <span>Theory Sessions</span>
+                    <span>Practical Learning</span>
+                    <span>Equipment Familiarisation</span>
+                  </div>
+                  <a className="facility-link" href="/gallery">View Facilities <span aria-hidden="true">&rarr;</span></a>
                 </div>
               </article>
             ))}
@@ -324,14 +305,7 @@ export default function HomePage() {
             <h2 id="gallery-title">Training in Action</h2>
             <p>Explore visual representations of industrial safety training, technical development and practical competency activities.</p>
           </div>
-          <div className="training-gallery">
-            {trainingGallery.map(([title, image]) => (
-              <figure className="gallery-card" key={title}>
-                <Image src={image} alt={`${title} AI-generated industrial training visual.`} width={900} height={600} />
-                <figcaption>{title}<small>AI-generated visual for presentation purposes.</small></figcaption>
-              </figure>
-            ))}
-          </div>
+          <TrainingGallery items={trainingGallery.slice(0, 6)} />
         </div>
       </section>
 <section id="recognition" className="recognition-section" aria-labelledby="recognition-title">
@@ -438,10 +412,11 @@ export default function HomePage() {
 
       <a className="floating-whatsapp" href="https://wa.me/60195193834?text=Hello%20TERAS%20UNIVERSAL%2C%20I%20would%20like%20to%20enquire%20about%20your%20training%20and%20consultancy%20services." target="_blank" rel="noreferrer" aria-label="Contact TERAS UNIVERSAL on WhatsApp">WA</a>
 
-      <footer><div className="container footer-grid"><div className="footer-brand"><Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL" width={210} height={135} /><p>Building Competence. Creating Opportunities.</p></div><div><h3>Core Services</h3><p>Industrial Safety<br/>Technical Competency<br/>Industrial Consultancy<br/>Workforce Development</p></div><div><h3>Contact</h3><p><a href="mailto:training@terasuniversal.com.my">training@terasuniversal.com.my</a><br/><a href="tel:+60195193834">+60 19-519 3834</a></p><p>Lot 1961, Jalan Tanah Merah,<br/>Kg Tanah Merah Dalam,<br/>06000 Jitra, Kedah, Malaysia</p></div></div><div className="container footer-bottom"><span>&copy; 2026 TERAS UNIVERSAL SDN. BHD. All rights reserved.</span><span>terasuniversal.com.my</span></div></footer>
+      <footer><div className="container footer-grid"><div className="footer-brand"><Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL" width={210} height={135} sizes="190px" /><p>Building Competence. Creating Opportunities.</p></div><div><h3>Core Services</h3><p>Industrial Safety<br/>Technical Competency<br/>Industrial Consultancy<br/>Workforce Development</p></div><div><h3>Contact</h3><p><a href="mailto:training@terasuniversal.com.my">training@terasuniversal.com.my</a><br/><a href="tel:+60195193834">+60 19-519 3834</a></p><p>Lot 1961, Jalan Tanah Merah,<br/>Kg Tanah Merah Dalam,<br/>06000 Jitra, Kedah, Malaysia</p></div></div><div className="container footer-bottom"><span>&copy; 2026 TERAS UNIVERSAL SDN. BHD. All rights reserved.</span><span>terasuniversal.com.my</span></div></footer>
     </main>
   );
 }
+
 
 
 
