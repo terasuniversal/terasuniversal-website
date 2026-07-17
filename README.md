@@ -126,3 +126,24 @@ RESEND_FROM_EMAIL=TERAS UNIVERSAL <noreply@terasuniversal.com.my>
 
 The sending domain must be verified in Resend. Keep `RESEND_API_KEY` server-only:
 do not prefix it with `NEXT_PUBLIC_` and do not commit it to Git.
+
+## Google Sheets CRM delivery
+
+Successful proposal submissions are also forwarded server-side to the Google Apps
+Script Web App that writes to the `Training Leads` sheet. The route maps the form
+fields to the Apps Script schema, sets `status` to `New`, and sends an ISO timestamp
+in `submitted`. The request is considered successful only when both Resend and
+Google Sheets return success. If the emails are sent but the CRM write fails, the
+API returns an error so the failure can be investigated rather than being hidden.
+
+Add this server-only Vercel environment variable for Production (and Preview if
+needed):
+
+```env
+GOOGLE_SHEETS_WEB_APP_URL=https://script.google.com/macros/s/your-deployment-id/exec
+```
+
+The Apps Script endpoint should be deployed as a Web App, accept unauthenticated
+JSON POST requests as configured for the project, and return a JSON response with
+`{"success":true}` after appending the lead. Do not expose this URL through a
+`NEXT_PUBLIC_` variable, and do not commit private credentials or API keys.
