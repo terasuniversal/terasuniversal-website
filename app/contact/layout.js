@@ -1,5 +1,5 @@
 export const metadata = {
-  title: "Contact TERAS UNIVERSAL | Industrial Training & Consultancy",
+  title: { absolute: "Contact TERAS UNIVERSAL | Industrial Training & Consultancy" },
   description: "Contact TERAS UNIVERSAL to discuss industrial safety training, competency development, consultancy and customised workforce programmes.",
   keywords: "contact TERAS UNIVERSAL, industrial training enquiry Malaysia, safety consultancy contact".split(", "),
   alternates: { canonical: "/contact" },
