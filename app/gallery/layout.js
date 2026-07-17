@@ -1,5 +1,5 @@
 export const metadata = {
-  title: "Industrial Training Gallery | TERAS UNIVERSAL",
+  title: { absolute: "Industrial Training Gallery | TERAS UNIVERSAL" },
   description: "View visual representations of industrial safety training, technical development and practical competency activities by TERAS UNIVERSAL.",
   keywords: "industrial training gallery, safety training visuals, technical competency Malaysia".split(", "),
   alternates: { canonical: "/gallery" },
