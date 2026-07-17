@@ -17,6 +17,7 @@ export default function MobileNav({ basePath = "" }) {
         <a href={link("#industries")} onClick={closeMenu}>Industries</a>
         <a href={link("#faq")} onClick={closeMenu}>FAQ</a>
         <a href={link("#contact")} onClick={closeMenu}>Contact</a>
+        <a href={basePath ? `${basePath}request-proposal` : "/request-proposal"} onClick={closeMenu}>Request Proposal</a>
         <a className="mobile-menu-cta" href="https://wa.me/60195193834" target="_blank" rel="noreferrer" onClick={closeMenu}>WhatsApp</a>
       </div>
     </>
