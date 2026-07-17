@@ -1,5 +1,5 @@
 export const metadata = {
-  title: "Industrial Safety, Technical Competency & Workforce Solutions | TERAS UNIVERSAL",
+  title: { absolute: "Industrial Safety, Technical Competency & Workforce Solutions | TERAS UNIVERSAL" },
   description: "Explore TERAS UNIVERSAL industrial safety, technical competency, consultancy and workforce development services for organisations in Malaysia.",
   keywords: "industrial safety services Malaysia, technical competency, HSE consultancy, workforce development".split(", "),
   alternates: { canonical: "/services" },
