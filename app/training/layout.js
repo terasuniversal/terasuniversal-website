@@ -1,5 +1,5 @@
 export const metadata = {
-  title: "Industrial Safety & Technical Training Programmes | TERAS UNIVERSAL",
+  title: { absolute: "Industrial Safety & Technical Training Programmes | TERAS UNIVERSAL" },
   description: "Explore competency-based industrial safety, technical competency, assessment and workforce development training programmes from TERAS UNIVERSAL.",
   keywords: "industrial safety training Malaysia, scaffolding training, working at height, competency assessment".split(", "),
   alternates: { canonical: "/training" },
