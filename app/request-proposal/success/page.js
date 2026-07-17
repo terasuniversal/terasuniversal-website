@@ -1,7 +1,7 @@
 import Image from "next/image";
 import MobileNav from "../../../components/MobileNav";
 
-export const metadata = { title: "Proposal Request Received", description: "Your TERAS UNIVERSAL proposal request has been received." };
+export const metadata = { title: { absolute: "Proposal Request Received | TERAS UNIVERSAL" }, description: "Your TERAS UNIVERSAL proposal request has been received." };
 
 export default function ProposalSuccessPage() {
   return (
