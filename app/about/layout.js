@@ -1,5 +1,5 @@
 export const metadata = {
-  title: "About TERAS UNIVERSAL | Building Industrial Workforce Competence",
+    title: { absolute: "About TERAS UNIVERSAL | Building Industrial Workforce Competence" },
   description: "Learn about TERAS UNIVERSAL SDN. BHD., our values, practical approach and commitment to safer, more competent industrial workforces in Malaysia.",
   keywords: "TERAS UNIVERSAL about, industrial training company Malaysia, workforce competency Malaysia".split(", "),
   alternates: { canonical: "/about" },
