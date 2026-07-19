@@ -5,7 +5,7 @@ import { industries } from "../../data/industries";
 
 export const metadata = {
   title: "Industries We Serve",
-  description: "TERAS UNIVERSAL supports Oil & Gas, Construction, Manufacturing, Power & Energy, Marine & Offshore, Government and GLC organisations with industrial safety training and consultancy.",
+  description: "Industrial safety training and consultancy for Oil & Gas, Construction, Manufacturing, Power & Energy, Marine & Offshore, Government and GLC organisations.",
   alternates: { canonical: "/industries" },
   openGraph: { title: "Industries We Serve | TERAS UNIVERSAL", description: "Industrial safety training and consultancy solutions by industry.", url: "/industries" },
 };

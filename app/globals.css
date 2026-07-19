@@ -1,6 +1,6 @@
 :root{
   --navy:#0B2C56;--blue:#0a3d91;--blue2:#062d6d;--gold:#E1A925;
-  --ink:#202733;--muted:#687386;--soft:#f4f7fb;--line:#e1e6ee;--white:#fff;
+  --ink:#202733;--muted:#5f6a7d;--soft:#f4f7fb;--line:#e1e6ee;--white:#fff;
   --shadow:0 22px 60px rgba(8,26,58,.12);--radius:24px;
 }
 *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;font-family:var(--font-poppins),"Poppins","Inter",Arial,Helvetica,sans-serif;color:var(--ink);background:#fff;line-height:1.65}
@@ -4788,6 +4788,8 @@ img {
 
 /* Enterprise UX foundations: search, finder, resources and conversion CTA */
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+/* Dedicated honeypot class: !important guards against any generic form-input selector (e.g. ".careers-form input") overriding a shared .sr-only utility class and re-exposing the spam-trap field. */
+.form-honeypot { position: absolute !important; left: -9999px !important; top: -9999px !important; width: 1px !important; height: 1px !important; min-width: 0 !important; padding: 0 !important; margin: 0 !important; border: 0 !important; overflow: hidden !important; opacity: 0 !important; pointer-events: none !important; }
 .mega-nav { display: flex; align-items: center; gap: 14px; margin-left: auto; }
 .mega-nav-group { position: relative; }
 .mega-nav-group summary { list-style: none; cursor: pointer; color: var(--navy); font-size: 12px; font-weight: 800; letter-spacing: .01em; padding: 10px 2px; }
@@ -5066,3 +5068,17 @@ img {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
 }
+
+/* ===== 404 / error pages ===== */
+.not-found-content { text-align: center; max-width: 640px; margin: 0 auto; }
+.not-found-content .hero-actions { justify-content: center; }
+.not-found-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 22px; margin-top: 34px; padding-top: 28px; border-top: 1px solid var(--line); }
+.not-found-links a { color: var(--blue); font-weight: 800; font-size: 14px; }
+.not-found-links a:hover { color: var(--gold); }
+@media (max-width: 590px) { .not-found-content .hero-actions { display: grid; } }
+
+/* ===== Skeleton loading ===== */
+.skeleton { position: relative; overflow: hidden; background: #e9edf3; border-radius: 12px; }
+.skeleton::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .6), transparent); animation: skeleton-shimmer 1.4s infinite; }
+@keyframes skeleton-shimmer { 100% { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) { .skeleton::after { animation: none; } }

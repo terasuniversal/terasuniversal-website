@@ -14,10 +14,10 @@ export async function generateMetadata({ params }) {
   const industry = findIndustry(slug);
   if (!industry) return { title: "Industry Solutions | TERAS UNIVERSAL" };
   return {
-    title: `${industry.name} Training & Consultancy`,
+    title: `${industry.shortName} Training & Consultancy`,
     description: industry.summary,
     alternates: { canonical: `/industries/${industry.slug}` },
-    openGraph: { title: `${industry.name} Training & Consultancy | TERAS UNIVERSAL`, description: industry.summary, url: `/industries/${industry.slug}` },
+    openGraph: { title: `${industry.shortName} Training & Consultancy | TERAS UNIVERSAL`, description: industry.summary, url: `/industries/${industry.slug}` },
   };
 }
 

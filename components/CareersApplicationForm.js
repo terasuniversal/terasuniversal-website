@@ -53,7 +53,7 @@ export default function CareersApplicationForm() {
       </div>
       <label>Resume / Portfolio / LinkedIn Link (optional)<input type="url" placeholder="https://..." value={fields.resumeLink} onChange={update("resumeLink")} /></label>
       <label>Message<textarea rows={5} placeholder="Tell us about your experience and why you're interested in TERAS UNIVERSAL." value={fields.message} onChange={update("message")} /></label>
-      <input type="text" name="website" value={website} onChange={(event) => setWebsite(event.target.value)} tabIndex={-1} autoComplete="off" className="sr-only" aria-hidden="true" />
+      <input type="text" name="website" value={website} onChange={(event) => setWebsite(event.target.value)} tabIndex={-1} autoComplete="off" className="form-honeypot" aria-hidden="true" />
       <label className="newsletter-consent">
         <input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} required />
         <span>I consent to TERAS UNIVERSAL storing and reviewing the information above for recruitment purposes.</span>

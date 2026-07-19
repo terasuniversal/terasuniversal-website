@@ -56,7 +56,7 @@ export default function NewsletterSignup() {
           <span className="sr-only">Email address</span>
           <input type="email" name="email" placeholder="Your email address" required value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" />
         </label>
-        <input type="text" name="website" value={website} onChange={(event) => setWebsite(event.target.value)} tabIndex={-1} autoComplete="off" className="sr-only" aria-hidden="true" />
+        <input type="text" name="website" value={website} onChange={(event) => setWebsite(event.target.value)} tabIndex={-1} autoComplete="off" className="form-honeypot" aria-hidden="true" />
         <button type="submit" className="btn btn-primary" disabled={status === "submitting"}>{status === "submitting" ? "Submitting..." : "Subscribe"}</button>
       </div>
       <label className="newsletter-consent">
