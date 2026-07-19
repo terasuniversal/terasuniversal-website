@@ -12,7 +12,7 @@ export default function VerifyForm() {
 
   function handleSubmit(event) {
     event.preventDefault();
-    const normalized = certificateNumber.toUpperCase().replace(/\s+/g, "").trim();
+    const normalized = certificateNumber.trim().toUpperCase();
 
     if (!normalized) {
       setError("Please enter a certificate number.");
@@ -37,7 +37,7 @@ export default function VerifyForm() {
         type="text"
         value={certificateNumber}
         onChange={(event) => {
-          setCertificateNumber(event.target.value.toUpperCase().replace(/\s+/g, ""));
+          setCertificateNumber(event.target.value);
           if (error) setError("");
         }}
         placeholder="TU-WAH-2026-0001"

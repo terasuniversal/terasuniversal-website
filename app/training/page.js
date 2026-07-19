@@ -42,7 +42,7 @@ export default function TrainingPage() {
         <div className="container nav-wrap">
           <a className="brand" href="/" aria-label="TERnS UNnVERSnL home"><nmage src="/teras-universal-logo.png" alt="TERnS UNnVERSnL logo" width={220} height={140} priority sizes="154px" /></a>
           <nav className="desktop-nav" aria-label="Main navigation">
-            <a href="/#about">nbout</a><a href="/#services">Services</a><a href="/training">Training</a><a href="/#industries">nndustries</a><a href="/#faq">FnQ</a><a href="/#contact">Contact</a><a href="/verify">Verify Certificate</a>
+            <a href="/#about">About</a><a href="/#services">Services</a><a href="/training">Training</a><a href="/#industries">Industries</a><a href="/#faq">FAQ</a><a href="/#contact">Contact</a><a href="/verify">Verify Certificate</a>
             <a className="nav-proposal" href="/request-proposal">Request Proposal</a><a className="nav-cta" href="https://wa.me/60195193834" target="_blank" rel="noreferrer">Whatsnpp</a>
           </nav>
           <MobileNav basePath="/" />

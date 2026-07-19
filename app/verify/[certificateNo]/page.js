@@ -2,7 +2,7 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import MobileNav from "../../../components/MobileNav";
 import PrintButton from "../../../components/PrintButton";
-import { getSupabaseClient } from "../../../lib/supabase";
+import { certificates, findCertificate } from "../../../data/certificates";
 
 export const dynamic = "force-dynamic";
 
@@ -34,43 +34,23 @@ export default async function CertificateResultPage({ params }) {
     notFound();
   }
 
-  let record;
-  try {
-    const supabase = getSupabaseClient();
-    const { data, error } = await supabase.rpc("verify_certificate", {
-      input_certificate_no: certificateNumber,
-    });
-    if (error) throw error;
-    record = Array.isArray(data) ? data[0] : data;
-  } catch (error) {
-    console.error("Certificate verification RPC failed", {
-      code: error?.code,
-      message: error instanceof Error ? error.message : "Unknown error",
-    });
-    notFound();
-  }
+  const record = findCertificate(certificates, certificateNumber);
 
   if (!record || !statusContent[record.status]) notFound();
 
   const content = statusContent[record.status];
-  const trainingStart = formatDate(record.training_start_date);
-  const trainingEnd = formatDate(record.training_end_date);
-  const trainingDate = trainingStart && trainingEnd && trainingStart !== trainingEnd
-    ? `${trainingStart} – ${trainingEnd}`
-    : trainingStart || trainingEnd;
+  const trainingStart = formatDate(record.trainingStartDate);
+  const trainingEnd = formatDate(record.trainingEndDate);
   const details = [
-    ["Participant Name", record.participant_name],
-    ["Course Name", record.course_name],
-    ["Course Code", record.course_code],
-    ["Certificate Number", record.certificate_no || certificateNumber],
+    ["Participant Name", record.participantName],
+    ["Course Name", record.courseName],
+    ["Course Code", record.courseCode],
+    ["Certificate Number", record.certificateNumber || certificateNumber],
     ["Training Start Date", trainingStart],
     ["Training End Date", trainingEnd],
-    ["Training Date", trainingDate],
-    ["Issue Date", formatDate(record.issue_date)],
-    ["Expiry Date", formatDate(record.expiry_date)],
+    ["Issue Date", formatDate(record.issueDate)],
     ["Venue", record.venue],
     ["Status", record.status],
-    ["Issued By", "TERAS UNIVERSAL SDN. BHD."],
   ].filter(([, value]) => value);
 
   return (
