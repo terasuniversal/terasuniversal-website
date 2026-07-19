@@ -22,7 +22,7 @@ export default function ContactPage() {
         <div className="container nav-wrap">
           <a className="brand" href="/" aria-label="TERAS UNIVERSAL home"><Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL logo" width={220} height={140} priority sizes="154px" /></a>
           <nav className="desktop-nav" aria-label="Main navigation">
-            <a href="/about">About</a><a href="/services">Services</a><a href="/training">Training</a><a href="/#industries">Industries</a><a href="/#faq">FAQ</a><a href="/contact">Contact</a>
+            <a href="/about">About</a><a href="/services">Services</a><a href="/training">Training</a><a href="/#industries">Industries</a><a href="/#faq">FAQ</a><a href="/contact">Contact</a><br /><a href="/verify">Verify Certificate</a>
             <a className="nav-proposal" href="/request-proposal">Request Proposal</a><a className="nav-cta" href="https://wa.me/60195193834" target="_blank" rel="noreferrer">WhatsApp</a>
           </nav>
           <MobileNav basePath="/" />
@@ -32,7 +32,7 @@ export default function ContactPage() {
       <section className="contact-page-hero" aria-labelledby="contact-hero-title">
         <div className="container contact-page-hero-grid">
           <div className="contact-page-hero-copy"><span className="eyebrow">Contact TERAS UNIVERSAL</span><h1 id="contact-hero-title">Let&apos;s Build Capability Together</h1><p>Speak with our training consultants to discuss industrial safety training, competency development, consultancy or customised workforce programmes.</p><div className="hero-actions"><a className="btn btn-primary" href="/request-proposal">Request Proposal</a><a className="btn btn-outline" href="https://wa.me/60195193834" target="_blank" rel="noreferrer">WhatsApp Us</a></div></div>
-          <figure className="contact-page-hero-media"><Image src="/images/temp-ai-corporate-scene-11.webp" alt="AI-generated industrial consultant discussing with a corporate client in a modern workplace." width={1200} height={800} priority sizes="(max-width: 920px) 100vw, 52vw" /></figure>
+          <figure className="contact-page-hero-media"><Image src="/images/temp-ai-corporate-scene-11.webp" alt="Industrial consultant discussing training requirements in a modern workplace." width={1200} height={800} priority sizes="(max-width: 920px) 100vw, 52vw" /></figure>
         </div>
       </section>
 
@@ -56,7 +56,7 @@ export default function ContactPage() {
 
       <section className="contact-page-cta"><div className="container"><div><span className="eyebrow">Corporate &amp; Custom Solutions</span><h2>Ready to Strengthen Your Workforce?</h2></div><div className="hero-actions"><a className="btn btn-light" href="/request-proposal">Request Proposal</a><a className="btn btn-gold" href="https://wa.me/60195193834" target="_blank" rel="noreferrer">WhatsApp</a></div></div></section>
 
-      <footer><div className="container footer-grid"><div className="footer-brand"><Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL" width={210} height={135} sizes="190px" /><p>Building Competence. Creating Opportunities.</p></div><div><h3>Core Services</h3><p>Industrial Safety<br />Technical Competency<br />Industrial Consultancy<br />Workforce Development</p></div><div><h3>Quick Links</h3><p><a href="/about">About</a><br /><a href="/training">Training</a><br /><a href="/services">Services</a><br /><a href="/contact">Contact</a></p></div><div><h3>Contact</h3><p><a href="mailto:training@terasuniversal.com.my">training@terasuniversal.com.my</a><br /><a href="tel:+60195193834">+60 19-519 3834</a></p><p>Lot 1961, Jalan Tanah Merah,<br />Kg Tanah Merah Dalam,<br />06000 Jitra, Kedah, Malaysia</p></div></div><div className="container footer-bottom"><span>&copy; 2026 TERAS UNIVERSAL SDN. BHD. All rights reserved.</span><span>terasuniversal.com.my</span></div></footer>
+      <footer><div className="container footer-grid"><div className="footer-brand"><Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL" width={210} height={135} sizes="190px" /><p>Building Competence. Creating Opportunities.</p></div><div><h3>Core Services</h3><p>Industrial Safety<br />Technical Competency<br />Industrial Consultancy<br />Workforce Development</p></div><div><h3>Quick Links</h3><p><a href="/about">About</a><br /><a href="/training">Training</a><br /><a href="/services">Services</a><br /><a href="/contact">Contact</a><br /><a href="/verify">Verify Certificate</a></p></div><div><h3>Contact</h3><p><a href="mailto:training@terasuniversal.com.my">training@terasuniversal.com.my</a><br /><a href="tel:+60195193834">+60 19-519 3834</a></p><p>Lot 1961, Jalan Tanah Merah,<br />Kg Tanah Merah Dalam,<br />06000 Jitra, Kedah, Malaysia</p></div></div><div className="container footer-bottom"><span>&copy; 2026 TERAS UNIVERSAL SDN. BHD. All rights reserved.</span><span>terasuniversal.com.my</span></div></footer>
     </main>
   );
 }

@@ -92,7 +92,7 @@ export default function HomePage() {
             <Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL logo" width={220} height={140} priority sizes="154px" />
           </a>
           <nav className="desktop-nav" aria-label="Main navigation">
-            <a href="#about">About</a><a href="#services">Services</a><a href="#training">Training</a><a href="#industries">Industries</a><a href="#faq">FAQ</a><a href="#contact">Contact</a>
+            <a href="#about">About</a><a href="#services">Services</a><a href="#training">Training</a><a href="#industries">Industries</a><a href="#faq">FAQ</a><a href="#contact">Contact</a><a href="/verify">Verify Certificate</a>
             <a className="nav-proposal" href="/request-proposal">Request Proposal</a><a className="nav-cta" href="https://wa.me/60195193834" target="_blank" rel="noreferrer">WhatsApp</a>
           </nav>
           <MobileNav />
@@ -124,8 +124,8 @@ export default function HomePage() {
           </div>
 
           <div className="premium-visual hero-command-panel" aria-label="TERAS UNIVERSAL capability highlights">
-            {/* AI-generated visual for presentation purposes. */}            <div className="hero-training-image">
-              <Image src="/images/temp-ai-homepage-hero.webp" alt="AI-generated industrial trainer briefing trainees at a refinery for presentation purposes." width={1800} height={1200} priority sizes="(max-width: 920px) 100vw, 52vw" />
+            {}            <div className="hero-training-image">
+              <Image src="/images/temp-ai-homepage-hero.webp" alt="Industrial trainer briefing trainees in modern personal protective equipment." width={1800} height={1200} priority sizes="(max-width: 920px) 100vw, 52vw" />
             </div>
             <div className="hero-panel-services">
               <article><strong>01</strong><span>Industrial Safety</span></article>
@@ -210,19 +210,19 @@ export default function HomePage() {
         <div className="container">
           <div className="section-heading split-heading"><div><span className="eyebrow">Featured Training Programmes</span><h2>Practical programmes for safer and stronger workplaces.</h2></div><p>Programme scope and duration can be tailored to participant profiles, site risks and operational objectives.</p></div>
           <div className="programme-grid">{programmes.map(([number,title,text])=><article key={title}><span>{number}</span><h3>{title}</h3><p>{text}</p><a href="#contact">Enquire now <span aria-hidden="true">&rarr;</span></a></article>)}</div>
-          {/* AI-generated visuals for presentation purposes only. */}
-          <div className="training-visual-strip" aria-label="AI-generated industrial training visuals for presentation purposes">
+          {}
+          <div className="training-visual-strip" aria-label="Industrial training visuals">
             <figure>
-              <Image src="/images/temp-ai-corporate-scene-01.webp" alt="AI-generated classroom training visual." width={900} height={600} sizes="(max-width: 590px) 100vw, (max-width: 920px) 50vw, 33vw" />
-              <figcaption>AI-generated visual - classroom training context</figcaption>
+              <Image src="/images/temp-ai-corporate-scene-01.webp" alt="Classroom training visual." width={900} height={600} sizes="(max-width: 590px) 100vw, (max-width: 920px) 50vw, 33vw" />
+              <figcaption>Classroom training context</figcaption>
             </figure>
             <figure>
-              <Image src="/images/temp-ai-corporate-scene-08.webp" alt="AI-generated industrial site inspection visual." width={900} height={600} sizes="(max-width: 590px) 100vw, (max-width: 920px) 50vw, 33vw" />
-              <figcaption>AI-generated visual - site inspection context</figcaption>
+              <Image src="/images/temp-ai-corporate-scene-08.webp" alt="Industrial site inspection visual." width={900} height={600} sizes="(max-width: 590px) 100vw, (max-width: 920px) 50vw, 33vw" />
+              <figcaption>Site inspection context</figcaption>
             </figure>
             <figure>
-              <Image src="/images/temp-ai-corporate-scene-07.webp" alt="AI-generated technical machinery training visual." width={900} height={600} sizes="(max-width: 590px) 100vw, (max-width: 920px) 50vw, 33vw" />
-              <figcaption>AI-generated visual - technical competency context</figcaption>
+              <Image src="/images/temp-ai-corporate-scene-07.webp" alt="Technical machinery training visual." width={900} height={600} sizes="(max-width: 590px) 100vw, (max-width: 920px) 50vw, 33vw" />
+              <figcaption>Technical competency context</figcaption>
             </figure>
           </div>
         </div>
@@ -278,7 +278,7 @@ export default function HomePage() {
             {facilities.map(([number, title, text, image]) => (
               <article className="facility-card" key={title}>
                 <div className="facility-media">
-                  <Image src={image} alt={`${title} AI-generated industrial training visual.`} width={900} height={600} sizes="(max-width: 590px) 100vw, (max-width: 920px) 50vw, 33vw" />
+                  <Image src={image} alt={`${title} Industrial training visual.`} width={900} height={600} sizes="(max-width: 590px) 100vw, (max-width: 920px) 50vw, 33vw" />
                 </div>
                 <div className="facility-content">
                   <span className="facility-number">{number}</span>
@@ -301,7 +301,7 @@ export default function HomePage() {
       <section id="gallery" className="gallery-section" aria-labelledby="gallery-title">
         <div className="container">
           <div className="section-heading gallery-heading">
-            <span className="eyebrow">AI Training Gallery</span>
+            <span className="eyebrow">Training Gallery</span>
             <h2 id="gallery-title">Training in Action</h2>
             <p>Explore visual representations of industrial safety training, technical development and practical competency activities.</p>
           </div>

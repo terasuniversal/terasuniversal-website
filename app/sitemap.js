@@ -8,5 +8,6 @@ export default function sitemap() {
     { url: "https://terasuniversal.com.my/contact", lastModified: new Date(), changeFrequency: "monthly", priority: 0.8 },
     { url: "https://terasuniversal.com.my/request-proposal", lastModified: new Date(), changeFrequency: "monthly", priority: 0.8 },
     { url: "https://terasuniversal.com.my/gallery", lastModified: new Date(), changeFrequency: "monthly", priority: 0.7 },
+    { url: "https://terasuniversal.com.my/verify", lastModified: new Date(), changeFrequency: "monthly", priority: 0.7 },
   ];
 }
