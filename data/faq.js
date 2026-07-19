@@ -7,4 +7,11 @@ export const faqItems = [
   ["Participants", "Are programmes suitable for beginners?", "Selected programmes are suitable for beginners, while others require prior knowledge, experience or specific entry requirements."],
   ["Delivery", "Do you provide practical training?", "Where applicable, programmes combine theory, demonstrations, guided practical exercises and structured assessment."],
   ["Scheduling", "Can training dates be arranged according to our schedule?", "Training dates may be discussed according to trainer availability, participant numbers, site arrangements and programme requirements."],
+  ["Government", "Do you support government departments and GLC organisations?", "Yes. We support government departments, agencies and government-linked companies with structured, competency-based training and consultancy solutions."],
+  ["Government", "Can you provide documentation for procurement or tender requirements?", "Please contact our team directly through the Request Proposal form to discuss your department's specific documentation requirements."],
+  ["Individuals", "Can individuals register for public programmes?", "Selected programmes are open to individual registration where a public schedule is available. Contact our team for current availability."],
+  ["Individuals", "Do I need prior experience to join a programme?", "Selected programmes are suitable for beginners, while others require prior knowledge, experience or specific entry requirements."],
+  ["Payments", "How is payment for training arranged?", "Payment terms are confirmed during the proposal and invoicing process and may vary according to the programme and organisation."],
+  ["Payments", "Do you issue invoices for corporate training?", "Yes. Invoices are issued as part of the standard proposal and confirmation process for corporate and government clients."],
+  ["Certification", "How can a certificate be verified?", "Certificates can be verified using the certificate number through our online Verify Certificate tool."],
 ];

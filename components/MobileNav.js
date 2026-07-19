@@ -14,7 +14,8 @@ export default function MobileNav({ basePath = "" }) {
         <a href={link("#about")} onClick={closeMenu}>About</a>
         <a href={link("#services")} onClick={closeMenu}>Services</a>
         <a href={basePath ? `${basePath}training` : "#training"} onClick={closeMenu}>Training</a>
-        <a href={link("#industries")} onClick={closeMenu}>Industries</a>
+        <a href={basePath ? `${basePath}training/compare` : "/training/compare"} onClick={closeMenu}>Compare Programmes</a>
+        <a href={basePath ? `${basePath}industries` : "/industries"} onClick={closeMenu}>Industries We Serve</a>
         <a href={link("#faq")} onClick={closeMenu}>FAQ</a>
         <a href={link("#contact")} onClick={closeMenu}>Contact</a>
         <a href={basePath ? `${basePath}request-proposal` : "/request-proposal"} onClick={closeMenu}>Request Proposal</a>
@@ -23,8 +24,10 @@ export default function MobileNav({ basePath = "" }) {
         <a href={basePath ? `${basePath}resources` : "/resources"} onClick={closeMenu}>Resources</a>
         <a href={basePath ? `${basePath}calendar` : "/calendar"} onClick={closeMenu}>Training Calendar</a>
         <a href={basePath ? `${basePath}insights` : "/insights"} onClick={closeMenu}>News &amp; Insights</a>
+        <a href={basePath ? `${basePath}media` : "/media"} onClick={closeMenu}>Media Centre</a>
         <a href={basePath ? `${basePath}faq` : "/faq"} onClick={closeMenu}>FAQ Centre</a>
         <a href={basePath ? `${basePath}stories` : "/stories"} onClick={closeMenu}>Testimonials &amp; Stories</a>
+        <a href={basePath ? `${basePath}careers` : "/careers"} onClick={closeMenu}>Careers</a>
         <a className="mobile-menu-cta" href="https://wa.me/60195193834" target="_blank" rel="noreferrer" onClick={closeMenu}>WhatsApp</a>
       </div>
     </>

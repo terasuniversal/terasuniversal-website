@@ -3,7 +3,7 @@ import MobileNav from "../../../components/MobileNav";
 import MegaNav from "../../../components/MegaNav";
 import { courseCatalog, findCourse } from "../../../data/courseCatalog";
 
-export function generateStaticParams() { return courseCatalog.map(({ slug }) => ({ slug })); }
+export function generateStaticParams() { return courseCatalog.filter((course) => !course.detailPage).map(({ slug }) => ({ slug })); }
 export async function generateMetadata({ params }) { const { slug } = await params; const course = findCourse(slug); return course ? { title: `${course.title} | TERAS UNIVERSAL`, description: course.summary, alternates: { canonical: `/training/${course.slug}` }, openGraph: { title: `${course.title} | TERAS UNIVERSAL`, description: course.summary, url: `/training/${course.slug}` } } : { title: "Training Programme | TERAS UNIVERSAL" }; }
 
 export default async function CoursePage({ params }) {

@@ -1,6 +1,15 @@
 import Image from "next/image";
-import MobileNav from "../../components/MobileNav";
-import MegaNav from "../../components/MegaNav";
+import SiteHeader from "../../components/SiteHeader";
+import SiteFooter from "../../components/SiteFooter";
+import TeamGrid from "../../components/TeamGrid";
+import CorporateTimeline from "../../components/CorporateTimeline";
+import PartnersGrid from "../../components/PartnersGrid";
+import AwardsList from "../../components/AwardsList";
+import MetricsBlock from "../../components/MetricsBlock";
+import { teamMembers } from "../../data/team";
+import { timeline } from "../../data/timeline";
+import { partners } from "../../data/partners";
+import { awards } from "../../data/awards";
 
 const values = [
   ["T", "Trust", "We build relationships through integrity, transparency and dependable delivery."],
@@ -23,13 +32,7 @@ const industries = ["Oil & Gas", "Construction", "Manufacturing", "Marine & Offs
 export default function AboutPage() {
   return (
     <main className="about-page">
-      <header className="site-header">
-        <div className="container nav-wrap">
-          <a className="brand" href="/" aria-label="TERAS UNIVERSAL home"><Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL logo" width={220} height={140} priority sizes="154px" /></a>
-          <MegaNav />
-          <MobileNav basePath="/" />
-        </div>
-      </header>
+      <SiteHeader />
 
       <section className="about-hero" aria-labelledby="about-hero-title">
         <div className="container about-hero-grid">
@@ -50,12 +53,28 @@ export default function AboutPage() {
         </div>
       </section>
 
+      {timeline.length > 0 && (
+        <section className="about-timeline-section" aria-labelledby="timeline-title">
+          <div className="container"><div className="section-heading about-section-heading"><span className="eyebrow">Our Journey</span><h2 id="timeline-title">Verified milestones along the way.</h2></div><CorporateTimeline /></div>
+        </section>
+      )}
+
       <section className="about-vision-section" aria-labelledby="vision-title">
         <div className="container"><div className="section-heading about-section-heading"><span className="eyebrow">Direction &amp; Purpose</span><h2 id="vision-title">A clear direction for meaningful workforce development.</h2></div><div className="about-vision-grid"><article><span className="about-card-number">01</span><h3>Vision</h3><p>To be a trusted partner in building safer, more competent and more resilient workforces.</p></article><article><span className="about-card-number">02</span><h3>Mission</h3><p>To deliver practical, competency-based training and industrial solutions that help organisations strengthen people, performance and workplace confidence.</p></article></div></div>
       </section>
 
       <section className="about-values-section" aria-labelledby="values-title">
         <div className="container"><div className="section-heading about-section-heading"><span className="eyebrow">TERAS Values</span><h2 id="values-title">The principles behind every engagement.</h2></div><div className="about-values-grid">{values.map(([icon, title, text]) => <article key={title}><span className="about-value-icon" aria-hidden="true">{icon}</span><h3>{title}</h3><p>{text}</p></article>)}</div></div>
+      </section>
+
+      {teamMembers.length > 0 && (
+        <section className="about-team-section soft-section" aria-labelledby="team-title">
+          <div className="container"><div className="section-heading about-section-heading"><span className="eyebrow">Leadership</span><h2 id="team-title">The people guiding TERAS UNIVERSAL.</h2></div><TeamGrid /></div>
+        </section>
+      )}
+
+      <section className="about-metrics-section" aria-labelledby="metrics-title">
+        <div className="container"><div className="section-heading about-section-heading"><span className="eyebrow">Our Impact</span><h2 id="metrics-title">Performance figures, published responsibly.</h2><p>We publish figures only once they are verified and can be substantiated on request.</p></div><MetricsBlock /></div>
       </section>
 
       <section className="about-reasons-section" aria-labelledby="reasons-title">
@@ -70,11 +89,23 @@ export default function AboutPage() {
         <div className="container"><div className="section-heading about-section-heading"><span className="eyebrow">Industries We Support</span><h2 id="about-industries-title">Built for safety-critical environments.</h2></div><div className="about-industries-grid">{industries.map((industry, index) => <article key={industry}><span>{String(index + 1).padStart(2, "0")}</span><h3>{industry}</h3></article>)}</div></div>
       </section>
 
+      {(partners.strategic.length + partners.government.length + partners.industry.length + partners.education.length) > 0 && (
+        <section className="about-partners-section soft-section" aria-labelledby="partners-title">
+          <div className="container"><div className="section-heading about-section-heading"><span className="eyebrow">Partners</span><h2 id="partners-title">Organisations we work alongside.</h2></div><PartnersGrid /></div>
+        </section>
+      )}
+
+      {awards.length > 0 && (
+        <section className="about-awards-section" aria-labelledby="awards-title">
+          <div className="container"><div className="section-heading about-section-heading"><span className="eyebrow">Awards &amp; Recognition</span><h2 id="awards-title">Recognised for our contribution.</h2></div><AwardsList /></div>
+        </section>
+      )}
+
       <section className="about-commitment-section"><div className="container"><span className="eyebrow">Corporate Commitment</span><h2>Committed to Building Safer and More Competent Workforces</h2><p>We work with organisations that value practical capability, responsible delivery and long-term improvement. Every engagement is an opportunity to help people perform with greater understanding, discipline and confidence.</p></div></section>
 
       <section className="about-final-cta"><div className="container"><div><span className="eyebrow">Let's Work Together</span><h2>Let&apos;s Build Capability Together</h2></div><div className="hero-actions"><a className="btn btn-light" href="/#contact">Request Proposal</a><a className="btn btn-gold" href="/#contact">Contact Us</a></div></div></section>
 
-      <footer><div className="container footer-grid"><div className="footer-brand"><Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL" width={210} height={135} sizes="190px" /><p>Building Competence. Creating Opportunities.</p></div><div><h3>Core Services</h3><p>Industrial Safety<br />Technical Competency<br />Industrial Consultancy<br />Workforce Development</p></div><div><h3>Quick Links</h3><p><a href="/about">About</a><br /><a href="/training">Training</a><br /><a href="/services">Services</a><br /><a href="/#contact">Contact</a><a href="/verify">Verify Certificate</a></p></div><div><h3>Contact</h3><p><a href="mailto:training@terasuniversal.com.my">training@terasuniversal.com.my</a><br /><a href="tel:+60195193834">+60 19-519 3834</a></p><p>Lot 1961, Jalan Tanah Merah,<br />Kg Tanah Merah Dalam,<br />06000 Jitra, Kedah, Malaysia</p></div></div><div className="container footer-bottom"><span>&copy; 2026 TERAS UNIVERSAL SDN. BHD. All rights reserved.</span><span>terasuniversal.com.my</span></div></footer>
+      <SiteFooter />
     </main>
   );
 }
