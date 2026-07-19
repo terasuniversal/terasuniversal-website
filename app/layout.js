@@ -1,5 +1,6 @@
 import "./globals.css";
 import Analytics from "../components/Analytics";
+import StickyCta from "../components/StickyCta";
 import { Montserrat, Poppins } from "next/font/google";
 
 const montserrat = Montserrat({ subsets: ["latin"], weight: ["600", "700", "800"], variable: "--font-montserrat", display: "swap" });
@@ -76,7 +77,8 @@ export default function RootLayout({ children }) {
       </head>
       <body>
         {children}
-                <Analytics />
+        <StickyCta />
+        <Analytics />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify([organizationSchema, localBusinessSchema, websiteSchema]) }} />
       </body>
     </html>

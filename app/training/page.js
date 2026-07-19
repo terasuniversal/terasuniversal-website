@@ -3,6 +3,9 @@
 import Image from "next/image";
 import { useMemo, useState } from "react";
 import MobileNav from "../../components/MobileNav";
+import MegaNav from "../../components/MegaNav";
+import TrainingFinder from "../../components/TrainingFinder";
+import { courseCatalog } from "../../data/courseCatalog";
 
 const categories = ["All Programmes", "Industrial Safety", "Technical Competency", "Assessment", "Workforce Development"];
 const programmes = [
@@ -41,10 +44,7 @@ export default function TrainingPage() {
       <header className="site-header">
         <div className="container nav-wrap">
           <a className="brand" href="/" aria-label="TERAS UNIVERSAL home"><Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL logo" width={220} height={140} priority sizes="154px" /></a>
-          <nav className="desktop-nav" aria-label="Main navigation">
-            <a href="/#about">About</a><a href="/#services">Services</a><a href="/training">Training</a><a href="/#industries">Industries</a><a href="/#faq">FAQ</a><a href="/#contact">Contact</a><a href="/verify">Verify Certificate</a>
-            <a className="nav-proposal" href="/request-proposal">Request Proposal</a><a className="nav-cta" href="https://wa.me/60195193834" target="_blank" rel="noreferrer">WhatsApp</a>
-          </nav>
+          <MegaNav />
           <MobileNav basePath="/" />
         </div>
       </header>
@@ -72,6 +72,8 @@ export default function TrainingPage() {
         </div>
       </section>
 
+      <TrainingFinder />
+
       <section className="training-programmes-section" aria-labelledby="programme-title">
         <div className="container">
           <div className="section-heading training-section-heading">
@@ -93,7 +95,7 @@ export default function TrainingPage() {
                   <div className="training-card-badges" aria-label="Programme features"><span>Practical</span><span>Theory</span><span>Assessment</span></div>
                   <div className="training-card-industries" aria-label="Relevant industries">{industries.map((industry) => <span key={industry}>{industry}</span>)}</div>
                   <p className="training-card-audience"><strong>Suitable for</strong>{audience}</p>
-                  <a className="training-card-link" href={title === "Scaffolding Competency" ? "/training/scaffolding-competency" : "/#contact"}>Enquire about this programme <span aria-hidden="true">&rarr;</span></a>
+                  <a className="training-card-link" href={title === "Scaffolding Competency" ? "/training/scaffolding-competency" : courseCatalog.find((course) => course.title === title) ? `/training/${courseCatalog.find((course) => course.title === title).slug}` : "/request-proposal"}>View programme <span aria-hidden="true">&rarr;</span></a>
                 </div>
               </article>
             ))}

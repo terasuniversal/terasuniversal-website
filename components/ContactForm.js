@@ -13,11 +13,13 @@ export default function ContactForm() {
     const email = data.get("email");
     const phone = data.get("phone");
     const course = data.get("course");
+    const enquiryType = data.get("enquiryType");
     const message = data.get("message");
 
     const subject = encodeURIComponent(`Website training enquiry — ${course}`);
     const body = encodeURIComponent(
-`Name: ${name}
+`Enquiry Type: ${enquiryType}
+Name: ${name}
 Company: ${company || "-"}
 Email: ${email}
 Phone: ${phone}
@@ -51,6 +53,15 @@ ${message}`
           <input name="phone" type="tel" autoComplete="tel" required />
         </label>
       </div>
+      <label>
+        Enquiry Type *
+        <select name="enquiryType" required defaultValue="Corporate">
+          <option>Corporate</option>
+          <option>Individual</option>
+          <option>Government</option>
+          <option>Training</option>
+        </select>
+      </label>
       <label>
         Course / Service Interested *
         <select name="course" required defaultValue="">

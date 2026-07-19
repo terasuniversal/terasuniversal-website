@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 const items = [
   ["Can training be conducted at our company site?", "Yes. Selected programmes may be delivered onsite, subject to programme requirements, site suitability, equipment availability and safety arrangements."],
@@ -15,10 +15,14 @@ const items = [
 
 export default function FaqAccordion() {
   const [openIndex, setOpenIndex] = useState(null);
+  const [query, setQuery] = useState("");
+  const visibleItems = useMemo(() => items.filter(([question, answer]) => `${question} ${answer}`.toLowerCase().includes(query.trim().toLowerCase())), [query]);
 
   return (
     <div className="faq-accordion">
-      {items.map(([question, answer], index) => {
+      <label className="faq-search-label" htmlFor="faq-search">Search FAQs</label>
+      <input className="faq-search" id="faq-search" type="search" placeholder="Search a question..." value={query} onChange={(event) => { setQuery(event.target.value); setOpenIndex(null); }} />
+      {visibleItems.map(([question, answer], index) => {
         const isOpen = openIndex === index;
         return (
           <div className={`faq-item${isOpen ? " is-open" : ""}`} key={question}>
@@ -32,6 +36,7 @@ export default function FaqAccordion() {
           </div>
         );
       })}
+      {!visibleItems.length && <p className="faq-empty">No FAQ matches your search.</p>}
     </div>
   );
 }

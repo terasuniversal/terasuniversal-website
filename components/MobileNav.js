@@ -19,6 +19,12 @@ export default function MobileNav({ basePath = "" }) {
         <a href={link("#contact")} onClick={closeMenu}>Contact</a>
         <a href={basePath ? `${basePath}request-proposal` : "/request-proposal"} onClick={closeMenu}>Request Proposal</a>
         <a href={basePath ? `${basePath}verify` : "/verify"} onClick={closeMenu}>Verify Certificate</a>
+        <a href={basePath ? `${basePath}search` : "/search"} onClick={closeMenu}>Search</a>
+        <a href={basePath ? `${basePath}resources` : "/resources"} onClick={closeMenu}>Resources</a>
+        <a href={basePath ? `${basePath}calendar` : "/calendar"} onClick={closeMenu}>Training Calendar</a>
+        <a href={basePath ? `${basePath}insights` : "/insights"} onClick={closeMenu}>News &amp; Insights</a>
+        <a href={basePath ? `${basePath}faq` : "/faq"} onClick={closeMenu}>FAQ Centre</a>
+        <a href={basePath ? `${basePath}stories` : "/stories"} onClick={closeMenu}>Testimonials &amp; Stories</a>
         <a className="mobile-menu-cta" href="https://wa.me/60195193834" target="_blank" rel="noreferrer" onClick={closeMenu}>WhatsApp</a>
       </div>
     </>

@@ -33,15 +33,12 @@ Commit message:
 
 Vercel will automatically deploy the update.
 
-## Contact form behaviour
+## Current website modules
 
-The form works without any paid service or API key. On submission it opens the
-visitor's default email application with the enquiry already addressed to:
-
-training@terasuniversal.com.my
-
-A future upgrade can submit directly in the background using Formspree, Resend
-or another email API.
+The site includes corporate pages, training finder, course detail pages,
+request proposal workflow, Google Sheets CRM forwarding, Resend email delivery,
+training calendar, resources, FAQ centre, insights, gallery, stories, search,
+analytics hooks and certificate verification.
 
 
 ## Mobile responsiveness fix
@@ -99,6 +96,7 @@ The site includes an optional production-only GA4 integration and environment-dr
 NEXT_PUBLIC_GA_MEASUREMENT_ID=
 NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION=
 NEXT_PUBLIC_BING_VERIFICATION=
+NEXT_PUBLIC_GTM_ID=
 ```
 
 GA4 does not load during development or when the measurement ID is blank. Page views are sent on App Router path changes. The analytics component also honours `window.__TERAS_ANALYTICS_CONSENT__ = false` and can listen to a future consent implementation without changing page layouts.
@@ -112,7 +110,8 @@ The `/request-proposal` form sends submissions through the server-only route
 The route validates and sanitises fields server-side, uses a honeypot and
 minimum completion time for basic spam protection, applies a lightweight
 per-IP rate limit, and redirects to `/request-proposal/success` only after
-both emails are accepted by Resend. No database is used.
+both emails are accepted by Resend and the Google Sheets CRM confirms a
+successful write. No private API credentials are exposed to the browser.
 
 ### Required Vercel environment variables
 

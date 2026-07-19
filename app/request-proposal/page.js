@@ -1,6 +1,6 @@
 import Image from "next/image";
 import MobileNav from "../../components/MobileNav";
-import ProposalForm from "../../components/ProposalForm";
+import ProposalWizard from "../../components/ProposalWizard";
 
 const benefits = [
   ["01", "Customised Solutions", "A proposal shaped around your workforce profile, operational requirements and delivery preferences."],
@@ -17,7 +17,7 @@ export default function RequestProposalPage() {
 
       <section className="proposal-hero" aria-labelledby="proposal-hero-title"><div className="container proposal-hero-grid"><div className="proposal-hero-copy"><span className="eyebrow">Request a Proposal</span><h1 id="proposal-hero-title">Tell Us About Your Training Requirements</h1><p>Share your organisation&apos;s training needs and our team will prepare a suitable proposal based on your workforce, operational requirements and preferred delivery method.</p><div className="hero-actions"><a className="btn btn-primary" href="https://wa.me/60195193834" target="_blank" rel="noreferrer">WhatsApp Us</a><a className="btn btn-outline" href="/training">Explore Training</a></div></div><figure className="proposal-hero-media"><Image src="/images/temp-ai-corporate-scene-11.webp" alt="Industrial consultant discussing training requirements with a corporate client." width={1200} height={800} priority sizes="(max-width: 920px) 100vw, 52vw" /></figure></div></section>
 
-      <section className="proposal-form-section" aria-labelledby="proposal-form-title"><div className="container"><div className="section-heading proposal-section-heading"><span className="eyebrow">Corporate Enquiry Form</span><h2 id="proposal-form-title">Help us understand your requirements.</h2><p>Complete the form and we can use the information as a starting point for the next conversation.</p></div><ProposalForm /></div></section>
+      <section className="proposal-form-section" aria-labelledby="proposal-form-title"><div className="container"><div className="section-heading proposal-section-heading"><span className="eyebrow">Corporate Enquiry Form</span><h2 id="proposal-form-title">Help us understand your requirements.</h2><p>Complete the form and we can use the information as a starting point for the next conversation.</p></div><ProposalWizard /></div></section>
 
       <section className="proposal-benefits-section" aria-labelledby="benefits-title"><div className="container"><div className="section-heading"><span className="eyebrow">Why Submit a Proposal Request</span><h2 id="benefits-title">A clearer route to the right arrangement.</h2></div><div className="proposal-benefits-grid">{benefits.map(([number,title,text]) => <article key={title}><span>{number}</span><h3>{title}</h3><p>{text}</p></article>)}</div></div></section>
 
