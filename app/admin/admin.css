@@ -186,3 +186,15 @@
   .ta-content { padding: 16px; }
   .ta-user-meta { display: none; }
 }
+
+.ta-sidebar-toggle { align-self: flex-end; margin: 10px 12px 0; width: 28px; height: 28px; border: 1px solid rgba(255,255,255,.18); border-radius: 8px; background: rgba(255,255,255,.08); color: #fff; cursor: pointer; font-size: 20px; line-height: 1; }
+.ta-sidebar.is-collapsed { width: 76px; }
+.ta-sidebar.is-collapsed .ta-sidebar-brand { padding: 16px 18px; justify-content: center; }
+.ta-sidebar.is-collapsed .ta-sidebar-brand span, .ta-sidebar.is-collapsed .ta-nav-group-label, .ta-sidebar.is-collapsed .ta-nav-label, .ta-sidebar.is-collapsed .ta-badge { display: none; }
+.ta-sidebar.is-collapsed .ta-nav { padding-inline: 12px; }
+.ta-sidebar.is-collapsed .ta-nav-item { justify-content: center; padding-inline: 10px; }
+.ta-sidebar.is-collapsed .ta-ico { flex: 0 0 18px; }
+.ta-sidebar.is-collapsed + .ta-main { margin-left: 76px; }
+.ta-nav-item { overflow: visible; }
+.ta-nav-item[title] { position: relative; }
+@media (min-width: 901px) { .ta-sidebar.is-collapsed ~ .ta-main { margin-left: 76px; } }

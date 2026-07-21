@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 import { NAV } from "../../lib/admin-nav";
 import { hasMinRole } from "../../lib/auth/rbac";
 import type { UserRole } from "../../lib/supabase/database.types";
@@ -19,9 +20,10 @@ export function Sidebar({
   badges?: Record<string, number>;
 }) {
   const pathname = usePathname();
+  const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <aside className="ta-sidebar" aria-label="Admin navigation">
+    <aside className={`ta-sidebar${collapsed ? " is-collapsed" : ""}`} aria-label="Admin navigation">
       <div className="ta-sidebar-brand">
         <img src="/teras-universal-logo.png" alt="" />
         <span>
@@ -29,6 +31,7 @@ export function Sidebar({
           Admin CMS
         </span>
       </div>
+      <button className="ta-sidebar-toggle" type="button" onClick={() => setCollapsed(!collapsed)} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} title={collapsed ? "Expand sidebar" : "Collapse sidebar"}>{collapsed ? "›" : "‹"}</button>
       <nav className="ta-nav">
         {NAV.map((group) => {
           const items = group.items.filter((i) => hasMinRole(role, i.minRole));
@@ -47,7 +50,7 @@ export function Sidebar({
                     className={`ta-nav-item${active ? " active" : ""}`}
                     aria-current={active ? "page" : undefined}
                   >
-                    <span className="ta-ico" aria-hidden="true">
+                    <span className="ta-ico" aria-hidden="true" title={collapsed ? item.label : undefined}>
                       {item.icon}
                     </span>
                     <span className="ta-nav-label">{item.label}</span>
