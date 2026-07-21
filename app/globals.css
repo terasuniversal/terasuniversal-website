@@ -4951,3 +4951,7 @@ img {
 
 .admin-reset-link { border: 0; background: transparent; color: var(--navy); padding: 0; text-align: left; font-weight: 700; cursor: pointer; }
 
+
+/* The public contact bar must never overlap protected admin forms. */
+body:has(.teras-admin) .sticky-cta { display: none; }
+
