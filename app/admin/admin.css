@@ -49,7 +49,6 @@
   position: fixed;
   inset: 0 auto 0 0;
   z-index: 40;
-  overflow: hidden;
   transition: transform 0.22s ease;
 }
 .ta-sidebar-brand {
@@ -69,7 +68,7 @@
 .ta-nav-item:hover { background: rgba(255,255,255,0.06); color: #fff; }
 .ta-nav-item.active { background: var(--ta-gold); color: var(--ta-navy); font-weight: 700; }
 .ta-nav-item .ta-ico { flex: 0 0 18px; width: 18px; text-align: center; font-size: 15px; line-height: 1; }
-.ta-nav-label { flex: 1 1 auto; min-width: 0; overflow: visible; white-space: nowrap; line-height: 1.25; }
+.ta-nav-label { min-width: 0; white-space: nowrap; line-height: 1.25; font-size: 13px; }
 .ta-nav-item .ta-badge { flex: 0 0 auto; margin-left: auto; background: var(--ta-gold); color: var(--ta-navy); font-size: 11px; font-weight: 800; border-radius: 999px; padding: 1px 7px; }
 .ta-nav-item.active .ta-badge { background: var(--ta-navy); color: #fff; }
 
@@ -192,7 +191,7 @@
 .ta-sidebar.is-collapsed .ta-sidebar-brand { padding: 16px 18px; justify-content: center; }
 .ta-sidebar.is-collapsed .ta-sidebar-brand span, .ta-sidebar.is-collapsed .ta-nav-group-label, .ta-sidebar.is-collapsed .ta-nav-label, .ta-sidebar.is-collapsed .ta-badge { display: none; }
 .ta-sidebar.is-collapsed .ta-nav { padding-inline: 12px; }
-.ta-sidebar.is-collapsed .ta-nav-item { justify-content: center; padding-inline: 10px; }
+.ta-sidebar.is-collapsed .ta-nav-item { display: flex; justify-content: center; padding-inline: 10px; }
 .ta-sidebar.is-collapsed .ta-ico { flex: 0 0 18px; }
 .ta-sidebar.is-collapsed + .ta-main { margin-left: 76px; }
 .ta-nav-item { overflow: visible; }
