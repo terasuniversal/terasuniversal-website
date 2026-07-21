@@ -160,6 +160,19 @@ export interface Assessment {
   created_at: string;
   updated_at: string;
 }
+export interface Certificate {
+  id: string;
+  participant_name: string;
+  course_name: string;
+  certificate_no: string;
+  training_start_date: string | null;
+  training_end_date: string | null;
+  issue_date: string | null;
+  expiry_date: string | null;
+  status: "valid" | "expired" | "revoked";
+  created_at: string;
+  updated_at: string;
+}
 /**
  * Minimal Database shape so `createServerClient<Database>()` is typed. Tables
  * not listed here fall back to `any` via the index signature, so nothing
@@ -174,6 +187,7 @@ export interface Database {
       proposal_requests: { Row: any; Insert: any; Update: any; Relationships: [] };
       attendance: { Row: any; Insert: any; Update: any; Relationships: [] };
       assessments: { Row: any; Insert: any; Update: any; Relationships: [] };
+      certificates: { Row: Certificate; Insert: Partial<Certificate>; Update: Partial<Certificate>; Relationships: [] };
       [key: string]: { Row: any; Insert: any; Update: any; Relationships: [] };
     };
     Views: { [key: string]: { Row: any } };

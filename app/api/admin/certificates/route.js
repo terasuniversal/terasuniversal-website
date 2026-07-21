@@ -19,13 +19,22 @@ async function requireAdmin(request) {
   return { client, userId: userData.user.id };
 }
 
+function validateCourseDates(form) {
+  const startDate = String(form?.course_date || "").trim();
+  const endDate = String(form?.course_end_date || "").trim();
+  if (endDate && !startDate) return "Course start date diperlukan apabila course end date diisi.";
+  if (endDate && endDate < startDate) return "Course end date tidak boleh lebih awal daripada course start date.";
+  return null;
+}
 function certificatePayload(form, ids = {}) {
-  return { ...ids, participant_name: String(form?.participant_name || "").trim(), course_name: String(form?.course_name || "").trim(), certificate_no: String(form?.certificate_no || "").trim().toUpperCase(), training_start_date: form?.course_date || null, training_end_date: form?.course_date || null, issue_date: form?.course_date || null, expiry_date: form?.expiry_date || null, status: ["valid", "expired", "revoked"].includes(form?.status) ? form.status : "valid", trainer_name: String(form?.instructor || "").trim() || null, venue: String(form?.venue || "").trim() || null, identity_no: String(form?.identity_no || "").trim().toUpperCase() || null, instructor: String(form?.instructor || "").trim() || null, certificate_file_url: String(form?.certificate_file_url || "").trim() || null, public_verification_enabled: form?.public_verification_enabled !== false };
+  return { ...ids, participant_name: String(form?.participant_name || "").trim(), course_name: String(form?.course_name || "").trim(), certificate_no: String(form?.certificate_no || "").trim().toUpperCase(), training_start_date: form?.course_date || null, training_end_date: form?.course_end_date || null, issue_date: form?.course_date || null, expiry_date: form?.expiry_date || null, status: ["valid", "expired", "revoked"].includes(form?.status) ? form.status : "valid", trainer_name: String(form?.instructor || "").trim() || null, venue: String(form?.venue || "").trim() || null, identity_no: String(form?.identity_no || "").trim().toUpperCase() || null, instructor: String(form?.instructor || "").trim() || null, certificate_file_url: String(form?.certificate_file_url || "").trim() || null, public_verification_enabled: form?.public_verification_enabled !== false };
 }
 
 async function createRecord(client, form) {
   const required = ["participant_name", "identity_no", "course_name", "course_date", "certificate_no"];
   if (required.some((field) => !String(form?.[field] || "").trim())) return "Medan wajib tidak lengkap.";
+  const dateError = validateCourseDates(form);
+  if (dateError) return dateError;
   const { data: participant, error: participantError } = await client.from("participants").insert({ full_name: String(form.participant_name).trim(), identity_no: String(form.identity_no).trim().toUpperCase(), identity_last4: String(form.identity_no).trim().slice(-4), status: "active" }).select("id").single();
   if (participantError) return participantError.message;
   const { data: course, error: courseError } = await client.from("courses").insert({ course_name: String(form.course_name).trim(), active: true }).select("id").single();
@@ -50,6 +59,8 @@ export async function POST(request) {
     if (error) return NextResponse.json({ error: error.message }, { status: 400 }); return NextResponse.json({ ok: true });
   }
   if (action === "update") {
+    const dateError = validateCourseDates(body.form);
+    if (dateError) return NextResponse.json({ error: dateError }, { status: 400 });
     const { error } = await auth.client.from("certificates").update(certificatePayload(body.form)).eq("id", body.id);
     if (error) return NextResponse.json({ error: error.message }, { status: 400 }); return NextResponse.json({ ok: true });
   }
