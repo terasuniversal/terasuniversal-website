@@ -20,7 +20,7 @@
   --ta-info: #2f6fed;
   --ta-radius: 12px;
   --ta-shadow: 0 6px 24px rgba(11, 44, 86, 0.08);
-  --ta-sidebar-w: 256px;
+  --ta-sidebar-w: 290px;
 
   font-family: var(--font-poppins), system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
   color: var(--ta-ink);
@@ -49,6 +49,7 @@
   position: fixed;
   inset: 0 auto 0 0;
   z-index: 40;
+  overflow: hidden;
   transition: transform 0.22s ease;
 }
 .ta-sidebar-brand {
@@ -58,17 +59,18 @@
 .ta-sidebar-brand img { width: 34px; height: 34px; object-fit: contain; background:#fff; border-radius:8px; padding:3px; }
 .ta-sidebar-brand strong { color: #fff; font-size: 14px; letter-spacing: .02em; }
 .ta-sidebar-brand span { display:block; color: var(--ta-gold); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .12em; }
-.ta-nav { flex: 1; overflow-y: auto; padding: 12px 10px; }
+.ta-nav { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 14px 12px 20px; scrollbar-gutter: stable; }
 .ta-nav-group-label { padding: 14px 12px 6px; font-size: 10px; text-transform: uppercase; letter-spacing: .1em; color: #8ea6c8; font-weight: 700; }
 .ta-nav-item {
-  display: flex; align-items: center; gap: 11px;
-  padding: 9px 12px; border-radius: 9px; margin-bottom: 2px;
+  display: flex; align-items: center; gap: 12px; min-height: 42px;
+  padding: 10px 14px; border-radius: 9px; margin-bottom: 3px; white-space: nowrap;
   color: #cdd9ea; font-weight: 500; transition: background .15s, color .15s;
 }
 .ta-nav-item:hover { background: rgba(255,255,255,0.06); color: #fff; }
 .ta-nav-item.active { background: var(--ta-gold); color: var(--ta-navy); font-weight: 700; }
-.ta-nav-item .ta-ico { width: 18px; text-align: center; font-size: 15px; }
-.ta-nav-item .ta-badge { margin-left: auto; background: var(--ta-gold); color: var(--ta-navy); font-size: 11px; font-weight: 800; border-radius: 999px; padding: 1px 7px; }
+.ta-nav-item .ta-ico { flex: 0 0 18px; width: 18px; text-align: center; font-size: 15px; line-height: 1; }
+.ta-nav-label { flex: 1 1 auto; min-width: 0; overflow: visible; white-space: nowrap; line-height: 1.25; }
+.ta-nav-item .ta-badge { flex: 0 0 auto; margin-left: auto; background: var(--ta-gold); color: var(--ta-navy); font-size: 11px; font-weight: 800; border-radius: 999px; padding: 1px 7px; }
 .ta-nav-item.active .ta-badge { background: var(--ta-navy); color: #fff; }
 
 .ta-main { flex: 1; margin-left: var(--ta-sidebar-w); display: flex; flex-direction: column; min-width: 0; }

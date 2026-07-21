@@ -50,7 +50,7 @@ export function Sidebar({
                     <span className="ta-ico" aria-hidden="true">
                       {item.icon}
                     </span>
-                    {item.label}
+                    <span className="ta-nav-label">{item.label}</span>
                     {count ? <span className="ta-badge">{count}</span> : null}
                   </Link>
                 );
