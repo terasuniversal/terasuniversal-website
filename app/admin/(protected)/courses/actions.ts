@@ -50,7 +50,7 @@ export async function createCourse(
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
   const supabase = await createSupabaseServerClient();
-  const payload: any = { ...parsed.data };
+  const payload: any = { ...parsed.data, course_name: parsed.data.title };
   
 
   const { error } = await supabase.from("courses").insert(payload);
@@ -72,7 +72,7 @@ export async function updateCourse(
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
   const supabase = await createSupabaseServerClient();
-  const payload: any = { ...parsed.data };
+  const payload: any = { ...parsed.data, course_name: parsed.data.title };
   
 
   const { error } = await supabase.from("courses").update(payload).eq("id", id);
