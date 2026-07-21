@@ -146,3 +146,14 @@ The Apps Script endpoint should be deployed as a Web App, accept unauthenticated
 JSON POST requests as configured for the project, and return a JSON response with
 `{"success":true}` after appending the lead. Do not expose this URL through a
 `NEXT_PUBLIC_` variable, and do not commit private credentials or API keys.
+
+## Certificate Verification Database
+
+The certificate workflow is available at `/verify` and `/admin/certificates`.
+
+1. Run `supabase/certificates.sql` in the Supabase SQL Editor.
+2. Create an Email/Password admin in Supabase Auth.
+3. Insert the admin user UUID into `admin_users` using the SQL comment at the bottom of the schema file.
+4. Set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in `.env.local` and Vercel.
+
+The public page can search by certificate number or IC/passport number. Public access is restricted by RLS to records marked for public verification; admin CRUD requires membership in `admin_users`. Certificate files are stored as URLs so they can point to Supabase Storage or an approved document location.

@@ -1,0 +1,26 @@
+ ⚠ Compiled with warnings in 13.6s
+
+./node_modules/@supabase/supabase-js/dist/index.cjs
+Critical dependency: the request of a dependency is an expression
+
+Import trace for requested module:
+./node_modules/@supabase/supabase-js/dist/index.cjs
+./lib/supabase/server.ts
+./app/admin/(protected)/layout.tsx
+
+<w> [webpack.cache.PackFileCacheStrategy] Serializing big strings (106kiB) impacts deserialization performance (consider using Buffer instead and decode when needed)
+<w> [webpack.cache.PackFileCacheStrategy] Serializing big strings (253kiB) impacts deserialization performance (consider using Buffer instead and decode when needed)
+Failed to compile.
+
+./app/admin/(protected)/attendance/actions.ts:43:13
+Type error: Argument of type '{ schedule_id: string; participant_id: string; session_date: string; present: boolean; remarks?: string | undefined; }' is not assignable to parameter of type 'never[]'.
+  Type '{ schedule_id: string; participant_id: string; session_date: string; present: boolean; remarks?: string | undefined; }' is missing the following properties from type 'never[]': length, pop, push, concat, and 35 more.
+
+[0m [90m 41 |[39m   [36mconst[39m { error } [33m=[39m [36mawait[39m supabase
+ [90m 42 |[39m     [33m.[39m[36mfrom[39m([32m"attendance"[39m)
+[31m[1m>[22m[39m[90m 43 |[39m     [33m.[39mupsert(parsed[33m.[39mdata[33m,[39m { onConflict[33m:[39m [32m"participant_id,session_date"[39m })[33m;[39m
+ [90m    |[39m             [31m[1m^[22m[39m
+ [90m 44 |[39m   [36mif[39m (error) [36mreturn[39m { ok[33m:[39m [36mfalse[39m[33m,[39m message[33m:[39m error[33m.[39mmessage }[33m;[39m
+ [90m 45 |[39m
+ [90m 46 |[39m   revalidatePath([32m`/admin/attendance`[39m)[33m;[39m[0m
+Next.js build worker exited with code: 1 and signal: null

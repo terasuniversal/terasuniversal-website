@@ -4915,3 +4915,39 @@ img {
 .faq-search { width: min(100%, 540px); margin-bottom: 18px; }
 @media (max-width: 920px) { .search-results, .resource-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } .training-finder-grid { grid-template-columns: 1fr; } }
 @media (max-width: 590px) { .sticky-cta { right: 14px; bottom: 14px; left: 14px; justify-content: space-between; } .sticky-cta-proposal { flex: 1; text-align: center; } .sticky-cta-mobile { display: flex; } .search-controls, .search-results, .resource-grid, .training-finder-form { grid-template-columns: 1fr; } .utility-container { padding-inline: 20px; } .utility-container h1 { font-size: clamp(38px,11vw,52px); } .utility-lead { font-size: 16px; } .training-finder { padding: 58px 20px; } }
+
+/* Certificate verification admin */
+.admin-page { min-height: 100vh; padding: 72px 0 110px; background: linear-gradient(180deg, #f7fafc, #eef3f7); }
+.admin-login-card { max-width: 540px; padding: 46px; border: 1px solid var(--line); background: #fff; box-shadow: var(--shadow); }
+.admin-back-link { display: inline-block; margin-bottom: 28px; color: var(--navy); font-weight: 700; }
+.admin-login-card h1, .admin-topbar h1 { margin: 8px 0 12px; }
+.admin-login-card > p:not(.admin-alert), .admin-panel p { color: var(--muted); }
+.admin-form { display: grid; gap: 15px; margin-top: 24px; }
+.admin-field { display: grid; gap: 7px; color: var(--navy); font-weight: 700; }
+.admin-field input, .admin-field select { width: 100%; min-height: 46px; padding: 0 12px; border: 1px solid #c9d3dd; background: #fff; color: var(--ink); }
+.admin-alert, .admin-success { padding: 14px 16px; background: #fff5d8; color: #765b16; }
+.admin-success { background: #e8f5ec; color: #1f6541; }
+.admin-topbar { display: flex; justify-content: space-between; align-items: end; margin-bottom: 28px; }
+.admin-grid { display: grid; grid-template-columns: minmax(300px, .72fr) minmax(0, 1.28fr); gap: 24px; align-items: start; }
+.admin-panel { padding: 26px; border: 1px solid var(--line); background: #fff; box-shadow: 0 12px 35px rgba(12, 34, 55, .06); }
+.admin-panel h2 { margin-top: 0; }
+.admin-check { display: flex; gap: 8px; align-items: center; color: var(--navy); font-weight: 700; }
+.admin-check input { width: auto; }
+.admin-actions { display: flex; gap: 10px; }
+.admin-table-heading { display: flex; justify-content: space-between; align-items: center; }
+.admin-table-heading span { padding: 5px 10px; background: #e8f5ec; color: #1f6541; font-weight: 700; }
+.admin-table-wrap { overflow-x: auto; }
+.admin-table-panel table { min-width: 700px; width: 100%; border-collapse: collapse; }
+.admin-table-panel th, .admin-table-panel td { padding: 13px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.admin-table-panel th { color: var(--navy); font-size: .78rem; text-transform: uppercase; }
+.admin-table-panel td { color: var(--ink); }
+.admin-table-panel small { display: block; color: var(--muted); margin-top: 4px; }
+.admin-status { display: inline-block; padding: 4px 8px; background: #e8f5ec; color: #1f6541; font-size: .75rem; font-weight: 800; text-transform: uppercase; }
+.admin-status-revoked, .admin-status-expired { background: #ffebe7; color: #983b2e; }
+.table-button { margin: 2px; padding: 7px 9px; border: 1px solid var(--line); background: #fff; color: var(--navy); cursor: pointer; }
+.table-button.danger { color: #983b2e; }
+@media (max-width: 860px) { .admin-grid { grid-template-columns: 1fr; } }
+@media (max-width: 560px) { .admin-page { padding: 38px 0 70px; } .admin-login-card, .admin-panel { padding: 20px; } .admin-topbar { align-items: start; gap: 16px; flex-direction: column; } }
+
+.admin-reset-link { border: 0; background: transparent; color: var(--navy); padding: 0; text-align: left; font-weight: 700; cursor: pointer; }
+
