@@ -7,6 +7,7 @@ import TrainingGallery from "../components/TrainingGallery";
 import { trainingGallery } from "../data/trainingGallery";
 import { industries } from "../data/industries";
 import { getSuccessMetrics } from "../lib/successMetrics";
+import NewsletterSignup from "../components/NewsletterSignup";
 
 const pillars = [
   {
@@ -427,6 +428,13 @@ export default function HomePage() {
 
       <section id="contact" className="contact-section">
         <div className="container"><div className="section-heading"><span className="eyebrow">Contact Us</span><h2>Let us discuss your requirements.</h2></div><div className="contact-layout"><ContactForm /><div className="contact-details"><div className="detail-card"><h3>TERAS UNIVERSAL SDN. BHD.</h3><p>Industrial Safety Training &middot; Technical Competency &middot; Consultancy</p><dl><div><dt>Phone</dt><dd><a href="tel:+60195193834">+60 19-519 3834</a></dd></div><div><dt>Training</dt><dd><a href="mailto:training@terasuniversal.com.my">training@terasuniversal.com.my</a></dd></div><div><dt>Administration</dt><dd><a href="mailto:admin@terasuniversal.com.my">admin@terasuniversal.com.my</a></dd></div><div><dt>Address</dt><dd>Lot 1961, Jalan Tanah Merah, Kg Tanah Merah Dalam, 06000 Jitra, Kedah, Malaysia</dd></div></dl></div><div className="map-card"><iframe title="TERAS UNIVERSAL location" src="https://www.google.com/maps?q=Lot%201961%2C%20Jalan%20Tanah%20Merah%2C%20Kg%20Tanah%20Merah%20Dalam%2C%2006000%20Jitra%2C%20Kedah%2C%20Malaysia&output=embed" loading="lazy" referrerPolicy="no-referrer-when-downgrade" /></div></div></div></div>
+      </section>
+
+      <section id="newsletter" className="newsletter-section" aria-labelledby="newsletter-title">
+        <div className="container newsletter-layout">
+          <div><span className="eyebrow">Stay Informed</span><h2 id="newsletter-title">Training Updates &amp; Industry Insights</h2><p>Subscribe to receive occasional updates on new programmes, training dates and industrial safety insights. No spam &mdash; unsubscribe any time.</p></div>
+          <NewsletterSignup />
+        </div>
       </section>
 
       <a className="floating-whatsapp" href="https://wa.me/60195193834?text=Hello%20TERAS%20UNIVERSAL%2C%20I%20would%20like%20to%20enquire%20about%20your%20training%20and%20consultancy%20services." target="_blank" rel="noreferrer" aria-label="Contact TERAS UNIVERSAL on WhatsApp">WA</a>
