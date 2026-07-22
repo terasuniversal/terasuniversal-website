@@ -1,73 +1,51 @@
-# Batch 7 — Newsletter (Module 27)
+# Batch 8 — Training Facilities & Participant Support (Module 29)
 
-## Important — one new setup step required
-This is the first batch that needs a **new environment variable** to fully
-work: `RESEND_AUDIENCE_ID`. Everything else reuses your existing Resend
-account (same `RESEND_API_KEY` already used for Request Proposal / Contact
-emails) — no new vendor, no new service.
-
-**Before this feature works, you need to:**
-1. Log into your Resend dashboard (resend.com) → **Audiences** tab.
-2. Create a new Audience (e.g. name it "Website Newsletter").
-3. Copy its Audience ID.
-4. In Vercel → your project → Settings → Environment Variables, add:
-   `RESEND_AUDIENCE_ID` = *(the ID you copied)*
-5. Redeploy (or it will pick up automatically on the next deploy).
-
-**Until you do this**, the newsletter form will show a clear error
-("Newsletter service is not configured...") instead of failing silently or
-losing signups — same safe pattern already used elsewhere in this codebase
-for missing configuration.
-
-I could not test an actual subscription end-to-end myself (no access to your
-Resend account or a way to run the site from my side), so please submit one
-real test email after deploying and check it appears in your Resend Audience.
+## Note on Module 28 (Corporate Timeline)
+Module 28 — Corporate Timeline — was already completed in Batch 1 ("Our
+Journey" section on the About page, showing the Director's verified career
+milestones from 1991 to founding TERAS UNIVERSAL in 2012). Nothing further
+was needed there, so this batch moves on to Module 29.
 
 ## What this adds
-- A newsletter signup form (`components/NewsletterSignup.js`) — email field,
-  required consent checkbox, honeypot + timing anti-spam (same pattern as
-  the Request Proposal form), success/error states.
-- A new API route (`app/api/newsletter/route.js`) that validates the
-  submission and adds the email to your Resend Audience via
-  `resend.contacts.create()`. Rate-limited per IP (30 seconds between
-  attempts) to prevent abuse.
-- A "Stay Informed" section on the **homepage** (between Contact and the
-  footer) and a matching signup block on the **News & Insights** page
-  (`/insights`) — the two pages where a newsletter signup makes the most
-  sense.
+The official Corporate Profile lists a "Training Facilities & Participant
+Support" section that was never published anywhere on the site — including
+real value-adds that a corporate client evaluating in-house or multi-day
+training would want to know about: **hostel accommodation for participants
+travelling from outside**, and **daily meals and refreshments provided
+during the programme**. These are genuine differentiators that were simply
+missing from the site.
 
-Nothing about the existing Request Proposal workflow, Resend transactional
-emails, or Google Sheets CRM was touched — this is a fully separate,
-additive feature using the same Resend account.
+Added a new section to the About page listing all 6 verified items:
+Modern Training Classroom, Practical Training Yard, Comfortable
+Accommodation, Meals & Refreshments, Personal Protective Equipment, and
+Participant Support — each with the exact description from the Corporate
+Profile.
 
-## Files changed (5)
+I deliberately did **not** touch the existing "Training Facilities" section
+on the homepage (photo cards for Classroom, Yard, Scaffold Area, PPE,
+Technical Equipment, Assessment Area) — that section already works well and
+covers a different angle (visual environment). This batch adds the
+complementary text-based "what's included" list to the About page instead
+of overloading the homepage section or forcing unrelated stock photos onto
+facilities like "Accommodation" or "Meals" that don't have real photos yet.
 
-### `app/api/newsletter/route.js` (new)
-The subscription endpoint, described above.
+## Files changed (3)
 
-### `components/NewsletterSignup.js` (new)
-The client-side form component.
+### `data/companyProfile.js`
+Added `trainingFacilities` — 6 verified items with title + description,
+sourced directly from the Corporate Profile.
 
-### `app/page.js`
-Added one new "Stay Informed" section between the Contact section and the
-footer, plus the import for `NewsletterSignup`. Nothing else on the
-homepage changed.
-
-### `app/insights/page.js`
-Added a newsletter block between the insights list and the lead-gen CTA
-banner (from Batch 6), plus the import.
+### `app/about/page.js`
+Added one new section, "Training Facilities & Participant Support", placed
+right after "Our Journey" (timeline) and before "Why Choose TERAS
+UNIVERSAL". Nothing else on the page changed.
 
 ### `app/globals.css`
-Styling for the form, consent checkbox and success/error states — appended
-to the end of the file.
+Styling for the new 3-column card grid (2 columns on tablet, 1 on mobile) —
+appended to the end of the file.
 
 ## What to check after applying
-- Set up `RESEND_AUDIENCE_ID` in Vercel first (see above), otherwise the
-  form will correctly show a "not configured" error — that's expected until
-  you set it
-- Homepage — scroll to "Stay Informed" section (just above the footer)
-- `/insights` — scroll to the newsletter block
-- Submit a real test email on either form and confirm it appears in your
-  Resend dashboard → Audiences → (your audience)
-- Try submitting an invalid email or without checking consent — should show
-  a clear inline error, not a crash
+- `/about` — scroll to "Training Facilities & Participant Support" (between
+  "Our Journey" and "Why Choose TERAS UNIVERSAL") — should show 6 cards
+- Confirm the homepage's existing "Training Facilities" section (with
+  photos) is unchanged

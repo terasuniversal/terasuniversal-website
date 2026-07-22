@@ -1,7 +1,7 @@
 import Image from "next/image";
 import MobileNav from "../../components/MobileNav";
 import MegaNav from "../../components/MegaNav";
-import { coreValues, leadership, accreditations, timeline } from "../../data/companyProfile";
+import { coreValues, leadership, accreditations, timeline, trainingFacilities } from "../../data/companyProfile";
 
 const reasons = [
   ["01", "Industry-focused programmes", "Training shaped around the hazards, roles and realities of industrial workplaces."],
@@ -113,6 +113,20 @@ export default function AboutPage() {
               </li>
             ))}
           </ol>
+        </div>
+      </section>
+
+      <section className="about-facilities-section" aria-labelledby="about-facilities-title">
+        <div className="container">
+          <div className="section-heading about-section-heading"><span className="eyebrow">Training Facilities &amp; Participant Support</span><h2 id="about-facilities-title">Everything a training programme needs, in one place.</h2></div>
+          <div className="about-facilities-grid">
+            {trainingFacilities.map((facility) => (
+              <article key={facility.title}>
+                <h3>{facility.title}</h3>
+                <p>{facility.text}</p>
+              </article>
+            ))}
+          </div>
         </div>
       </section>
 

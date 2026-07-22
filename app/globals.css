@@ -5439,3 +5439,23 @@ body:has(.teras-admin) .sticky-cta { display: none; }
 @media (max-width: 920px) {
   .newsletter-layout { grid-template-columns: 1fr; }
 }
+
+/* ==========================================================================
+   Batch 8 — Training Facilities & Participant Support (Module 29)
+   ========================================================================== */
+.about-facilities-section { padding: 56px 0; background: var(--soft, #f4f7fb); }
+.about-facilities-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.about-facilities-grid article {
+  padding: 26px;
+  border-radius: var(--radius, 24px);
+  background: #fff;
+  border: 1px solid var(--line, #e1e6ee);
+}
+.about-facilities-grid h3 { margin: 0 0 8px; color: var(--navy); font-size: 17px; }
+.about-facilities-grid p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.6; }
+@media (max-width: 920px) {
+  .about-facilities-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .about-facilities-grid { grid-template-columns: 1fr; }
+}

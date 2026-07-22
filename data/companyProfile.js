@@ -72,6 +72,16 @@ export const timeline = [
   { year: "2012", text: "Founded TERAS UNIVERSAL Sdn. Bhd." },
 ];
 
+// Verified — Corporate Profile 2026 "Training Facilities & Participant Support" (Module 29).
+export const trainingFacilities = [
+  { title: "Modern Training Classroom", text: "Equipped with presentation equipment and modern learning resources to support structured theory sessions and knowledge development." },
+  { title: "Practical Training Yard", text: "A dedicated yard with industry-relevant equipment that simulates real workplace conditions for hands-on practical training." },
+  { title: "Comfortable Accommodation", text: "Hostel accommodation is available for participants travelling from outside the local area." },
+  { title: "Meals & Refreshments", text: "Meals and refreshments are provided daily throughout the training programme." },
+  { title: "Personal Protective Equipment", text: "PPE is provided for all practical training sessions to ensure participant safety." },
+  { title: "Participant Support", text: "Our team provides registration assistance, course administration and guidance before, during and after training." },
+];
+
 // Confirmed facts only — safe to publish as-is, sourced from the 2026 Corporate Profile
 // and Training Course Catalogue. Do not add anything here that isn't directly stated
 // in an official TERAS UNIVERSAL document.
