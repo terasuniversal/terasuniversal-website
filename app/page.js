@@ -8,6 +8,8 @@ import { trainingGallery } from "../data/trainingGallery";
 import { industries } from "../data/industries";
 import { getSuccessMetrics } from "../lib/successMetrics";
 import NewsletterSignup from "../components/NewsletterSignup";
+import Footer from "../components/Footer";
+import JumpNav from "../components/JumpNav";
 
 const pillars = [
   {
@@ -144,12 +146,33 @@ export default function HomePage() {
         </div>
       </section>
 
+      <JumpNav />
+
       <section className="capability-strip" aria-label="TERAS UNIVERSAL corporate capabilities">
         <div className="container capability-grid">
           <article><strong>4</strong><span>Core Service Pillars</span><small>Integrated industrial solutions</small></article>
           <article><strong>7</strong><span>Methodology Stages</span><small>From need analysis to improvement</small></article>
           <article><strong>3</strong><span>Flexible Delivery Modes</span><small>Public &middot; In-house &middot; Onsite</small></article>
           <article><strong>360&deg;</strong><span>Competency Focus</span><small>Theory &middot; Practical &middot; Assessment</small></article>
+        </div>
+      </section>
+
+      <section id="success-metrics" className="success-metrics-section" aria-labelledby="success-metrics-title">
+        <div className="container">
+          <div className="section-heading">
+            <span className="eyebrow">Track Record</span>
+            <h2 id="success-metrics-title">Built on Verified Experience</h2>
+            <p>Figures shown below are drawn directly from our verified corporate records &mdash; not estimates.</p>
+          </div>
+          <div className="success-metrics-grid">
+            {successMetrics.map((metric) => (
+              <article key={metric.label}>
+                <strong>{metric.value}</strong>
+                <span>{metric.label}</span>
+                <small>{metric.detail}</small>
+              </article>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -310,34 +333,16 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section id="success-metrics" className="success-metrics-section" aria-labelledby="success-metrics-title">
-        <div className="container">
-          <div className="section-heading">
-            <span className="eyebrow">Track Record</span>
-            <h2 id="success-metrics-title">Built on Verified Experience</h2>
-            <p>Figures shown below are drawn directly from our verified corporate records &mdash; not estimates.</p>
-          </div>
-          <div className="success-metrics-grid">
-            {successMetrics.map((metric) => (
-              <article key={metric.label}>
-                <strong>{metric.value}</strong>
-                <span>{metric.label}</span>
-                <small>{metric.detail}</small>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
-<section id="recognition" className="recognition-section" aria-labelledby="recognition-title">
-        <div className="container">
-          <div className="section-heading split-heading recognition-heading">
-            <div>
-              <span className="eyebrow">Accreditation &amp; Recognition</span>
-              <h2 id="recognition-title">Accreditation, Registration &amp; Industry Recognition</h2>
+      {verifiedRecognitions.length > 0 && (
+        <section id="recognition" className="recognition-section" aria-labelledby="recognition-title">
+          <div className="container">
+            <div className="section-heading split-heading recognition-heading">
+              <div>
+                <span className="eyebrow">Accreditation &amp; Recognition</span>
+                <h2 id="recognition-title">Accreditation, Registration &amp; Industry Recognition</h2>
+              </div>
+              <p>We publish registration and recognition details only when the supporting documentation has been verified and is current.</p>
             </div>
-            <p>We publish registration and recognition details only when the supporting documentation has been verified and is current.</p>
-          </div>
-          {verifiedRecognitions.length > 0 ? (
             <div className="recognition-grid">
               {verifiedRecognitions.map((item) => (
                 <article className="recognition-card" key={item.name}>
@@ -351,15 +356,10 @@ export default function HomePage() {
                 </article>
               ))}
             </div>
-          ) : (
-            <div className="recognition-empty" role="status">
-              <h3>No verified registrations currently published</h3>
-              <p>Registration and certificate details will be added after the relevant supporting documents are reviewed and confirmed.</p>
-            </div>
-          )}
-          <p className="recognition-note">Supporting documentation is available upon request.</p>
-        </div>
-      </section>
+            <p className="recognition-note">Supporting documentation is available upon request.</p>
+          </div>
+        </section>
+      )}
       <section id="projects" className="projects-section" aria-labelledby="projects-title">
         <div className="container">
           <div className="section-heading projects-heading">
@@ -439,7 +439,7 @@ export default function HomePage() {
 
       <a className="floating-whatsapp" href="https://wa.me/60195193834?text=Hello%20TERAS%20UNIVERSAL%2C%20I%20would%20like%20to%20enquire%20about%20your%20training%20and%20consultancy%20services." target="_blank" rel="noreferrer" aria-label="Contact TERAS UNIVERSAL on WhatsApp">WA</a>
 
-      <footer><div className="container footer-grid"><div className="footer-brand"><Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL" width={210} height={135} sizes="190px" /><p>Building Competence. Creating Opportunities.</p></div><div><h3>Core Services</h3><p>Industrial Safety<br/>Technical Competency<br/>Industrial Consultancy<br/>Workforce Development</p></div><div><h3>Contact</h3><p><a href="mailto:training@terasuniversal.com.my">training@terasuniversal.com.my</a><br/><a href="tel:+60195193834">+60 19-519 3834</a></p><p>Lot 1961, Jalan Tanah Merah,<br/>Kg Tanah Merah Dalam,<br/>06000 Jitra, Kedah, Malaysia</p></div></div><div className="container footer-bottom"><span>&copy; 2026 TERAS UNIVERSAL SDN. BHD. All rights reserved.</span><span>terasuniversal.com.my</span></div></footer>
+      <Footer />
     </main>
   );
 }

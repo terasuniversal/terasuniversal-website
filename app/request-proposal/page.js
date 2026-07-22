@@ -1,6 +1,7 @@
 import Image from "next/image";
 import MobileNav from "../../components/MobileNav";
 import ProposalWizard from "../../components/ProposalWizard";
+import Footer from "../../components/Footer";
 
 const benefits = [
   ["01", "Customised Solutions", "A proposal shaped around your workforce profile, operational requirements and delivery preferences."],
@@ -25,7 +26,7 @@ export default function RequestProposalPage() {
 
       <section className="proposal-assistance-section"><div className="container"><div><span className="eyebrow">Corporate Assistance</span><h2>Need Immediate Assistance?</h2></div><div className="hero-actions"><a className="btn btn-light" href="https://wa.me/60195193834" target="_blank" rel="noreferrer">WhatsApp</a><a className="btn btn-gold" href="tel:+60195193834">Call</a><a className="btn btn-outline proposal-email-button" href="mailto:training@terasuniversal.com.my">Email</a></div></div></section>
 
-      <footer><div className="container footer-grid"><div className="footer-brand"><Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL" width={210} height={135} sizes="190px" /><p>Building Competence. Creating Opportunities.</p></div><div><h3>Core Services</h3><p>Industrial Safety<br />Technical Competency<br />Industrial Consultancy<br />Workforce Development</p></div><div><h3>Quick Links</h3><p><a href="/about">About</a><br /><a href="/training">Training</a><br /><a href="/services">Services</a><br /><a href="/contact">Contact</a><br /><a href="/verify">Verify Certificate</a></p></div><div><h3>Contact</h3><p><a href="mailto:training@terasuniversal.com.my">training@terasuniversal.com.my</a><br /><a href="tel:+60195193834">+60 19-519 3834</a></p><p>Lot 1961, Jalan Tanah Merah,<br />Kg Tanah Merah Dalam,<br />06000 Jitra, Kedah, Malaysia</p></div></div><div className="container footer-bottom"><span>&copy; 2026 TERAS UNIVERSAL SDN. BHD. All rights reserved.</span><span>terasuniversal.com.my</span></div></footer>
+      <Footer />
     </main>
   );
 }

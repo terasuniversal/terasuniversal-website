@@ -1,5 +1,6 @@
 import Image from "next/image";
 import MobileNav from "../../../components/MobileNav";
+import Footer from "../../../components/Footer";
 
 const objectives = ["Understand fundamental scaffolding terminology and components.", "Recognise common scaffolding hazards and unsafe conditions.", "Understand basic safe erection and dismantling principles.", "Apply relevant workplace safety responsibilities.", "Identify inspection and reporting considerations.", "Demonstrate improved task awareness and procedural discipline."];
 const modules = ["Introduction to Scaffolding", "Scaffold Components and Terminology", "Roles and Responsibilities", "Hazard Identification", "Safe Erection and Dismantling Principles", "Access, Platforms and Guardrails", "PPE and Fall Protection Awareness", "Basic Inspection Awareness", "Practical Demonstration", "Assessment and Programme Review"];
@@ -33,7 +34,7 @@ export default function ScaffoldingCompetencyPage() {
 
       <section className="course-final-cta"><div className="container"><div><span className="eyebrow">Corporate Training Solutions</span><h2>Planning Scaffolding Training for Your Workforce?</h2><p>Speak with TERAS UNIVERSAL about participant requirements, delivery arrangements and a customised corporate proposal.</p></div><div className="hero-actions"><a className="btn btn-light" href="/request-proposal">Request Proposal</a><a className="btn btn-gold" href="https://wa.me/60195193834" target="_blank" rel="noreferrer">WhatsApp Our Team</a></div></div></section>
 
-      <footer><div className="container footer-grid"><div className="footer-brand"><Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL" width={210} height={135} sizes="190px" /><p>Building Competence. Creating Opportunities.</p></div><div><h3>Core Services</h3><p>Industrial Safety<br />Technical Competency<br />Industrial Consultancy<br />Workforce Development</p></div><div><h3>Quick Links</h3><p><a href="/about">About</a><br /><a href="/training">Training</a><br /><a href="/services">Services</a><br /><a href="/contact">Contact</a><br /><a href="/verify">Verify Certificate</a></p></div><div><h3>Contact</h3><p><a href="mailto:training@terasuniversal.com.my">training@terasuniversal.com.my</a><br /><a href="tel:+60195193834">+60 19-519 3834</a></p><p>Lot 1961, Jalan Tanah Merah,<br />Kg Tanah Merah Dalam,<br />06000 Jitra, Kedah, Malaysia</p></div></div><div className="container footer-bottom"><span>&copy; 2026 TERAS UNIVERSAL SDN. BHD. All rights reserved.</span><span>terasuniversal.com.my</span></div></footer>
+      <Footer />
     </main>
   );
 }
