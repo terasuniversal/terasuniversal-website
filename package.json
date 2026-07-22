@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "lint": "node scripts/lint.mjs",
+    "typecheck": "node scripts/typecheck.mjs",
     "build": "next build",
     "start": "next start"
   },
