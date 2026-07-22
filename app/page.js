@@ -6,6 +6,7 @@ import MegaNav from "../components/MegaNav";
 import TrainingGallery from "../components/TrainingGallery";
 import { trainingGallery } from "../data/trainingGallery";
 import { industries } from "../data/industries";
+import { getSuccessMetrics } from "../lib/successMetrics";
 
 const pillars = [
   {
@@ -85,6 +86,7 @@ const facilities = [
 ];
 
 export default function HomePage() {
+  const successMetrics = getSuccessMetrics();
   return (
     <main>
       <header className="site-header">
@@ -304,6 +306,25 @@ export default function HomePage() {
             <p>Explore visual representations of industrial safety training, technical development and practical competency activities.</p>
           </div>
           <TrainingGallery items={trainingGallery.slice(0, 6)} />
+        </div>
+      </section>
+
+      <section id="success-metrics" className="success-metrics-section" aria-labelledby="success-metrics-title">
+        <div className="container">
+          <div className="section-heading">
+            <span className="eyebrow">Track Record</span>
+            <h2 id="success-metrics-title">Built on Verified Experience</h2>
+            <p>Figures shown below are drawn directly from our verified corporate records &mdash; not estimates.</p>
+          </div>
+          <div className="success-metrics-grid">
+            {successMetrics.map((metric) => (
+              <article key={metric.label}>
+                <strong>{metric.value}</strong>
+                <span>{metric.label}</span>
+                <small>{metric.detail}</small>
+              </article>
+            ))}
+          </div>
         </div>
       </section>
 <section id="recognition" className="recognition-section" aria-labelledby="recognition-title">

@@ -1,79 +1,50 @@
-# Batch 3 — Corporate Solutions / Industry Landing Pages (Module 23)
+# Batch 4 — Success Metrics (Module 24)
 
-## Source
-Sector names, and every named client shown on an industry page, are taken
-directly from the official "TERAS UNIVERSAL Corporate Profile 2026" PDF —
-Section "Sectors Served" and Section "Valued Clients". Nothing was invented.
+## Source & approach
+Per the verified content review, TERAS UNIVERSAL's official documents contain
+**no** stated numeric statistics like "years of combined experience",
+"trainees trained" or "satisfaction rate" — so none of those are used here.
 
-## What this adds
-A dedicated landing page for each of the 8 industries TERAS UNIVERSAL already
-listed on the homepage (`/industries/oil-gas`, `/industries/construction`,
-`/industries/petrochemical`, `/industries/power-utilities`,
-`/industries/manufacturing`, `/industries/marine-offshore`,
-`/industries/heavy-industry`, `/industries/government-glc`), plus an overview
-hub at `/industries`. Each page shows: a short sector-focused introduction,
-the training programmes most relevant to that sector (linking to real,
-already-published `/training/...` pages), and — only for the 3 sectors that
-have a verified named client list in the Corporate Profile (Oil & Gas,
-Construction, Manufacturing, plus Government & GLC) — a "Trusted across
-[sector]" strip listing those real client names. Sectors without a verified
-client list (Petrochemical, Power & Utilities, Marine & Offshore, Heavy
-Industry) simply don't show that section — no placeholder or invented names.
+Instead, every number in this new "Track Record" section is **computed**
+directly from data already verified in previous batches:
+- **Years in Operation** — current year minus 2012 (the verified
+  incorporation year from `data/companyProfile.js`). Self-updating; no need
+  to edit it next year.
+- **Organisations Served** — a live count of the unique named clients in
+  `data/industries.js` (currently 32 real, named organisations from the
+  Corporate Profile's Valued Clients list).
+- **Industries Supported** — count of the 8 sectors in `data/industries.js`.
+- **Regulatory Accreditations** — count of the 5 verified accreditations in
+  `data/companyProfile.js` (JKKP, HRD Corp, CIDB, MOF, SSM).
+- **Verified Scaffolding Programmes** — count of the 6 courses in
+  `data/courseCatalog.js` that have a full, verified spec sheet.
 
-This is a standard B2B lead-generation pattern (dedicated industry pages so a
-prospect searching "scaffolding training oil and gas Malaysia" lands on
-something specific to them, not a generic homepage) and directly supports
-credibility and lead-gen without adding anything unverified.
+Because these are computed from the source files rather than typed as fixed
+numbers, if you ever update the client list, accreditations, or course
+catalogue, this section updates itself automatically — no risk of the
+homepage showing stale or inconsistent figures.
 
-## Files changed (6)
+## Files changed (3)
 
-### `data/industries.js` (new)
-Single source of truth for all 8 industries: name, one-line summary, longer
-"sector focus" paragraph, which training programmes are relevant (referencing
-real slugs already in `data/courseCatalog.js`), and verified client names
-(empty array where none are verified — the page hides that section
-automatically).
+### `lib/successMetrics.js` (new)
+Small helper, `getSuccessMetrics()`, that computes the 5 metrics above from
+existing verified data files. Fully commented to explain why trainee counts
+and similar unverified figures are deliberately excluded.
 
-### `app/industries/page.js` (new)
-Hub page listing all 8 industries as clickable cards linking to their
-dedicated page.
-
-### `app/industries/[slug]/page.js` (new)
-The individual industry landing page template — same structural pattern as
-the existing `/training/[slug]` course page template, so it fits the site's
-existing conventions (breadcrumb, hero, content sections, final CTA, same
-header/footer).
-
-### `app/page.js` (homepage — small, targeted change)
-The homepage already had an "Industries We Serve" section with 8 cards
-(`#industries`), but they were plain text, not links. Two changes:
-1. The hardcoded `industries` array (8 strings) is replaced with an import
-   from the new `data/industries.js`, so there's one source of truth instead
-   of two lists that could drift out of sync.
-2. Each card is now an `<a>` linking to its `/industries/[slug]` page instead
-   of a static `<article>`. Visual appearance is preserved exactly (same
-   gradient card, same hover-lift), just now clickable.
-Nothing else on the homepage was touched.
-
-### `components/MegaNav.js` (small, targeted change)
-The "Industries" nav dropdown already existed but every link pointed to the
-same homepage anchor (`/#industries`). Updated so "Oil & Gas", "Construction",
-"Manufacturing" and "Government & GLC" now link to their real dedicated
-pages, and added an "All Industries" link to the new `/industries` hub.
-Labels are unchanged — only the destination URLs improved.
+### `app/page.js`
+Added one new section, "Track Record", placed between the existing "Training
+Gallery" and "Accreditation & Recognition" sections. Nothing else on the
+homepage was changed.
 
 ### `app/globals.css`
-Styling for the new hub grid, industry landing page hero/sections, and the
-homepage's now-clickable industry cards — appended to the end of the file.
-Nothing existing was changed or removed.
+Styling for the new metrics grid (5 cards, responsive down to 2 columns on
+mobile) — appended to the end of the file.
 
 ## What to check after applying
-- `/industries` — hub page renders all 8 industry cards
-- `/industries/oil-gas`, `/industries/construction`, `/industries/manufacturing` —
-  should each show a "Trusted across..." client strip with real company names
-- `/industries/petrochemical` (or power-utilities / marine-offshore /
-  heavy-industry) — should NOT show a clients section (no verified names for
-  these yet) — confirm it doesn't look broken/empty, just omits that block
-- Homepage `#industries` section — cards should still look the same but now
-  be clickable
-- Top navigation "Industries" dropdown — links should go to the new pages
+- Homepage — scroll to the new "Track Record" section (between Gallery and
+  Accreditation & Recognition) — should show 5 cards: Years in Operation,
+  Organisations Served, Industries Supported, Regulatory Accreditations,
+  Verified Scaffolding Programmes
+- Confirm the numbers look reasonable (currently: ~14 years, 32
+  organisations, 8 industries, 5 accreditations, 6 programmes)
+- Check mobile width — cards should reflow to 2 per row

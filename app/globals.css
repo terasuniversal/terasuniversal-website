@@ -5342,3 +5342,28 @@ body:has(.teras-admin) .sticky-cta { display: none; }
   font-size: 13px;
   font-weight: 700;
 }
+
+/* ==========================================================================
+   Batch 4 — Success Metrics (Module 24)
+   ========================================================================== */
+.success-metrics-section { padding: 56px 0; background: var(--soft, #f4f7fb); }
+.success-metrics-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; margin-top: 28px; }
+.success-metrics-grid article {
+  padding: 26px 20px;
+  border-radius: var(--radius, 24px);
+  background: #fff;
+  border: 1px solid var(--line, #e1e6ee);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.success-metrics-grid strong { font-size: 34px; font-weight: 900; color: var(--navy); line-height: 1; }
+.success-metrics-grid span { font-size: 13px; font-weight: 800; color: var(--navy); text-transform: uppercase; letter-spacing: 0.02em; }
+.success-metrics-grid small { color: var(--muted); font-size: 12px; line-height: 1.4; }
+@media (max-width: 920px) {
+  .success-metrics-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .success-metrics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
