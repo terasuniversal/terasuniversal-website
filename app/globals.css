@@ -5545,3 +5545,62 @@ body:has(.teras-admin) .sticky-cta { display: none; }
     top: 64px;
   }
 }
+
+/* ===== Sitewide 404 (app/not-found.js) ===== */
+.notfound-section {
+  padding: clamp(64px, 10vw, 120px) 0;
+  background: radial-gradient(circle at 12% 15%, rgba(10, 61, 145, .1), transparent 34%), linear-gradient(135deg, #fff 0%, #f5f8fd 100%);
+}
+.notfound-inner {
+  max-width: 720px;
+  text-align: center;
+  margin: 0 auto;
+}
+.notfound-inner h1 {
+  margin: 14px 0 18px;
+  font-size: clamp(32px, 5vw, 46px);
+}
+.notfound-inner > p {
+  color: var(--muted);
+  font-size: 17px;
+  line-height: 1.7;
+  margin-bottom: 40px;
+}
+.notfound-links {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 40px;
+  text-align: left;
+}
+.notfound-link-card {
+  display: block;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 10px 26px rgba(8, 26, 58, .05);
+  transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+}
+.notfound-link-card:hover,
+.notfound-link-card:focus-visible {
+  transform: translateY(-3px);
+  border-color: rgba(225, 169, 37, .5);
+  box-shadow: 0 16px 34px rgba(8, 26, 58, .1);
+}
+.notfound-link-card h3 {
+  margin: 0 0 6px;
+  font-size: 16px;
+  color: var(--navy);
+}
+.notfound-link-card p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+@media (max-width: 590px) {
+  .notfound-links {
+    grid-template-columns: 1fr;
+  }
+}
