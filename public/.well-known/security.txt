@@ -1,0 +1,6 @@
+Contact: mailto:admin@terasuniversal.com.my
+Contact: tel:+60195193834
+Expires: 2027-07-22T00:00:00.000Z
+Preferred-Languages: en, ms
+Canonical: https://www.terasuniversal.com.my/.well-known/security.txt
+Policy: https://www.terasuniversal.com.my/contact
