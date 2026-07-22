@@ -1,128 +1,77 @@
-# TERAS UNIVERSAL Website — Consolidated Update (18 files)
+# Batch 2 — Training Comparison tool (Module 22)
 
-This is ALL the changes made so far, combined into one package, so there's
-only one extract → one build → one commit instead of five separate batches.
+## Source
+Every duration, objective, target audience, delivery mode, assessment method
+and completion requirement below is taken directly from the official
+"TERAS UNIVERSAL Training Course Catalogue 2026" PDF you provided. Nothing
+was estimated, guessed, or carried over from a generic template.
 
-## Part 1 — Build fix (14 files)
-The build was failing before any of this work started (a pre-existing bug),
-because `lib/supabase/server.ts` and `lib/supabase/middleware.ts` create the
-Supabase client without telling TypeScript what the database schema looks
-like. That caused every place the code reads or writes a database table to
-fail type-checking with a `never`/`any` mismatch error.
+## Important scope note — read this first
+Module 22 originally asked to compare: Working at Height, Scaffolding,
+Confined Space, Forklift, Rigging, Fire Watch. After reading both official
+2026 documents in full:
 
-The fix is the same one-line pattern everywhere it was needed — casting the
-Supabase table reference so TypeScript stops guessing incorrectly. No
-queries, logic, or runtime behaviour changed anywhere — this is purely a
-TypeScript compile-time fix.
+- **Scaffolding** has full verified spec sheets for 6 distinct levels —
+  Basic / Intermediate / Advanced Scaffolder, and Scaffolding Inspector
+  Basic / Intermediate / Advanced. These are now in the comparison tool.
+- **Working at Height** and **Confined Space Safety** exist in the
+  catalogue, but only as a short description — no verified duration,
+  objectives or assessment method. They're already on the site as separate
+  course pages with a "duration to be confirmed" placeholder (that
+  discipline was already in place before I touched anything), so they are
+  correctly excluded from the comparison tool until that data is verified.
+- **Forklift** and **Fire Watch** — neither appears anywhere in the 2026
+  Corporate Profile or Course Catalogue. TERAS UNIVERSAL does not
+  currently have a verifiable Forklift or Fire Watch programme, so I did
+  not create pages or comparison entries for them. If these are genuinely
+  offered, send the course details and I'll add them properly next round.
 
-Files:
-- `lib/supabase/server.ts`
-- `lib/supabase/middleware.ts`
-- `app/admin/(protected)/courses/actions.ts`
-- `app/admin/(protected)/attendance/actions.ts`
-- `app/admin/login/actions.ts`
-- `app/admin/(protected)/search/page.tsx`
-- `app/admin/(protected)/attendance/page.tsx`
-- `app/admin/(protected)/audit/page.tsx`
-- `app/admin/(protected)/courses/[id]/page.tsx`
-- `app/admin/(protected)/courses/[id]/preview/page.tsx`
-- `app/admin/(protected)/courses/page.tsx`
-- `app/admin/(protected)/layout.tsx`
-- `app/admin/(protected)/dashboard/page.tsx`
-- `lib/auth/session.ts`
-- `lib/public-content.ts`
+So the comparison tool currently compares the 6 verified Scaffolding
+programmes — the only courses with complete, confirmed data across every
+field the tool displays.
 
-I re-scanned the entire codebase for this specific pattern (every
-`.insert()`, `.update()`, `.upsert()`, `.delete()`, `.rpc()`, `.select()`,
-`.from()` call) after fixing it, so this should be complete.
+## Files changed (4)
 
-## Part 2 — About page: verified corporate content (4 files)
-Sourced from the official TERAS UNIVERSAL Corporate Profile 2026 PDF you
-provided. No numbers or facts were invented — anything not explicitly
-stated in that document was left out.
+### `data/courseCatalog.js`
+Added the 6 verified Scaffolding courses as full entries (new fields:
+`deliveryMode`, `assessment`, `completion`, `entryRequirements`,
+`objectives`, in addition to the existing `duration`/`audience`/`modules`
+fields the site's course detail template already uses — so each of these 6
+new courses also gets its own working page automatically at
+`/training/<slug>`, e.g. `/training/basic-scaffolder-level-1`).
 
-Files:
-- `data/companyProfile.js` — real Vision/Mission text, the correct 6-part
-  TERAS core values, verified accreditations (JKKP/DOSH, HRD Corp, CIDB,
-  MOF, SSM), verified leadership bios, and the verified founder timeline.
-  Also keeps an explicit list of unverified claims (25+ professionals,
-  10,000+ trained, 200+ clients, ISO claims) that must NOT be published
-  until you confirm them.
-- `app/about/page.js` — renders the new data: corrected core values (was
-  showing the wrong 5-value acronym, now the real 6-value TERAS+I),
-  new Accreditations section, new Leadership section, new Timeline section.
-- `app/globals.css` — the styling for those new sections, appended to the
-  end of the file. Nothing existing was changed or removed.
+Also added `comparableCourses()` — a small helper that returns only courses
+with a verified `assessment` field, so the comparison tool automatically
+picks up new courses in future without any code changes, and just as
+automatically excludes anything not yet verified.
 
-## What was NOT touched
-No other page, route, or component. The Resend email integration, Google
-Sheets CRM forwarding, Request Proposal workflow, and Contact Form are all
-untouched.
+The 5 pre-existing placeholder courses (Working at Height, Confined Space
+Safety, Safety Passport, Lifting Awareness) are untouched.
 
----
+### `components/TrainingComparison.js` (new)
+Reusable client component. Lets a visitor pick up to 3 programmes and see
+them side by side: Duration, Delivery Mode, Assessment, Completion, Target
+Audience, Objectives. Each column links to that course's full page. If a
+field isn't verified for a given course, it shows "Available on request"
+instead of a blank or a guess — this was a deliberate design choice so the
+component is safe to reuse later for other course categories even before
+their data is fully verified.
 
-## How to apply (PowerShell) — ONE script, run top to bottom
+### `app/training/page.js`
+One import added, one line added (`<TrainingComparison
+courses={comparableCourses()} />`) placed right after the existing Training
+Finder section. Nothing else on this page was changed — the programme grid,
+filters, delivery options and process sections are all untouched.
 
-```powershell
-# ====================================================================
-# TERAS UNIVERSAL — Consolidated update (build fix + About page)
-# ====================================================================
+### `app/globals.css`
+Styling for the new comparison table and picker chips, appended to the end
+of the file in a clearly marked block. Reuses the same navy/gold card
+system as the rest of the site (rounded corners, soft shadows, gold accent)
+— no new colours or design language introduced.
 
-# 1. Confirm git and npm actually work in THIS terminal before doing anything else
-git --version
-npm --version
-# If either shows "not recognized", STOP here and fix that first
-# (close and reopen VS Code fully, or restart the computer).
-
-# 2. Set paths — change $repoPath if your repo is somewhere else
-$repoPath    = "C:\WEBSITE\terasuniversal-website"
-$zipPath     = "$env:USERPROFILE\Downloads\teras-update-consolidated.zip"
-$extractPath = "$env:USERPROFILE\Downloads\teras-update-consolidated"
-
-if (-not (Test-Path $repoPath)) {
-    Write-Host "ERROR: Repo not found at $repoPath" -ForegroundColor Red
-    exit 1
-}
-if (-not (Test-Path $zipPath)) {
-    Write-Host "ERROR: ZIP not found at $zipPath — download it first." -ForegroundColor Red
-    exit 1
-}
-
-# 3. Extract
-Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
-Write-Host "Extracted to $extractPath" -ForegroundColor Green
-
-# 4. Copy every changed file over the repo in one go (folder structure matches)
-Copy-Item "$extractPath\app"  -Destination $repoPath -Recurse -Force
-Copy-Item "$extractPath\lib"  -Destination $repoPath -Recurse -Force
-Copy-Item "$extractPath\data" -Destination $repoPath -Recurse -Force
-Write-Host "18 files copied into the repo." -ForegroundColor Green
-
-# 5. Build — the real confirmation
-Set-Location $repoPath
-git status
-npm run build
-```
-
-**If the build passes** (look for `✓ Compiled successfully` and no
-`Type error`), also spot-check the site locally before pushing:
-
-```powershell
-npm run dev
-# open http://localhost:3000/about — check Accreditations, Leadership,
-# Timeline sections, desktop and mobile widths
-# also open http://localhost:3000/admin/dashboard to sanity-check the
-# admin area still works (Ctrl+C stops the dev server when done)
-```
-
-**Then commit and push:**
-
-```powershell
-git add .
-git commit -m "Fix Supabase typing across admin; add verified About page content (accreditations, leadership, timeline, corrected core values)"
-git push origin main
-```
-
-**If `npm run build` fails** — copy the full error text here (not just a
-screenshot crop if possible) and I'll trace it the same careful way as
-before.
+## What to check after applying
+- `/training` — scroll to "Compare Programmes" section, try selecting
+  different combinations of the 6 scaffolding levels, check mobile width
+- `/training/basic-scaffolder-level-1` (and the other 5 new slugs) — each
+  should render as a full course page using the existing course template
+- Confirm nothing else on `/training` changed

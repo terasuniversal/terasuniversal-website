@@ -5,7 +5,8 @@ import { useMemo, useState } from "react";
 import MobileNav from "../../components/MobileNav";
 import MegaNav from "../../components/MegaNav";
 import TrainingFinder from "../../components/TrainingFinder";
-import { courseCatalog } from "../../data/courseCatalog";
+import TrainingComparison from "../../components/TrainingComparison";
+import { courseCatalog, comparableCourses } from "../../data/courseCatalog";
 
 const categories = ["All Programmes", "Industrial Safety", "Technical Competency", "Assessment", "Workforce Development"];
 const programmes = [
@@ -73,6 +74,8 @@ export default function TrainingPage() {
       </section>
 
       <TrainingFinder />
+
+      <TrainingComparison courses={comparableCourses()} />
 
       <section className="training-programmes-section" aria-labelledby="programme-title">
         <div className="container">
