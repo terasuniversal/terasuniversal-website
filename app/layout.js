@@ -76,7 +76,8 @@ export default function RootLayout({ children }) {
         <link rel="prefetch" href="/contact" />
       </head>
       <body>
-        {children}
+        <a href="#main-content" className="skip-link">Skip to main content</a>
+        <div id="main-content">{children}</div>
         <StickyCta />
         <Analytics />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify([organizationSchema, localBusinessSchema, websiteSchema]) }} />

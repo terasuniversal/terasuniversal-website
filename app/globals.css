@@ -5478,3 +5478,24 @@ body:has(.teras-admin) .sticky-cta { display: none; }
 @media (max-width: 640px) {
   .about-partners-grid { grid-template-columns: 1fr; }
 }
+
+/* ==========================================================================
+   Batch 12 — Accessibility: Skip to Main Content (Module 37)
+   ========================================================================== */
+.skip-link {
+  position: absolute;
+  top: -60px;
+  left: 12px;
+  z-index: 10000;
+  padding: 12px 20px;
+  background: var(--navy, #0B2C56);
+  color: #fff;
+  border-radius: 10px;
+  font-weight: 800;
+  font-size: 14px;
+  text-decoration: none;
+  transition: top 0.2s ease;
+}
+.skip-link:focus {
+  top: 12px;
+}
