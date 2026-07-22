@@ -5375,3 +5375,26 @@ body:has(.teras-admin) .sticky-cta { display: none; }
 .resources-hero .utility-lead { margin-top: 14px; }
 .resources-group-section { padding: 28px 0; }
 .resources-group-section .section-heading { margin-bottom: 18px; }
+
+/* ==========================================================================
+   Batch 6 — Lead Generation CTA (Module 26)
+   ========================================================================== */
+.leadgen-cta {
+  margin-top: 48px;
+  padding: 36px;
+  border-radius: var(--radius, 24px);
+  background: linear-gradient(145deg, var(--navy), var(--blue2));
+  color: #fff;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+.leadgen-cta-copy { max-width: 560px; }
+.leadgen-cta-copy h2 { margin: 0 0 8px; color: #fff; font-size: 22px; }
+.leadgen-cta-copy p { margin: 0; color: rgba(255, 255, 255, 0.82); font-size: 14px; line-height: 1.6; }
+.leadgen-cta .hero-actions { flex-shrink: 0; }
+@media (max-width: 640px) {
+  .leadgen-cta { padding: 24px; flex-direction: column; align-items: flex-start; }
+}

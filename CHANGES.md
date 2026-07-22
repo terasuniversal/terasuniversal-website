@@ -1,53 +1,50 @@
-# Batch 5 — Resource Centre (Module 25)
+# Batch 6 — Lead Generation (Module 26)
 
-## What changed and why
-The existing `/resources` page had a real gap: it had no header, navigation
-menu or footer at all — just a bare list of 4 links floating on the page.
-A visitor landing there (e.g. from a search engine) had no way to navigate
-anywhere else on the site without hitting the back button. This directly
-affects professional appearance, UX and lead-gen (a dead-end page loses
-visitors).
+## What I found
+I checked every content page for whether it gives a visitor a path back into
+the enquiry funnel. Four pages had **zero** link to Request Proposal, Contact,
+or WhatsApp anywhere on them: **FAQ Centre** (`/faq`), **Training Calendar**
+(`/calendar`), **News & Insights** hub (`/insights`), and **Search**
+(`/search`). A visitor could read an FAQ answer or browse the calendar and
+then have nowhere obvious to go next except the browser back button — a real
+lost-lead gap, especially for FAQ and Calendar which attract high-intent
+visitors already close to a decision.
 
-This batch fixes that and turns it into an actual "Resource Centre" hub:
-- Added the same header (logo + full navigation menu) and footer used
-  everywhere else on the site.
-- Reorganised resources into 3 clear categories: **Company Information**
-  (Company Profile PDF, About page, Industries — including the new
-  `/industries` hub from Batch 3), **Training Information** (Course
-  Catalogue, Training Calendar, FAQ Centre, Certificate Verification), and
-  **Corporate Engagement** (Request Proposal, Contact).
-- Added a closing call-to-action strip (Request Proposal / WhatsApp), matching
-  the pattern used on other pages.
+## What this adds
+A small, reusable call-to-action banner (`components/LeadGenCta.js`) with a
+headline, one line of supporting text, and two buttons: **Request
+Proposal** and **WhatsApp Us**. It does **not** duplicate or modify the
+existing Request Proposal form, the `/api/request-proposal` endpoint, Resend
+email sending, or the Google Sheets CRM integration in any way — it's purely
+a link into that already-working, already-protected workflow. I deliberately
+did not touch `app/api/request-proposal/route.js` or the proposal form
+itself, since those are explicitly protected systems.
 
-Every link on this page goes to a route that already exists and already
-works (`/about`, `/industries`, `/training`, `/calendar`, `/faq`, `/verify`,
-`/request-proposal`, `/contact`, and the existing Company Profile PDF) — no
-new pages, no new downloads, nothing invented. This is a pure reorganisation
-and navigation fix.
+The banner text is customised per page (e.g. FAQ says "Still have a
+question?", Calendar says "Don't see a suitable date?") so it reads as
+relevant to that page rather than a generic ad.
 
-## Files changed (2)
+## Files changed (6)
 
-### `app/resources/page.js`
-Rewritten from a bare 12-line page into a full page with header, categorised
-resource sections, and footer — following the exact same structural pattern
-already used on `/services`, `/about` and other pages in this codebase (same
-`MegaNav`/`MobileNav` header, same footer markup). The original 4 resource
-cards are preserved (Company Profile, Course Catalogue, Training Calendar,
-Corporate Enquiry Form) — just regrouped, with 5 more added (About, Industries,
-FAQ, Verify Certificate, Contact) that all point to pages that were already
-live but not linked from here before.
+### `components/LeadGenCta.js` (new)
+The reusable banner component described above.
+
+### `app/faq/page.js`, `app/calendar/page.js`, `app/insights/page.js`, `app/search/page.js`
+One import line and one `<LeadGenCta ... />` line added to each, placed at
+the end of the page content. Nothing else on any of these 4 pages was
+changed — the FAQ accordion, calendar, insights list and search tool all
+work exactly as before.
 
 ### `app/globals.css`
-Small styling additions for the new hero and grouped-section spacing —
-appended to the end of the file. Reuses the site's existing `.resource-grid`
-/ `.resource-card` / `.utility-lead` styles, so visually it matches what was
-already there.
+Styling for the new banner (navy/gold gradient card, matching the site's
+existing visual language) — appended to the end of the file.
 
 ## What to check after applying
-- `/resources` — should now show the full site header/nav at top and footer
-  at bottom (previously missing entirely)
-- 3 grouped sections should render: Company Information, Training
-  Information, Corporate Engagement
-- Click through a few links (About, Industries, FAQ, Verify Certificate) to
-  confirm they go to the right existing pages
-- Company Profile PDF download should still work exactly as before
+- `/faq`, `/calendar`, `/insights`, `/search` — each should now show a
+  navy CTA banner at the bottom with "Request Proposal" and "WhatsApp Us"
+  buttons
+- Click "Request Proposal" from one of these pages — should go to the
+  existing, unchanged `/request-proposal` form
+- Confirm the FAQ accordion, calendar, insights list, and search results
+  still work exactly as before (this batch only adds content, doesn't
+  change any of that)
