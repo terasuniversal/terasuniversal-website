@@ -1,4 +1,130 @@
-# TERAS UNIVERSAL — Phase 1 Website
+# TERAS UNIVERSAL SDN. BHD. — Website
+
+Production site: [www.terasuniversal.com.my](https://www.terasuniversal.com.my)
+Stack: Next.js (App Router) · React · Supabase (admin CMS) · Resend (email) ·
+Google Sheets (CRM lead forwarding) · Vercel (hosting)
+
+> Everything below "## Developer Guide" onward, down to "## Phase 1 Website",
+> is a running historical changelog of every update made to this site,
+> oldest section last. It has been kept as-is — nothing here was removed —
+> so it remains a useful record of what changed and why. This section at the
+> top is a consolidated reference for anyone (developer, freelancer, or
+> future Claude/AI session) picking up this codebase for the first time.
+
+## Developer Guide (Module 40)
+
+### Getting started
+
+```bash
+npm install
+cp .env.example .env.local   # fill in the values you have — see below
+npm run dev                  # http://localhost:3000
+```
+
+```bash
+npm run build      # production build (this is the real gate — must pass before every deploy)
+npm run start       # run the production build locally
+npm run lint         # syntax check across all .js files
+npm run typecheck   # TypeScript type-check (tsc --noEmit) — optional, added in Module 39
+```
+
+### Project structure
+
+- `app/` — Next.js App Router. Public marketing/informational pages are
+  `.js` (e.g. `app/training/page.js`); the admin CMS under `app/admin/` is
+  `.tsx`/`.ts` (TypeScript, Supabase-backed).
+- `app/api/` — server-only route handlers: `request-proposal`, `newsletter`,
+  and `admin/*` (login, reset-password, certificates).
+- `components/` — shared React components used across pages (`MegaNav`,
+  `MobileNav`, `TrainingComparison`, `NewsletterSignup`, `LeadGenCta`, etc.).
+- `data/` — plain JS data modules that back most public content
+  (`companyProfile.js`, `courseCatalog.js`, `industries.js`, `faq.js`, etc.).
+  These are the easiest place to update text/content without touching page
+  markup.
+- `lib/` — shared server logic: `lib/supabase/` (server/browser/middleware
+  Supabase clients — see the `<Database>` generic note below), `lib/auth/`
+  (admin session/role checks), `lib/certificates.js` (certificate lookup),
+  `lib/successMetrics.js` (Module 24's computed trust metrics).
+- `public/` — static assets. `public/images/` holds the AI-generated
+  placeholder photography (`temp-ai-*`) used across the site until real
+  photography is supplied.
+- `scripts/` — `lint.mjs` (syntax check) and `typecheck.mjs` (TypeScript
+  check, Module 39).
+- `supabase/` — SQL schema/migrations for the certificate verification
+  system.
+
+### Environment variables
+
+Copy `.env.example` to `.env.local` for local dev, and set the same values
+in Vercel → Project Settings → Environment Variables for Production
+(and Preview if you use preview deployments).
+
+| Variable | Required for | Notes |
+| --- | --- | --- |
+| `RESEND_API_KEY` | Request Proposal, Contact, Newsletter | Server-only. Never prefix with `NEXT_PUBLIC_`. |
+| `RESEND_FROM_EMAIL` | Request Proposal, Contact, Newsletter | Sending domain must be verified in Resend. |
+| `RESEND_AUDIENCE_ID` | Newsletter (Module 27) | Create an Audience in the Resend dashboard first — see Batch 7 notes if you have them, or just create one under Resend → Audiences and paste its ID here. |
+| `GOOGLE_SHEETS_WEB_APP_URL` | Request Proposal CRM forwarding | Apps Script Web App URL; must return `{"success":true}`. Server-only. |
+| `NEXT_PUBLIC_SUPABASE_URL` | Admin CMS, Certificate Verification | Public — safe to expose to the browser. |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Admin CMS, Certificate Verification | Public anon/publishable key — safe to expose. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Admin CMS server actions | Server-only. Full database access — never expose to the browser or commit it. |
+| `NEXT_PUBLIC_GA_MEASUREMENT_ID` | Analytics | Optional; GA4 doesn't load if blank. |
+| `NEXT_PUBLIC_GTM_ID` | Analytics | Optional. |
+| `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` | SEO | Optional webmaster verification meta tag. |
+| `NEXT_PUBLIC_BING_VERIFICATION` | SEO | Optional webmaster verification meta tag. |
+
+### Key integrations at a glance
+
+- **Request Proposal / Contact** (`app/api/request-proposal/route.js`):
+  validates + sanitises input server-side, sends via Resend (internal
+  notification + requester confirmation), then forwards the lead to Google
+  Sheets via an Apps Script Web App. Rate-limited per IP, honeypot + timing
+  anti-spam. Both Resend and Sheets must succeed for the request to count as
+  successful.
+- **Newsletter** (`app/api/newsletter/route.js`, Module 27): adds an email
+  to a Resend Audience. Same anti-spam pattern as above. Requires
+  `RESEND_AUDIENCE_ID` to be configured — returns a clear "not configured"
+  error otherwise rather than failing silently.
+- **Admin CMS** (`app/admin/`): Supabase-backed, gated by `middleware.ts` +
+  `lib/auth/session.ts`. Every `supabase.from("table")` call in `.ts`/`.tsx`
+  files is cast `as any`/`as never` where needed — see the note below, this
+  is required, not a code smell.
+- **Certificate Verification** (`/verify`, `/admin/certificates`): public
+  lookup by certificate/IC number, backed by Supabase with RLS. See the
+  "Certificate Verification Database" section further down this file for
+  the one-time Supabase setup steps.
+
+### A TypeScript quirk you'll hit if you touch Supabase calls
+
+`lib/supabase/server.ts` and `lib/supabase/middleware.ts` create the
+Supabase client with a `<Database>` generic (`createServerClient<Database>(...)`).
+Without it, every table reference resolves to `never`, and — unlike most
+other types — TypeScript does **not** allow assigning `any` to a
+`never`-typed parameter. That's why you'll see patterns like
+`(supabase.from("courses") as any).insert(...)` and
+`supabase.rpc("name" as never, {...} as never)` throughout the admin code —
+this isn't a workaround to "fix" by removing the cast; removing it will
+break the build. If you add a **new** table/RPC call, follow the same
+pattern.
+
+### What's been added since the original build (Modules 21–39)
+
+This site has gone through a large content/feature pass covering: Training
+Comparison tool, Corporate Solutions industry pages (`/industries`), a
+verified Success Metrics section, a rebuilt Resources Centre, lead-gen CTAs
+on FAQ/Calendar/Insights/Search, Newsletter signup, verified Training
+Facilities & Participant Support content, Strategic Partners, an expanded
+Corporate FAQ, a performance cleanup (13MB of unused images removed), a
+sitewide skip-to-content accessibility link, rate limiting on the admin
+password reset endpoint, a `security.txt`, and this developer guide. Every
+piece of company/course/client content added during this pass was checked
+against the official TERAS UNIVERSAL Corporate Profile 2026 and Training
+Course Catalogue 2026 documents — nothing was published that isn't stated
+in one of those two sources.
+
+---
+
+## Phase 1 Website
 
 This update includes:
 

@@ -1,57 +1,49 @@
-# Batch 14 — Technical Quality (Module 39)
+# Batch 15 — Developer Documentation (Module 40)
+
+This is the last of the 20 modules from your original brief (21–40).
 
 ## What I found
-
-**1. `npm run lint` never checked the /admin CMS's TypeScript files at all.**
-The existing lint script only walks `.js` files and runs `node --check`
-(syntax validation) on them. It silently skips every `.ts`/`.tsx` file —
-which is exactly where the entire "Supabase queries typed as `never`" bug
-class lived at the start of this engagement, only ever caught when
-`next build` failed on Vercel. `typescript` is already a devDependency and
-this repo already has a working `tsconfig.json` (`strict: true`), so a real
-type-check costs nothing new to install.
-
-**2. Footer markup is duplicated across 13 page files**, in 4 slightly
-different variants. This is a real maintainability finding (e.g. updating
-the phone number or address means editing up to 13 files by hand, and it's
-easy to miss one), but extracting it into a shared `<Footer />` component
-means touching all 13 files in the same batch — safe in principle since I'd
-just be moving identical markup, but for something visible on literally
-every page, I'd rather flag it and tackle it as its own reviewable batch
-than fold it into this one silently. Let me know if you'd like that as the
-next batch.
+`README.md` already existed, but it read as a running changelog — a log of
+every past update phase ("Phase 1", "Phase 2 premium upgrade", "Safari
+iPhone patch", etc.) with setup notes scattered inside each section. Useful
+as history, but there was no single place a new developer (or a future
+AI session) could read to quickly understand the project structure,
+required environment variables, or what's been added recently.
 
 ## What this adds
-A **new, separate, opt-in** script: `npm run typecheck`. It does **not**
-change `npm run lint`, `npm run build`, or `npm run dev` in any way — those
-all behave exactly as before. Running `npm run typecheck` runs the
-TypeScript compiler's own check (`tsc --noEmit`) across the whole project
-using the existing `tsconfig.json`.
+A new "Developer Guide" section added to the **top** of `README.md`,
+covering:
+- Getting started (`npm install`, `.env.local`, `npm run dev`)
+- All available scripts (`build`, `start`, `lint`, `typecheck`)
+- Project structure (`app/`, `components/`, `data/`, `lib/`, `scripts/`,
+  `supabase/`)
+- A consolidated table of **every** environment variable used anywhere in
+  the codebase (I verified this by searching all `process.env.*` references
+  across the project) — including the new `RESEND_AUDIENCE_ID` from Batch 7
+- A summary of the 3 key integrations (Request Proposal/Contact, Newsletter,
+  Certificate Verification) and how they connect
+- An explicit explanation of the `as any`/`as never` TypeScript casting
+  pattern used throughout the admin CMS — so a future developer doesn't
+  "clean up" those casts and accidentally break the build again, the way it
+  broke before this engagement started
+- A short recap of everything added during Modules 21–39
 
-Since this would be the very first time a full type-check has run across
-this codebase, it's possible it surfaces some pre-existing warnings on
-first run — that's expected and fine, it doesn't mean anything is broken.
-`next build` already succeeds and continues to be the real gate before
-deploying; this new script is an extra, optional early-warning tool you can
-run locally before pushing, at your own pace.
+**Nothing below this new section was touched** — the entire existing
+changelog (Phase 1 through Certificate Verification Database) is preserved
+exactly as it was, per your instruction to never remove existing content. A
+one-line note at the top explains that everything from "Phase 1 Website"
+onward is the historical record.
 
-## Files changed (2) + 1 new file
+## Files changed (1)
 
-### `scripts/typecheck.mjs` (new)
-Runs `tsc --noEmit` and reports pass/fail clearly.
-
-### `package.json`
-Added one new line: `"typecheck": "node scripts/typecheck.mjs"` under
-`scripts`. Nothing else in this file changed — same dependencies, same
-existing scripts, same versions.
-
-### `scripts/lint.mjs`
-No functional change — re-delivered as-is for completeness (it was
-untouched; only included so the ZIP is self-contained).
+### `README.md`
+Added the new "Developer Guide" section between the title and the existing
+"Phase 1 Website" section. No existing line was edited, removed or
+reordered.
 
 ## What to check after applying
-- `npm run lint` — should behave exactly as before (unchanged)
-- `npm run build` — should behave exactly as before (unchanged)
-- `npm run typecheck` — new command; run it and see what it reports. If it
-  shows errors, that's useful information, not a regression — share them
-  with me and I'll help triage which are worth fixing.
+- Open `README.md` — the new "Developer Guide" section should appear near
+  the top, and everything that was there before should still be there,
+  unchanged, below it
+- Nothing to build or test here — it's documentation only, `npm run build`
+  is unaffected
