@@ -5367,3 +5367,11 @@ body:has(.teras-admin) .sticky-cta { display: none; }
 @media (max-width: 640px) {
   .success-metrics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* ==========================================================================
+   Batch 5 — Resource Centre (Module 25)
+   ========================================================================== */
+.resources-hero { padding: 56px 0 20px; }
+.resources-hero .utility-lead { margin-top: 14px; }
+.resources-group-section { padding: 28px 0; }
+.resources-group-section .section-heading { margin-bottom: 18px; }
