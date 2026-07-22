@@ -16,8 +16,8 @@ export const getCurrentProfile = cache(async (): Promise<Profile | null> => {
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const { data: profile } = await supabase
-    .from("profiles")
+  const { data: profile } = await (supabase
+    .from("profiles") as any)
     .select("*")
     .eq("id", user.id)
     .single();

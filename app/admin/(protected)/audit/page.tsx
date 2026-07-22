@@ -18,8 +18,8 @@ export default async function AuditPage({
   const page = Math.max(1, Number(sp.page ?? 1));
   const supabase = await createSupabaseServerClient();
 
-  const { data: logs, count } = await supabase
-    .from("audit_logs")
+  const { data: logs, count } = await (supabase
+    .from("audit_logs") as any)
     .select("id, actor_email, action, entity_type, entity_id, summary, created_at", { count: "exact" })
     .order("created_at", { ascending: false })
     .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);

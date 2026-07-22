@@ -22,8 +22,12 @@ export default async function SearchPage({
   const { q } = await searchParams;
   const supabase = await createSupabaseServerClient();
 
+  // `Functions` is a curated placeholder in database.types.ts until
+  // `supabase gen types` is run, so the RPC name/args need the same
+  // explicit cast already used for the "log_event" RPC call elsewhere
+  // (app/admin/login/actions.ts).
   const { data: results } = q
-    ? await supabase.rpc("global_search", { q, max_rows: 40 })
+    ? await supabase.rpc("global_search" as never, { q, max_rows: 40 } as never)
     : { data: [] as any[] };
 
   return (

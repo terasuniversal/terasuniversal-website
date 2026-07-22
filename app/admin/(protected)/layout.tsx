@@ -16,13 +16,13 @@ export default async function ProtectedLayout({ children }: { children: ReactNod
 
   // Sidebar badges: operational counts. Cheap head-only queries.
   const [{ count: pendingCerts }, { count: activeParticipants }] = await Promise.all([
-    supabase
-      .from("certificates")
+    (supabase
+      .from("certificates") as any)
       .select("*", { count: "exact", head: true })
       .eq("status", "pending")
       .is("deleted_at", null),
-    supabase
-      .from("participants")
+    (supabase
+      .from("participants") as any)
       .select("*", { count: "exact", head: true })
       .eq("status", "registered")
       .is("deleted_at", null),

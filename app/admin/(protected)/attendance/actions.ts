@@ -65,7 +65,7 @@ export async function recordAssessment(formData: FormData) {
   const supabase = await createSupabaseServerClient();
   const payload: any = { ...parsed.data };
   if (!payload.assessed_at) delete payload.assessed_at;
-  const { error } = await supabase.from("assessments").insert(payload);
+  const { error } = await (supabase.from("assessments") as any).insert(payload);
   if (error) return;
 
   revalidatePath(`/admin/attendance`);

@@ -18,7 +18,7 @@ export default async function EditCoursePage({
   const { id } = await params;
   const supabase = await createSupabaseServerClient();
 
-  const { data: course } = await supabase.from("courses").select("*").eq("id", id).single();
+  const { data: course } = await (supabase.from("courses") as any).select("*").eq("id", id).single();
   if (!course) notFound();
 
   // Bind the id into the update action.

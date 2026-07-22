@@ -36,8 +36,8 @@ export async function loginAction(
     data: { user },
   } = await supabase.auth.getUser();
   if (user) {
-    const { data: profile } = await supabase
-      .from("profiles")
+    const { data: profile } = await (supabase
+      .from("profiles") as any)
       .select("is_active, role")
       .eq("id", user.id)
       .single();
@@ -46,7 +46,7 @@ export async function loginAction(
       return { error: "This account has been deactivated. Contact an administrator." };
     }
     // Stamp last login + write an audit event.
-    await supabase.from("profiles").update({ last_login_at: new Date().toISOString() }).eq("id", user.id);
+    await (supabase.from("profiles") as any).update({ last_login_at: new Date().toISOString() }).eq("id", user.id);
     await supabase.rpc("log_event" as never, {
       p_action: "login",
       p_entity_type: "auth",

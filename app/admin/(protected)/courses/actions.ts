@@ -53,7 +53,11 @@ export async function createCourse(
   const payload: any = { ...parsed.data, course_name: parsed.data.title };
   
 
-  const { error } = await supabase.from("courses").insert(payload);
+  // Table types are a curated placeholder (`Update: any`) until
+  // `supabase gen types` is run against the deployed schema. TypeScript's
+  // never-vs-any rule for the query builder still needs an explicit cast
+  // here; runtime validation above (Zod) remains the real safety net.
+  const { error } = await (supabase.from("courses") as any).insert(payload);
   if (error) {
     if (error.code === "23505") return { errors: { slug: "That slug is already in use." } };
     return { message: error.message };
@@ -75,7 +79,7 @@ export async function updateCourse(
   const payload: any = { ...parsed.data, course_name: parsed.data.title };
   
 
-  const { error } = await supabase.from("courses").update(payload).eq("id", id);
+  const { error } = await (supabase.from("courses") as any).update(payload).eq("id", id);
   if (error) {
     if (error.code === "23505") return { errors: { slug: "That slug is already in use." } };
     return { message: error.message };
@@ -89,20 +93,20 @@ export async function updateCourse(
 export async function archiveCourse(id: string) {
   await requireRole("editor");
   const supabase = await createSupabaseServerClient();
-  await supabase.from("courses").update({ cms_status: "archived" }).eq("id", id);
+  await (supabase.from("courses") as any).update({ cms_status: "archived" }).eq("id", id);
   revalidatePath("/admin/courses");
 }
 
 export async function softDeleteCourse(id: string) {
   await requireRole("admin");
   const supabase = await createSupabaseServerClient();
-  await supabase.from("courses").update({ deleted_at: new Date().toISOString() }).eq("id", id);
+  await (supabase.from("courses") as any).update({ deleted_at: new Date().toISOString() }).eq("id", id);
   revalidatePath("/admin/courses");
 }
 
 export async function restoreCourse(id: string) {
   await requireRole("admin");
   const supabase = await createSupabaseServerClient();
-  await supabase.from("courses").update({ deleted_at: null }).eq("id", id);
+  await (supabase.from("courses") as any).update({ deleted_at: null }).eq("id", id);
   revalidatePath("/admin/courses");
 }

@@ -20,13 +20,13 @@ export default async function DashboardPage() {
     participantsCount,
     recentAssessments,
   ] = await Promise.all([
-    supabase.from("courses").select("*", { count: "exact", head: true }).eq("cms_status", "published").is("deleted_at", null),
-    supabase.from("course_schedules").select("id, start_date, status, capacity, seats_available, courses(title)").gte("start_date", today).is("deleted_at", null).order("start_date", { ascending: true }).limit(6),
-    supabase.from("participants").select("id, full_name, company, status, registered_at").is("deleted_at", null).order("registered_at", { ascending: false }).limit(6),
-    supabase.from("certificates").select("*", { count: "exact", head: true }).eq("status", "valid").is("deleted_at", null),
-    supabase.from("certificates").select("*", { count: "exact", head: true }).eq("status", "pending").is("deleted_at", null),
-    supabase.from("participants").select("*", { count: "exact", head: true }).is("deleted_at", null),
-    supabase.from("assessments").select("id, assessment_type, result, score, assessed_at, participants(full_name)").order("assessed_at", { ascending: false, nullsFirst: false }).limit(6),
+    (supabase.from("courses") as any).select("*", { count: "exact", head: true }).eq("cms_status", "published").is("deleted_at", null),
+    (supabase.from("course_schedules") as any).select("id, start_date, status, capacity, seats_available, courses(title)").gte("start_date", today).is("deleted_at", null).order("start_date", { ascending: true }).limit(6),
+    (supabase.from("participants") as any).select("id, full_name, company, status, registered_at").is("deleted_at", null).order("registered_at", { ascending: false }).limit(6),
+    (supabase.from("certificates") as any).select("*", { count: "exact", head: true }).eq("status", "valid").is("deleted_at", null),
+    (supabase.from("certificates") as any).select("*", { count: "exact", head: true }).eq("status", "pending").is("deleted_at", null),
+    (supabase.from("participants") as any).select("*", { count: "exact", head: true }).is("deleted_at", null),
+    (supabase.from("assessments") as any).select("id, assessment_type, result, score, assessed_at, participants(full_name)").order("assessed_at", { ascending: false, nullsFirst: false }).limit(6),
   ]);
 
   return (

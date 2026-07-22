@@ -4955,3 +4955,156 @@ img {
 /* The public contact bar must never overlap protected admin forms. */
 body:has(.teras-admin) .sticky-cta { display: none; }
 
+
+/* ============================================================
+   Batch 1 — Verified Corporate Content (Modules 28, 30, 31)
+   Core Values (6, TERAS+I), Leadership, Accreditations, Timeline
+   Added on top of the existing .about-* card/grid system — no
+   existing rules modified, only new scoped classes appended.
+   ============================================================ */
+
+.about-values-grid.is-teras6 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.about-values-grid.is-teras6 article small {
+  display: block;
+  color: var(--gold);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  margin-top: -4px;
+  margin-bottom: 6px;
+}
+
+.about-accred-section { background: #fff; }
+.about-accred-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 16px;
+}
+.about-accred-grid article {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 12px 30px rgba(8, 26, 58, .06);
+  transition: transform .24s ease, border-color .24s ease, box-shadow .24s ease;
+}
+.about-accred-grid article:hover {
+  transform: translateY(-5px);
+  border-color: rgba(225, 169, 37, .58);
+  box-shadow: 0 24px 48px rgba(8, 26, 58, .13);
+}
+.about-accred-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--navy);
+  color: var(--gold);
+  font-weight: 950;
+  font-size: 13px;
+}
+.about-accred-grid h3 { margin: 0; color: var(--navy); font-size: 1rem; }
+.about-accred-grid p.accred-label { margin: 0; color: var(--gold); font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+.about-accred-grid p.accred-text { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+
+.about-leadership-section { background: var(--soft); }
+.about-leadership-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+.about-leadership-grid article {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 32px;
+  border: 1px solid rgba(11, 44, 86, .12);
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 16px 36px rgba(8, 26, 58, .07);
+  transition: transform .24s ease, border-color .24s ease, box-shadow .24s ease;
+}
+.about-leadership-grid article:hover {
+  transform: translateY(-5px);
+  border-color: rgba(225, 169, 37, .58);
+  box-shadow: 0 24px 48px rgba(8, 26, 58, .13);
+}
+.about-leader-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--blue), var(--blue2));
+  color: #fff;
+  font-weight: 900;
+  font-size: 20px;
+  margin-bottom: 18px;
+}
+.about-leadership-grid h3 { margin: 0 0 2px; color: var(--navy); font-size: 1.15rem; }
+.about-leader-role { display: inline-block; margin-bottom: 4px; color: var(--gold); font-weight: 800; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; }
+.about-leader-credential { display: block; margin-bottom: 14px; color: var(--muted); font-size: 12px; font-style: italic; }
+.about-leadership-grid p.leader-bio { color: var(--muted); font-size: 14px; line-height: 1.7; margin: 0 0 14px; }
+.about-leader-focus { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; }
+.about-leader-focus span { padding: 6px 12px; border-radius: 999px; background: #eef4ff; color: var(--blue2); font-size: 11px; font-weight: 800; }
+
+.about-timeline-section { background: #fff; }
+.about-timeline-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  max-width: 760px;
+}
+.about-timeline-list li {
+  position: relative;
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 24px;
+  padding: 20px 0;
+  border-bottom: 1px solid var(--line);
+}
+.about-timeline-list li:last-child { border-bottom: none; }
+.about-timeline-year {
+  color: var(--navy);
+  font-weight: 950;
+  font-size: 1.05rem;
+  letter-spacing: -.01em;
+}
+.about-timeline-text { color: var(--muted); font-size: 15px; line-height: 1.6; padding-top: 2px; }
+.about-timeline-list li::before {
+  content: "";
+  position: absolute;
+  left: 112px;
+  top: 28px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--gold);
+}
+
+@media (max-width: 920px) {
+  .about-values-grid.is-teras6,
+  .about-accred-grid,
+  .about-leadership-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .about-timeline-list li {
+    grid-template-columns: 84px 1fr;
+    gap: 16px;
+  }
+  .about-timeline-list li::before { left: 76px; }
+}
+@media (max-width: 640px) {
+  .about-accred-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

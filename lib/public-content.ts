@@ -21,8 +21,8 @@ import { unstable_cache } from "next/cache";
 export const getPublishedCourses = unstable_cache(
   async () => {
     const supabase = await createSupabaseServerClient();
-    const { data } = await supabase
-      .from("courses")
+    const { data } = await (supabase
+      .from("courses") as any)
       .select("id, title, slug, category, summary, featured, sort_order")
       .eq("status", "published")
       .is("deleted_at", null)
@@ -36,8 +36,8 @@ export const getPublishedCourses = unstable_cache(
 export const getFeaturedCourses = unstable_cache(
   async () => {
     const supabase = await createSupabaseServerClient();
-    const { data } = await supabase
-      .from("courses")
+    const { data } = await (supabase
+      .from("courses") as any)
       .select("id, title, slug, category, summary")
       .eq("status", "published")
       .eq("featured", true)
@@ -53,8 +53,8 @@ export const getUpcomingSchedules = unstable_cache(
   async () => {
     const supabase = await createSupabaseServerClient();
     const today = new Date().toISOString().slice(0, 10);
-    const { data } = await supabase
-      .from("schedules")
+    const { data } = await (supabase
+      .from("schedules") as any)
       .select("id, start_date, end_date, status, seats_available, courses(title, slug)")
       .eq("is_published", true)
       .is("deleted_at", null)
@@ -69,8 +69,8 @@ export const getUpcomingSchedules = unstable_cache(
 export const getGallery = unstable_cache(
   async () => {
     const supabase = await createSupabaseServerClient();
-    const { data } = await supabase
-      .from("gallery_images")
+    const { data } = await (supabase
+      .from("gallery_images") as any)
       .select("id, title, alt_text, image_url, category_id")
       .eq("status", "published")
       .is("deleted_at", null)
@@ -84,8 +84,8 @@ export const getGallery = unstable_cache(
 export const getPublishedFaqs = unstable_cache(
   async () => {
     const supabase = await createSupabaseServerClient();
-    const { data } = await supabase
-      .from("faqs")
+    const { data } = await (supabase
+      .from("faqs") as any)
       .select("id, question, answer, category_id")
       .eq("status", "published")
       .is("deleted_at", null)
@@ -99,7 +99,7 @@ export const getPublishedFaqs = unstable_cache(
 export const getCompanyProfile = unstable_cache(
   async () => {
     const supabase = await createSupabaseServerClient();
-    const { data } = await supabase.from("company_profile").select("*").eq("id", 1).single();
+    const { data } = await (supabase.from("company_profile") as any).select("*").eq("id", 1).single();
     return data;
   },
   ["public-company"],

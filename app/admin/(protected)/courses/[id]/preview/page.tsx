@@ -20,7 +20,7 @@ export default async function CoursePreviewPage({
   await requireRole("editor");
   const { id } = await params;
   const supabase = await createSupabaseServerClient();
-  const { data } = await supabase.from("courses").select("*").eq("id", id).single();
+  const { data } = await (supabase.from("courses") as any).select("*").eq("id", id).single();
   if (!data) notFound();
   const course = data as Course;
 

@@ -18,8 +18,8 @@ export default async function CoursesPage({
   const page = Math.max(1, Number(sp.page ?? 1));
   const supabase = await createSupabaseServerClient();
 
-  let query = supabase
-    .from("courses")
+  let query = (supabase
+    .from("courses") as any)
     .select("id, title, slug, category, status, featured, updated_at", { count: "exact" })
     .is("deleted_at", null)
     .order("sort_order", { ascending: true })

@@ -21,8 +21,8 @@ export default async function AttendancePage({
   const supabase = await createSupabaseServerClient();
   const today = new Date().toISOString().slice(0, 10);
 
-  const { data: schedules } = await supabase
-    .from("course_schedules")
+  const { data: schedules } = await (supabase
+    .from("course_schedules") as any)
     .select("id, start_date, end_date, status, courses(title)")
     .is("deleted_at", null)
     .order("start_date", { ascending: false })
@@ -35,9 +35,9 @@ export default async function AttendancePage({
 
   if (scheduleId) {
     const [{ data: parts }, { data: att }, { data: asmt }] = await Promise.all([
-      supabase.from("participants").select("id, full_name, company, status").eq("schedule_id", scheduleId).is("deleted_at", null).order("full_name"),
-      supabase.from("attendance").select("participant_id, present, session_date").eq("schedule_id", scheduleId),
-      supabase.from("assessments").select("participant_id, assessment_type, score, result").eq("schedule_id", scheduleId),
+      (supabase.from("participants") as any).select("id, full_name, company, status").eq("schedule_id", scheduleId).is("deleted_at", null).order("full_name"),
+      (supabase.from("attendance") as any).select("participant_id, present, session_date").eq("schedule_id", scheduleId),
+      (supabase.from("assessments") as any).select("participant_id, assessment_type, score, result").eq("schedule_id", scheduleId),
     ]);
     participants = parts ?? [];
     for (const a of (att ?? []) as any[]) attendance[a.participant_id] = a;

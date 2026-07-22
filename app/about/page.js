@@ -1,14 +1,8 @@
 import Image from "next/image";
 import MobileNav from "../../components/MobileNav";
 import MegaNav from "../../components/MegaNav";
+import { coreValues, leadership, accreditations, timeline } from "../../data/companyProfile";
 
-const values = [
-  ["T", "Trust", "We build relationships through integrity, transparency and dependable delivery."],
-  ["E", "Excellence", "We pursue high standards across content, facilitation, assessment and service."],
-  ["R", "Responsibility", "We consider people, operations and workplace impact in every solution."],
-  ["A", "Accountability", "We take clear ownership of quality, commitments and continuous improvement."],
-  ["S", "Safety", "We keep risk reduction and workforce protection at the centre of our work."],
-];
 const reasons = [
   ["01", "Industry-focused programmes", "Training shaped around the hazards, roles and realities of industrial workplaces."],
   ["02", "Practical learning", "Demonstrations, guided exercises and workplace scenarios that connect knowledge with action."],
@@ -50,12 +44,76 @@ export default function AboutPage() {
         </div>
       </section>
 
+      <section className="about-accred-section" aria-labelledby="accred-title">
+        <div className="container">
+          <div className="section-heading about-section-heading"><span className="eyebrow">Recognition &amp; Accreditations</span><h2 id="accred-title">Registered and recognised by Malaysia&apos;s governing bodies.</h2></div>
+          <div className="about-accred-grid">
+            {accreditations.map((a) => (
+              <article key={a.org}>
+                <span className="about-accred-badge" aria-hidden="true">{a.org.slice(0, 2).toUpperCase()}</span>
+                <h3>{a.org}</h3>
+                <p className="accred-label">{a.label}</p>
+                <p className="accred-text">{a.text}</p>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <section className="about-vision-section" aria-labelledby="vision-title">
         <div className="container"><div className="section-heading about-section-heading"><span className="eyebrow">Direction &amp; Purpose</span><h2 id="vision-title">A clear direction for meaningful workforce development.</h2></div><div className="about-vision-grid"><article><span className="about-card-number">01</span><h3>Vision</h3><p>To be a trusted partner in building safer, more competent and more resilient workforces.</p></article><article><span className="about-card-number">02</span><h3>Mission</h3><p>To deliver practical, competency-based training and industrial solutions that help organisations strengthen people, performance and workplace confidence.</p></article></div></div>
       </section>
 
       <section className="about-values-section" aria-labelledby="values-title">
-        <div className="container"><div className="section-heading about-section-heading"><span className="eyebrow">TERAS Values</span><h2 id="values-title">The principles behind every engagement.</h2></div><div className="about-values-grid">{values.map(([icon, title, text]) => <article key={title}><span className="about-value-icon" aria-hidden="true">{icon}</span><h3>{title}</h3><p>{text}</p></article>)}</div></div>
+        <div className="container">
+          <div className="section-heading about-section-heading"><span className="eyebrow">TERAS Values</span><h2 id="values-title">The principles behind every engagement.</h2></div>
+          <div className="about-values-grid is-teras6">
+            {coreValues.map((v) => (
+              <article key={v.letter}>
+                <span className="about-value-icon" aria-hidden="true">{v.letter}</span>
+                <h3>{v.title}</h3>
+                {v.subtitle && <small>{v.subtitle}</small>}
+                <p>{v.text}</p>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="about-leadership-section" aria-labelledby="leadership-title">
+        <div className="container">
+          <div className="section-heading about-section-heading"><span className="eyebrow">Our Leadership</span><h2 id="leadership-title">Led by industry practitioners, not just administrators.</h2></div>
+          <div className="about-leadership-grid">
+            {leadership.map((p) => (
+              <article key={p.name}>
+                <span className="about-leader-avatar" aria-hidden="true">{p.name.split(" ").map((s) => s[0]).slice(0, 2).join("")}</span>
+                <span className="about-leader-role">{p.role}</span>
+                <h3>{p.name}</h3>
+                {p.credential && <span className="about-leader-credential">{p.credential}</span>}
+                <p className="leader-bio">{p.bio}</p>
+                {p.focusAreas && (
+                  <div className="about-leader-focus">
+                    {p.focusAreas.map((f) => <span key={f}>{f}</span>)}
+                  </div>
+                )}
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="about-timeline-section" aria-labelledby="timeline-title">
+        <div className="container">
+          <div className="section-heading about-section-heading"><span className="eyebrow">Our Journey</span><h2 id="timeline-title">From the scaffold to founding TERAS UNIVERSAL.</h2></div>
+          <ol className="about-timeline-list">
+            {timeline.map((t, i) => (
+              <li key={`${t.year}-${i}`}>
+                <span className="about-timeline-year">{t.year}</span>
+                <span className="about-timeline-text">{t.text}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
       </section>
 
       <section className="about-reasons-section" aria-labelledby="reasons-title">
