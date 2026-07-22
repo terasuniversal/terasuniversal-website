@@ -1,51 +1,43 @@
-# Batch 8 — Training Facilities & Participant Support (Module 29)
+# Batch 9 — Strategic Partners (Module 31)
 
-## Note on Module 28 (Corporate Timeline)
-Module 28 — Corporate Timeline — was already completed in Batch 1 ("Our
-Journey" section on the About page, showing the Director's verified career
-milestones from 1991 to founding TERAS UNIVERSAL in 2012). Nothing further
-was needed there, so this batch moves on to Module 29.
+## Note on Module 30 (Corporate Team)
+Module 30 — Corporate Team — was already completed in Batch 1. The Corporate
+Profile only names 2 approved personnel: the Director (Mohd Latifi Amir Bin
+Abu Bakar) and the Manager (Nor Zalikha binti Mohd Latifi Amir), both already
+shown in the "Our Leadership" section on the About page with their verified
+bios and credentials. There's no other named team member in the official
+documents, so nothing further can be added there without fabricating people
+who aren't documented — this module stays as-is.
 
 ## What this adds
-The official Corporate Profile lists a "Training Facilities & Participant
-Support" section that was never published anywhere on the site — including
-real value-adds that a corporate client evaluating in-house or multi-day
-training would want to know about: **hostel accommodation for participants
-travelling from outside**, and **daily meals and refreshments provided
-during the programme**. These are genuine differentiators that were simply
-missing from the site.
+The Corporate Profile lists 2 organisations under "Other Valued Partners"
+(distinct from the industry client lists already used on `/industries/[slug]`
+in Batch 3): **Universiti Kuala Lumpur (UniKL)** and **Lembaga Kemajuan
+Wilayah Kedah (KEDA)**. These weren't shown anywhere on the site. Added a
+"Strategic Partners" section to the About page with both, plus a line
+pointing to the `/industries` page for the full client list by sector.
 
-Added a new section to the About page listing all 6 verified items:
-Modern Training Classroom, Practical Training Yard, Comfortable
-Accommodation, Meals & Refreshments, Personal Protective Equipment, and
-Participant Support — each with the exact description from the Corporate
-Profile.
-
-I deliberately did **not** touch the existing "Training Facilities" section
-on the homepage (photo cards for Classroom, Yard, Scaffold Area, PPE,
-Technical Equipment, Assessment Area) — that section already works well and
-covers a different angle (visual environment). This batch adds the
-complementary text-based "what's included" list to the About page instead
-of overloading the homepage section or forcing unrelated stock photos onto
-facilities like "Accommodation" or "Meals" that don't have real photos yet.
+Only these 2 are shown as "partners" — I did not relabel any of the 32
+industry clients as "partners" since the source document itself
+distinguishes between the two categories.
 
 ## Files changed (3)
 
 ### `data/companyProfile.js`
-Added `trainingFacilities` — 6 verified items with title + description,
-sourced directly from the Corporate Profile.
+Added `partners` — the 2 verified organisations with a short description
+each.
 
 ### `app/about/page.js`
-Added one new section, "Training Facilities & Participant Support", placed
-right after "Our Journey" (timeline) and before "Why Choose TERAS
-UNIVERSAL". Nothing else on the page changed.
+Added one new section, "Strategic Partners", placed after "Industries We
+Support" and before "Corporate Commitment". Nothing else on the page
+changed.
 
 ### `app/globals.css`
-Styling for the new 3-column card grid (2 columns on tablet, 1 on mobile) —
-appended to the end of the file.
+Styling for the new 2-column partner card grid — appended to the end of the
+file.
 
 ## What to check after applying
-- `/about` — scroll to "Training Facilities & Participant Support" (between
-  "Our Journey" and "Why Choose TERAS UNIVERSAL") — should show 6 cards
-- Confirm the homepage's existing "Training Facilities" section (with
-  photos) is unchanged
+- `/about` — scroll to "Strategic Partners" (near the bottom, after
+  "Industries We Support") — should show 2 cards: UniKL and KEDA
+- The "View industries we serve" link below the cards should go to
+  `/industries`

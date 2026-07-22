@@ -1,7 +1,7 @@
 import Image from "next/image";
 import MobileNav from "../../components/MobileNav";
 import MegaNav from "../../components/MegaNav";
-import { coreValues, leadership, accreditations, timeline, trainingFacilities } from "../../data/companyProfile";
+import { coreValues, leadership, accreditations, timeline, trainingFacilities, partners } from "../../data/companyProfile";
 
 const reasons = [
   ["01", "Industry-focused programmes", "Training shaped around the hazards, roles and realities of industrial workplaces."],
@@ -140,6 +140,21 @@ export default function AboutPage() {
 
       <section className="about-industries-section" aria-labelledby="about-industries-title">
         <div className="container"><div className="section-heading about-section-heading"><span className="eyebrow">Industries We Support</span><h2 id="about-industries-title">Built for safety-critical environments.</h2></div><div className="about-industries-grid">{industries.map((industry, index) => <article key={industry}><span>{String(index + 1).padStart(2, "0")}</span><h3>{industry}</h3></article>)}</div></div>
+      </section>
+
+      <section className="about-partners-section" aria-labelledby="about-partners-title">
+        <div className="container">
+          <div className="section-heading about-section-heading"><span className="eyebrow">Strategic Partners</span><h2 id="about-partners-title">Organisations we collaborate with.</h2></div>
+          <div className="about-partners-grid">
+            {partners.map((partner) => (
+              <article key={partner.name}>
+                <h3>{partner.name}</h3>
+                <p>{partner.text}</p>
+              </article>
+            ))}
+          </div>
+          <p className="about-partners-note">We also work with a wide range of corporate clients across Oil &amp; Gas, Construction, Manufacturing and other sectors. <a href="/industries">View industries we serve &rarr;</a></p>
+        </div>
       </section>
 
       <section className="about-commitment-section"><div className="container"><span className="eyebrow">Corporate Commitment</span><h2>Committed to Building Safer and More Competent Workforces</h2><p>We work with organisations that value practical capability, responsible delivery and long-term improvement. Every engagement is an opportunity to help people perform with greater understanding, discipline and confidence.</p></div></section>

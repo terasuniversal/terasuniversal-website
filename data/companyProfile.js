@@ -82,6 +82,14 @@ export const trainingFacilities = [
   { title: "Participant Support", text: "Our team provides registration assistance, course administration and guidance before, during and after training." },
 ];
 
+// Verified — Corporate Profile 2026 "Valued Clients" section, listed there under
+// "Other Valued Partners" (distinct from the industry client lists used on
+// /industries/[slug]). Module 31.
+export const partners = [
+  { name: "Universiti Kuala Lumpur (UniKL)", text: "Academic and training collaboration supporting industrial competency development." },
+  { name: "Lembaga Kemajuan Wilayah Kedah (KEDA)", text: "Regional development partnership supporting workforce and industrial capability in Kedah." },
+];
+
 // Confirmed facts only — safe to publish as-is, sourced from the 2026 Corporate Profile
 // and Training Course Catalogue. Do not add anything here that isn't directly stated
 // in an official TERAS UNIVERSAL document.

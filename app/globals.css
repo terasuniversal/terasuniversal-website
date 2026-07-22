@@ -5459,3 +5459,22 @@ body:has(.teras-admin) .sticky-cta { display: none; }
 @media (max-width: 640px) {
   .about-facilities-grid { grid-template-columns: 1fr; }
 }
+
+/* ==========================================================================
+   Batch 9 — Strategic Partners (Module 31)
+   ========================================================================== */
+.about-partners-section { padding: 56px 0; }
+.about-partners-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.about-partners-grid article {
+  padding: 26px;
+  border-radius: var(--radius, 24px);
+  background: var(--soft, #f4f7fb);
+  border: 1px solid var(--line, #e1e6ee);
+}
+.about-partners-grid h3 { margin: 0 0 8px; color: var(--navy); font-size: 17px; }
+.about-partners-grid p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.6; }
+.about-partners-note { margin-top: 20px; color: var(--muted); font-size: 14px; }
+.about-partners-note a { color: var(--blue2, var(--navy)); font-weight: 700; }
+@media (max-width: 640px) {
+  .about-partners-grid { grid-template-columns: 1fr; }
+}
