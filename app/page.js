@@ -92,6 +92,15 @@ export default function HomePage() {
   const successMetrics = getSuccessMetrics();
   return (
     <main>
+      <div className="brand-topbar">
+        <div className="container brand-topbar-inner">
+          <span>Industrial Safety Training &amp; Technical Competency</span>
+          <div>
+            <a href="tel:+60195193834">+60 19-519 3834</a>
+            <a href="mailto:training@terasuniversal.com.my">training@terasuniversal.com.my</a>
+          </div>
+        </div>
+      </div>
       <header className="site-header">
         <div className="container nav-wrap">
           <a className="brand" href="#home" aria-label="TERAS UNIVERSAL home">
@@ -105,42 +114,41 @@ export default function HomePage() {
         <div className="hero-industrial-grid" aria-hidden="true" />
         <div className="container hero-grid">
           <div className="hero-copy">
-            <span className="eyebrow">Malaysia&apos;s Industrial Safety &amp; Competency Partner</span>
+            <span className="eyebrow">Malaysia&apos;s Trusted Industrial Training Partner</span>
             <h1>
-              Building Competence for
-              <span> Safer, Stronger Industries.</span>
+              Building Competence.
+              <span> Creating Opportunities.</span>
             </h1>
             <p className="hero-lead">
-              TERAS UNIVERSAL delivers competency-based industrial safety training,
-              technical development, consultancy and workforce solutions for
-              organisations operating in safety-critical environments.
+              Professional industrial safety training and technical competency
+              solutions built around practical learning, recognised standards and
+              the demands of real workplaces.
             </p>
             <div className="hero-actions">
-              <a className="btn btn-primary" href="#training">Explore Our Training</a>
-              <a className="btn btn-outline" href="#contact">Request a Corporate Proposal</a>
+              <a className="btn btn-primary" href="/training">Explore 2026 Programmes <span aria-hidden="true">&rarr;</span></a>
+              <a className="btn btn-outline" href="/request-proposal">Request Corporate Training</a>
             </div>
             <div className="hero-proof" aria-label="TERAS UNIVERSAL strengths">
-              <span>Practical delivery</span>
-              <span>Compliance focused</span>
-              <span>Custom corporate programmes</span>
+              <span><strong>2012</strong> Established</span>
+              <span><strong>HRD Corp</strong> Registered</span>
+              <span><strong>Theory + Practical</strong> Delivery</span>
             </div>
           </div>
 
           <div className="premium-visual hero-command-panel" aria-label="TERAS UNIVERSAL capability highlights">
-            {}            <div className="hero-training-image">
+            <div className="hero-training-image">
               <Image src="/images/temp-ai-homepage-hero.webp" alt="Industrial trainer briefing trainees in modern personal protective equipment." width={1800} height={1200} priority sizes="(max-width: 920px) 100vw, 52vw" />
             </div>
-            <div className="hero-panel-services">
-              <article><strong>01</strong><span>Industrial Safety</span></article>
-              <article><strong>02</strong><span>Technical Competency</span></article>
-              <article><strong>03</strong><span>Industrial Consultancy</span></article>
-              <article><strong>04</strong><span>Workforce Development</span></article>
+            <div className="hero-image-caption">
+              <span>Competency-based learning</span>
+              <strong>Training that connects knowledge with safe workplace performance.</strong>
             </div>
-            <div className="hero-panel-label">THE STANDARD OF COMPETENCE</div>
-            <div className="hero-panel-main">
-              <span className="visual-kicker">Integrated Industrial Solutions</span>
-              <h2>Safety. Skills. Compliance.</h2>
-              <p>Structured learning and practical solutions designed around real operational risks, workforce needs and industry expectations.</p>
+            <div className="hero-corner-mark" aria-hidden="true">TU</div>
+            <div className="hero-panel-services">
+              <article><strong>01</strong><span>Scaffolding Competency</span></article>
+              <article><strong>02</strong><span>Occupational Safety &amp; Health</span></article>
+              <article><strong>03</strong><span>Construction &amp; Safety</span></article>
+              <article><strong>04</strong><span>Corporate Training</span></article>
             </div>
           </div>
         </div>
@@ -150,10 +158,10 @@ export default function HomePage() {
 
       <section className="capability-strip" aria-label="TERAS UNIVERSAL corporate capabilities">
         <div className="container capability-grid">
-          <article><strong>4</strong><span>Core Service Pillars</span><small>Integrated industrial solutions</small></article>
-          <article><strong>7</strong><span>Methodology Stages</span><small>From need analysis to improvement</small></article>
-          <article><strong>3</strong><span>Flexible Delivery Modes</span><small>Public &middot; In-house &middot; Onsite</small></article>
-          <article><strong>360&deg;</strong><span>Competency Focus</span><small>Theory &middot; Practical &middot; Assessment</small></article>
+          <article><strong>01</strong><span>Experienced Trainers</span><small>Practical industry knowledge</small></article>
+          <article><strong>02</strong><span>Industry Recognised</span><small>Compliance-focused programmes</small></article>
+          <article><strong>03</strong><span>Corporate Solutions</span><small>Public &middot; In-house &middot; Onsite</small></article>
+          <article><strong>04</strong><span>Quality Assured</span><small>Theory &middot; Practical &middot; Assessment</small></article>
         </div>
       </section>
 
@@ -443,7 +451,6 @@ export default function HomePage() {
     </main>
   );
 }
-
 
 
 
