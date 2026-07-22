@@ -4784,7 +4784,7 @@ img {
 .verify-page :is(a, button):focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; }
 @media (max-width: 920px) { .verify-hero-grid { grid-template-columns: 1fr; gap: 36px; } .verify-copy { text-align: center; } .verify-copy p { margin-right: auto; margin-left: auto; } }
 @media (max-width: 590px) { .verify-hero { padding: 56px 0; } .verify-copy h1 { font-size: clamp(38px, 11vw, 50px); } .verify-copy p { font-size: 16px; } .verify-card, .verify-result-card { padding: 22px; border-radius: 18px; } .verify-details { grid-template-columns: 1fr; } .verify-actions { display: grid; } .verify-actions .btn { width: 100%; } .verify-status { gap: 12px; } .verify-status > span { flex-basis: 40px; width: 40px; height: 40px; font-size: 20px; } .verify-status h1 { font-size: 25px; } }
-@media print { .verify-page { background: #fff; } .verify-page .site-header, .verify-page footer, .verify-page .floating-whatsapp, .verify-page .verify-actions { display: none !important; } .verify-result { padding: 0; } .verify-result-card { max-width: none; border: 1px solid #bbb; box-shadow: none; } .verify-status h1 { font-size: 24px; } .verify-details { grid-template-columns: repeat(2, minmax(0, 1fr)); } .verify-result-page { min-height: 0; } }
+@media print { .verify-page { background: #fff; } .verify-page .site-header, .verify-page footer, .verify-page .floating-whatsapp, .verify-page .verify-actions, .verify-page .course-breadcrumb { display: none !important; } .verify-result { padding: 0; } .verify-result-card { max-width: none; border: 1px solid #bbb; box-shadow: none; } .verify-status h1 { font-size: 24px; } .verify-details { grid-template-columns: repeat(2, minmax(0, 1fr)); } .verify-result-page { min-height: 0; } }
 
 /* Enterprise UX foundations: search, finder, resources and conversion CTA */
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
@@ -5603,62 +5603,6 @@ body:has(.teras-admin) .sticky-cta { display: none; }
   .notfound-links {
     grid-template-columns: 1fr;
   }
-}
-
-/* Final cascade layer for the official 2026 brand direction. */
-.nav-wrap{min-height:86px}
-.nav-cta,.nav-proposal{border-radius:3px}
-.hero.hero-corporate{position:relative;isolation:isolate;overflow:hidden;padding:72px 0 76px;background:linear-gradient(90deg,rgba(255,255,255,.98) 0%,rgba(255,255,255,.96) 45%,rgba(244,247,251,.88) 100%),var(--soft)}
-.hero-corporate .hero-grid{grid-template-columns:minmax(0,.95fr) minmax(480px,1.05fr);gap:68px;align-items:center}
-.hero-corporate .hero-copy{max-width:none}
-.hero-copy .eyebrow{padding:0 0 0 16px;border:0;border-left:4px solid var(--gold);border-radius:0;background:transparent;color:var(--navy)}
-.hero-corporate .hero-copy h1{max-width:680px;font-size:clamp(46px,5.5vw,74px);line-height:1.01;margin:24px 0 22px;text-transform:uppercase;letter-spacing:-.05em}
-.hero-corporate .hero-copy h1 span{display:block;margin-top:0;color:var(--gold)}
-.hero-corporate .hero-lead{max-width:630px;font-size:18px;line-height:1.75;color:#4f5e70}
-.hero-actions .btn{min-height:54px;padding:14px 22px;border-radius:3px;text-transform:uppercase;font-size:12px;letter-spacing:.04em}
-.hero-actions .btn-primary{gap:12px;background:var(--navy);box-shadow:10px 10px 0 rgba(225,169,37,.18)}
-.hero-actions .btn-outline{border-width:2px;color:var(--navy)}
-.hero-corporate .hero-proof{display:grid;grid-template-columns:repeat(3,1fr);gap:0;margin-top:42px;border-top:1px solid rgba(11,44,86,.15)}
-.hero-corporate .hero-proof span{position:static;padding:18px 16px 0 0;color:#667386;font-size:11px;font-weight:400;line-height:1.45}
-.hero-corporate .hero-proof span:before{display:none}
-.hero-corporate .hero-proof strong{display:block;color:var(--navy);font-family:var(--font-montserrat);font-size:13px;text-transform:uppercase}
-.hero-command-panel{position:relative;display:block;min-width:0;min-height:0;padding:0;border:0;border-radius:0;background:var(--navy);box-shadow:24px 28px 0 rgba(11,44,86,.08);overflow:visible}
-.hero-command-panel:after{display:none}
-.hero-training-image{position:relative;min-height:420px;overflow:hidden;border-radius:0;clip-path:polygon(0 0,100% 0,100% 86%,94% 100%,0 100%)}
-.hero-training-image:after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent 40%,rgba(4,24,50,.88) 100%)}
-.hero-training-image img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-.hero-panel-services{position:relative;z-index:2;display:grid;grid-template-columns:repeat(2,1fr);gap:1px;margin-top:0;background:rgba(255,255,255,.15)}
-.hero-panel-services article{display:flex;flex-direction:row;align-items:center;gap:13px;min-height:68px;padding:14px 18px;border:0;border-radius:0;background:var(--navy);color:#fff}
-.hero-panel-services strong{display:block;flex:0 0 auto;width:auto;height:auto;border-radius:0;background:transparent;color:var(--gold);font-family:var(--font-montserrat);font-size:11px}
-.hero-panel-services span{font-size:11px;font-weight:700;line-height:1.35;text-transform:uppercase}
-.capability-strip{padding:0;background:var(--navy);border-bottom:5px solid var(--gold)}
-.capability-grid{gap:0}
-.capability-grid article{min-height:118px;padding:26px 24px;border-radius:0;background:transparent}
-.capability-grid strong{color:var(--gold);font-size:13px;letter-spacing:.1em}
-.capability-grid span{color:#fff;text-transform:uppercase;font-size:12px;letter-spacing:.04em}
-.capability-grid small{color:#aebbd0}
-.section-heading .eyebrow{border:0;border-radius:0;border-left:3px solid var(--gold);padding:2px 0 2px 12px;background:transparent}
-.pillar-card,.programme-grid article,.facility-card,.reason-grid article,.project-card{border-radius:5px!important}
-
-@media(max-width:920px){
-  .brand-topbar{display:none}
-  .hero-corporate .hero-grid{grid-template-columns:1fr;gap:44px}
-  .hero-corporate .hero-copy{text-align:left}
-  .hero-copy .eyebrow{justify-content:flex-start;text-align:left}
-  .hero-command-panel{width:100%;max-width:720px}
-}
-@media(max-width:590px){
-  .nav-wrap{min-height:70px;justify-content:space-between}
-  .brand{width:auto}
-  .hero.hero-corporate{padding:48px 0 54px}
-  .hero-corporate .hero-copy h1{font-size:clamp(39px,12vw,53px)}
-  .hero-corporate .hero-lead{font-size:16px}
-  .hero-corporate .hero-proof{grid-template-columns:1fr}
-  .hero-corporate .hero-proof span{padding:13px 0;border-bottom:1px solid rgba(11,44,86,.12)}
-  .hero-training-image{min-height:360px}
-  .hero-image-caption{top:auto;bottom:28px;left:22px;right:45px}
-  .hero-panel-services{grid-template-columns:1fr}
-  .hero-panel-services article{min-height:56px}
 }
 
 /* ===== Utility pages that now have a real site header above them ===== */
