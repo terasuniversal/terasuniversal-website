@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { useSearchParams } from "next/navigation";
+import Image from "next/image";
 import { loginAction, type LoginState } from "./actions";
 
 export default function LoginPage() {
@@ -16,7 +17,7 @@ export default function LoginPage() {
   return (
     <div className="ta-login">
       <div className="ta-login-card">
-        <img src="/teras-universal-logo.png" alt="TERAS UNIVERSAL" />
+        <Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL" width={220} height={140} priority sizes="220px" />
         <h1>Admin Sign In</h1>
         <p className="sub">Manage your website content securely.</p>
 
