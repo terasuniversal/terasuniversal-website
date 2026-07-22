@@ -5,6 +5,7 @@ import MobileNav from "../components/MobileNav";
 import MegaNav from "../components/MegaNav";
 import TrainingGallery from "../components/TrainingGallery";
 import { trainingGallery } from "../data/trainingGallery";
+import { industries } from "../data/industries";
 
 const pillars = [
   {
@@ -70,7 +71,6 @@ const methodology = [
   { number: "06", code: "RECOGNISE", title: "Certification", text: "Record successful completion or verified competency according to the requirements of the programme." },
   { number: "07", code: "IMPROVE", title: "Continuous Improvement", text: "Review participant results, client feedback and delivery findings to strengthen future programme effectiveness." },
 ];
-const industries = ["Oil & Gas", "Petrochemical", "Construction", "Power & Utilities", "Manufacturing", "Marine & Offshore", "Heavy Industry", "Government & GLC"];
 
 // Keep this list empty until supporting registration or certificate documents are verified.
 const verifiedRecognitions = [];
@@ -355,7 +355,7 @@ export default function HomePage() {
       </section><section id="industries">
         <div className="container">
           <div className="section-heading"><span className="eyebrow">Industries We Serve</span><h2>Supporting Safety-Critical Industries</h2><p>TERAS UNIVERSAL supports organisations operating in environments where safety, technical competence, operational reliability and compliance are essential.</p></div>
-          <div className="industry-grid">{industries.map((industry,index)=><article key={industry}><span>{String(index+1).padStart(2,"0")}</span><h3>{industry}</h3></article>)}</div>
+          <div className="industry-grid">{industries.map((industry,index)=><a className="industry-grid-card" href={`/industries/${industry.slug}`} key={industry.slug}><span>{String(index+1).padStart(2,"0")}</span><h3>{industry.name}</h3></a>)}</div>
         </div>
       </section>
       <section id="methodology" className="method-section" aria-labelledby="methodology-title">

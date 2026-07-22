@@ -1,77 +1,79 @@
-# Batch 2 — Training Comparison tool (Module 22)
+# Batch 3 — Corporate Solutions / Industry Landing Pages (Module 23)
 
 ## Source
-Every duration, objective, target audience, delivery mode, assessment method
-and completion requirement below is taken directly from the official
-"TERAS UNIVERSAL Training Course Catalogue 2026" PDF you provided. Nothing
-was estimated, guessed, or carried over from a generic template.
+Sector names, and every named client shown on an industry page, are taken
+directly from the official "TERAS UNIVERSAL Corporate Profile 2026" PDF —
+Section "Sectors Served" and Section "Valued Clients". Nothing was invented.
 
-## Important scope note — read this first
-Module 22 originally asked to compare: Working at Height, Scaffolding,
-Confined Space, Forklift, Rigging, Fire Watch. After reading both official
-2026 documents in full:
+## What this adds
+A dedicated landing page for each of the 8 industries TERAS UNIVERSAL already
+listed on the homepage (`/industries/oil-gas`, `/industries/construction`,
+`/industries/petrochemical`, `/industries/power-utilities`,
+`/industries/manufacturing`, `/industries/marine-offshore`,
+`/industries/heavy-industry`, `/industries/government-glc`), plus an overview
+hub at `/industries`. Each page shows: a short sector-focused introduction,
+the training programmes most relevant to that sector (linking to real,
+already-published `/training/...` pages), and — only for the 3 sectors that
+have a verified named client list in the Corporate Profile (Oil & Gas,
+Construction, Manufacturing, plus Government & GLC) — a "Trusted across
+[sector]" strip listing those real client names. Sectors without a verified
+client list (Petrochemical, Power & Utilities, Marine & Offshore, Heavy
+Industry) simply don't show that section — no placeholder or invented names.
 
-- **Scaffolding** has full verified spec sheets for 6 distinct levels —
-  Basic / Intermediate / Advanced Scaffolder, and Scaffolding Inspector
-  Basic / Intermediate / Advanced. These are now in the comparison tool.
-- **Working at Height** and **Confined Space Safety** exist in the
-  catalogue, but only as a short description — no verified duration,
-  objectives or assessment method. They're already on the site as separate
-  course pages with a "duration to be confirmed" placeholder (that
-  discipline was already in place before I touched anything), so they are
-  correctly excluded from the comparison tool until that data is verified.
-- **Forklift** and **Fire Watch** — neither appears anywhere in the 2026
-  Corporate Profile or Course Catalogue. TERAS UNIVERSAL does not
-  currently have a verifiable Forklift or Fire Watch programme, so I did
-  not create pages or comparison entries for them. If these are genuinely
-  offered, send the course details and I'll add them properly next round.
+This is a standard B2B lead-generation pattern (dedicated industry pages so a
+prospect searching "scaffolding training oil and gas Malaysia" lands on
+something specific to them, not a generic homepage) and directly supports
+credibility and lead-gen without adding anything unverified.
 
-So the comparison tool currently compares the 6 verified Scaffolding
-programmes — the only courses with complete, confirmed data across every
-field the tool displays.
+## Files changed (6)
 
-## Files changed (4)
+### `data/industries.js` (new)
+Single source of truth for all 8 industries: name, one-line summary, longer
+"sector focus" paragraph, which training programmes are relevant (referencing
+real slugs already in `data/courseCatalog.js`), and verified client names
+(empty array where none are verified — the page hides that section
+automatically).
 
-### `data/courseCatalog.js`
-Added the 6 verified Scaffolding courses as full entries (new fields:
-`deliveryMode`, `assessment`, `completion`, `entryRequirements`,
-`objectives`, in addition to the existing `duration`/`audience`/`modules`
-fields the site's course detail template already uses — so each of these 6
-new courses also gets its own working page automatically at
-`/training/<slug>`, e.g. `/training/basic-scaffolder-level-1`).
+### `app/industries/page.js` (new)
+Hub page listing all 8 industries as clickable cards linking to their
+dedicated page.
 
-Also added `comparableCourses()` — a small helper that returns only courses
-with a verified `assessment` field, so the comparison tool automatically
-picks up new courses in future without any code changes, and just as
-automatically excludes anything not yet verified.
+### `app/industries/[slug]/page.js` (new)
+The individual industry landing page template — same structural pattern as
+the existing `/training/[slug]` course page template, so it fits the site's
+existing conventions (breadcrumb, hero, content sections, final CTA, same
+header/footer).
 
-The 5 pre-existing placeholder courses (Working at Height, Confined Space
-Safety, Safety Passport, Lifting Awareness) are untouched.
+### `app/page.js` (homepage — small, targeted change)
+The homepage already had an "Industries We Serve" section with 8 cards
+(`#industries`), but they were plain text, not links. Two changes:
+1. The hardcoded `industries` array (8 strings) is replaced with an import
+   from the new `data/industries.js`, so there's one source of truth instead
+   of two lists that could drift out of sync.
+2. Each card is now an `<a>` linking to its `/industries/[slug]` page instead
+   of a static `<article>`. Visual appearance is preserved exactly (same
+   gradient card, same hover-lift), just now clickable.
+Nothing else on the homepage was touched.
 
-### `components/TrainingComparison.js` (new)
-Reusable client component. Lets a visitor pick up to 3 programmes and see
-them side by side: Duration, Delivery Mode, Assessment, Completion, Target
-Audience, Objectives. Each column links to that course's full page. If a
-field isn't verified for a given course, it shows "Available on request"
-instead of a blank or a guess — this was a deliberate design choice so the
-component is safe to reuse later for other course categories even before
-their data is fully verified.
-
-### `app/training/page.js`
-One import added, one line added (`<TrainingComparison
-courses={comparableCourses()} />`) placed right after the existing Training
-Finder section. Nothing else on this page was changed — the programme grid,
-filters, delivery options and process sections are all untouched.
+### `components/MegaNav.js` (small, targeted change)
+The "Industries" nav dropdown already existed but every link pointed to the
+same homepage anchor (`/#industries`). Updated so "Oil & Gas", "Construction",
+"Manufacturing" and "Government & GLC" now link to their real dedicated
+pages, and added an "All Industries" link to the new `/industries` hub.
+Labels are unchanged — only the destination URLs improved.
 
 ### `app/globals.css`
-Styling for the new comparison table and picker chips, appended to the end
-of the file in a clearly marked block. Reuses the same navy/gold card
-system as the rest of the site (rounded corners, soft shadows, gold accent)
-— no new colours or design language introduced.
+Styling for the new hub grid, industry landing page hero/sections, and the
+homepage's now-clickable industry cards — appended to the end of the file.
+Nothing existing was changed or removed.
 
 ## What to check after applying
-- `/training` — scroll to "Compare Programmes" section, try selecting
-  different combinations of the 6 scaffolding levels, check mobile width
-- `/training/basic-scaffolder-level-1` (and the other 5 new slugs) — each
-  should render as a full course page using the existing course template
-- Confirm nothing else on `/training` changed
+- `/industries` — hub page renders all 8 industry cards
+- `/industries/oil-gas`, `/industries/construction`, `/industries/manufacturing` —
+  should each show a "Trusted across..." client strip with real company names
+- `/industries/petrochemical` (or power-utilities / marine-offshore /
+  heavy-industry) — should NOT show a clients section (no verified names for
+  these yet) — confirm it doesn't look broken/empty, just omits that block
+- Homepage `#industries` section — cards should still look the same but now
+  be clickable
+- Top navigation "Industries" dropdown — links should go to the new pages
