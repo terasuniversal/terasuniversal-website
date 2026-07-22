@@ -1,44 +1,52 @@
-# Batch 18 — Course Schema.org + Missing Footer Fix
+# Batch 21 — Navigation Consistency (Legacy Nav → MegaNav)
 
-## What this adds
+## What I found
+While re-checking the site after Batches 16-20, I found 6 pages still using
+an old, hardcoded navigation bar (`<nav className="desktop-nav">` — a flat
+list of links) instead of `MegaNav`, the dropdown navigation component every
+other page has used since Batch 16 (which includes the "current page"
+gold-highlight feature).
 
-### 1. Course structured data (`app/training/[slug]/page.js`)
-Every individual course page (e.g. `/training/working-at-height`,
-`/training/basic-scaffolder-level-1`) now includes `Course` JSON-LD
-structured data — this is what allows Google to potentially show richer
-search results for course pages (provider name, course title, etc).
+Pages affected:
+- `/training/scaffolding-competency`
+- `/request-proposal`
+- `/request-proposal/success`
+- `/verify`
+- `/verify/[certificateNo]` (the certificate verification result page)
+- `/gallery`
 
-Only real, verified fields are used: course title, summary, and the
-TERAS UNIVERSAL organisation as provider. Where a course's duration is
-in an unambiguous "N Days" format (verified from the Training Course
-Catalogue 2026), it's also converted to the ISO 8601 format Google
-requires (e.g. "10 Days" → "P10D"). For courses whose duration is listed
-as "to be confirmed based on scope", nothing is added for duration —
-we never guess at or invent a number.
+This mattered because:
+- These pages had no dropdown submenus (missing direct links to things like
+  "Oil & Gas", "Scaffolding Competency", "Resources Centre" that MegaNav
+  provides)
+- They didn't get the "current page" highlight added in Batch 16
+- Some linked "Industries" and "FAQ" to anchors on the homepage
+  (`/#industries`, `/#faq`) instead of the dedicated `/industries` and `/faq`
+  pages that exist elsewhere in the site
+- It was one more source of the "not consistent" feeling in the original
+  feedback — different pages had visibly different navigation bars
 
-### 2. Missing footer on course detail pages (found while working on this)
-While adding the schema, I found that `app/training/[slug]/page.js` — the
-page every individual course link on the site points to — had **no footer
-at all**. It wasn't part of the 13-file footer inconsistency fixed in
-Batch 16 because it didn't have a footer to be inconsistent; it simply had
-none. A visitor reading a course page and scrolling down would hit a dead
-end with no contact details, no site links, nothing.
+## What this fixes
+All 6 pages now use the exact same `<MegaNav />` component as every other
+page on the site. Nothing else on these pages was touched — same content,
+same footer, same layout below the header.
 
-This is now fixed: `<Footer />` (the same shared component from Batch 16)
-has been added to the end of this page, matching every other page on the
-site.
+Note: `/request-proposal/success` intentionally keeps its simpler one-line
+footer (just copyright + email) — that's a deliberate, different design for
+a confirmation page, not part of this fix.
 
-## Files changed (1)
-
-### `app/training/[slug]/page.js`
-- Added `Course` JSON-LD schema
-- Added `<Footer />` before the closing `</main>`
+## Files changed (6)
+- `app/training/scaffolding-competency/page.js`
+- `app/request-proposal/page.js`
+- `app/request-proposal/success/page.js`
+- `app/verify/page.js`
+- `app/verify/[certificateNo]/page.js`
+- `app/gallery/page.js`
 
 ## What to check after applying
-- Visit any course page (e.g. `/training/working-at-height`) — the footer
-  should now appear at the bottom, matching the rest of the site
-- View page source on a course page and confirm a
-  `<script type="application/ld+json">` block with `"@type": "Course"`
-  is present
-- Optional: paste a course URL into Google's Rich Results Test
-  (search.google.com/test/rich-results) to confirm it's recognised
+- Visit each of the 6 pages above — the header navigation should now show
+  the same dropdown menu style (Services / Training / Industries /
+  Resources / Company) as the rest of the site, not a flat link list
+- On `/verify` or `/gallery`, confirm the relevant dropdown group
+  highlights gold, same as other pages
+- `npm run lint` / `npm run build` — should pass cleanly

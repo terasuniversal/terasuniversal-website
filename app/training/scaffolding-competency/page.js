@@ -1,5 +1,6 @@
 import Image from "next/image";
 import MobileNav from "../../../components/MobileNav";
+import MegaNav from "../../../components/MegaNav";
 import Footer from "../../../components/Footer";
 
 const objectives = ["Understand fundamental scaffolding terminology and components.", "Recognise common scaffolding hazards and unsafe conditions.", "Understand basic safe erection and dismantling principles.", "Apply relevant workplace safety responsibilities.", "Identify inspection and reporting considerations.", "Demonstrate improved task awareness and procedural discipline."];
@@ -12,7 +13,7 @@ const faqs = [["Is this programme suitable for beginners?", "Selected programme 
 export default function ScaffoldingCompetencyPage() {
   return (
     <main className="course-page">
-      <header className="site-header"><div className="container nav-wrap"><a className="brand" href="/" aria-label="TERAS UNIVERSAL home"><Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL logo" width={220} height={140} priority sizes="154px" /></a><nav className="desktop-nav" aria-label="Main navigation"><a href="/about">About</a><a href="/services">Services</a><a href="/training">Training</a><a href="/#industries">Industries</a><a href="/#faq">FAQ</a><a href="/contact">Contact</a><br /><a href="/verify">Verify Certificate</a><a className="nav-proposal" href="/request-proposal">Request Proposal</a><a className="nav-cta" href="https://wa.me/60195193834" target="_blank" rel="noreferrer">WhatsApp</a></nav><MobileNav basePath="/" /></div></header>
+      <header className="site-header"><div className="container nav-wrap"><a className="brand" href="/" aria-label="TERAS UNIVERSAL home"><Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL logo" width={220} height={140} priority sizes="154px" /></a><MegaNav /><MobileNav basePath="/" /></div></header>
 
       <section className="course-hero" aria-labelledby="course-hero-title"><div className="container"><nav className="course-breadcrumb" aria-label="Breadcrumb"><a href="/">Home</a><span>/</span><a href="/training">Training</a><span>/</span><span aria-current="page">Scaffolding Competency</span></nav><div className="course-hero-grid"><div className="course-hero-copy"><span className="eyebrow">Industrial Safety Training</span><h1 id="course-hero-title">Scaffolding Competency Training</h1><p>A structured training pathway designed to strengthen scaffolding knowledge, hazard awareness, safe work practices and practical task discipline.</p><div className="hero-actions"><a className="btn btn-primary" href="/contact">Request Course Information</a><a className="btn btn-outline" href="https://wa.me/60195193834" target="_blank" rel="noreferrer">WhatsApp Our Team</a></div></div><figure className="course-hero-media"><Image src="/images/temp-ai-scaffolding-practical.webp" alt="Scaffolding practical training visual." width={1200} height={800} priority sizes="(max-width: 920px) 100vw, 52vw" /></figure></div></div></section>
 

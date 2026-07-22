@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import MobileNav from "../../../components/MobileNav";
+import MegaNav from "../../../components/MegaNav";
 import PrintButton from "../../../components/PrintButton";
 import Footer from "../../../components/Footer";
 import { findCertificateByValue } from "../../../lib/certificates";
@@ -59,7 +60,7 @@ export default async function CertificateResultPage({ params }) {
 
   return (
     <main className="verify-page verify-result-page">
-      <header className="site-header"><div className="container nav-wrap"><a className="brand" href="/" aria-label="TERAS UNIVERSAL home"><Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL logo" width={220} height={140} priority sizes="154px" /></a><nav className="desktop-nav" aria-label="Main navigation"><a href="/about">About</a><a href="/services">Services</a><a href="/training">Training</a><a href="/#industries">Industries</a><a href="/#faq">FAQ</a><a href="/contact">Contact</a><a href="/verify" aria-current="page">Verify Certificate</a><a className="nav-proposal" href="/request-proposal">Request Proposal</a><a className="nav-cta" href="https://wa.me/60195193834" target="_blank" rel="noreferrer">WhatsApp</a></nav><MobileNav basePath="/" /></div></header>
+      <header className="site-header"><div className="container nav-wrap"><a className="brand" href="/" aria-label="TERAS UNIVERSAL home"><Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL logo" width={220} height={140} priority sizes="154px" /></a><MegaNav /><MobileNav basePath="/" /></div></header>
 
       <section className="verify-result" aria-labelledby="result-title" aria-live="polite"><div className="container"><nav className="course-breadcrumb" aria-label="Breadcrumb"><a href="/">Home</a><span>/</span><a href="/verify">Verify Certificate</a><span>/</span><span aria-current="page">{record.certificateNumber || certificateNumber}</span></nav><div className={`verify-status verify-status-${record.status}`}><span aria-hidden="true">{record.status === "valid" ? "✓" : "!"}</span><div><p className="verify-status-label">{content.label}</p><h1 id="result-title">{content.message}</h1></div></div><div className="verify-result-card"><p className="eyebrow">Certificate Details</p><dl className="verify-details">{details.map(([label, value]) => <div key={label}><dt>{label}</dt><dd className={label === "Certificate Number" ? "verify-certificate-number" : ""}>{value}</dd></div>)}</dl>{record.certificateFileUrl && <p><a className="btn btn-outline" href={record.certificateFileUrl} target="_blank" rel="noreferrer">View Certificate File</a></p>}<div className="verify-actions"><a className="btn btn-primary" href="/verify">Verify Another Certificate</a><PrintButton /></div></div></div></section>
 
