@@ -47,7 +47,15 @@ export default function ContactPage() {
         <div className="container contact-form-layout"><div className="contact-form-intro"><span className="eyebrow">Start a Conversation</span><h2 id="contact-form-title">Tell us what your organisation needs.</h2><p>Share a few details and our team can begin the conversation around the right training or consultancy arrangement.</p></div><ContactEnquiryForm /></div>
       </section>
 
-      <section className="contact-map-section" aria-labelledby="map-title"><div className="container"><div className="section-heading contact-map-heading"><span className="eyebrow">Find Us</span><h2 id="map-title">Connect with TERAS UNIVERSAL.</h2></div><div className="contact-map-card"><iframe title="TERAS UNIVERSAL office location" src="https://www.google.com/maps?q=Lot%201961%2C%20Jalan%20Tanah%20Merah%2C%20Kg%20Tanah%20Merah%20Dalam%2C%2006000%20Jitra%2C%20Kedah%2C%20Malaysia&output=embed" loading="lazy" referrerPolicy="no-referrer-when-downgrade" /></div></div></section>
+      <section className="contact-map-section" aria-labelledby="map-title"><div className="container"><div className="section-heading contact-map-heading"><span className="eyebrow">Find Us</span><h2 id="map-title">Connect with TERAS UNIVERSAL.</h2></div>/div><div className="contact-map-card">
+  <iframe
+    title="TERAS UNIVERSAL office location"
+    src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3966.1999457607535!2d100.41016197499049!3d6.237356193750902!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x304b59ed020012fb%3A0x18b18a8d6d8a4a06!2sTeras%20Universal%20Sdn%20Bhd!5e0!3m2!1sen!2smy!4v1784774342646!5m2!1sen!2smy"
+    loading="lazy"
+    allowFullScreen
+    referrerPolicy="strict-origin-when-cross-origin"
+  />
+</div></div></section>
 
       <section className="contact-reasons-section" aria-labelledby="reasons-title"><div className="container"><div className="section-heading"><span className="eyebrow">Why Contact TERAS</span><h2 id="reasons-title">A practical first step toward stronger capability.</h2></div><div className="contact-reasons-grid">{reasons.map(([number, title, text]) => <article key={title}><span>{number}</span><h3>{title}</h3><p>{text}</p></article>)}</div></div></section>
 
