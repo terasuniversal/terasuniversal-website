@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { redirect } from "next/navigation";
 import MobileNav from "../../components/MobileNav";
 import MegaNav from "../../components/MegaNav";
 import Footer from "../../components/Footer";
@@ -9,7 +10,14 @@ export const metadata = {
   description: "Verify certificates officially issued by TERAS UNIVERSAL SDN. BHD.",
 };
 
-export default function VerifyPage() {
+export default async function VerifyPage({ searchParams }) {
+  const params = await searchParams;
+  const code = String(params?.code || "").trim().toUpperCase();
+
+  if (code) {
+    redirect(`/verify/${encodeURIComponent(code)}`);
+  }
+
   return (
     <main className="verify-page">
       <header className="site-header">

@@ -28,7 +28,7 @@ export default function VerifyForm() {
 
   return (
     <form className="verify-form" onSubmit={handleSubmit} noValidate>
-      <label htmlFor="certificate-number">Certificate number</label>
+      <label htmlFor="certificate-number">Verification code or certificate number</label>
       <input
         id="certificate-number"
         className="verify-input"
@@ -38,13 +38,13 @@ export default function VerifyForm() {
           setCertificateNumber(event.target.value);
           if (error) setError("");
         }}
-        placeholder="BE/LI/1851/26"
+        placeholder="VERIFY-TU-AWA-2026-0001"
         autoComplete="off"
         spellCheck={false}
         aria-invalid={Boolean(error)}
         aria-describedby={error ? "certificate-error" : "certificate-help"}
       />
-      <p id="certificate-help" className="verify-help">Use the unique certificate number issued by TERAS UNIVERSAL.</p>
+      <p id="certificate-help" className="verify-help">Use the QR verification code or certificate number issued by TERAS UNIVERSAL.</p>
       {error && <p id="certificate-error" className="verify-error" role="alert">{error}</p>}
       <button className="btn btn-primary verify-submit" type="submit">Verify Certificate</button>
     </form>
