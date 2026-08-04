@@ -114,7 +114,12 @@ export default async function SchedulesPage({
                 <tr><th>Schedule ID</th><th>Course</th><th>Trainer</th><th>Dates</th><th>Seats</th><th>Status</th><th></th></tr>
               </thead>
               <tbody>
-                {rows.map((s: any) => (
+                {rows.map((s: any) => {
+                  const capacity = Math.max(Number(s.max_participants) || 0, 0);
+                  const registered = Math.max(Number(s.registered_participants) || 0, 0);
+                  const capacityPercent = capacity > 0 ? Math.min(100, Math.round((registered / capacity) * 100)) : 0;
+                  const capacityColor = capacityPercent >= 100 ? "var(--ta-danger)" : capacityPercent >= 80 ? "#a9791a" : "var(--ta-success)";
+                  return (
                   <tr key={s.id}>
                     <td><code style={{ fontSize: 12 }}>{s.schedule_id}</code></td>
                     <td><strong>{s.course_name}</strong>{s.venue ? <div style={{ color: "var(--ta-muted)", fontSize: 12 }}>{s.venue}</div> : null}</td>
@@ -123,7 +128,12 @@ export default async function SchedulesPage({
                       {new Date(s.start_date).toLocaleDateString("en-MY", { day: "numeric", month: "short" })}
                       {s.end_date !== s.start_date ? ` – ${new Date(s.end_date).toLocaleDateString("en-MY", { day: "numeric", month: "short" })}` : ""}
                     </td>
-                    <td>{s.registered_participants}/{s.max_participants} <span style={{ color: "var(--ta-muted)", fontSize: 11 }}>({s.seats_remaining} left)</span></td>
+                    <td style={{ minWidth: 132 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}><span>{registered}/{capacity || "—"}</span><span style={{ color: "var(--ta-muted)", fontSize: 11 }}>{s.seats_remaining} left</span></div>
+                      <div role="progressbar" aria-label={`Capacity for ${s.course_name}`} aria-valuemin={0} aria-valuemax={capacity} aria-valuenow={registered} style={{ height: 5, marginTop: 6, borderRadius: 99, background: "var(--ta-line)", overflow: "hidden" }}>
+                        <div style={{ width: `${capacityPercent}%`, height: "100%", background: capacityColor, borderRadius: 99 }} />
+                      </div>
+                    </td>
                     <td><Badge status={s.status} /></td>
                     <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                       <Link href={`/admin/schedules/${s.id}`} className="ta-btn ta-btn-outline ta-btn-sm">View</Link>{" "}
@@ -141,7 +151,8 @@ export default async function SchedulesPage({
                       )}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
