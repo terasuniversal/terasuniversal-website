@@ -59,6 +59,10 @@ export function Sidebar({
           );
         })}
       </nav>
+      <div className="ta-sidebar-footer" aria-label="Workspace status">
+        <strong>Secure workspace</strong>
+        <span>Admin system online</span>
+      </div>
     </aside>
   );
 }

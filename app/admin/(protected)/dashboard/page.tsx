@@ -39,6 +39,14 @@ export default async function DashboardPage() {
         subtitle="Your training operations at a glance."
       />
 
+      <section className="ta-dashboard-intro" aria-label="Dashboard summary">
+        <div>
+          <strong>Today&apos;s operations</strong>
+          <p>Review upcoming training, participant activity and certificate progress from one workspace.</p>
+        </div>
+        <Link className="ta-btn ta-btn-primary" href="/admin/schedules/new">+ New Schedule</Link>
+      </section>
+
       <div className="ta-grid cols-4" style={{ marginBottom: 22 }}>
         <StatCard icon="🎓" label="Published courses" value={coursesCount.count ?? 0} href="/admin/courses" />
         <StatCard icon="👥" label="Total participants" value={participantsCount.count ?? 0} href="/admin/participants" />

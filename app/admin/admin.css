@@ -18,13 +18,16 @@
   --ta-success: #2e9e5b;
   --ta-warning: #e1a925;
   --ta-info: #2f6fed;
-  --ta-radius: 12px;
-  --ta-shadow: 0 6px 24px rgba(11, 44, 86, 0.08);
+  --ta-radius: 14px;
+  --ta-shadow: 0 10px 28px rgba(11, 44, 86, 0.07);
+  --ta-shadow-hover: 0 16px 34px rgba(11, 44, 86, 0.12);
   --ta-sidebar-w: 256px;
 
   font-family: var(--font-poppins), system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
   color: var(--ta-ink);
-  background: var(--ta-bg);
+  background:
+    radial-gradient(circle at 94% 0%, rgba(225, 169, 37, 0.12), transparent 25rem),
+    var(--ta-bg);
   min-height: 100vh;
   font-size: 14px;
   line-height: 1.55;
@@ -63,18 +66,22 @@
 .ta-nav-item {
   display: flex; align-items: center; gap: 11px;
   padding: 9px 12px; border-radius: 9px; margin-bottom: 2px;
-  color: #cdd9ea; font-weight: 500; transition: background .15s, color .15s;
+  color: #cdd9ea; font-weight: 600; transition: background .15s, color .15s, transform .15s;
 }
-.ta-nav-item:hover { background: rgba(255,255,255,0.06); color: #fff; }
-.ta-nav-item.active { background: var(--ta-gold); color: var(--ta-navy); font-weight: 700; }
+.ta-nav-item:hover { background: rgba(255,255,255,0.08); color: #fff; transform: translateX(2px); }
+.ta-nav-item.active { background: linear-gradient(100deg, #f3c456, var(--ta-gold)); color: var(--ta-navy); font-weight: 800; box-shadow: 0 4px 14px rgba(0, 0, 0, .18); }
 .ta-nav-item .ta-ico { width: 18px; text-align: center; font-size: 15px; }
 .ta-nav-item .ta-badge { margin-left: auto; background: var(--ta-gold); color: var(--ta-navy); font-size: 11px; font-weight: 800; border-radius: 999px; padding: 1px 7px; }
 .ta-nav-item.active .ta-badge { background: var(--ta-navy); color: #fff; }
+.ta-sidebar-footer { margin: 10px; padding: 12px; border: 1px solid rgba(255,255,255,.12); border-radius: 10px; background: rgba(255,255,255,.05); }
+.ta-sidebar-footer strong { display: block; color: #fff; font-size: 12px; }
+.ta-sidebar-footer span { display: flex; align-items: center; gap: 6px; margin-top: 3px; color: #aec1dd; font-size: 11px; }
+.ta-sidebar-footer span::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #59cc83; box-shadow: 0 0 0 3px rgba(89,204,131,.14); }
 
 .ta-main { flex: 1; margin-left: var(--ta-sidebar-w); display: flex; flex-direction: column; min-width: 0; }
 .ta-topbar {
-  height: 62px; background: var(--ta-white); border-bottom: 1px solid var(--ta-line);
-  display: flex; align-items: center; gap: 16px; padding: 0 22px; position: sticky; top: 0; z-index: 30;
+  min-height: 68px; background: rgba(255,255,255,.94); border-bottom: 1px solid var(--ta-line);
+  display: flex; align-items: center; gap: 16px; padding: 0 26px; position: sticky; top: 0; z-index: 30; backdrop-filter: blur(12px);
 }
 .ta-hamburger { display: none; background: none; border: 0; font-size: 20px; cursor: pointer; color: var(--ta-navy); }
 .ta-search { flex: 1; max-width: 440px; position: relative; }
@@ -90,10 +97,12 @@
 .ta-user-meta { line-height: 1.2; }
 .ta-user-meta strong { display: block; font-size: 13px; }
 .ta-user-meta small { color: var(--ta-muted); font-size: 11px; text-transform: capitalize; }
+.ta-topbar-link { display: inline-flex; align-items: center; gap: 6px; color: var(--ta-muted); font-size: 12px; font-weight: 700; padding: 7px 9px; border-radius: 8px; }
+.ta-topbar-link:hover { color: var(--ta-navy); background: var(--ta-soft); }
 
-.ta-content { padding: 26px; max-width: 1280px; width: 100%; }
-.ta-page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 22px; flex-wrap: wrap; }
-.ta-page-head h1 { font-size: 24px; }
+.ta-content { padding: 30px; max-width: 1360px; width: 100%; }
+.ta-page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 26px; flex-wrap: wrap; }
+.ta-page-head h1 { font-size: clamp(23px, 2vw, 28px); letter-spacing: -.025em; }
 .ta-page-head p { color: var(--ta-muted); margin: 4px 0 0; }
 
 /* --- Cards / widgets ------------------------------------------------ */
@@ -101,15 +110,17 @@
 .ta-grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
 .ta-grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
 .ta-grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
-.ta-card { background: var(--ta-white); border: 1px solid var(--ta-line); border-radius: var(--ta-radius); box-shadow: var(--ta-shadow); }
+.ta-card { background: var(--ta-white); border: 1px solid var(--ta-line); border-radius: var(--ta-radius); box-shadow: var(--ta-shadow); overflow: hidden; }
 .ta-card-pad { padding: 18px 20px; }
-.ta-card-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--ta-line); }
+.ta-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--ta-line); background: linear-gradient(90deg, #fff, #fbfcff); }
 .ta-card-head h3 { font-size: 15px; }
 
 .ta-stat { display: flex; flex-direction: column; gap: 6px; }
+.ta-stat-card { height: 100%; transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
+.ta-stat-card:hover { transform: translateY(-3px); box-shadow: var(--ta-shadow-hover); border-color: rgba(11,44,86,.18); }
 .ta-stat .ta-stat-top { display: flex; align-items: center; justify-content: space-between; }
 .ta-stat .ta-stat-ico { width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; background: rgba(11,44,86,.08); font-size: 18px; }
-.ta-stat .ta-stat-value { font-size: 28px; font-weight: 800; color: var(--ta-navy); font-family: var(--font-montserrat), sans-serif; }
+.ta-stat .ta-stat-value { font-size: 30px; font-weight: 800; color: var(--ta-navy); font-family: var(--font-montserrat), sans-serif; letter-spacing: -.035em; }
 .ta-stat .ta-stat-label { color: var(--ta-muted); font-size: 13px; }
 
 /* --- Tables -------------------------------------------------------- */
@@ -131,8 +142,8 @@
 
 /* --- Buttons ------------------------------------------------------- */
 .ta-btn { display: inline-flex; align-items: center; gap: 7px; padding: 9px 16px; border-radius: 9px; font-weight: 700; font-size: 13.5px; border: 1px solid transparent; cursor: pointer; transition: .15s; font-family: inherit; }
-.ta-btn:hover { transform: translateY(-1px); }
-.ta-btn-primary { background: var(--ta-navy); color: #fff; }
+.ta-btn:hover { transform: translateY(-1px); box-shadow: 0 5px 12px rgba(11,44,86,.12); }
+.ta-btn-primary { background: linear-gradient(135deg, var(--ta-navy), #174b86); color: #fff; }
 .ta-btn-gold { background: var(--ta-gold); color: var(--ta-navy); }
 .ta-btn-outline { background: #fff; border-color: var(--ta-line); color: var(--ta-navy); }
 .ta-btn-danger { background: rgba(214,69,69,.1); color: var(--ta-danger); }
@@ -162,6 +173,10 @@
 .ta-toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
 .ta-toolbar .ta-spacer { flex: 1; }
 .ta-scrim { display: none; }
+.ta-dashboard-intro { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 18px 20px; margin: -6px 0 22px; border: 1px solid rgba(11,44,86,.09); border-radius: var(--ta-radius); background: linear-gradient(105deg, #fff, rgba(225,169,37,.10)); }
+.ta-dashboard-intro p { margin: 3px 0 0; color: var(--ta-muted); }
+
+.teras-admin :is(a, button, input, select, textarea):focus-visible { outline: 3px solid rgba(225,169,37,.65); outline-offset: 2px; }
 
 /* --- Login --------------------------------------------------------- */
 .ta-login { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: linear-gradient(135deg, var(--ta-navy), #09203f); }
@@ -183,6 +198,11 @@
 @media (max-width: 620px) {
   .ta-grid.cols-4 { grid-template-columns: 1fr; }
   .ta-field-row { grid-template-columns: 1fr; }
-  .ta-content { padding: 16px; }
+  .ta-content { padding: 18px 16px; }
   .ta-user-meta { display: none; }
+  .ta-topbar { padding: 0 16px; gap: 10px; }
+  .ta-topbar-link { display: none; }
+  .ta-dashboard-intro { align-items: flex-start; flex-direction: column; }
+  .ta-card-head { padding: 14px 16px; }
+  .ta-card-pad { padding: 16px; }
 }

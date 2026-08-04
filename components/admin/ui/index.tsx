@@ -15,7 +15,7 @@ export function StatCard({
   href?: string;
 }) {
   const body = (
-    <div className="ta-card ta-card-pad ta-stat">
+    <div className="ta-card ta-card-pad ta-stat ta-stat-card">
       <div className="ta-stat-top">
         <span className="ta-stat-ico" aria-hidden="true">
           {icon}

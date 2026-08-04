@@ -53,6 +53,9 @@ export function Topbar({ profile }: { profile: Profile }) {
         />
       </form>
       <div className="ta-topbar-spacer" />
+      <a className="ta-topbar-link" href="/admin/automation">
+        Activity centre
+      </a>
       <div className="ta-user">
         <div className="ta-avatar" aria-hidden="true">
           {initials}
