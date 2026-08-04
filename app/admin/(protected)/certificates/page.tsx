@@ -21,10 +21,11 @@ export default async function CertificatesPage({
   const page = Math.max(1, Number(sp.page ?? 1));
   const supabase = await createSupabaseServerClient();
 
-  const [{ count: issued }, { count: revoked }, { count: draft }] = await Promise.all([
+  const [{ count: issued }, { count: revoked }, { count: draft }, { data: courses }] = await Promise.all([
     supabase.from("certificates").select("*", { count: "exact", head: true }).eq("status", "issued").is("deleted_at", null),
     supabase.from("certificates").select("*", { count: "exact", head: true }).eq("status", "revoked").is("deleted_at", null),
     supabase.from("certificates").select("*", { count: "exact", head: true }).eq("status", "draft").is("deleted_at", null),
+    supabase.from("courses").select("id, title").is("deleted_at", null).order("title", { ascending: true }),
   ]);
 
   let query = supabase
@@ -35,6 +36,7 @@ export default async function CertificatesPage({
     .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
   if (sp.q) query = query.or(`certificate_number.ilike.%${sp.q}%,holder_name.ilike.%${sp.q}%`);
   if (sp.status) query = query.eq("status", sp.status as any);
+  if (sp.course) query = query.eq("course_id", sp.course);
 
   const { data: rows, count } = await query;
   const pageCount = Math.ceil((count ?? 0) / PAGE_SIZE);
@@ -69,6 +71,10 @@ export default async function CertificatesPage({
         <select name="status" defaultValue={sp.status ?? ""} style={{ padding: "9px 10px", borderRadius: 9, border: "1px solid var(--ta-line)" }} aria-label="Status">
           <option value="">All statuses</option>
           {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <select name="course" defaultValue={sp.course ?? ""} style={{ padding: "9px 10px", borderRadius: 9, border: "1px solid var(--ta-line)", maxWidth: 240 }} aria-label="Course">
+          <option value="">All courses</option>
+          {(courses ?? []).map((course: any) => <option key={course.id} value={course.id}>{course.title}</option>)}
         </select>
         <button type="submit" className="ta-btn ta-btn-outline ta-btn-sm">Apply</button>
         <div className="ta-spacer" />
