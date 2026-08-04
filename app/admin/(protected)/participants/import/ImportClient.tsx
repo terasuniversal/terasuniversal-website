@@ -22,7 +22,7 @@ function parseCsv(text: string): RawRow[] {
   }
   if (field.length || row.length) { row.push(field); rows.push(row); }
   if (rows.length < 2) return [];
-  const headers = rows[0].map((h) => h.trim());
+  const headers = rows[0].map((h) => h.trim().replace(/^\uFEFF/, ""));
   return rows.slice(1)
     .filter((r) => r.some((c) => c.trim() !== ""))
     .map((r) => Object.fromEntries(headers.map((h, i) => [h, (r[i] ?? "").trim()])));
@@ -37,15 +37,33 @@ export function ImportClient() {
   const [raw, setRaw] = useState<RawRow[]>([]);
   const [analysis, setAnalysis] = useState<ImportAnalysis | null>(null);
   const [done, setDone] = useState<{ inserted: number; skipped: number; message?: string } | null>(null);
+  const [fileError, setFileError] = useState("");
   const [pending, startTransition] = useTransition();
 
   function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    setFileError("");
+    setAnalysis(null);
+    setRaw([]);
+    if (!file.name.toLowerCase().endsWith(".csv")) {
+      setFileError("Please choose a CSV file using the provided template.");
+      e.target.value = "";
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setFileError("The CSV file is too large. Maximum size is 5 MB.");
+      e.target.value = "";
+      return;
+    }
     setDone(null);
     const reader = new FileReader();
     reader.onload = () => {
       const rows = parseCsv(String(reader.result ?? ""));
+      if (rows.length === 0) {
+        setFileError("The file does not contain any participant rows.");
+        return;
+      }
       setRaw(rows);
       startTransition(async () => setAnalysis(await analyzeImport(rows)));
     };
@@ -85,6 +103,7 @@ export function ImportClient() {
           Required columns: <strong>Full Name, IC / Passport, Company, Phone</strong>. Others optional.
           Duplicates (by IC / Passport) and invalid rows are skipped automatically.
         </p>
+        {fileError && <div className="ta-alert ta-alert-error" role="alert">{fileError}</div>}
       </div>
 
       {done && (

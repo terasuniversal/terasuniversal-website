@@ -16,6 +16,7 @@ export default async function DashboardPage() {
 
   const [
     coursesCount,
+    upcomingCount,
     upcoming,
     latestParticipants,
     certsIssued,
@@ -24,6 +25,7 @@ export default async function DashboardPage() {
     recentAssessments,
   ] = await Promise.all([
     supabase.from("courses").select("*", { count: "exact", head: true }).eq("status", "published").is("deleted_at", null),
+    supabase.from("training_schedules").select("*", { count: "exact", head: true }).gte("start_date", today).is("deleted_at", null).not("status", "in", "(draft,cancelled,archived)"),
     supabase.from("training_schedules").select("id, schedule_id, course_name, start_date, status, max_participants, seats_remaining").gte("start_date", today).is("deleted_at", null).not("status", "in", "(draft,cancelled,archived)").order("start_date", { ascending: true }).limit(6),
     supabase.from("participants").select("id, full_name, company, status, registered_at").is("deleted_at", null).order("registered_at", { ascending: false }).limit(6),
     supabase.from("certificates").select("*", { count: "exact", head: true }).eq("status", "issued").is("deleted_at", null),
@@ -49,6 +51,7 @@ export default async function DashboardPage() {
 
       <div className="ta-grid cols-4" style={{ marginBottom: 22 }}>
         <StatCard icon="🎓" label="Published courses" value={coursesCount.count ?? 0} href="/admin/courses" />
+        <StatCard icon="🗓" label="Upcoming schedules" value={upcomingCount.count ?? 0} href="/admin/schedules" />
         <StatCard icon="👥" label="Total participants" value={participantsCount.count ?? 0} href="/admin/participants" />
         <StatCard icon="🏅" label="Certificates issued" value={certsIssued.count ?? 0} href="/admin/certificates" />
         <StatCard icon="⏳" label="Certificates draft" value={certsPending.count ?? 0} href="/admin/certificates" />
