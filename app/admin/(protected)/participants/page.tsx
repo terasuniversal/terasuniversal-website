@@ -102,6 +102,7 @@ export default async function ParticipantsPage({
         </select>
         {deletedView && <input type="hidden" name="deleted" value="1" />}
         <button type="submit" className="ta-btn ta-btn-outline ta-btn-sm">Apply</button>
+        {(sp.q || sp.status || sp.company || sp.sort || sp.dir || deletedView) && <Link className="ta-btn ta-btn-outline ta-btn-sm" href="/admin/participants">Reset filters</Link>}
         <div className="ta-spacer" />
         <a href={`/admin/participants/export?format=csv${exportQs ? "&" + exportQs : ""}`} className="ta-btn ta-btn-outline ta-btn-sm">⬇ CSV</a>
         <a href={`/admin/participants/export?format=excel${exportQs ? "&" + exportQs : ""}`} className="ta-btn ta-btn-outline ta-btn-sm">⬇ Excel</a>

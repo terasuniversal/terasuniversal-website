@@ -31,6 +31,7 @@ export default async function MediaPage({ searchParams }: { searchParams: Promis
       <select name="folder" defaultValue={filters.folder ?? ""} aria-label="Filter by folder"><option value="">All folders</option>{folders.map((folder) => <option key={folder.id} value={folder.id}>{folder.path}{folder.name}</option>)}</select>
       <select name="kind" defaultValue={filters.kind ?? ""} aria-label="Filter by file type"><option value="">All file types</option>{["image", "pdf", "document", "video", "other"].map((kind) => <option key={kind} value={kind}>{kind}</option>)}</select>
       <button className="ta-btn ta-btn-outline ta-btn-sm" type="submit">Apply filters</button>
+      {(filters.q || filters.folder || filters.kind) && <Link className="ta-btn ta-btn-outline ta-btn-sm" href="/admin/media">Reset filters</Link>}
       <span className="ta-spacer" /><span style={{ color: "var(--ta-muted)", fontSize: 13 }}>{files.length} files · {size} shown</span>
     </form>
     <Card title="Files" action={<span style={{ color: "var(--ta-muted)", fontSize: 12 }}>Version history is recorded when file replacement infrastructure is enabled.</span>}>

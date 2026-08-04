@@ -77,6 +77,7 @@ export default async function CertificatesPage({
           {(courses ?? []).map((course: any) => <option key={course.id} value={course.id}>{course.title}</option>)}
         </select>
         <button type="submit" className="ta-btn ta-btn-outline ta-btn-sm">Apply</button>
+        {(sp.q || sp.status || sp.course) && <Link className="ta-btn ta-btn-outline ta-btn-sm" href="/admin/certificates">Reset filters</Link>}
         <div className="ta-spacer" />
         <a href={`/admin/certificates/export?format=csv${exportQs ? "&" + exportQs : ""}`} className="ta-btn ta-btn-outline ta-btn-sm">⬇ CSV</a>
         <a href={`/admin/certificates/export?format=excel${exportQs ? "&" + exportQs : ""}`} className="ta-btn ta-btn-outline ta-btn-sm">⬇ Excel</a>

@@ -100,6 +100,7 @@ export default async function SchedulesPage({
           {[thisYear - 1, thisYear, thisYear + 1].map((y) => <option key={y} value={y}>{y}</option>)}
         </select>
         <button type="submit" className="ta-btn ta-btn-outline ta-btn-sm">Apply</button>
+        {(sp.q || sp.status || sp.course || sp.trainer || sp.month || sp.year || sp.sort || sp.dir) && <Link className="ta-btn ta-btn-outline ta-btn-sm" href="/admin/schedules">Reset filters</Link>}
         <div className="ta-spacer" />
         <a href={`/admin/schedules/export?format=csv${exportQs ? "&" + exportQs : ""}`} className="ta-btn ta-btn-outline ta-btn-sm">⬇ CSV</a>
         <a href={`/admin/schedules/export?format=excel${exportQs ? "&" + exportQs : ""}`} className="ta-btn ta-btn-outline ta-btn-sm">⬇ Excel</a>
