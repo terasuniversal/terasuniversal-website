@@ -1,21 +1,15 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createSupabaseServerClient } from "../../../../lib/supabase/server";
+import { hasMinRole } from "../../../../lib/auth/rbac";
 
 export const runtime = "nodejs";
 
-function getAdminClient(request) {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL; const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY; const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
-  if (!url || !key || !token) return null;
-  return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false }, global: { headers: { Authorization: `Bearer ${token}` } } });
-}
-
-async function requireAdmin(request) {
-  const client = getAdminClient(request);
-  if (!client) return { response: NextResponse.json({ error: "Sesi admin tidak sah. Sila log masuk semula." }, { status: 401 }) };
+async function requireAdmin() {
+  const client = await createSupabaseServerClient();
   const { data: userData, error: userError } = await client.auth.getUser();
   if (userError || !userData.user) return { response: NextResponse.json({ error: "Sesi admin telah tamat. Sila log masuk semula." }, { status: 401 }) };
-  const { data: admin, error: adminError } = await client.from("admin_users").select("user_id").eq("user_id", userData.user.id).maybeSingle();
-  if (adminError || !admin) return { response: NextResponse.json({ error: "Akses admin tidak dibenarkan." }, { status: 403 }) };
+  const { data: profile, error: profileError } = await client.from("profiles").select("role, is_active").eq("id", userData.user.id).maybeSingle();
+  if (profileError || !profile?.is_active || !hasMinRole(profile.role, "editor")) return { response: NextResponse.json({ error: "Akses admin tidak dibenarkan." }, { status: 403 }) };
   return { client, userId: userData.user.id };
 }
 
@@ -44,14 +38,14 @@ async function createRecord(client, form) {
 }
 
 export async function GET(request) {
-  const auth = await requireAdmin(request); if (auth.response) return auth.response;
+  const auth = await requireAdmin(); if (auth.response) return auth.response;
   const { data, error } = await auth.client.from("certificates").select("*").order("created_at", { ascending: false });
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json({ rows: data || [] });
 }
 
 export async function POST(request) {
-  const auth = await requireAdmin(request); if (auth.response) return auth.response;
+  const auth = await requireAdmin(); if (auth.response) return auth.response;
   let body; try { body = await request.json(); } catch { return NextResponse.json({ error: "Permintaan tidak sah." }, { status: 400 }); }
   const action = body?.action;
   if (action === "delete") {

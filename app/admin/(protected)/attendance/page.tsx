@@ -1,129 +1,116 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { requireRole } from "../../../../lib/auth/session";
-import { PageHead, Card, Badge, EmptyState } from "../../../../components/admin/ui";
-import { markAttendance, recordAssessment } from "./actions";
+import { requireAttendance } from "../../../../lib/auth/session";
+import { PageHead, Card, Badge, EmptyState, Pagination } from "../../../../components/admin/ui";
 
-export const metadata = { title: "Attendance & Assessment — TERAS UNIVERSAL Admin" };
+export const metadata = { title: "Attendance — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
 
-/**
- * Operational workflow: pick a schedule → its participants list appears →
- * mark attendance and record assessment inline per participant.
- */
-export default async function AttendancePage({
+const PAGE_SIZE = 15;
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+export default async function AttendanceListPage({
   searchParams,
 }: {
-  searchParams: Promise<{ schedule?: string }>;
+  searchParams: Promise<{ page?: string; q?: string; status?: string; trainer?: string; month?: string; year?: string }>;
 }) {
-  await requireRole("editor");
+  await requireAttendance(false); // editor+ or trainer may view
   const sp = await searchParams;
+  const page = Math.max(1, Number(sp.page ?? 1));
   const supabase = await createSupabaseServerClient();
-  const today = new Date().toISOString().slice(0, 10);
 
-  const { data: schedules } = await (supabase
-    .from("course_schedules") as any)
-    .select("id, start_date, end_date, status, courses(title)")
+  let query = (supabase
+    .from("training_schedules") as any)
+    .select("id, schedule_id, course_name, trainer, venue, start_date, end_date, status, registered_participants", { count: "exact" })
     .is("deleted_at", null)
+    .not("status", "in", "(draft,cancelled)")
     .order("start_date", { ascending: false })
-    .limit(50);
-
-  const scheduleId = sp.schedule;
-  let participants: any[] = [];
-  let attendance: Record<string, any> = {};
-  let assessments: Record<string, any[]> = {};
-
-  if (scheduleId) {
-    const [{ data: parts }, { data: att }, { data: asmt }] = await Promise.all([
-      (supabase.from("participants") as any).select("id, full_name, company, status").eq("schedule_id", scheduleId).is("deleted_at", null).order("full_name"),
-      (supabase.from("attendance") as any).select("participant_id, present, session_date").eq("schedule_id", scheduleId),
-      (supabase.from("assessments") as any).select("participant_id, assessment_type, score, result").eq("schedule_id", scheduleId),
-    ]);
-    participants = parts ?? [];
-    for (const a of (att ?? []) as any[]) attendance[a.participant_id] = a;
-    for (const a of (asmt ?? []) as any[]) (assessments[a.participant_id] ??= []).push(a);
+    .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
+  if (sp.q) query = query.or(`course_name.ilike.%${sp.q}%,schedule_id.ilike.%${sp.q}%,trainer.ilike.%${sp.q}%,venue.ilike.%${sp.q}%`);
+  if (sp.status) query = query.eq("status", sp.status as any);
+  if (sp.trainer) query = query.eq("trainer", sp.trainer);
+  if (sp.year) {
+    const y = Number(sp.year);
+    const m = sp.month ? Number(sp.month) : null;
+    const from = m ? `${y}-${String(m).padStart(2, "0")}-01` : `${y}-01-01`;
+    const to = m ? `${y}-${String(m).padStart(2, "0")}-31` : `${y}-12-31`;
+    query = query.gte("start_date", from).lte("start_date", to);
   }
+
+  const { data: schedules, count } = await query;
+  const pageCount = Math.ceil((count ?? 0) / PAGE_SIZE);
+
+  // Attendance summary per schedule (present counts).
+  const ids = (schedules ?? []).map((s: any) => s.id);
+  const summary: Record<string, { present: number; total: number }> = {};
+  if (ids.length) {
+    const { data: att } = await (supabase.from("attendance") as any).select("schedule_id, attendance_status").in("schedule_id", ids).is("deleted_at", null);
+    for (const a of att ?? []) {
+      const s = (summary[a.schedule_id] ??= { present: 0, total: 0 });
+      s.total++;
+      if (a.attendance_status === "present") s.present++;
+    }
+  }
+
+  const qsBase: Record<string, string> = {};
+  for (const k of ["q", "status", "trainer", "month", "year"] as const) if (sp[k]) qsBase[k] = sp[k]!;
 
   return (
     <>
-      <PageHead title="Attendance & Assessment" subtitle="Record who attended and their assessment results." />
+      <PageHead title="Attendance" subtitle="Select a schedule to record participant attendance." />
 
-      <Card title="Select a schedule">
-        <div className="ta-card-pad">
-          {schedules && schedules.length > 0 ? (
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {schedules.map((s: any) => (
-                <Link
-                  key={s.id}
-                  href={`/admin/attendance?schedule=${s.id}`}
-                  className={`ta-btn ta-btn-sm ${scheduleId === s.id ? "ta-btn-primary" : "ta-btn-outline"}`}
-                >
-                  {s.courses?.title ?? "Course"} · {new Date(s.start_date).toLocaleDateString("en-MY", { day: "numeric", month: "short" })}
-                </Link>
-              ))}
-            </div>
-          ) : (
-            <EmptyState icon="🗓" message="No schedules yet. Create one in Training Schedule." />
-          )}
+      <form className="ta-toolbar" style={{ alignItems: "flex-end" }}>
+        <div className="ta-search" style={{ maxWidth: 260 }}>
+          <span className="ta-search-ico" aria-hidden="true">⌕</span>
+          <input name="q" defaultValue={sp.q ?? ""} placeholder="Course, trainer, venue, ID…" />
         </div>
+        <select name="status" defaultValue={sp.status ?? ""} style={sel} aria-label="Status">
+          <option value="">All statuses</option>
+          {["open", "full", "completed", "archived"].map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <select name="month" defaultValue={sp.month ?? ""} style={sel} aria-label="Month">
+          <option value="">Any month</option>
+          {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+        </select>
+        <select name="year" defaultValue={sp.year ?? ""} style={sel} aria-label="Year">
+          <option value="">Any year</option>
+          {[2025, 2026, 2027].map((y) => <option key={y} value={y}>{y}</option>)}
+        </select>
+        <button type="submit" className="ta-btn ta-btn-outline ta-btn-sm">Apply</button>
+      </form>
+
+      <Card>
+        {schedules && schedules.length > 0 ? (
+          <div className="ta-table-wrap">
+            <table className="ta-table">
+              <thead><tr><th>Schedule</th><th>Trainer</th><th>Date</th><th>Attendance</th><th>Status</th><th></th></tr></thead>
+              <tbody>
+                {schedules.map((s: any) => {
+                  const sm = summary[s.id] ?? { present: 0, total: s.registered_participants };
+                  return (
+                    <tr key={s.id}>
+                      <td><strong>{s.course_name}</strong><div style={{ color: "var(--ta-muted)", fontSize: 12 }}>{s.schedule_id}{s.venue ? ` · ${s.venue}` : ""}</div></td>
+                      <td>{s.trainer ?? "—"}</td>
+                      <td style={{ whiteSpace: "nowrap" }}>{new Date(s.start_date).toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric" })}</td>
+                      <td>{sm.present}/{s.registered_participants} present</td>
+                      <td><Badge status={s.status} /></td>
+                      <td style={{ textAlign: "right" }}>
+                        <Link href={`/admin/attendance/${s.id}`} className="ta-btn ta-btn-primary ta-btn-sm">Take Attendance</Link>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <EmptyState icon="✅" message="No schedules to show. Create a schedule and assign participants first." />
+        )}
       </Card>
 
-      {scheduleId && (
-        <div style={{ marginTop: 20 }}>
-          <Card title={`Participants (${participants.length})`}>
-            {participants.length > 0 ? (
-              <div className="ta-table-wrap">
-                <table className="ta-table">
-                  <thead>
-                    <tr><th>Participant</th><th>Attendance</th><th>Assessment</th><th>Record result</th></tr>
-                  </thead>
-                  <tbody>
-                    {participants.map((p) => {
-                      const att = attendance[p.id];
-                      const asmt = assessments[p.id]?.[0];
-                      return (
-                        <tr key={p.id}>
-                          <td><strong>{p.full_name}</strong>{p.company ? <div style={{ color: "var(--ta-muted)", fontSize: 12 }}>{p.company}</div> : null}</td>
-                          <td>
-                            <form action={markAttendance} style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                              <input type="hidden" name="schedule_id" value={scheduleId} />
-                              <input type="hidden" name="participant_id" value={p.id} />
-                              <input type="hidden" name="session_date" value={today} />
-                              <input type="hidden" name="present" value={att?.present ? "false" : "true"} />
-                              <button type="submit" className={`ta-btn ta-btn-sm ${att?.present ? "ta-btn-gold" : "ta-btn-outline"}`}>
-                                {att?.present ? "✓ Present" : "Mark present"}
-                              </button>
-                            </form>
-                          </td>
-                          <td>{asmt ? <Badge status={asmt.result} /> : <span style={{ color: "var(--ta-muted)" }}>—</span>}</td>
-                          <td>
-                            <form action={recordAssessment} style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-                              <input type="hidden" name="schedule_id" value={scheduleId} />
-                              <input type="hidden" name="participant_id" value={p.id} />
-                              <input name="assessment_type" placeholder="Type" defaultValue="Final" style={{ width: 90, padding: "6px 8px", border: "1px solid var(--ta-line)", borderRadius: 7 }} />
-                              <input name="score" type="number" min="0" max="100" placeholder="Score" style={{ width: 74, padding: "6px 8px", border: "1px solid var(--ta-line)", borderRadius: 7 }} />
-                              <select name="result" defaultValue="competent" style={{ padding: "6px 8px", border: "1px solid var(--ta-line)", borderRadius: 7 }}>
-                                <option value="competent">Competent</option>
-                                <option value="not_yet_competent">Not Yet Competent</option>
-                                <option value="pass">Pass</option>
-                                <option value="fail">Fail</option>
-                                <option value="pending">Pending</option>
-                              </select>
-                              <button type="submit" className="ta-btn ta-btn-sm ta-btn-primary">Save</button>
-                            </form>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <EmptyState icon="👥" message="No participants registered to this schedule yet." />
-            )}
-          </Card>
-        </div>
-      )}
+      <Pagination page={page} pageCount={pageCount} basePath="/admin/attendance" query={qsBase} />
     </>
   );
 }
+
+const sel = { padding: "9px 10px", borderRadius: 9, border: "1px solid var(--ta-line)", maxWidth: 140 } as const;

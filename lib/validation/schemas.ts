@@ -40,58 +40,133 @@ export const courseSchema = z.object({
 });
 export type CourseInput = z.infer<typeof courseSchema>;
 
+export const newsSchema = z.object({
+  title: z.string().trim().min(2).max(200),
+  slug,
+  excerpt: z.string().trim().max(1000).optional().or(z.literal("")),
+  body: z.string().trim().max(30000).optional().or(z.literal("")),
+  category_id: z.string().uuid().optional().or(z.literal("")),
+  featured_image_url: z.string().url().max(1000).optional().or(z.literal("")),
+  featured: z.coerce.boolean().default(false),
+  status: z.enum(["draft", "published", "archived"]).default("draft"),
+  seo_title: z.string().trim().max(160).optional().or(z.literal("")),
+  seo_description: z.string().trim().max(320).optional().or(z.literal("")),
+});
+export type NewsInput = z.infer<typeof newsSchema>;
+
 export const scheduleSchema = z
   .object({
-    course_id: z.string().uuid(),
+    course_id: z.string().uuid().optional().nullable(),
     trainer_id: z.string().uuid().optional().nullable(),
-    venue_id: z.string().uuid().optional().nullable(),
-    venue_text: z.string().trim().max(160).optional().or(z.literal("")),
-    start_date: z.string().date(),
-    end_date: z.string().date(),
+    course_name: z.string().trim().min(2, "Course name is required").max(200),
+    trainer: z.string().trim().max(160).optional().or(z.literal("")),
+    venue: z.string().trim().max(200).optional().or(z.literal("")),
+    training_mode: z.string().trim().max(40).optional().or(z.literal("")),
+    start_date: z.string().date("Enter a valid start date"),
+    end_date: z.string().date("Enter a valid end date"),
     start_time: z.string().optional().or(z.literal("")),
     end_time: z.string().optional().or(z.literal("")),
-    capacity: z.coerce.number().int().min(0).default(0),
-    seats_taken: z.coerce.number().int().min(0).default(0),
-    status: z
-      .enum(["open", "closing_soon", "full", "in_progress", "completed", "cancelled"])
-      .default("open"),
-    fee: z.coerce.number().nonnegative().optional().nullable(),
-    notes: z.string().trim().max(2000).optional().or(z.literal("")),
-    is_published: z.coerce.boolean().default(true),
+    max_participants: z.coerce.number().int().min(0).default(0),
+    status: z.enum(["draft", "open", "full", "completed", "cancelled", "archived"]).default("draft"),
+    remarks: z.string().trim().max(2000).optional().or(z.literal("")),
   })
   .refine((v) => v.end_date >= v.start_date, {
-    message: "End date must be on or after start date",
+    message: "End date must be on or after the start date",
     path: ["end_date"],
-  })
-  .refine((v) => v.seats_taken <= v.capacity, {
-    message: "Seats taken cannot exceed capacity",
-    path: ["seats_taken"],
   });
 export type ScheduleInput = z.infer<typeof scheduleSchema>;
 
-export const enquiryStatusSchema = z.object({
-  id: z.string().uuid(),
-  status: z.enum(["new", "in_review", "assigned", "responded", "closed", "archived"]),
-  assigned_to: z.string().uuid().optional().nullable(),
+export const participantSchema = z.object({
+  // Required fields (friendly messages).
+  full_name: z.string().trim().min(2, "Full name is required").max(160),
+  ic_passport_no: z.string().trim().min(3, "IC / Passport is required").max(40),
+  company: z.string().trim().min(1, "Company is required").max(160),
+  phone: z.string().trim().min(5, "Phone is required").max(40),
+  // Optional fields.
+  email: z.string().trim().email("Enter a valid email").max(254).optional().or(z.literal("")),
+  nationality: z.string().trim().max(80).optional().or(z.literal("")),
+  position: z.string().trim().max(120).optional().or(z.literal("")),
+  gender: z.enum(["Male", "Female", ""]).optional(),
+  date_of_birth: z.string().date("Enter a valid date").optional().or(z.literal("")),
+  address: z.string().trim().max(500).optional().or(z.literal("")),
+  emergency_contact_name: z.string().trim().max(160).optional().or(z.literal("")),
+  emergency_contact_phone: z.string().trim().max(40).optional().or(z.literal("")),
+  registration_date: z.string().date().optional().or(z.literal("")),
+  schedule_id: z.string().uuid().optional().nullable(),
+  company_id: z.string().uuid().optional().nullable(),
+  status: z.enum(["registered", "confirmed", "attended", "no_show", "cancelled"]).default("registered"),
+});
+export type ParticipantInput = z.infer<typeof participantSchema>;
+
+/** Row shape accepted by the CSV/Excel importer (header → field mapping). */
+export const participantImportRowSchema = z.object({
+  full_name: z.string().trim().min(2),
+  ic_passport_no: z.string().trim().min(3),
+  company: z.string().trim().min(1),
+  phone: z.string().trim().min(5),
+  email: z.string().trim().email().optional().or(z.literal("")),
+  nationality: z.string().trim().max(80).optional().or(z.literal("")),
+  position: z.string().trim().max(120).optional().or(z.literal("")),
+  gender: z.string().trim().max(10).optional().or(z.literal("")),
+  date_of_birth: z.string().trim().optional().or(z.literal("")),
+  address: z.string().trim().max(500).optional().or(z.literal("")),
+  emergency_contact_name: z.string().trim().max(160).optional().or(z.literal("")),
+  emergency_contact_phone: z.string().trim().max(40).optional().or(z.literal("")),
 });
 
-export const proposalStatusSchema = z.object({
-  id: z.string().uuid(),
-  status: z.enum(["new", "in_review", "assigned", "quoted", "won", "lost", "archived"]),
-  assigned_to: z.string().uuid().optional().nullable(),
+export const certificateSchema = z.object({
+  participant_id: z.string().uuid().optional().nullable(),
+  schedule_id: z.string().uuid().optional().nullable(),
+  course_id: z.string().uuid().optional().nullable(),
+  certificate_number: z.string().trim().max(60).optional().or(z.literal("")),
+  holder_name: z.string().trim().min(2).max(160),
+  status: z.enum(["draft", "issued", "revoked", "expired", "archived"]).default("issued"),
+  issue_date: z.string().date().optional().or(z.literal("")),
+  expiry_date: z.string().date().optional().or(z.literal("")),
 });
+export type CertificateInput = z.infer<typeof certificateSchema>;
 
-/** Public contact form (used by the website → API route). */
-export const publicEnquirySchema = z.object({
-  name: z.string().trim().min(2).max(120),
-  email: z.string().trim().email().max(254),
+export const companySchema = z.object({
+  company_name: z.string().trim().min(2, "Company name is required").max(200),
+  registration_no: z.string().trim().max(60).optional().or(z.literal("")),
+  industry: z.string().trim().max(120).optional().or(z.literal("")),
+  company_type: z.string().trim().max(80).optional().or(z.literal("")),
+  address: z.string().trim().max(500).optional().or(z.literal("")),
+  postcode: z.string().trim().max(12).optional().or(z.literal("")),
+  city: z.string().trim().max(120).optional().or(z.literal("")),
+  state: z.string().trim().max(120).optional().or(z.literal("")),
+  country: z.string().trim().max(120).optional().or(z.literal("")),
   phone: z.string().trim().max(40).optional().or(z.literal("")),
-  company: z.string().trim().max(160).optional().or(z.literal("")),
-  subject: z.string().trim().max(160).optional().or(z.literal("")),
-  message: z.string().trim().min(5).max(3000),
-  // honeypot — must be empty
-  website: z.string().max(0).optional().or(z.literal("")),
+  email: z.string().trim().email("Enter a valid email").max(254).optional().or(z.literal("")),
+  website: z.string().trim().max(200).optional().or(z.literal("")),
+  person_in_charge: z.string().trim().max(160).optional().or(z.literal("")),
+  pic_position: z.string().trim().max(120).optional().or(z.literal("")),
+  pic_phone: z.string().trim().max(40).optional().or(z.literal("")),
+  pic_email: z.string().trim().email("Enter a valid PIC email").max(254).optional().or(z.literal("")),
+  billing_address: z.string().trim().max(500).optional().or(z.literal("")),
+  status: z.enum(["active", "inactive", "prospect", "archived"]).default("active"),
+  remarks: z.string().trim().max(2000).optional().or(z.literal("")),
 });
+export type CompanyInput = z.infer<typeof companySchema>;
+
+export const trainerSchema = z.object({
+  full_name: z.string().trim().min(2, "Full name is required").max(160),
+  ic_passport_no: z.string().trim().max(40).optional().or(z.literal("")),
+  staff_no: z.string().trim().max(40).optional().or(z.literal("")),
+  email: z.string().trim().email("Enter a valid email").max(254).optional().or(z.literal("")),
+  phone: z.string().trim().max(40).optional().or(z.literal("")),
+  position: z.string().trim().max(120).optional().or(z.literal("")),
+  department: z.string().trim().max(120).optional().or(z.literal("")),
+  employment_type: z.string().trim().max(60).optional().or(z.literal("")),
+  specialisation: z.string().trim().max(200).optional().or(z.literal("")),
+  qualifications: z.array(z.string().trim().min(1)).default([]),
+  competencies: z.array(z.string().trim().min(1)).default([]),
+  trainer_photo: z.string().trim().max(500).optional().or(z.literal("")),
+  signature_image: z.string().trim().max(500).optional().or(z.literal("")),
+  status: z.enum(["active", "inactive", "retired", "on_leave"]).default("active"),
+  joining_date: z.string().date("Enter a valid date").optional().or(z.literal("")),
+});
+export type TrainerInput = z.infer<typeof trainerSchema>;
 
 export const newUserSchema = z.object({
   email: z.string().email(),

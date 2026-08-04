@@ -1,6 +1,9 @@
 import { createServerClient } from "@supabase/ssr";
+import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import type { Database } from "./database.types";
+
+const supabasePublicKey = () => process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || "";
 
 /**
  * Supabase client for React Server Components, Server Actions and Route
@@ -10,9 +13,9 @@ import type { Database } from "./database.types";
 export async function createSupabaseServerClient() {
   const cookieStore = await cookies();
 
-  return createServerClient<Database>(
+  const client = createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    supabasePublicKey(),
     {
       cookies: {
         getAll() {
@@ -31,6 +34,12 @@ export async function createSupabaseServerClient() {
       },
     }
   );
+
+  // Operational migrations are intentionally shipped with this repository,
+  // while the checked-in generated type snapshot is behind them. Keep the
+  // fallback at this boundary (not scattered through every route) until the
+  // connected Supabase schema is regenerated in CI.
+  return client as any;
 }
 
 /**
@@ -39,10 +48,10 @@ export async function createSupabaseServerClient() {
  * server-side). Never import this into a Client Component.
  */
 export function createSupabaseServiceClient() {
-  const { createClient } = require("@supabase/supabase-js");
-  return createClient(
+  const client = createClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { auth: { persistSession: false, autoRefreshToken: false } }
   );
+  return client as any;
 }

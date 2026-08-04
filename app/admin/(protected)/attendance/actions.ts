@@ -3,71 +3,67 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { requireRole } from "../../../../lib/auth/session";
+import { requireAttendance } from "../../../../lib/auth/session";
 
-const attendanceSchema = z.object({
-  schedule_id: z.string().uuid(),
-  participant_id: z.string().uuid(),
-  session_date: z.string().date(),
-  present: z.coerce.boolean(),
-  remarks: z.string().trim().max(500).optional().or(z.literal("")),
-});
+const STATUS = z.enum(["pending", "present", "absent", "late", "medical_leave", "excused"]);
 
-const assessmentSchema = z.object({
-  schedule_id: z.string().uuid().optional().nullable(),
-  participant_id: z.string().uuid(),
-  assessment_type: z.string().trim().max(80).optional().or(z.literal("")),
-  score: z.coerce.number().min(0).max(100).optional().nullable(),
-  max_score: z.coerce.number().min(1).max(100).default(100),
-  result: z.enum(["pending", "competent", "not_yet_competent", "pass", "fail"]).default("pending"),
-  assessed_at: z.string().date().optional().or(z.literal("")),
-  remarks: z.string().trim().max(500).optional().or(z.literal("")),
-});
+/** Update one attendance record (status / times / remarks). */
+export async function updateAttendance(scheduleId: string, formData: FormData) {
+  await requireAttendance(true); // trainer or admin
+  const id = String(formData.get("id") ?? "");
+  const status = STATUS.safeParse(formData.get("status"));
+  if (!id || !status.success) return;
 
-/** Upsert one attendance record (present/absent) for a participant + date. */
-export async function markAttendance(formData: FormData) {
-  await requireRole("editor");
-  const parsed = attendanceSchema.safeParse({
-    schedule_id: formData.get("schedule_id"),
-    participant_id: formData.get("participant_id"),
-    session_date: formData.get("session_date"),
-    present: formData.get("present") === "on" || formData.get("present") === "true",
-    remarks: formData.get("remarks") ?? "",
-  });
-  if (!parsed.success) return;
+  const checkIn = String(formData.get("check_in_time") ?? "").trim();
+  const checkOut = String(formData.get("check_out_time") ?? "").trim();
+  const remarks = String(formData.get("remarks") ?? "").trim();
 
   const supabase = await createSupabaseServerClient();
-  // Upsert on (participant_id, session_date) unique constraint.
-  // Database types are regenerated from the deployed schema after migration.
-  // Keep this operation explicit until then; runtime validation above remains enforced.
-  const { error } = await (supabase.from("attendance") as any)
-    .upsert(parsed.data, { onConflict: "participant_id,session_date" });
-  if (error) return;
-
-  revalidatePath(`/admin/attendance`);
-  return;
+  await (supabase
+    .from("attendance") as any)
+    .update({
+      attendance_status: status.data,
+      check_in_time: checkIn ? new Date(checkIn).toISOString() : null,
+      check_out_time: checkOut ? new Date(checkOut).toISOString() : null,
+      remarks: remarks || null,
+    })
+    .eq("id", id);
+  revalidatePath(`/admin/attendance/${scheduleId}`);
 }
 
-/** Record an assessment result for a participant. */
-export async function recordAssessment(formData: FormData) {
-  await requireRole("editor");
-  const parsed = assessmentSchema.safeParse({
-    schedule_id: formData.get("schedule_id") || null,
-    participant_id: formData.get("participant_id"),
-    assessment_type: formData.get("assessment_type") ?? "",
-    score: formData.get("score") || null,
-    max_score: formData.get("max_score") || 100,
-    result: formData.get("result") ?? "pending",
-    assessed_at: formData.get("assessed_at") || "",
-  });
-  if (!parsed.success) return;
-
+/** Mark every participant in a schedule as Present (stamps check-in now). */
+export async function markAllPresent(scheduleId: string) {
+  await requireAttendance(true);
   const supabase = await createSupabaseServerClient();
-  const payload: any = { ...parsed.data };
-  if (!payload.assessed_at) delete payload.assessed_at;
-  const { error } = await (supabase.from("assessments") as any).insert(payload);
-  if (error) return;
+  await (supabase
+    .from("attendance") as any)
+    .update({ attendance_status: "present", check_in_time: new Date().toISOString() })
+    .eq("schedule_id", scheduleId)
+    .is("deleted_at", null);
+  revalidatePath(`/admin/attendance/${scheduleId}`);
+}
 
-  revalidatePath(`/admin/attendance`);
-  return;
+/** Bulk-set a status for the selected attendance rows. */
+export async function bulkUpdateAttendance(scheduleId: string, formData: FormData) {
+  await requireAttendance(true);
+  const ids = formData.getAll("ids").map(String).filter(Boolean);
+  const status = STATUS.safeParse(formData.get("status"));
+  if (ids.length === 0 || !status.success) return;
+  const supabase = await createSupabaseServerClient();
+  await (supabase.from("attendance") as any).update({ attendance_status: status.data }).in("id", ids);
+  revalidatePath(`/admin/attendance/${scheduleId}`);
+}
+
+/** Undo / reset: revert selected rows (or all) back to Pending + clear times. */
+export async function resetAttendance(scheduleId: string, formData: FormData) {
+  await requireAttendance(true);
+  const ids = formData.getAll("ids").map(String).filter(Boolean);
+  const supabase = await createSupabaseServerClient();
+  let q = (supabase
+    .from("attendance") as any)
+    .update({ attendance_status: "pending", check_in_time: null, check_out_time: null })
+    .eq("schedule_id", scheduleId);
+  if (ids.length > 0) q = q.in("id", ids);
+  await q;
+  revalidatePath(`/admin/attendance/${scheduleId}`);
 }

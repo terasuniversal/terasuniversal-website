@@ -12,6 +12,7 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // The certificate importer retains its existing bearer-token session while it is migrated into the CMS.`r`n    "/admin/((?!certificates(?:/|$)).*)",
+    // Run on the admin area only. The public site is completely excluded.
+    "/admin/:path*",
   ],
 };

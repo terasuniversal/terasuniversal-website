@@ -34,10 +34,11 @@ function readForm(formData: FormData) {
     modules: lines(formData.get("modules")).map((title) => ({ title })),
     faq: [], // managed in a dedicated sub-editor; omitted from the basic form
     fee: formData.get("fee") ? Number(formData.get("fee")) : null,
-    cms_status: String(formData.get("status") ?? "draft"),
-    course_name: String(formData.get("title") ?? ""),
+    status: String(formData.get("status") ?? "draft"),
     featured: formData.get("featured") === "on",
     sort_order: Number(formData.get("sort_order") ?? 0),
+    seo_title: String(formData.get("seo_title") ?? ""),
+    seo_description: String(formData.get("seo_description") ?? ""),
   };
 }
 
@@ -50,14 +51,10 @@ export async function createCourse(
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
   const supabase = await createSupabaseServerClient();
-  const payload: any = { ...parsed.data, course_name: parsed.data.title };
-  
+  const payload: any = { ...parsed.data };
+  if (payload.status === "published") payload.published_at = new Date().toISOString();
 
-  // Table types are a curated placeholder (`Update: any`) until
-  // `supabase gen types` is run against the deployed schema. TypeScript's
-  // never-vs-any rule for the query builder still needs an explicit cast
-  // here; runtime validation above (Zod) remains the real safety net.
-  const { error } = await (supabase.from("courses") as any).insert(payload);
+  const { error } = await supabase.from("courses").insert(payload);
   if (error) {
     if (error.code === "23505") return { errors: { slug: "That slug is already in use." } };
     return { message: error.message };
@@ -76,10 +73,10 @@ export async function updateCourse(
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
   const supabase = await createSupabaseServerClient();
-  const payload: any = { ...parsed.data, course_name: parsed.data.title };
-  
+  const payload: any = { ...parsed.data };
+  if (payload.status === "published") payload.published_at = new Date().toISOString();
 
-  const { error } = await (supabase.from("courses") as any).update(payload).eq("id", id);
+  const { error } = await supabase.from("courses").update(payload).eq("id", id);
   if (error) {
     if (error.code === "23505") return { errors: { slug: "That slug is already in use." } };
     return { message: error.message };
@@ -93,20 +90,20 @@ export async function updateCourse(
 export async function archiveCourse(id: string) {
   await requireRole("editor");
   const supabase = await createSupabaseServerClient();
-  await (supabase.from("courses") as any).update({ cms_status: "archived" }).eq("id", id);
+  await supabase.from("courses").update({ status: "archived" }).eq("id", id);
   revalidatePath("/admin/courses");
 }
 
 export async function softDeleteCourse(id: string) {
   await requireRole("admin");
   const supabase = await createSupabaseServerClient();
-  await (supabase.from("courses") as any).update({ deleted_at: new Date().toISOString() }).eq("id", id);
+  await supabase.from("courses").update({ deleted_at: new Date().toISOString() }).eq("id", id);
   revalidatePath("/admin/courses");
 }
 
 export async function restoreCourse(id: string) {
   await requireRole("admin");
   const supabase = await createSupabaseServerClient();
-  await (supabase.from("courses") as any).update({ deleted_at: null }).eq("id", id);
+  await supabase.from("courses").update({ deleted_at: null }).eq("id", id);
   revalidatePath("/admin/courses");
 }

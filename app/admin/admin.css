@@ -20,7 +20,7 @@
   --ta-info: #2f6fed;
   --ta-radius: 12px;
   --ta-shadow: 0 6px 24px rgba(11, 44, 86, 0.08);
-  --ta-sidebar-w: 290px;
+  --ta-sidebar-w: 256px;
 
   font-family: var(--font-poppins), system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
   color: var(--ta-ink);
@@ -58,18 +58,17 @@
 .ta-sidebar-brand img { width: 34px; height: 34px; object-fit: contain; background:#fff; border-radius:8px; padding:3px; }
 .ta-sidebar-brand strong { color: #fff; font-size: 14px; letter-spacing: .02em; }
 .ta-sidebar-brand span { display:block; color: var(--ta-gold); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .12em; }
-.ta-nav { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 14px 12px 20px; scrollbar-gutter: stable; }
+.ta-nav { flex: 1; overflow-y: auto; padding: 12px 10px; }
 .ta-nav-group-label { padding: 14px 12px 6px; font-size: 10px; text-transform: uppercase; letter-spacing: .1em; color: #8ea6c8; font-weight: 700; }
 .ta-nav-item {
-  display: flex; align-items: center; gap: 12px; min-height: 42px;
-  padding: 10px 14px; border-radius: 9px; margin-bottom: 3px; white-space: nowrap;
+  display: flex; align-items: center; gap: 11px;
+  padding: 9px 12px; border-radius: 9px; margin-bottom: 2px;
   color: #cdd9ea; font-weight: 500; transition: background .15s, color .15s;
 }
 .ta-nav-item:hover { background: rgba(255,255,255,0.06); color: #fff; }
 .ta-nav-item.active { background: var(--ta-gold); color: var(--ta-navy); font-weight: 700; }
-.ta-nav-item .ta-ico { flex: 0 0 18px; width: 18px; text-align: center; font-size: 15px; line-height: 1; }
-.ta-nav-label { min-width: 0; white-space: nowrap; line-height: 1.25; font-size: 13px; }
-.ta-nav-item .ta-badge { flex: 0 0 auto; margin-left: auto; background: var(--ta-gold); color: var(--ta-navy); font-size: 11px; font-weight: 800; border-radius: 999px; padding: 1px 7px; }
+.ta-nav-item .ta-ico { width: 18px; text-align: center; font-size: 15px; }
+.ta-nav-item .ta-badge { margin-left: auto; background: var(--ta-gold); color: var(--ta-navy); font-size: 11px; font-weight: 800; border-radius: 999px; padding: 1px 7px; }
 .ta-nav-item.active .ta-badge { background: var(--ta-navy); color: #fff; }
 
 .ta-main { flex: 1; margin-left: var(--ta-sidebar-w); display: flex; flex-direction: column; min-width: 0; }
@@ -123,10 +122,12 @@
 
 /* --- Badges -------------------------------------------------------- */
 .ta-badge-pill { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 700; text-transform: capitalize; }
-.ta-badge-pill.published, .ta-badge-pill.won, .ta-badge-pill.issued, .ta-badge-pill.attended, .ta-badge-pill.open { background: rgba(46,158,91,.12); color: var(--ta-success); }
+.ta-badge-pill.published, .ta-badge-pill.won, .ta-badge-pill.issued, .ta-badge-pill.attended, .ta-badge-pill.open, .ta-badge-pill.completed, .ta-badge-pill.competent, .ta-badge-pill.pass { background: rgba(46,158,91,.12); color: var(--ta-success); }
 .ta-badge-pill.draft, .ta-badge-pill.new, .ta-badge-pill.registered, .ta-badge-pill.pending { background: rgba(47,111,237,.12); color: var(--ta-info); }
-.ta-badge-pill.scheduled, .ta-badge-pill.in_review, .ta-badge-pill.assigned, .ta-badge-pill.quoted, .ta-badge-pill.closing_soon { background: rgba(225,169,37,.16); color: #a9791a; }
-.ta-badge-pill.archived, .ta-badge-pill.closed, .ta-badge-pill.lost, .ta-badge-pill.cancelled, .ta-badge-pill.revoked, .ta-badge-pill.no_show { background: rgba(102,112,133,.14); color: var(--ta-muted); }
+.ta-badge-pill.scheduled, .ta-badge-pill.in_review, .ta-badge-pill.assigned, .ta-badge-pill.quoted, .ta-badge-pill.closing_soon, .ta-badge-pill.full, .ta-badge-pill.confirmed { background: rgba(225,169,37,.16); color: #a9791a; }
+.ta-badge-pill.archived, .ta-badge-pill.closed, .ta-badge-pill.lost, .ta-badge-pill.cancelled, .ta-badge-pill.revoked, .ta-badge-pill.no_show, .ta-badge-pill.not_yet_competent, .ta-badge-pill.medical_leave, .ta-badge-pill.excused { background: rgba(102,112,133,.14); color: var(--ta-muted); }
+.ta-badge-pill.pending_review, .ta-badge-pill.late { background: rgba(225,169,37,.16); color: #a9791a; }
+.ta-badge-pill.fail, .ta-badge-pill.absent { background: rgba(214,69,69,.12); color: var(--ta-danger); }
 
 /* --- Buttons ------------------------------------------------------- */
 .ta-btn { display: inline-flex; align-items: center; gap: 7px; padding: 9px 16px; border-radius: 9px; font-weight: 700; font-size: 13.5px; border: 1px solid transparent; cursor: pointer; transition: .15s; font-family: inherit; }
@@ -185,21 +186,3 @@
   .ta-content { padding: 16px; }
   .ta-user-meta { display: none; }
 }
-
-.ta-sidebar-toggle { align-self: flex-end; margin: 10px 12px 0; width: 28px; height: 28px; border: 1px solid rgba(255,255,255,.18); border-radius: 8px; background: rgba(255,255,255,.08); color: #fff; cursor: pointer; font-size: 20px; line-height: 1; }
-.ta-sidebar.is-collapsed { width: 76px; }
-.ta-sidebar.is-collapsed .ta-sidebar-brand { padding: 16px 18px; justify-content: center; }
-.ta-sidebar.is-collapsed .ta-sidebar-brand span, .ta-sidebar.is-collapsed .ta-nav-group-label, .ta-sidebar.is-collapsed .ta-nav-label, .ta-sidebar.is-collapsed .ta-badge { display: none; }
-.ta-sidebar.is-collapsed .ta-nav { padding-inline: 12px; }
-.ta-sidebar.is-collapsed .ta-nav-item { display: flex; justify-content: center; padding-inline: 10px; }
-.ta-sidebar.is-collapsed .ta-ico { flex: 0 0 18px; }
-.ta-sidebar.is-collapsed + .ta-main { margin-left: 76px; }
-.ta-nav-item { overflow: visible; }
-.ta-nav-item[title] { position: relative; }
-@media (min-width: 901px) { .ta-sidebar.is-collapsed ~ .ta-main { margin-left: 76px; } }
-/* Sidebar layout safeguard: prevents labels being pushed beneath the content panel. */
-.ta-sidebar { width: 320px; }
-.ta-main { margin-left: 320px; max-width: calc(100vw - 320px); overflow-x: hidden; }
-.ta-nav-item { display: grid !important; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: center; column-gap: 12px; width: 100%; }
-.ta-nav-label { display: block !important; min-width: 0; white-space: nowrap; overflow: visible; }
-@media (max-width: 900px) { .ta-main { margin-left: 0; max-width: 100vw; } }

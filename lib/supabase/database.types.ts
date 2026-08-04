@@ -133,46 +133,6 @@ export interface ProposalRequest {
   deleted_at: string | null;
 }
 
-export interface Attendance {
-  id: string;
-  schedule_id: string;
-  participant_id: string;
-  session_date: string;
-  present: boolean;
-  check_in_time: string | null;
-  remarks: string | null;
-  recorded_by: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface Assessment {
-  id: string;
-  schedule_id: string | null;
-  participant_id: string;
-  assessment_type: string | null;
-  score: number | null;
-  max_score: number | null;
-  result: "pending" | "competent" | "not_yet_competent" | "pass" | "fail";
-  assessed_by: string | null;
-  assessed_at: string | null;
-  remarks: string | null;
-  created_at: string;
-  updated_at: string;
-}
-export interface Certificate {
-  id: string;
-  participant_name: string;
-  course_name: string;
-  certificate_no: string;
-  training_start_date: string | null;
-  training_end_date: string | null;
-  issue_date: string | null;
-  expiry_date: string | null;
-  status: "valid" | "expired" | "revoked";
-  created_at: string;
-  updated_at: string;
-}
 /**
  * Minimal Database shape so `createServerClient<Database>()` is typed. Tables
  * not listed here fall back to `any` via the index signature, so nothing
@@ -181,13 +141,17 @@ export interface Certificate {
 export interface Database {
   public: {
     Tables: {
-      profiles: { Row: any; Insert: any; Update: any; Relationships: [] };
-      courses: { Row: any; Insert: any; Update: any; Relationships: [] };
-      enquiries: { Row: any; Insert: any; Update: any; Relationships: [] };
-      proposal_requests: { Row: any; Insert: any; Update: any; Relationships: [] };
-      attendance: { Row: any; Insert: any; Update: any; Relationships: [] };
-      assessments: { Row: any; Insert: any; Update: any; Relationships: [] };
-      certificates: { Row: Certificate; Insert: Partial<Certificate>; Update: Partial<Certificate>; Relationships: [] };
+      profiles: { Row: Profile; Insert: Partial<Profile>; Update: Partial<Profile>; Relationships: [] };
+      courses: { Row: Course; Insert: Partial<Course>; Update: Partial<Course>; Relationships: [] };
+      enquiries: { Row: Enquiry; Insert: Partial<Enquiry>; Update: Partial<Enquiry>; Relationships: [] };
+      proposal_requests: {
+        Row: ProposalRequest;
+        Insert: Partial<ProposalRequest>;
+        Update: Partial<ProposalRequest>;
+        Relationships: [];
+      };
+      // New operational tables are added through migrations. This fallback
+      // keeps the client usable before CI regenerates the complete types.
       [key: string]: { Row: any; Insert: any; Update: any; Relationships: [] };
     };
     Views: { [key: string]: { Row: any } };
