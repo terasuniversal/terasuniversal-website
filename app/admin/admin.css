@@ -140,6 +140,9 @@
 .ta-badge-pill.pending_review, .ta-badge-pill.late { background: rgba(225,169,37,.16); color: #a9791a; }
 .ta-badge-pill.fail, .ta-badge-pill.absent { background: rgba(214,69,69,.12); color: var(--ta-danger); }
 .ta-badge-pill.healthy, .ta-badge-pill.provider-managed { background: rgba(46,158,91,.12); color: var(--ta-success); }
+.ta-badge-pill.active, .ta-badge-pill.super_admin, .ta-badge-pill.admin { background: rgba(46,158,91,.12); color: var(--ta-success); }
+.ta-badge-pill.editor, .ta-badge-pill.trainer { background: rgba(47,111,237,.12); color: var(--ta-info); }
+.ta-badge-pill.client, .ta-badge-pill.participant, .ta-badge-pill.inactive { background: rgba(102,112,133,.14); color: var(--ta-muted); }
 .ta-badge-pill.attention { background: rgba(214,69,69,.12); color: var(--ta-danger); }
 .ta-badge-pill.unknown { background: rgba(102,112,133,.14); color: var(--ta-muted); }
 
