@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { requireRole } from "../../../lib/auth/session";
+import { requireStaff } from "../../../lib/auth/session";
 import { createSupabaseServerClient } from "../../../lib/supabase/server";
 import { Sidebar } from "../../../components/admin/Sidebar";
 import { Topbar } from "../../../components/admin/Topbar";
@@ -11,18 +11,18 @@ import { NavScrim } from "../../../components/admin/NavScrim";
  * Renders the persistent sidebar + topbar around each page.
  */
 export default async function ProtectedLayout({ children }: { children: ReactNode }) {
-  const profile = await requireRole("editor");
+  const profile = await requireStaff();
   const supabase = await createSupabaseServerClient();
 
   // Sidebar badges: operational counts. Cheap head-only queries.
   const [{ count: pendingCerts }, { count: activeParticipants }] = await Promise.all([
-    (supabase
-      .from("certificates") as any)
+    supabase
+      .from("certificates")
       .select("*", { count: "exact", head: true })
-      .eq("status", "pending")
+      .eq("status", "draft")
       .is("deleted_at", null),
-    (supabase
-      .from("participants") as any)
+    supabase
+      .from("participants")
       .select("*", { count: "exact", head: true })
       .eq("status", "registered")
       .is("deleted_at", null),

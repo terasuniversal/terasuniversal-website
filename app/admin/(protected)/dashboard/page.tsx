@@ -1,13 +1,16 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { requireRole } from "../../../../lib/auth/session";
+import { requireStaff } from "../../../../lib/auth/session";
 import { StatCard, Card, PageHead, Badge, EmptyState } from "../../../../components/admin/ui";
 
 export const metadata = { title: "Dashboard — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const profile = await requireRole("editor");
+  const profile = await requireStaff();
+  // Trainers don't have a general dashboard — send them to their workspace.
+  if (profile.role === "trainer") redirect("/admin/attendance");
   const supabase = await createSupabaseServerClient();
   const today = new Date().toISOString().slice(0, 10);
 
@@ -20,13 +23,13 @@ export default async function DashboardPage() {
     participantsCount,
     recentAssessments,
   ] = await Promise.all([
-    (supabase.from("courses") as any).select("*", { count: "exact", head: true }).eq("cms_status", "published").is("deleted_at", null),
-    (supabase.from("course_schedules") as any).select("id, start_date, status, capacity, seats_available, courses(title)").gte("start_date", today).is("deleted_at", null).order("start_date", { ascending: true }).limit(6),
-    (supabase.from("participants") as any).select("id, full_name, company, status, registered_at").is("deleted_at", null).order("registered_at", { ascending: false }).limit(6),
-    (supabase.from("certificates") as any).select("*", { count: "exact", head: true }).eq("status", "valid").is("deleted_at", null),
-    (supabase.from("certificates") as any).select("*", { count: "exact", head: true }).eq("status", "pending").is("deleted_at", null),
-    (supabase.from("participants") as any).select("*", { count: "exact", head: true }).is("deleted_at", null),
-    (supabase.from("assessments") as any).select("id, assessment_type, result, score, assessed_at, participants(full_name)").order("assessed_at", { ascending: false, nullsFirst: false }).limit(6),
+    supabase.from("courses").select("*", { count: "exact", head: true }).eq("status", "published").is("deleted_at", null),
+    supabase.from("training_schedules").select("id, schedule_id, course_name, start_date, status, max_participants, seats_remaining").gte("start_date", today).is("deleted_at", null).not("status", "in", "(draft,cancelled,archived)").order("start_date", { ascending: true }).limit(6),
+    supabase.from("participants").select("id, full_name, company, status, registered_at").is("deleted_at", null).order("registered_at", { ascending: false }).limit(6),
+    supabase.from("certificates").select("*", { count: "exact", head: true }).eq("status", "issued").is("deleted_at", null),
+    supabase.from("certificates").select("*", { count: "exact", head: true }).eq("status", "draft").is("deleted_at", null),
+    supabase.from("participants").select("*", { count: "exact", head: true }).is("deleted_at", null),
+    supabase.from("assessments").select("id, assessment_type, result, overall_score, competency_status, assessment_date, participants(full_name)").is("deleted_at", null).order("assessment_date", { ascending: false, nullsFirst: false }).limit(6),
   ]);
 
   return (
@@ -39,8 +42,8 @@ export default async function DashboardPage() {
       <div className="ta-grid cols-4" style={{ marginBottom: 22 }}>
         <StatCard icon="🎓" label="Published courses" value={coursesCount.count ?? 0} href="/admin/courses" />
         <StatCard icon="👥" label="Total participants" value={participantsCount.count ?? 0} href="/admin/participants" />
-        <StatCard icon="🏅" label="Valid certificates" value={certsIssued.count ?? 0} href="/admin/certificates" />
-        <StatCard icon="⏳" label="Certificates pending" value={certsPending.count ?? 0} href="/admin/certificates" />
+        <StatCard icon="🏅" label="Certificates issued" value={certsIssued.count ?? 0} href="/admin/certificates" />
+        <StatCard icon="⏳" label="Certificates draft" value={certsPending.count ?? 0} href="/admin/certificates" />
       </div>
 
       <div className="ta-grid cols-2" style={{ marginBottom: 22 }}>
@@ -52,9 +55,9 @@ export default async function DashboardPage() {
                 <tbody>
                   {upcoming.data.map((s: any) => (
                     <tr key={s.id}>
-                      <td>{s.courses?.title ?? "—"}</td>
+                      <td>{s.course_name ?? "—"}</td>
                       <td>{new Date(s.start_date).toLocaleDateString("en-MY", { day: "numeric", month: "short" })}</td>
-                      <td>{s.seats_available}/{s.capacity}</td>
+                      <td>{s.seats_remaining}/{s.max_participants}</td>
                       <td><Badge status={s.status} /></td>
                     </tr>
                   ))}
@@ -91,13 +94,13 @@ export default async function DashboardPage() {
           {recentAssessments.data && recentAssessments.data.length > 0 ? (
             <div className="ta-table-wrap">
               <table className="ta-table">
-                <thead><tr><th>Participant</th><th>Type</th><th>Score</th><th>Result</th></tr></thead>
+                <thead><tr><th>Participant</th><th>Type</th><th>Overall</th><th>Result</th></tr></thead>
                 <tbody>
                   {recentAssessments.data.map((a: any) => (
                     <tr key={a.id}>
                       <td>{a.participants?.full_name ?? "—"}</td>
                       <td>{a.assessment_type ?? "—"}</td>
-                      <td>{a.score ?? "—"}</td>
+                      <td>{a.overall_score ?? "—"}</td>
                       <td><Badge status={a.result} /></td>
                     </tr>
                   ))}

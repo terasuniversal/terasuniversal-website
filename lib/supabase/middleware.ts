@@ -2,6 +2,8 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import type { Database } from "./database.types";
 
+const supabasePublicKey = () => process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || "";
+
 /**
  * Refreshes the Supabase auth session on every request and guards the
  * /admin area. Called from the root middleware.ts.
@@ -16,7 +18,7 @@ export async function updateSession(request: NextRequest) {
 
   const supabase = createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    supabasePublicKey(),
     {
       cookies: {
         getAll() {
@@ -42,9 +44,12 @@ export async function updateSession(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
   const isAdminArea = pathname.startsWith("/admin");
+  // The password-recovery link carries its short-lived session in the URL;
+  // allow that public entry page to load so the browser client can consume it.
   const isLogin = pathname === "/admin/login";
+  const isPasswordRecovery = pathname === "/admin/reset-password";
 
-  if (isAdminArea && !isLogin && !user) {
+  if (isAdminArea && !isLogin && !isPasswordRecovery && !user) {
     const url = request.nextUrl.clone();
     url.pathname = "/admin/login";
     url.searchParams.set("next", pathname);

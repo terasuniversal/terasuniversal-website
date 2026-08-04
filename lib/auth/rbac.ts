@@ -27,6 +27,23 @@ export function hasMinRole(role: UserRole | null | undefined, min: UserRole) {
 export const isSuperAdmin = (r?: UserRole | null) => r === "super_admin";
 export const isAdmin = (r?: UserRole | null) => hasMinRole(r, "admin");
 export const isEditor = (r?: UserRole | null) => hasMinRole(r, "editor");
+export const isTrainer = (r?: UserRole | null) => r === "trainer";
+
+/**
+ * Attendance access. Trainers (who sit below Editor in the general
+ * hierarchy) get explicit attendance rights: read + write. Editors read
+ * only; Admin/Super Admin full.
+ */
+export const canViewAttendance = (r?: UserRole | null) => isEditor(r) || isTrainer(r);
+export const canManageAttendance = (r?: UserRole | null) => isAdmin(r) || isTrainer(r);
+
+// Assessment shares the same permission set as attendance.
+export const canViewAssessment = (r?: UserRole | null) => isEditor(r) || isTrainer(r);
+export const canManageAssessment = (r?: UserRole | null) => isAdmin(r) || isTrainer(r);
+
+// Certificates: all staff (incl. Trainer) may view; only Admin+ may generate/manage.
+export const canViewCertificate = (r?: UserRole | null) => isEditor(r) || isTrainer(r);
+export const canManageCertificate = (r?: UserRole | null) => isAdmin(r);
 
 /**
  * Which roles may access which admin module (route-level gate). This is the
@@ -34,10 +51,14 @@ export const isEditor = (r?: UserRole | null) => hasMinRole(r, "editor");
  */
 export const MODULE_ACCESS: Record<string, UserRole> = {
   dashboard: "editor",
+  reports: "editor",
   courses: "editor",
+  trainers: "editor",
   schedules: "editor",
   participants: "editor",
-  attendance: "editor",
+  companies: "editor",
+  attendance: "trainer",
+  assessment: "trainer",
   certificates: "editor",
   news: "editor",
   gallery: "editor",
@@ -45,6 +66,7 @@ export const MODULE_ACCESS: Record<string, UserRole> = {
   downloads: "editor",
   company: "editor",
   media: "editor",
+  automation: "admin",
   audit: "admin",
   users: "super_admin",
 };
