@@ -27,7 +27,7 @@ export default async function SystemHealthPage() {
     { label: "Storage usage", value: storage, status: "healthy", note: "Based on files registered in the Media Library. Provider quota is managed in Supabase." },
     { label: "Latest backup", value: "Provider-managed", status: "unknown", note: "No application-level backup record is available. Confirm point-in-time recovery in the Supabase project." },
     { label: "Failed jobs", value: String(failedJobs.count ?? 0), status: (failedJobs.count ?? 0) > 0 ? "attention" : "healthy", note: "Counts failed automation runs recorded by the CMS." },
-    { label: "System version", value: "Admin CMS v1.1.0", status: "healthy", note: "Build version recorded in package metadata." },
+    { label: "System version", value: "Admin CMS v1.2.1", status: "healthy", note: "Current production release version." },
     { label: "Environment", value: process.env.NODE_ENV === "production" ? "Production" : "Preview / development", status: process.env.NODE_ENV === "production" ? "healthy" : "unknown", note: "Never displays credentials or secret values." },
   ];
 
