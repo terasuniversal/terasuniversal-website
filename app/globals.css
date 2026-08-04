@@ -4930,7 +4930,7 @@ img {
 .admin-field input, .admin-field select { width: 100%; min-height: 46px; padding: 0 12px; border: 1px solid #c9d3dd; background: #fff; color: var(--ink); }
 .admin-alert, .admin-success { padding: 14px 16px; background: #fff5d8; color: #765b16; }
 .admin-success { background: #e8f5ec; color: #1f6541; }
-.admin-topbar { display: flex; justify-content: space-between; align-items: end; margin-bottom: 28px; }
+.admin-topbar { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 28px; }
 .admin-grid { display: grid; grid-template-columns: minmax(300px, .72fr) minmax(0, 1.28fr); gap: 24px; align-items: start; }
 .admin-panel { padding: 26px; border: 1px solid var(--line); background: #fff; box-shadow: 0 12px 35px rgba(12, 34, 55, .06); }
 .admin-panel h2 { margin-top: 0; }
