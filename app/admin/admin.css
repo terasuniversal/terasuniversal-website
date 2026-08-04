@@ -139,6 +139,9 @@
 .ta-badge-pill.archived, .ta-badge-pill.closed, .ta-badge-pill.lost, .ta-badge-pill.cancelled, .ta-badge-pill.revoked, .ta-badge-pill.no_show, .ta-badge-pill.not_yet_competent, .ta-badge-pill.medical_leave, .ta-badge-pill.excused { background: rgba(102,112,133,.14); color: var(--ta-muted); }
 .ta-badge-pill.pending_review, .ta-badge-pill.late { background: rgba(225,169,37,.16); color: #a9791a; }
 .ta-badge-pill.fail, .ta-badge-pill.absent { background: rgba(214,69,69,.12); color: var(--ta-danger); }
+.ta-badge-pill.healthy, .ta-badge-pill.provider-managed { background: rgba(46,158,91,.12); color: var(--ta-success); }
+.ta-badge-pill.attention { background: rgba(214,69,69,.12); color: var(--ta-danger); }
+.ta-badge-pill.unknown { background: rgba(102,112,133,.14); color: var(--ta-muted); }
 
 /* --- Buttons ------------------------------------------------------- */
 .ta-btn { display: inline-flex; align-items: center; gap: 7px; padding: 9px 16px; border-radius: 9px; font-weight: 700; font-size: 13.5px; border: 1px solid transparent; cursor: pointer; transition: .15s; font-family: inherit; }
@@ -175,6 +178,9 @@
 .ta-scrim { display: none; }
 .ta-dashboard-intro { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 18px 20px; margin: -6px 0 22px; border: 1px solid rgba(11,44,86,.09); border-radius: var(--ta-radius); background: linear-gradient(105deg, #fff, rgba(225,169,37,.10)); }
 .ta-dashboard-intro p { margin: 3px 0 0; color: var(--ta-muted); }
+.ta-checklist { display: grid; gap: 9px; margin: 0; padding-left: 21px; color: var(--ta-ink); }
+.ta-checklist li::marker { color: var(--ta-gold); font-weight: 800; }
+.ta-page-note { margin: 16px 2px 0; color: var(--ta-muted); font-size: 12px; }
 
 .teras-admin :is(a, button, input, select, textarea):focus-visible { outline: 3px solid rgba(225,169,37,.65); outline-offset: 2px; }
 
