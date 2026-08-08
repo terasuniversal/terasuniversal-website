@@ -7,10 +7,18 @@ export default function MobileNav({ basePath = "" }) {
   const closeMenu = () => setOpen(false);
   const link = (hash) => `${basePath}${hash}`;
 
+  function handleKeyDown(event) {
+    if (event.key === "Escape") {
+      closeMenu();
+      event.currentTarget.previousElementSibling?.focus();
+    }
+  }
+
   return (
     <>
-      <button className="menu-button" type="button" aria-label="Toggle navigation menu" aria-expanded={open} aria-controls="mobile-navigation" onClick={() => setOpen(!open)}><span /><span /><span /></button>
-      <div id="mobile-navigation" className={`mobile-menu ${open ? "open" : ""}`} role="navigation" aria-label="Mobile navigation">
+      <button className={`menu-button ${open ? "is-open" : ""}`} type="button" aria-label={open ? "Close navigation menu" : "Open navigation menu"} aria-expanded={open} aria-controls="mobile-navigation" onClick={() => setOpen(!open)}><span /><span /><span /></button>
+      <div id="mobile-navigation" className={`mobile-menu ${open ? "open" : ""}`} role="navigation" aria-label="Mobile navigation" onKeyDown={handleKeyDown}>
+        <div className="mobile-menu-heading"><span>TERAS UNIVERSAL</span><strong>Explore our services</strong></div>
         <a href={link("#about")} onClick={closeMenu}>About</a>
         <a href={link("#services")} onClick={closeMenu}>Services</a>
         <a href={basePath ? `${basePath}training` : "#training"} onClick={closeMenu}>Training</a>

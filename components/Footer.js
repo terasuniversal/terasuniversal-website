@@ -14,6 +14,10 @@ export default function Footer() {
         <div className="footer-brand">
           <Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL" width={210} height={135} sizes="190px" />
           <p>Building Competence. Creating Opportunities.</p>
+          <div className="footer-actions">
+            <a href="https://wa.me/60195193834" target="_blank" rel="noreferrer">WhatsApp us <span aria-hidden="true">&rarr;</span></a>
+            <a href="mailto:training@terasuniversal.com.my">Send an email</a>
+          </div>
         </div>
         <div>
           <h3>Core Services</h3>

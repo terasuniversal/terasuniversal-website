@@ -88,6 +88,7 @@ export default function TrainingPage() {
           <div className="training-filters" role="group" aria-label="Filter training programmes">
             {categories.map((category) => <button key={category} type="button" className={activeCategory === category ? "is-active" : ""} aria-pressed={activeCategory === category} onClick={() => setActiveCategory(category)}>{category}</button>)}
           </div>
+          <p className="training-programme-count" aria-live="polite"><strong>{visibleProgrammes.length}</strong> programme{visibleProgrammes.length === 1 ? "" : "s"}{activeCategory === "All Programmes" ? " available" : ` in ${activeCategory}`}</p>
           <div className="training-programme-grid" aria-live="polite">
             {visibleProgrammes.map(({ category, title, text, audience, image, industries }) => (
               <article className="training-programme-card" key={title}>

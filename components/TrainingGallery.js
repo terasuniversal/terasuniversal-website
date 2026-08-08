@@ -24,8 +24,8 @@ export default function TrainingGallery({ items, showFullGalleryLink = true }) {
     if (activeIndex === null) return undefined;
     const handleKeyDown = (event) => {
       if (event.key === "Escape") setActiveIndex(null);
-      if (event.key === "ArrowRight") setActiveIndex((index) => (index + 1) % items.length);
-      if (event.key === "ArrowLeft") setActiveIndex((index) => (index - 1 + items.length) % items.length);
+      if (event.key === "ArrowRight") setActiveIndex((index) => (index + 1) % filteredItems.length);
+      if (event.key === "ArrowLeft") setActiveIndex((index) => (index - 1 + filteredItems.length) % filteredItems.length);
     };
     document.addEventListener("keydown", handleKeyDown);
     document.body.style.overflow = "hidden";
@@ -38,6 +38,7 @@ export default function TrainingGallery({ items, showFullGalleryLink = true }) {
   return (
     <>
       <div className="gallery-filter-bar" role="toolbar" aria-label="Filter training gallery">{filters.map((item) => <button className={filter === item ? "active" : ""} type="button" key={item} onClick={() => { setFilter(item); setActiveIndex(null); }} aria-pressed={filter === item}>{item}</button>)}</div>
+      <p className="gallery-results" aria-live="polite"><strong>{filteredItems.length}</strong> training visuals in {filter === "All" ? "the gallery" : `${filter} category`}</p>
       <div className="training-gallery" aria-label={`${filter} training gallery`}>
         {filteredItems.map(([title, image], index) => (
           <button className="gallery-card gallery-trigger" type="button" key={title} onClick={() => setActiveIndex(index)} aria-label={`Open ${title} image`}>
