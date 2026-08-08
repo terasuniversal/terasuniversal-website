@@ -74,7 +74,16 @@ export async function updateCourse(
 
   const supabase = await createSupabaseServerClient();
   const payload: any = { ...parsed.data };
-  if (payload.status === "published") payload.published_at = new Date().toISOString();
+
+  // Only stamp published_at on the actual draft/archived → published transition,
+  // not on every save of an already-published course (that would corrupt the
+  // true original publish date and resurface old content as "just published").
+  if (payload.status === "published") {
+    const { data: existing } = await supabase.from("courses").select("status, published_at").eq("id", id).single();
+    if (!existing || existing.status !== "published" || !existing.published_at) {
+      payload.published_at = new Date().toISOString();
+    }
+  }
 
   const { error } = await supabase.from("courses").update(payload).eq("id", id);
   if (error) {
