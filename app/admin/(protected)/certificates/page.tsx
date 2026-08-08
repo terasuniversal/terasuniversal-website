@@ -9,7 +9,7 @@ export const metadata = { title: "Certificates — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 20;
-const STATUSES = ["draft", "issued", "revoked", "expired", "archived"];
+const STATUSES = ["valid", "expired", "revoked"];
 
 export default async function CertificatesPage({
   searchParams,
@@ -24,7 +24,7 @@ export default async function CertificatesPage({
   const supabase = await createSupabaseServerClient();
 
   const [{ count: issued }, { count: revoked }, { count: draft }, { data: courses }] = await Promise.all([
-    supabase.from("certificates").select("*", { count: "exact", head: true }).eq("status", "issued").is("deleted_at", null),
+    supabase.from("certificates").select("*", { count: "exact", head: true }).eq("status", "valid").is("deleted_at", null),
     supabase.from("certificates").select("*", { count: "exact", head: true }).eq("status", "revoked").is("deleted_at", null),
     supabase.from("certificates").select("*", { count: "exact", head: true }).eq("status", "draft").is("deleted_at", null),
     supabase.from("courses").select("id, title").is("deleted_at", null).order("title", { ascending: true }),

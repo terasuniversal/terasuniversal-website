@@ -27,7 +27,7 @@ export default async function ReportsPage() {
     headCount(supabase, "courses"),
     headCount(supabase, "training_schedules"),
     headCount(supabase, "trainers"),
-    headCount(supabase, "certificates", (q) => q.eq("status", "issued")),
+    headCount(supabase, "certificates", (q) => q.eq("status", "valid")),
     headCount(supabase, "courses", (q) => q.eq("status", "published")),
     headCount(supabase, "training_schedules", (q) => q.gte("start_date", today).not("status", "in", "(draft,cancelled,archived)")),
     supabase.from("v_attendance_breakdown").select("*"),

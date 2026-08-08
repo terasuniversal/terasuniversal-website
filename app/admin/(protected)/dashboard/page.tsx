@@ -28,7 +28,7 @@ export default async function DashboardPage() {
     supabase.from("training_schedules").select("*", { count: "exact", head: true }).gte("start_date", today).is("deleted_at", null).not("status", "in", "(draft,cancelled,archived)"),
     supabase.from("training_schedules").select("id, schedule_id, course_name, start_date, status, max_participants, seats_remaining").gte("start_date", today).is("deleted_at", null).not("status", "in", "(draft,cancelled,archived)").order("start_date", { ascending: true }).limit(6),
     supabase.from("participants").select("id, full_name, company, status, registered_at").is("deleted_at", null).order("registered_at", { ascending: false }).limit(6),
-    supabase.from("certificates").select("*", { count: "exact", head: true }).eq("status", "issued").is("deleted_at", null),
+    supabase.from("certificates").select("*", { count: "exact", head: true }).eq("status", "valid").is("deleted_at", null),
     supabase.from("certificates").select("*", { count: "exact", head: true }).eq("status", "draft").is("deleted_at", null),
     supabase.from("participants").select("*", { count: "exact", head: true }).is("deleted_at", null),
     supabase.from("assessments").select("id, assessment_type, result, overall_score, competency_status, assessment_date, participants(full_name)").is("deleted_at", null).order("assessment_date", { ascending: false, nullsFirst: false }).limit(6),

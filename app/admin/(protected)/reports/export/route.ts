@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
     const hc = (t: string, f: (q: any) => any = (q) => q) => f(supabase.from(t).select("*", { count: "exact", head: true }).is("deleted_at", null));
     const [participants, companies, courses, schedules, trainers, certs, upcoming] = await Promise.all([
       hc("participants"), hc("companies"), hc("courses"), hc("training_schedules"), hc("trainers"),
-      hc("certificates", (q) => q.eq("status", "issued")),
+      hc("certificates", (q) => q.eq("status", "valid")),
       hc("training_schedules", (q) => q.gte("start_date", today).not("status", "in", "(draft,cancelled,archived)")),
     ]);
     const row = (k: string, v: any) => `<tr><td class="k">${esc(k)}</td><td style="text-align:right;font-weight:700">${esc(v)}</td></tr>`;
