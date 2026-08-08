@@ -4,6 +4,7 @@ import { requireCertificate } from "../../../../lib/auth/session";
 import { canManageCertificate } from "../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, EmptyState, Pagination, StatCard } from "../../../../components/admin/ui";
 import { restoreCertificate } from "./actions";
+import { ExportButtons } from "./ExportButtons";
 
 export const metadata = { title: "Certificates — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
@@ -88,8 +89,7 @@ export default async function CertificatesPage({
         <div className="ta-spacer" />
         {!deletedView && (
           <>
-            <a href={`/admin/certificates/export?format=csv${exportQs ? "&" + exportQs : ""}`} className="ta-btn ta-btn-outline ta-btn-sm">⬇ CSV</a>
-            <a href={`/admin/certificates/export?format=excel${exportQs ? "&" + exportQs : ""}`} className="ta-btn ta-btn-outline ta-btn-sm">⬇ Excel</a>
+            <ExportButtons exportQs={exportQs} />
             <a href={`/admin/certificates/export?format=register${exportQs ? "&" + exportQs : ""}`} target="_blank" className="ta-btn ta-btn-outline ta-btn-sm">📄 Register (PDF)</a>
           </>
         )}
