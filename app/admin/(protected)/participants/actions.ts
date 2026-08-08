@@ -5,8 +5,26 @@ import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { requireRole } from "../../../../lib/auth/session";
 import { participantSchema, fieldErrors } from "../../../../lib/validation/schemas";
+import { normalizeIdentityNumber } from "../../../../lib/identity";
 
 export type ParticipantFormState = { errors?: Record<string, string>; message?: string };
+
+const DUPLICATE_IDENTITY_MESSAGE = "A participant with this IC/Passport number already exists.";
+
+/**
+ * Pre-check only — a race between two simultaneous submissions can still
+ * slip past this. The live `participants_active_identity_unique`-style
+ * database index (see supabase/migrations) is the real safety net;
+ * mapDbError() below catches that as a fallback if this check is beaten.
+ */
+async function findDuplicateIdentity(supabase: any, icPassportNo: string, excludeId?: string): Promise<boolean> {
+  const normalized = normalizeIdentityNumber(icPassportNo);
+  if (!normalized) return false;
+  let query = supabase.from("participants").select("id, ic_passport_no").is("deleted_at", null);
+  if (excludeId) query = query.neq("id", excludeId);
+  const { data } = await query;
+  return (data ?? []).some((row: any) => normalizeIdentityNumber(row.ic_passport_no) === normalized);
+}
 
 const OPTIONAL_NULLABLE = [
   "email", "nationality", "position", "gender", "date_of_birth", "address",
@@ -44,10 +62,14 @@ function toPayload(data: any) {
   return out;
 }
 
-/** Friendly Postgres-error → form-error mapping. */
+/**
+ * Friendly Postgres-error → form-error mapping. This is the DB-level safety
+ * net for the race window findDuplicateIdentity() can't close — never
+ * surfaces the constraint name or raw SQL to the user.
+ */
 function mapDbError(error: { code?: string; message: string }): ParticipantFormState {
   if (error.code === "23505") {
-    if (error.message.includes("ic")) return { errors: { ic_passport_no: "A participant with this IC / Passport already exists." } };
+    if (error.message.includes("identity") || error.message.includes("ic")) return { errors: { ic_passport_no: DUPLICATE_IDENTITY_MESSAGE } };
     return { errors: { _form: "A duplicate value was detected." } };
   }
   return { message: error.message };
@@ -59,6 +81,9 @@ export async function createParticipant(_prev: ParticipantFormState, formData: F
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
   const supabase = await createSupabaseServerClient();
+  if (await findDuplicateIdentity(supabase, parsed.data.ic_passport_no)) {
+    return { errors: { ic_passport_no: DUPLICATE_IDENTITY_MESSAGE } };
+  }
   const { error } = await supabase.from("participants").insert(toPayload(parsed.data));
   if (error) return mapDbError(error);
   // Audit is written automatically by the DB trigger (action='create').
@@ -72,6 +97,9 @@ export async function updateParticipant(id: string, _prev: ParticipantFormState,
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
   const supabase = await createSupabaseServerClient();
+  if (await findDuplicateIdentity(supabase, parsed.data.ic_passport_no, id)) {
+    return { errors: { ic_passport_no: DUPLICATE_IDENTITY_MESSAGE } };
+  }
   const { error } = await supabase.from("participants").update(toPayload(parsed.data)).eq("id", id);
   if (error) return mapDbError(error);
   revalidatePath("/admin/participants");

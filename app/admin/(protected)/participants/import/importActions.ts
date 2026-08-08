@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { requireRole } from "../../../../../lib/auth/session";
 import { participantImportRowSchema } from "../../../../../lib/validation/schemas";
+import { normalizeIdentityNumber } from "../../../../../lib/identity";
 
 export interface RawRow { [key: string]: string }
 export interface AnalyzedRow {
@@ -44,7 +45,7 @@ export async function analyzeImport(raw: RawRow[]): Promise<ImportAnalysis> {
 
   // Existing ICs (live rows) for duplicate detection.
   const { data: existing } = await supabase.from("participants").select("ic_passport_no").is("deleted_at", null).limit(100000);
-  const existingIc = new Set((existing ?? []).map((r: any) => (r.ic_passport_no ?? "").toLowerCase()));
+  const existingIc = new Set((existing ?? []).map((r: any) => normalizeIdentityNumber(r.ic_passport_no)));
 
   const seenInBatch = new Set<string>();
   const rows: AnalyzedRow[] = raw.map((r, index) => {
@@ -66,7 +67,7 @@ export async function analyzeImport(raw: RawRow[]): Promise<ImportAnalysis> {
     if (!parsed.success) {
       return { index, status: "invalid", reason: parsed.error.issues[0]?.message ?? "Invalid row" };
     }
-    const ic = parsed.data.ic_passport_no.toLowerCase();
+    const ic = normalizeIdentityNumber(parsed.data.ic_passport_no);
     if (existingIc.has(ic) || seenInBatch.has(ic)) {
       return { index, status: "duplicate", reason: "IC / Passport already exists", data: parsed.data };
     }
