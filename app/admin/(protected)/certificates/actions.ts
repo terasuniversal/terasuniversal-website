@@ -53,7 +53,7 @@ export async function generateCertificate(scheduleId: string, participantId: str
       course_id: elig.course_id,
       template_id: tpl?.id ?? null,
       holder_name: elig.holder_name,
-      status: "issued",
+      status: "valid",
       issue_date: new Date().toISOString().slice(0, 10),
       issued_by: profile?.id ?? null,
     })
@@ -115,7 +115,7 @@ export async function revokeCertificate(id: string, formData?: FormData) {
 export async function reissueCertificate(id: string) {
   await requireCertificate(true);
   const supabase = await createSupabaseServerClient();
-  await supabase.from("certificates").update({ status: "issued", issue_date: new Date().toISOString().slice(0, 10) }).eq("id", id);
+  await supabase.from("certificates").update({ status: "valid", issue_date: new Date().toISOString().slice(0, 10) }).eq("id", id);
   revalidatePath("/admin/certificates");
   revalidatePath(`/admin/certificates/${id}`);
 }
