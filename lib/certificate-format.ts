@@ -1,9 +1,34 @@
+import QRCode from "qrcode";
+
 /**
  * Pure display-formatting helpers shared between the React certificate
  * renderer (CertificateDocument.tsx) and the HTML-string renderer
  * (certificate-html.ts) — kept in one place so the two stay visually
  * identical instead of drifting the way this codebase's sanitize helpers did.
  */
+
+/**
+ * Generates the verification QR as an inline SVG string, computed once in
+ * certData.ts and reused by both renderers. Previously this loaded an <img>
+ * from api.qrserver.com — that request is blocked by this app's own CSP
+ * (`img-src 'self' data: blob:` in next.config.mjs has no allowance for a
+ * third-party image host), so the QR silently failed to render in every real
+ * browser context (broken-image icon) despite working in ad hoc test pages
+ * that don't send that header. Generating in-process and embedding as inline
+ * SVG sidesteps img-src entirely — it's DOM content, not an image request —
+ * and gives a sharper, infinitely-scalable result for print.
+ */
+export async function generateQrSvg(value: string, colorDark = "#0B3A63"): Promise<string | null> {
+  try {
+    const svg = await QRCode.toString(value, { type: "svg", margin: 1, color: { dark: colorDark, light: "#FFFFFF" } });
+    // No fixed width/height, only a viewBox, so the same string can be
+    // embedded at any display size (front page ~100px, back page smaller)
+    // just by sizing its wrapping container.
+    return svg.replace("<svg ", '<svg width="100%" height="100%" ');
+  } catch {
+    return null;
+  }
+}
 
 /** Long participant names must shrink rather than overflow the name block. */
 export function fitHolderNameSize(name: string): number {

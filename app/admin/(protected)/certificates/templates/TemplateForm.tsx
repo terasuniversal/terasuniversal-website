@@ -1,12 +1,13 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useState, useEffect } from "react";
 import Link from "next/link";
 import type { TemplateFormState } from "./actions";
 import { Field } from "../../../../../components/admin/ui";
 import { CertificateDocument, CertificateBackPage, type CertData } from "../../../../../components/admin/CertificateDocument";
+import { generateQrSvg } from "../../../../../lib/certificate-format";
 
-const PREVIEW_DATA: CertData = {
+const PREVIEW_DATA_BASE: Omit<CertData, "qr_svg"> = {
   certificate_number: "TU/AWA/2026/0001",
   holder_name: "Ahmad Bin Ali",
   course_name: "Scaffolding Competency Programme",
@@ -44,6 +45,7 @@ export function TemplateForm({
     duration_label: c.duration_label ?? "",
     skills_update_recommendation: c.skills_update_recommendation ?? "",
     show_back_page: c.show_back_page !== false,
+    show_skills_record: c.show_skills_record !== false,
     programme_title: c.programme_title ?? "",
     objectives_text: c.objectives_text ?? "",
     coverage_items: c.coverage_items ?? [],
@@ -55,6 +57,15 @@ export function TemplateForm({
     contact_email: c.contact_email ?? "",
     contact_website: c.contact_website ?? "",
   });
+  const [qrSvg, setQrSvg] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    generateQrSvg(PREVIEW_DATA_BASE.verification_url!, preview.primary_color).then((svg) => {
+      if (!cancelled) setQrSvg(svg);
+    });
+    return () => { cancelled = true; };
+  }, [preview.primary_color]);
+  const previewData: CertData = { ...PREVIEW_DATA_BASE, qr_svg: qrSvg };
   const upd = (k: string, v: any) => setPreview((p) => ({ ...p, [k]: v }));
   const updLines = (k: string, raw: string) => upd(k, raw.split("\n").map((s) => s.trim()).filter(Boolean));
   const updSkillsRecord = (raw: string) =>
@@ -129,6 +140,9 @@ export function TemplateForm({
             <input type="checkbox" name="show_back_page" defaultChecked={preview.show_back_page} onChange={(e) => upd("show_back_page", e.target.checked)} style={{ width: "auto" }} /> Show back page (Programme Information)
           </label>
           <label style={{ display: "flex", gap: 8, alignItems: "center", fontWeight: 500 }}>
+            <input type="checkbox" name="show_skills_record" defaultChecked={preview.show_skills_record} onChange={(e) => upd("show_skills_record", e.target.checked)} style={{ width: "auto" }} /> Show Participant Skills Record table
+          </label>
+          <label style={{ display: "flex", gap: 8, alignItems: "center", fontWeight: 500 }}>
             <input type="checkbox" name="is_active" defaultChecked={template ? template.is_active : true} style={{ width: "auto" }} /> Active
           </label>
           <label style={{ display: "flex", gap: 8, alignItems: "center", fontWeight: 500 }}>
@@ -162,7 +176,7 @@ export function TemplateForm({
               rows={4}
               defaultValue={(preview.skills_record as { area: string; status: string }[]).map((r) => `${r.area} | ${r.status}`).join("\n")}
               onChange={(e) => updSkillsRecord(e.target.value)}
-              placeholder={"Theory Session | Completed\nPractical Assessment | Completed"}
+              placeholder={"Theory Session | Not Recorded\nPractical Assessment | Not Recorded"}
             />
           </Field>
         </div>
@@ -192,7 +206,7 @@ export function TemplateForm({
         <div style={{ fontWeight: 700, color: "var(--ta-navy)", marginBottom: 8 }}>Live preview — Front</div>
         <div style={{ overflow: "hidden", border: "1px solid var(--ta-line)", borderRadius: 10, background: "#eef1f6", padding: 10, marginBottom: 16 }}>
           <div style={{ transform: "scale(0.42)", transformOrigin: "top left", height: 480 }}>
-            <CertificateDocument config={preview} data={PREVIEW_DATA} />
+            <CertificateDocument config={preview} data={previewData} />
           </div>
         </div>
         {preview.show_back_page && (
@@ -200,7 +214,7 @@ export function TemplateForm({
             <div style={{ fontWeight: 700, color: "var(--ta-navy)", marginBottom: 8 }}>Live preview — Back</div>
             <div style={{ overflow: "hidden", border: "1px solid var(--ta-line)", borderRadius: 10, background: "#eef1f6", padding: 10 }}>
               <div style={{ transform: "scale(0.42)", transformOrigin: "top left", height: 480 }}>
-                <CertificateBackPage config={preview} data={PREVIEW_DATA} />
+                <CertificateBackPage config={preview} data={previewData} />
               </div>
             </div>
           </>

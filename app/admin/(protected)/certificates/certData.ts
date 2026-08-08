@@ -1,5 +1,6 @@
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { siteOrigin } from "../../../../lib/site-origin";
+import { generateQrSvg } from "../../../../lib/certificate-format";
 import type { CertData, TemplateConfig } from "../../../../components/admin/CertificateDocument";
 
 function fmtDate(d?: string | null): string | null {
@@ -49,6 +50,13 @@ export async function loadCertificateRender(id: string): Promise<
 
   const certificateNumber: string = c.certificate_number || c.certificate_no;
   const origin = await siteOrigin();
+  const verificationUrl = certificateNumber ? `${origin}/verify/${encodeURIComponent(certificateNumber)}` : null;
+
+  // Generated once here (not as an <img> pointed at a third-party API) so it
+  // renders identically in the browser preview, the print/PDF page, and the
+  // ZIP export — see generateQrSvg's own comment for why the external-API
+  // approach was silently broken by this app's CSP.
+  const qrSvg = config.show_qr !== false && verificationUrl ? await generateQrSvg(verificationUrl, config.primary_color || "#0B3A63") : null;
 
   const data: CertData = {
     certificate_number: certificateNumber,
@@ -66,7 +74,8 @@ export async function loadCertificateRender(id: string): Promise<
     // (verify_and_log RPC) — verification_token/verification_url are null
     // on every live certificate today, so the QR must be built from the
     // number, not those columns.
-    verification_url: certificateNumber ? `${origin}/verify/${encodeURIComponent(certificateNumber)}` : null,
+    verification_url: verificationUrl,
+    qr_svg: qrSvg,
   };
   return { cert, data, config };
 }

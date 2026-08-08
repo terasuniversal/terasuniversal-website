@@ -48,6 +48,7 @@ function buildConfig(formData: FormData) {
     skills_update_recommendation: v("skills_update_recommendation") || undefined,
     // Back page ("Programme Information")
     show_back_page: formData.get("show_back_page") === "on",
+    show_skills_record: formData.get("show_skills_record") === "on",
     programme_title: v("programme_title") || undefined,
     objectives_text: v("objectives_text") || undefined,
     coverage_items: lines(formData, "coverage_items"),
