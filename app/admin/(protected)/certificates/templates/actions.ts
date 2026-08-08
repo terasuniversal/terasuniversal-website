@@ -16,18 +16,48 @@ const schema = z.object({
   is_default: z.coerce.boolean().default(false),
 });
 
+/** Splits a textarea into one trimmed, non-empty entry per line. */
+function lines(formData: FormData, key: string): string[] {
+  return String(formData.get(key) ?? "")
+    .split("\n")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 function buildConfig(formData: FormData) {
   const v = (k: string) => String(formData.get(k) ?? "").trim();
+  const skillsRecord = lines(formData, "skills_record")
+    .map((line) => {
+      const [area, status] = line.split("|").map((s) => s.trim());
+      return area ? { area, status: status || "Pending" } : null;
+    })
+    .filter((r): r is { area: string; status: string } => r !== null);
+
   return {
     logo_url: v("logo_url") || "/teras-universal-logo.png",
     background_url: v("background_url") || undefined,
-    primary_color: v("primary_color") || "#0B2C56",
-    accent_color: v("accent_color") || "#E1A925",
+    primary_color: v("primary_color") || "#0B3A63",
+    accent_color: v("accent_color") || "#D4AF37",
     signature_url: v("signature_url") || undefined,
-    signature_name: v("signature_name") || "Training Director",
-    signature_title: v("signature_title") || "TERAS UNIVERSAL SDN. BHD.",
-    body_text: v("body_text") || "has successfully completed the training programme and is hereby certified as COMPETENT.",
+    signature_name: v("signature_name") || "Trainer",
+    signature_title: v("signature_title") || "Training Manager",
+    body_text: v("body_text") || undefined,
     show_qr: formData.get("show_qr") === "on",
+    // Front page
+    duration_label: v("duration_label") || undefined,
+    skills_update_recommendation: v("skills_update_recommendation") || undefined,
+    // Back page ("Programme Information")
+    show_back_page: formData.get("show_back_page") === "on",
+    programme_title: v("programme_title") || undefined,
+    objectives_text: v("objectives_text") || undefined,
+    coverage_items: lines(formData, "coverage_items"),
+    learning_outcomes: lines(formData, "learning_outcomes"),
+    assessment_methods: lines(formData, "assessment_methods"),
+    skills_record: skillsRecord,
+    important_notice: v("important_notice") || undefined,
+    contact_phone: v("contact_phone") || undefined,
+    contact_email: v("contact_email") || undefined,
+    contact_website: v("contact_website") || undefined,
   };
 }
 
@@ -66,7 +96,12 @@ export async function updateTemplate(id: string, _prev: TemplateFormState, formD
   if (!parsed.success) return { errors: { name: parsed.error.issues[0]?.message ?? "Invalid" } };
   const supabase = await createSupabaseServerClient();
   await ensureSingleDefault(supabase, parsed.data.is_default, id);
-  const { error } = await supabase.from("certificate_templates").update({ ...parsed.data, config: buildConfig(formData) }).eq("id", id);
+  // Merge onto the existing stored config rather than replacing it outright,
+  // so a key this form doesn't know about (an older/legacy config property)
+  // survives a save instead of being silently dropped.
+  const { data: existing } = await supabase.from("certificate_templates").select("config").eq("id", id).maybeSingle();
+  const mergedConfig = { ...((existing?.config as object) ?? {}), ...buildConfig(formData) };
+  const { error } = await supabase.from("certificate_templates").update({ ...parsed.data, config: mergedConfig }).eq("id", id);
   if (error) return { message: error.message };
   revalidatePath("/admin/certificates/templates");
   redirect("/admin/certificates/templates");

@@ -4,7 +4,7 @@ import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { requireCertificate } from "../../../../../lib/auth/session";
 import { canManageCertificate } from "../../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, Field } from "../../../../../components/admin/ui";
-import { CertificateDocument } from "../../../../../components/admin/CertificateDocument";
+import { CertificateDocument, CertificateBackPage } from "../../../../../components/admin/CertificateDocument";
 import { loadCertificateRender } from "../certData";
 import { revokeCertificate, reissueCertificate, duplicateCertificate, updateCertificateMeta, softDeleteCertificate, regenerateVerificationToken, setVerificationEnabled } from "../actions";
 import { EmptyState } from "../../../../../components/admin/ui";
@@ -44,15 +44,22 @@ export default async function CertificateDetailPage({ params }: { params: Promis
 
       <div style={{ marginBottom: 16, display: "flex", gap: 10, alignItems: "center" }}>
         <Badge status={cert.status} />
-        {cert.verification_url && <a href={cert.verification_url} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: "var(--ta-info)" }}>Public verification link ↗</a>}
+        {r.data.verification_url && <a href={r.data.verification_url} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: "var(--ta-info)" }}>Public verification link ↗</a>}
       </div>
 
       <div className="ta-grid cols-2" style={{ alignItems: "start" }}>
-        {/* Preview */}
+        {/* Preview — front + back, A4 portrait */}
         <Card title="Preview">
-          <div className="ta-card-pad" style={{ background: "#eef1f6", overflow: "hidden" }}>
-            <div style={{ transform: r.orientation === "portrait" ? "scale(0.44)" : "scale(0.52)", transformOrigin: "top left", height: r.orientation === "portrait" ? 500 : 420 }}>
-              <CertificateDocument data={r.data} config={r.config} orientation={r.orientation} />
+          <div className="ta-card-pad" style={{ background: "#eef1f6", overflow: "hidden", display: "grid", gap: 12 }}>
+            <div style={{ overflow: "hidden", height: 500 }}>
+              <div style={{ transform: "scale(0.44)", transformOrigin: "top left" }}>
+                <CertificateDocument data={r.data} config={r.config} />
+              </div>
+            </div>
+            <div style={{ overflow: "hidden", height: 500 }}>
+              <div style={{ transform: "scale(0.44)", transformOrigin: "top left" }}>
+                <CertificateBackPage data={r.data} config={r.config} />
+              </div>
             </div>
           </div>
         </Card>
@@ -64,7 +71,7 @@ export default async function CertificateDetailPage({ params }: { params: Promis
                 <dt style={{ color: "var(--ta-muted)" }}>Certificate No.</dt><dd style={{ margin: 0, fontFamily: "monospace" }}>{cert.certificate_number}</dd>
                 <dt style={{ color: "var(--ta-muted)" }}>Course</dt><dd style={{ margin: 0 }}>{r.data.course_name ?? "—"}</dd>
                 <dt style={{ color: "var(--ta-muted)" }}>Issued</dt><dd style={{ margin: 0 }}>{r.data.issue_date ?? "—"}</dd>
-                <dt style={{ color: "var(--ta-muted)" }}>Verification token</dt><dd style={{ margin: 0, fontFamily: "monospace", fontSize: 12, wordBreak: "break-all" }}>{cert.verification_token}</dd>
+                <dt style={{ color: "var(--ta-muted)" }}>Verification link</dt><dd style={{ margin: 0, fontFamily: "monospace", fontSize: 12, wordBreak: "break-all" }}>{r.data.verification_url ?? "—"}</dd>
               </dl>
             </div>
           </Card>

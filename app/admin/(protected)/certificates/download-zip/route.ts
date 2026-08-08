@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
     try {
       const r = await loadCertificateRender(id);
       if (!r) { failed.push({ id, reason: "not found" }); continue; }
-      const html = renderCertificateDocument(r.data, r.config, r.orientation);
+      const html = renderCertificateDocument(r.data, r.config);
       const base = safeFileName(`${r.data.certificate_number || "certificate"}_${r.data.holder_name || ""}`);
       // Avoid collisions when two certs share a number/name.
       let name = `${base}.html`;

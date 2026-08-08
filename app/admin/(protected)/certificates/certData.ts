@@ -1,9 +1,14 @@
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
+import { siteOrigin } from "../../../../lib/site-origin";
 import type { CertData, TemplateConfig } from "../../../../components/admin/CertificateDocument";
+
+function fmtDate(d?: string | null): string | null {
+  return d ? new Date(d).toLocaleDateString("en-MY", { day: "numeric", month: "long", year: "numeric" }) : null;
+}
 
 /** Loads a certificate + its template + related data for rendering. */
 export async function loadCertificateRender(id: string): Promise<
-  | { cert: any; data: CertData; config: TemplateConfig; orientation: string }
+  | { cert: any; data: CertData; config: TemplateConfig }
   | null
 > {
   const supabase = await createSupabaseServerClient();
@@ -12,29 +17,56 @@ export async function loadCertificateRender(id: string): Promise<
   // (Module 10 / Schedules is not fixed as of this pass). A PostgREST
   // embedded-relationship select against a nonexistent table fails the
   // whole query rather than degrading gracefully, so it must stay out
-  // until Schedules lands. Restore it then.
+  // until Schedules lands. Restore it then. `certificates`/`courses`/
+  // `participants`/`certificate_templates` are all confirmed live
+  // (re-verified against the connected project) with real FKs.
   const { data: cert } = await supabase
     .from("certificates")
-    .select("*, courses(title), participants(ic_passport_no), certificate_templates(orientation, config)")
+    .select("*, courses(title, duration), participants(participant_id, ic_passport_no), certificate_templates(config)")
     .eq("id", id)
     .single();
   if (!cert) return null;
 
-  const tpl = (cert as any).certificate_templates;
+  const c = cert as any;
+  let tpl = c.certificate_templates as { config?: TemplateConfig } | null;
+
+  // Every live certificate currently has template_id = null (the template
+  // system was never wired up to actual generation), which would otherwise
+  // mean every certificate renders with an empty config. Fall back to the
+  // active default template so customizing it actually takes effect.
+  if (!tpl) {
+    const { data: def } = await supabase
+      .from("certificate_templates")
+      .select("config")
+      .eq("is_default", true)
+      .eq("is_active", true)
+      .is("deleted_at", null)
+      .limit(1)
+      .maybeSingle();
+    tpl = def ?? null;
+  }
   const config: TemplateConfig = { ...((tpl?.config as TemplateConfig) ?? {}) };
-  const orientation: string = tpl?.orientation ?? "landscape";
+
+  const certificateNumber: string = c.certificate_number || c.certificate_no;
+  const origin = await siteOrigin();
 
   const data: CertData = {
-    certificate_number: cert.certificate_number,
-    holder_name: cert.holder_name,
-    course_name: (cert as any).courses?.title ?? null,
-    ic_passport: (cert as any).participants?.ic_passport_no ?? null,
-    training_date: null, // pending Module 10 (Schedules) — see note above
-    venue: null, // pending Module 10 (Schedules)
-    trainer: null, // pending Module 10 (Schedules)
-    issue_date: cert.issue_date ? new Date(cert.issue_date).toLocaleDateString("en-MY", { day: "numeric", month: "long", year: "numeric" }) : null,
-    verification_url: cert.verification_url,
-    verification_token: cert.verification_token,
+    certificate_number: certificateNumber,
+    holder_name: c.holder_name || c.participant_name,
+    course_name: c.course_name ?? c.courses?.title ?? null,
+    programme_duration: c.courses?.duration ?? null,
+    ic_passport: c.identity_no ?? c.participants?.ic_passport_no ?? null,
+    participant_id: c.participants?.participant_id ?? null,
+    training_date: fmtDate(c.training_start_date),
+    training_end_date: fmtDate(c.training_end_date),
+    venue: c.venue ?? null,
+    trainer: c.trainer_name ?? c.instructor ?? null,
+    issue_date: fmtDate(c.issue_date),
+    // The real, working verification route matches on certificate_number
+    // (verify_and_log RPC) — verification_token/verification_url are null
+    // on every live certificate today, so the QR must be built from the
+    // number, not those columns.
+    verification_url: certificateNumber ? `${origin}/verify/${encodeURIComponent(certificateNumber)}` : null,
   };
-  return { cert, data, config, orientation };
+  return { cert, data, config };
 }
