@@ -51,6 +51,18 @@ export async function createCourse(
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
   const supabase = await createSupabaseServerClient();
+
+  // The live `courses` table has no unique constraint on slug (only
+  // course_code is unique), so the 23505 handling below never actually
+  // fires on its own — check for an existing non-deleted match first.
+  const { data: existing } = await supabase
+    .from("courses")
+    .select("id")
+    .eq("slug", parsed.data.slug)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (existing) return { errors: { slug: "That slug is already in use." } };
+
   const payload: any = { ...parsed.data };
   if (payload.status === "published") payload.published_at = new Date().toISOString();
 
@@ -73,6 +85,18 @@ export async function updateCourse(
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
   const supabase = await createSupabaseServerClient();
+
+  // Same app-layer slug check as createCourse — no unique constraint exists
+  // live, so a course could otherwise be renamed to collide with another.
+  const { data: existing } = await supabase
+    .from("courses")
+    .select("id")
+    .eq("slug", parsed.data.slug)
+    .is("deleted_at", null)
+    .neq("id", id)
+    .maybeSingle();
+  if (existing) return { errors: { slug: "That slug is already in use." } };
+
   const payload: any = { ...parsed.data };
 
   // Only stamp published_at on the actual draft/archived → published transition,
