@@ -55,12 +55,14 @@ export async function createCourse(
   // The live `courses` table has no unique constraint on slug (only
   // course_code is unique), so the 23505 handling below never actually
   // fires on its own — check for an existing non-deleted match first.
-  const { data: existing } = await supabase
+  const { data: existing, error: lookupError } = await supabase
     .from("courses")
     .select("id")
     .eq("slug", parsed.data.slug)
     .is("deleted_at", null)
+    .limit(1)
     .maybeSingle();
+  if (lookupError) return { message: lookupError.message };
   if (existing) return { errors: { slug: "That slug is already in use." } };
 
   const payload: any = { ...parsed.data };
@@ -88,13 +90,15 @@ export async function updateCourse(
 
   // Same app-layer slug check as createCourse — no unique constraint exists
   // live, so a course could otherwise be renamed to collide with another.
-  const { data: existing } = await supabase
+  const { data: existing, error: lookupError } = await supabase
     .from("courses")
     .select("id")
     .eq("slug", parsed.data.slug)
     .is("deleted_at", null)
     .neq("id", id)
+    .limit(1)
     .maybeSingle();
+  if (lookupError) return { message: lookupError.message };
   if (existing) return { errors: { slug: "That slug is already in use." } };
 
   const payload: any = { ...parsed.data };
