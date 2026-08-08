@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { requireRole } from "../../../../lib/auth/session";
-import { PageHead, Card, EmptyState } from "../../../../components/admin/ui";
+import { Badge, Card, EmptyState, PageHead, StatCard } from "../../../../components/admin/ui";
 
 export const metadata = { title: "Search — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
@@ -44,9 +44,16 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
     add("news", news.data, (r) => ({ entity_id: r.id, title: r.title, subtitle: r.status ?? "News" }));
     add("download", downloads.data, (r) => ({ entity_id: r.id, title: r.title, subtitle: r.category ?? "Download" }));
   }
+  const categories = new Set(results.map((result) => result.entity_type));
 
   return <>
     <PageHead title="Global Search" subtitle={q ? `Results for “${q}” across all admin records.` : "Search participants, companies, training, certificates and website content."} />
-    <Card>{results.length ? <div className="ta-table-wrap"><table className="ta-table"><thead><tr><th>Type</th><th>Title</th><th>Detail</th><th></th></tr></thead><tbody>{results.map((result) => <tr key={`${result.entity_type}-${result.entity_id}`}><td style={{ textTransform: "capitalize" }}>{result.entity_type}</td><td><strong>{result.title}</strong></td><td style={{ color: "var(--ta-muted)" }}>{result.subtitle || "—"}</td><td style={{ textAlign: "right" }}><Link className="ta-btn ta-btn-outline ta-btn-sm" href={HREF[result.entity_type](result.entity_id)}>Open</Link></td></tr>)}</tbody></table></div> : <EmptyState icon="🔍" message={q ? "No matches found. Try a different name, ID or keyword." : "Type a query in the top search bar."} />}</Card>
+    <form className="ta-toolbar" role="search" style={{ alignItems: "flex-end" }}>
+      <div className="ta-search" style={{ maxWidth: 520 }}><span className="ta-search-ico" aria-hidden="true">⌕</span><input name="q" defaultValue={q} placeholder="Name, ID, course, certificate number or keyword…" aria-label="Search all admin records" autoFocus /></div>
+      <button type="submit" className="ta-btn ta-btn-primary">Search</button>
+      {q && <Link className="ta-btn ta-btn-outline" href="/admin/search">Clear</Link>}
+    </form>
+    {q && <div className="ta-grid cols-3" style={{ marginBottom: 18 }}><StatCard icon="🔎" label="Results found" value={results.length} /><StatCard icon="◫" label="Categories matched" value={categories.size} /><StatCard icon="↗" label="Per category" value="Up to 8" /></div>}
+    <Card title={q ? "Search results" : "Search guidance"}>{results.length ? <div className="ta-table-wrap"><table className="ta-table"><thead><tr><th>Type</th><th>Title</th><th>Detail</th><th></th></tr></thead><tbody>{results.map((result) => <tr key={`${result.entity_type}-${result.entity_id}`}><td><Badge status={result.entity_type} /></td><td><strong>{result.title}</strong></td><td style={{ color: "var(--ta-muted)" }}>{result.subtitle || "—"}</td><td style={{ textAlign: "right" }}><Link className="ta-btn ta-btn-outline ta-btn-sm" href={HREF[result.entity_type](result.entity_id)}>Open</Link></td></tr>)}</tbody></table></div> : <EmptyState icon="🔍" message={q ? "No matches found. Try a different name, ID or keyword." : "Search across participants, companies, courses, schedules, certificates, trainers, news and downloads."} />}</Card>
   </>;
 }
