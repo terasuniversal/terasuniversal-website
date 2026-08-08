@@ -31,9 +31,22 @@ async function createRecord(client, form) {
   if (dateError) return dateError;
   const { data: participant, error: participantError } = await client.from("participants").insert({ full_name: String(form.participant_name).trim(), identity_no: String(form.identity_no).trim().toUpperCase(), identity_last4: String(form.identity_no).trim().slice(-4), status: "active" }).select("id").single();
   if (participantError) return participantError.message;
-  const { data: course, error: courseError } = await client.from("courses").insert({ course_name: String(form.course_name).trim(), active: true }).select("id").single();
-  if (courseError) return courseError.message;
-  const { error: certificateError } = await client.from("certificates").insert(certificatePayload(form, { participant_id: participant.id, course_id: course.id }));
+
+  // Reuse an existing course by name instead of always inserting a new row —
+  // the previous unconditional insert here was silently minting a duplicate
+  // `courses` row on every certificate import, which is how the live table
+  // ended up with 125 rows representing only 8 distinct courses.
+  const courseName = String(form.course_name).trim();
+  const { data: existingCourse, error: existingCourseError } = await client.from("courses").select("id").ilike("course_name", courseName).is("deleted_at", null).limit(1).maybeSingle();
+  if (existingCourseError) return existingCourseError.message;
+  let courseId = existingCourse?.id;
+  if (!courseId) {
+    const { data: course, error: courseError } = await client.from("courses").insert({ course_name: courseName, active: true }).select("id").single();
+    if (courseError) return courseError.message;
+    courseId = course.id;
+  }
+
+  const { error: certificateError } = await client.from("certificates").insert(certificatePayload(form, { participant_id: participant.id, course_id: courseId }));
   return certificateError?.message || null;
 }
 
