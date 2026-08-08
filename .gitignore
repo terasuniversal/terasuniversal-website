@@ -5,3 +5,7 @@ node_modules
 .DS_Store
 .vercel
 .env*
+tsconfig.tsbuildinfo
+tmp/
+output/
+*.log
