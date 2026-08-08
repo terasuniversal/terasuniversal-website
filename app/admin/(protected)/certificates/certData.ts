@@ -7,9 +7,15 @@ export async function loadCertificateRender(id: string): Promise<
   | null
 > {
   const supabase = await createSupabaseServerClient();
+  // NOTE: the `training_schedules` embed (schedule venue/trainer/signature
+  // integration) is intentionally omitted — that table doesn't exist yet
+  // (Module 10 / Schedules is not fixed as of this pass). A PostgREST
+  // embedded-relationship select against a nonexistent table fails the
+  // whole query rather than degrading gracefully, so it must stay out
+  // until Schedules lands. Restore it then.
   const { data: cert } = await supabase
     .from("certificates")
-    .select("*, courses(title), participants(ic_passport_no), training_schedules(start_date, venue, trainer, trainers(full_name, signature_image)), certificate_templates(orientation, config)")
+    .select("*, courses(title), participants(ic_passport_no), certificate_templates(orientation, config)")
     .eq("id", id)
     .single();
   if (!cert) return null;
@@ -17,21 +23,15 @@ export async function loadCertificateRender(id: string): Promise<
   const tpl = (cert as any).certificate_templates;
   const config: TemplateConfig = { ...((tpl?.config as TemplateConfig) ?? {}) };
   const orientation: string = tpl?.orientation ?? "landscape";
-  const sched = (cert as any).training_schedules;
-
-  // Integration: if the schedule's trainer has a signature, use it on the cert.
-  const trainer = sched?.trainers;
-  if (trainer?.signature_image) config.signature_url = trainer.signature_image;
-  if (trainer?.full_name) config.signature_name = trainer.full_name;
 
   const data: CertData = {
     certificate_number: cert.certificate_number,
     holder_name: cert.holder_name,
     course_name: (cert as any).courses?.title ?? null,
     ic_passport: (cert as any).participants?.ic_passport_no ?? null,
-    training_date: sched?.start_date ? new Date(sched.start_date).toLocaleDateString("en-MY", { day: "numeric", month: "long", year: "numeric" }) : null,
-    venue: sched?.venue ?? null,
-    trainer: sched?.trainer ?? null,
+    training_date: null, // pending Module 10 (Schedules) — see note above
+    venue: null, // pending Module 10 (Schedules)
+    trainer: null, // pending Module 10 (Schedules)
     issue_date: cert.issue_date ? new Date(cert.issue_date).toLocaleDateString("en-MY", { day: "numeric", month: "long", year: "numeric" }) : null,
     verification_url: cert.verification_url,
     verification_token: cert.verification_token,

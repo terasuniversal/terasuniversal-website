@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { requireCertificate } from "../../../../lib/auth/session";
 import { canManageCertificate } from "../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, EmptyState, Pagination, StatCard } from "../../../../components/admin/ui";
+import { restoreCertificate } from "./actions";
 
 export const metadata = { title: "Certificates — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
@@ -13,12 +14,13 @@ const STATUSES = ["draft", "issued", "revoked", "expired", "archived"];
 export default async function CertificatesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; q?: string; status?: string; course?: string }>;
+  searchParams: Promise<{ page?: string; q?: string; status?: string; course?: string; deleted?: string }>;
 }) {
   const profile = await requireCertificate(false);
   const canManage = canManageCertificate(profile.role);
   const sp = await searchParams;
   const page = Math.max(1, Number(sp.page ?? 1));
+  const deletedView = sp.deleted === "1";
   const supabase = await createSupabaseServerClient();
 
   const [{ count: issued }, { count: revoked }, { count: draft }, { data: courses }] = await Promise.all([
@@ -31,12 +33,15 @@ export default async function CertificatesPage({
   let query = supabase
     .from("certificates")
     .select("id, certificate_number, holder_name, status, issue_date, verification_token, courses(title)", { count: "exact" })
-    .is("deleted_at", null)
     .order("created_at", { ascending: false })
     .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
-  if (sp.q) query = query.or(`certificate_number.ilike.%${sp.q}%,holder_name.ilike.%${sp.q}%`);
-  if (sp.status) query = query.eq("status", sp.status as any);
-  if (sp.course) query = query.eq("course_id", sp.course);
+  query = deletedView ? query.not("deleted_at", "is", null) : query.is("deleted_at", null);
+  if (sp.q) {
+    const term = sp.q.replace(/[%_,()]/g, " ");
+    query = query.or(`certificate_number.ilike.%${term}%,holder_name.ilike.%${term}%`);
+  }
+  if (sp.status && !deletedView) query = query.eq("status", sp.status as any);
+  if (sp.course && !deletedView) query = query.eq("course_id", sp.course);
 
   const { data: rows, count } = await query;
   const pageCount = Math.ceil((count ?? 0) / PAGE_SIZE);
@@ -48,12 +53,14 @@ export default async function CertificatesPage({
     <>
       <PageHead
         title="Certificates"
-        subtitle="Generate, verify and manage training certificates."
+        subtitle={deletedView ? "Deleted certificates (restore available)." : "Generate, verify and manage training certificates."}
         action={
-          <div style={{ display: "flex", gap: 8 }}>
-            <Link href="/admin/certificates/templates" className="ta-btn ta-btn-outline">🧩 Templates</Link>
-            {canManage && <Link href="/admin/certificates/generate" className="ta-btn ta-btn-primary">+ Generate</Link>}
-          </div>
+          deletedView ? undefined : (
+            <div style={{ display: "flex", gap: 8 }}>
+              <Link href="/admin/certificates/templates" className="ta-btn ta-btn-outline">🧩 Templates</Link>
+              {canManage && <Link href="/admin/certificates/generate" className="ta-btn ta-btn-primary">+ Generate</Link>}
+            </div>
+          )
         }
       />
 
@@ -79,9 +86,18 @@ export default async function CertificatesPage({
         <button type="submit" className="ta-btn ta-btn-outline ta-btn-sm">Apply</button>
         {(sp.q || sp.status || sp.course) && <Link className="ta-btn ta-btn-outline ta-btn-sm" href="/admin/certificates">Reset filters</Link>}
         <div className="ta-spacer" />
-        <a href={`/admin/certificates/export?format=csv${exportQs ? "&" + exportQs : ""}`} className="ta-btn ta-btn-outline ta-btn-sm">⬇ CSV</a>
-        <a href={`/admin/certificates/export?format=excel${exportQs ? "&" + exportQs : ""}`} className="ta-btn ta-btn-outline ta-btn-sm">⬇ Excel</a>
-        <a href={`/admin/certificates/export?format=register${exportQs ? "&" + exportQs : ""}`} target="_blank" className="ta-btn ta-btn-outline ta-btn-sm">📄 Register (PDF)</a>
+        {!deletedView && (
+          <>
+            <a href={`/admin/certificates/export?format=csv${exportQs ? "&" + exportQs : ""}`} className="ta-btn ta-btn-outline ta-btn-sm">⬇ CSV</a>
+            <a href={`/admin/certificates/export?format=excel${exportQs ? "&" + exportQs : ""}`} className="ta-btn ta-btn-outline ta-btn-sm">⬇ Excel</a>
+            <a href={`/admin/certificates/export?format=register${exportQs ? "&" + exportQs : ""}`} target="_blank" className="ta-btn ta-btn-outline ta-btn-sm">📄 Register (PDF)</a>
+          </>
+        )}
+        {canManage && (
+          <Link href={deletedView ? "/admin/certificates" : "/admin/certificates?deleted=1"} className="ta-btn ta-btn-outline ta-btn-sm">
+            {deletedView ? "← Active" : "🗑 Deleted"}
+          </Link>
+        )}
       </form>
 
       <Card>
@@ -97,18 +113,28 @@ export default async function CertificatesPage({
                     <td>{c.courses?.title ?? "—"}</td>
                     <td style={{ whiteSpace: "nowrap", color: "var(--ta-muted)" }}>{c.issue_date ? new Date(c.issue_date).toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric" }) : "—"}</td>
                     <td><Badge status={c.status} /></td>
-                    <td style={{ textAlign: "right" }}><Link href={`/admin/certificates/${c.id}`} className="ta-btn ta-btn-outline ta-btn-sm">View</Link></td>
+                    <td style={{ textAlign: "right" }}>
+                      {deletedView ? (
+                        canManage && (
+                          <form action={restoreCertificate.bind(null, c.id)}>
+                            <button className="ta-btn ta-btn-gold ta-btn-sm" type="submit">Restore</button>
+                          </form>
+                        )
+                      ) : (
+                        <Link href={`/admin/certificates/${c.id}`} className="ta-btn ta-btn-outline ta-btn-sm">View</Link>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         ) : (
-          <EmptyState icon="🏅" message="No certificates yet. Generate from an eligible schedule." />
+          <EmptyState icon="🏅" message={deletedView ? "No deleted certificates." : "No certificates yet. Generate from an eligible schedule."} />
         )}
       </Card>
 
-      <Pagination page={page} pageCount={pageCount} basePath="/admin/certificates" query={qsBase} />
+      <Pagination page={page} pageCount={pageCount} basePath="/admin/certificates" query={{ ...qsBase, ...(deletedView ? { deleted: "1" } : {}) }} />
     </>
   );
 }

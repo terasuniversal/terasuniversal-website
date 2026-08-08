@@ -128,12 +128,25 @@ export async function duplicateCertificate(id: string) {
   if (!src) return;
   const s: any = src;
   const profile = await getCurrentProfile();
-  await supabase.from("certificates").insert({
-    participant_id: s.participant_id, schedule_id: s.schedule_id, course_id: s.course_id,
-    template_id: s.template_id, holder_name: s.holder_name, status: "draft",
-    issue_date: new Date().toISOString().slice(0, 10), issued_by: profile?.id ?? null,
-    expiry_date: s.expiry_date, remarks: s.remarks,
-  });
+  const { data: created } = await supabase
+    .from("certificates")
+    .insert({
+      participant_id: s.participant_id, schedule_id: s.schedule_id, course_id: s.course_id,
+      template_id: s.template_id, holder_name: s.holder_name, status: "draft",
+      issue_date: new Date().toISOString().slice(0, 10), issued_by: profile?.id ?? null,
+      expiry_date: s.expiry_date, remarks: s.remarks,
+    })
+    .select("id, verification_token")
+    .single();
+
+  // Stamp verification_url now that we have the new token — matches
+  // generateCertificate's pattern. Without this, the duplicate's QR code
+  // encodes an unresolvable relative path (BUG_REPORT.md BUG-27).
+  if (created) {
+    const origin = await siteOrigin();
+    await supabase.from("certificates").update({ verification_url: `${origin}/verify/${created.verification_token}` }).eq("id", created.id);
+  }
+
   revalidatePath("/admin/certificates");
 }
 
@@ -150,6 +163,13 @@ export async function softDeleteCertificate(id: string) {
   await requireCertificate(true);
   const supabase = await createSupabaseServerClient();
   await supabase.from("certificates").update({ deleted_at: new Date().toISOString() }).eq("id", id);
+  revalidatePath("/admin/certificates");
+}
+
+export async function restoreCertificate(id: string) {
+  await requireCertificate(true);
+  const supabase = await createSupabaseServerClient();
+  await supabase.from("certificates").update({ deleted_at: null }).eq("id", id);
   revalidatePath("/admin/certificates");
 }
 

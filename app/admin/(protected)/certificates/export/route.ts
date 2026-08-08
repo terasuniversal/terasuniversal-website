@@ -32,7 +32,10 @@ export async function GET(request: NextRequest) {
     .select("certificate_number, holder_name, status, issue_date, expiry_date, verification_token, courses(title)")
     .is("deleted_at", null)
     .order("issue_date", { ascending: false });
-  if (p.get("q")) query = query.or(`certificate_number.ilike.%${p.get("q")}%,holder_name.ilike.%${p.get("q")}%`);
+  if (p.get("q")) {
+    const term = p.get("q")!.replace(/[%_,()]/g, " ");
+    query = query.or(`certificate_number.ilike.%${term}%,holder_name.ilike.%${term}%`);
+  }
   if (p.get("status")) query = query.eq("status", p.get("status") as any);
 
   const { data, error } = await query;
