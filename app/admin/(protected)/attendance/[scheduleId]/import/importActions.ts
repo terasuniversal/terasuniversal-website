@@ -17,38 +17,39 @@ export interface Analysis {
   summary: { total: number; ok: number; invalid: number };
 }
 
-const VALID = ["pending", "present", "absent", "late", "medical_leave", "excused"];
+const VALID = ["present", "absent", "late", "excused"];
 function normStatus(s?: string) {
   const v = (s ?? "").trim().toLowerCase().replace(/\s+/g, "_");
   return VALID.includes(v) ? v : "";
 }
 
 /**
- * Validate attendance import rows against THIS schedule's assigned
- * participants (by Participant ID). Rows referencing an unknown / unassigned
- * participant, or an unrecognised status, are flagged invalid.
+ * Validate attendance import rows against THIS schedule's enrolled
+ * participants (schedule_participants, by Participant ID) for a specific
+ * session date. Rows referencing an unenrolled participant, or an
+ * unrecognised status, are flagged invalid.
  */
-export async function analyzeImport(scheduleId: string, raw: RawRow[]): Promise<Analysis> {
+export async function analyzeImport(scheduleId: string, _sessionDate: string, raw: RawRow[]): Promise<Analysis> {
   await requireAttendance(true);
   const supabase = await createSupabaseServerClient();
 
-  // Map participant_id (TU-...) → attendance row id for this schedule.
-  const { data: att } = await supabase
-    .from("attendance")
-    .select("id, participants(participant_id)")
+  const { data: roster } = await supabase
+    .from("schedule_participants")
+    .select("participant_id, participants(participant_id)")
     .eq("schedule_id", scheduleId)
-    .is("deleted_at", null);
-  const byPid = new Map<string, string>();
-  for (const a of att ?? []) {
-    const pid = (a as any).participants?.participant_id;
-    if (pid) byPid.set(pid.toLowerCase(), (a as any).id);
+    .is("deleted_at", null)
+    .neq("registration_status", "cancelled");
+  const byPid = new Set<string>();
+  for (const r of roster ?? []) {
+    const pid = (r as any).participants?.participant_id;
+    if (pid) byPid.add(pid.toLowerCase());
   }
 
   const rows: AnalyzedRow[] = raw.map((r, index) => {
     const pid = (r["Participant ID"] ?? r.participant_id ?? "").trim();
     const status = normStatus(r["Status"] ?? r.attendance_status ?? r.status);
     if (!pid) return { index, participant_id: "", status: "invalid", reason: "Missing Participant ID" };
-    if (!byPid.has(pid.toLowerCase())) return { index, participant_id: pid, status: "invalid", reason: "Not assigned to this schedule" };
+    if (!byPid.has(pid.toLowerCase())) return { index, participant_id: pid, status: "invalid", reason: "Not enrolled in this schedule" };
     if (!status) return { index, participant_id: pid, status: "invalid", reason: "Unrecognised status" };
     return {
       index, participant_id: pid, status: "ok",
@@ -64,36 +65,49 @@ export async function analyzeImport(scheduleId: string, raw: RawRow[]): Promise<
   return { rows, summary: { total: rows.length, ok: rows.filter((r) => r.status === "ok").length, invalid: rows.filter((r) => r.status === "invalid").length } };
 }
 
-export async function commitImport(scheduleId: string, raw: RawRow[]): Promise<{ updated: number; skipped: number; message?: string }> {
+export async function commitImport(scheduleId: string, sessionDate: string, raw: RawRow[]): Promise<{ updated: number; skipped: number; message?: string }> {
   await requireAttendance(true);
-  const analysis = await analyzeImport(scheduleId, raw);
+  const analysis = await analyzeImport(scheduleId, sessionDate, raw);
   const ok = analysis.rows.filter((r) => r.status === "ok");
   if (ok.length === 0) return { updated: 0, skipped: analysis.summary.total };
 
   const supabase = await createSupabaseServerClient();
-  // Re-map pid → attendance id.
-  const { data: att } = await supabase.from("attendance").select("id, participants(participant_id)").eq("schedule_id", scheduleId).is("deleted_at", null);
+  const { data: roster } = await supabase
+    .from("schedule_participants")
+    .select("participant_id, participants(participant_id)")
+    .eq("schedule_id", scheduleId)
+    .is("deleted_at", null)
+    .neq("registration_status", "cancelled");
   const byPid = new Map<string, string>();
-  for (const a of att ?? []) { const pid = (a as any).participants?.participant_id; if (pid) byPid.set(pid.toLowerCase(), (a as any).id); }
-
-  let updated = 0;
-  for (const row of ok) {
-    const attId = byPid.get(row.participant_id.toLowerCase());
-    if (!attId) continue;
-    const parseDt = (v?: string) => (v ? new Date(v).toISOString() : null);
-    // The attendance schema was introduced after the checked-in generated
-    // Supabase types. Keep this cast local until the live schema types are
-    // regenerated, rather than weakening the client type globally.
-    const { error } = await (supabase.from("attendance") as any).update({
-      attendance_status: row.data!.attendance_status,
-      check_in_time: parseDt(row.data!.check_in),
-      check_out_time: parseDt(row.data!.check_out),
-      remarks: row.data!.remarks || null,
-    }).eq("id", attId);
-    if (!error) updated++;
+  for (const r of roster ?? []) {
+    const pid = (r as any).participants?.participant_id;
+    if (pid) byPid.set(pid.toLowerCase(), (r as any).participant_id);
   }
 
-  await supabase.rpc("log_event" as never, { p_action: "import", p_entity_type: "attendance", p_summary: `Imported attendance: ${updated} updated, ${analysis.summary.invalid} invalid` } as never);
+  const parseDt = (v?: string) => (v ? new Date(v).toISOString() : null);
+  const upsertRows = ok
+    .map((row) => {
+      const participantId = byPid.get(row.participant_id.toLowerCase());
+      if (!participantId) return null;
+      return {
+        schedule_id: scheduleId,
+        participant_id: participantId,
+        session_date: sessionDate,
+        attendance_status: row.data!.attendance_status,
+        check_in_time: parseDt(row.data!.check_in),
+        check_out_time: parseDt(row.data!.check_out),
+        remarks: row.data!.remarks || null,
+      };
+    })
+    .filter((r): r is NonNullable<typeof r> => r !== null);
+
+  let updated = 0;
+  if (upsertRows.length > 0) {
+    const { error } = await supabase.from("attendance").upsert(upsertRows, { onConflict: "schedule_id,participant_id,session_date" });
+    if (!error) updated = upsertRows.length;
+  }
+
+  await supabase.rpc("log_event" as never, { p_action: "import", p_entity_type: "attendance", p_summary: `Imported attendance for ${sessionDate}: ${updated} updated, ${analysis.summary.invalid} invalid` } as never);
   revalidatePath(`/admin/attendance/${scheduleId}`);
   return { updated, skipped: analysis.summary.invalid };
 }

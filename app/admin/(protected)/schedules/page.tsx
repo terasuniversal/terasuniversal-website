@@ -3,14 +3,15 @@ import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { requireRole } from "../../../../lib/auth/session";
 import { isAdmin } from "../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, EmptyState, Pagination } from "../../../../components/admin/ui";
-import { duplicateSchedule, archiveSchedule } from "./actions";
+import { duplicateSchedule } from "./actions";
 
 export const metadata = { title: "Training Schedule — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 15;
-const SORTABLE: Record<string, string> = { start: "start_date", course: "course_name", id: "schedule_id", created: "created_at" };
+const SORTABLE: Record<string, string> = { start: "start_date", id: "schedule_code", created: "created_at" };
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const STATUSES = ["open", "full", "in_progress", "completed", "cancelled"];
 
 export default async function SchedulesPage({
   searchParams,
@@ -28,23 +29,28 @@ export default async function SchedulesPage({
   const sortCol = SORTABLE[sp.sort ?? "start"] ?? "start_date";
   const ascending = sp.dir !== "desc";
 
-  // Filter option sources.
-  const { data: courseOpts } = await supabase.from("training_schedules").select("course_name").is("deleted_at", null).not("course_name", "is", null).limit(1000);
-  const { data: trainerOpts } = await supabase.from("training_schedules").select("trainer").is("deleted_at", null).not("trainer", "is", null).limit(1000);
-  const courses = Array.from(new Set<string>(((courseOpts ?? []) as any[]).map((r) => r.course_name).filter((value): value is string => typeof value === "string"))).sort();
-  const trainers = Array.from(new Set<string>(((trainerOpts ?? []) as any[]).map((r) => r.trainer).filter((value): value is string => typeof value === "string"))).sort();
+  // Filter option sources. Course options come from the courses table itself
+  // (not distinct values on course_schedules) so every course is selectable
+  // even before it has any schedule yet.
+  const { data: courseOpts } = await supabase.from("courses").select("id, course_name").is("deleted_at", null).order("course_name");
+  const { data: trainerOpts } = await supabase.from("course_schedules").select("trainer_name").is("deleted_at", null).not("trainer_name", "is", null).limit(1000);
+  const courses = (courseOpts ?? []) as { id: string; course_name: string }[];
+  const trainers = Array.from(new Set<string>(((trainerOpts ?? []) as any[]).map((r) => r.trainer_name).filter((value): value is string => typeof value === "string"))).sort();
 
   let query = supabase
-    .from("training_schedules")
-    .select("id, schedule_id, course_name, trainer, venue, start_date, end_date, status, max_participants, registered_participants, seats_remaining", { count: "exact" })
+    .from("course_schedules")
+    .select("id, schedule_code, course_id, courses(course_name), trainer_name, venue, start_date, end_date, status, capacity, seats_taken", { count: "exact" })
     .is("deleted_at", null)
     .order(sortCol, { ascending })
     .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
 
-  if (sp.q) query = query.or(`schedule_id.ilike.%${sp.q}%,course_name.ilike.%${sp.q}%,trainer.ilike.%${sp.q}%,venue.ilike.%${sp.q}%`);
+  if (sp.q) {
+    const safe = sp.q.replace(/[%_,()]/g, " ").trim();
+    if (safe) query = query.or(`schedule_code.ilike.%${safe}%,trainer_name.ilike.%${safe}%,venue.ilike.%${safe}%`);
+  }
   if (sp.status) query = query.eq("status", sp.status as any);
-  if (sp.course) query = query.eq("course_name", sp.course);
-  if (sp.trainer) query = query.eq("trainer", sp.trainer);
+  if (sp.course) query = query.eq("course_id", sp.course);
+  if (sp.trainer) query = query.eq("trainer_name", sp.trainer);
   if (sp.year) {
     const y = Number(sp.year);
     const m = sp.month ? Number(sp.month) : null;
@@ -81,11 +87,11 @@ export default async function SchedulesPage({
         </div>
         <select name="status" defaultValue={sp.status ?? ""} style={sel} aria-label="Status">
           <option value="">All statuses</option>
-          {["draft", "open", "full", "completed", "cancelled", "archived"].map((s) => <option key={s} value={s}>{s}</option>)}
+          {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
         <select name="course" defaultValue={sp.course ?? ""} style={sel} aria-label="Course">
           <option value="">All courses</option>
-          {courses.map((c) => <option key={c} value={c}>{c}</option>)}
+          {courses.map((c) => <option key={c.id} value={c.id}>{c.course_name}</option>)}
         </select>
         <select name="trainer" defaultValue={sp.trainer ?? ""} style={sel} aria-label="Trainer">
           <option value="">All trainers</option>
@@ -116,22 +122,24 @@ export default async function SchedulesPage({
               </thead>
               <tbody>
                 {rows.map((s: any) => {
-                  const capacity = Math.max(Number(s.max_participants) || 0, 0);
-                  const registered = Math.max(Number(s.registered_participants) || 0, 0);
+                  const capacity = Math.max(Number(s.capacity) || 0, 0);
+                  const registered = Math.max(Number(s.seats_taken) || 0, 0);
+                  const seatsRemaining = Math.max(capacity - registered, 0);
                   const capacityPercent = capacity > 0 ? Math.min(100, Math.round((registered / capacity) * 100)) : 0;
                   const capacityColor = capacityPercent >= 100 ? "var(--ta-danger)" : capacityPercent >= 80 ? "#a9791a" : "var(--ta-success)";
+                  const courseName = s.courses?.course_name ?? "—";
                   return (
                   <tr key={s.id}>
-                    <td><code style={{ fontSize: 12 }}>{s.schedule_id}</code></td>
-                    <td><strong>{s.course_name}</strong>{s.venue ? <div style={{ color: "var(--ta-muted)", fontSize: 12 }}>{s.venue}</div> : null}</td>
-                    <td>{s.trainer ?? "—"}</td>
+                    <td><code style={{ fontSize: 12 }}>{s.schedule_code}</code></td>
+                    <td><strong>{courseName}</strong>{s.venue ? <div style={{ color: "var(--ta-muted)", fontSize: 12 }}>{s.venue}</div> : null}</td>
+                    <td>{s.trainer_name ?? "—"}</td>
                     <td style={{ whiteSpace: "nowrap" }}>
                       {new Date(s.start_date).toLocaleDateString("en-MY", { day: "numeric", month: "short" })}
                       {s.end_date !== s.start_date ? ` – ${new Date(s.end_date).toLocaleDateString("en-MY", { day: "numeric", month: "short" })}` : ""}
                     </td>
                     <td style={{ minWidth: 132 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}><span>{registered}/{capacity || "—"}</span><span style={{ color: "var(--ta-muted)", fontSize: 11 }}>{s.seats_remaining} left</span></div>
-                      <div role="progressbar" aria-label={`Capacity for ${s.course_name}`} aria-valuemin={0} aria-valuemax={capacity} aria-valuenow={registered} style={{ height: 5, marginTop: 6, borderRadius: 99, background: "var(--ta-line)", overflow: "hidden" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}><span>{registered}/{capacity || "—"}</span><span style={{ color: "var(--ta-muted)", fontSize: 11 }}>{seatsRemaining} left</span></div>
+                      <div role="progressbar" aria-label={`Capacity for ${courseName}`} aria-valuemin={0} aria-valuemax={capacity} aria-valuenow={registered} style={{ height: 5, marginTop: 6, borderRadius: 99, background: "var(--ta-line)", overflow: "hidden" }}>
                         <div style={{ width: `${capacityPercent}%`, height: "100%", background: capacityColor, borderRadius: 99 }} />
                       </div>
                     </td>
@@ -139,16 +147,9 @@ export default async function SchedulesPage({
                     <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                       <Link href={`/admin/schedules/${s.id}`} className="ta-btn ta-btn-outline ta-btn-sm">View</Link>{" "}
                       {canWrite && (
-                        <>
-                          <form action={duplicateSchedule.bind(null, s.id)} style={{ display: "inline" }}>
-                            <button className="ta-btn ta-btn-outline ta-btn-sm" title="Duplicate">⧉</button>
-                          </form>{" "}
-                          {s.status !== "archived" && (
-                            <form action={archiveSchedule.bind(null, s.id)} style={{ display: "inline" }}>
-                              <button className="ta-btn ta-btn-outline ta-btn-sm" title="Archive">🗄</button>
-                            </form>
-                          )}
-                        </>
+                        <form action={duplicateSchedule.bind(null, s.id)} style={{ display: "inline" }}>
+                          <button className="ta-btn ta-btn-outline ta-btn-sm" title="Duplicate">⧉</button>
+                        </form>
                       )}
                     </td>
                   </tr>

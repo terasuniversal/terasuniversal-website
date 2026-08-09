@@ -5,13 +5,13 @@ import { Badge } from "../../../../components/admin/ui";
 import { updateAssessment, bulkUpdateResult, lockAssessments, unlockAssessments } from "./actions";
 
 export interface AsmRow {
-  id: string;
-  assessment_type: string;
+  id: string | null; // null = not assessed yet (roster-driven, no auto-create)
+  participant_id: string;
+  assessment_type: string | null;
   theory_score: number | null;
   practical_score: number | null;
-  overall_score: number | null;
   result: string;
-  competency_status: string;
+  competency_status: string | null;
   remarks: string | null;
   locked: boolean;
   participant: { participant_id: string; full_name: string; company: string | null } | null;
@@ -21,6 +21,17 @@ const TYPES = ["theory", "practical", "combined"];
 const RESULTS = ["pending", "pass", "fail"];
 const COMPETENCIES = ["pending_review", "competent", "not_yet_competent"];
 const label = (s: string) => s.replace(/_/g, " ");
+
+/** Display-only: overall_score is not persisted (no single formula is
+ * confirmed across programmes yet -- see SCHEDULES_ARCHITECTURE_DECISION.md
+ * §I). Simple average when both scores exist, pass through whichever one
+ * does, blank for awareness programmes with no scores at all. */
+function overallScore(theory: number | null, practical: number | null): string {
+  if (theory != null && practical != null) return ((theory + practical) / 2).toFixed(2);
+  if (theory != null) return theory.toFixed(2);
+  if (practical != null) return practical.toFixed(2);
+  return "—";
+}
 
 export function AssessmentTable({
   scheduleId,
@@ -40,9 +51,10 @@ export function AssessmentTable({
   const filtered = q.trim()
     ? rows.filter((r) => (r.participant?.full_name + " " + r.participant?.participant_id + " " + (r.participant?.company ?? "")).toLowerCase().includes(q.toLowerCase()))
     : rows;
-  const allChecked = filtered.length > 0 && filtered.every((r) => selected.has(r.id));
+  const selectableIds = filtered.map((r) => r.id).filter((id): id is string => id !== null);
+  const allChecked = selectableIds.length > 0 && selectableIds.every((id) => selected.has(id));
   const toggle = (id: string) => setSelected((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
-  const toggleAll = () => setSelected(allChecked ? new Set() : new Set(filtered.map((r) => r.id)));
+  const toggleAll = () => setSelected(allChecked ? new Set() : new Set(selectableIds));
 
   return (
     <>
@@ -96,26 +108,28 @@ export function AssessmentTable({
             {filtered.map((r) => {
               const editable = canManage && !r.locked;
               return (
-                <tr key={r.id}>
-                  {canManage && <td><input type="checkbox" checked={selected.has(r.id)} onChange={() => toggle(r.id)} aria-label="Select" /></td>}
+                <tr key={r.participant_id}>
+                  {canManage && <td>{r.id && <input type="checkbox" checked={selected.has(r.id)} onChange={() => toggle(r.id!)} aria-label="Select" />}</td>}
                   {editable ? (
                     <td colSpan={8}>
                       <form action={updateAssessment.bind(null, scheduleId)} style={{ display: "grid", gridTemplateColumns: "1.4fr .7fr .7fr .6fr .8fr 1fr 1.2fr auto", gap: 8, alignItems: "center" }}>
-                        <input type="hidden" name="id" value={r.id} />
+                        <input type="hidden" name="participant_id" value={r.participant_id} />
                         <div>
                           <strong>{r.participant?.full_name}</strong>
-                          <div style={{ color: "var(--ta-muted)", fontSize: 11 }}>{r.participant?.participant_id}</div>
-                          <select name="assessment_type" defaultValue={r.assessment_type} style={{ ...inp, marginTop: 4, width: "100%" }} aria-label="Type">
+                          <div style={{ color: "var(--ta-muted)", fontSize: 11 }}>{r.participant?.participant_id}{!r.id ? " · not assessed" : ""}</div>
+                          <select name="assessment_type" defaultValue={r.assessment_type ?? ""} style={{ ...inp, marginTop: 4, width: "100%" }} aria-label="Type">
+                            <option value="">— (awareness / no type)</option>
                             {TYPES.map((t) => <option key={t} value={t}>{label(t)}</option>)}
                           </select>
                         </div>
                         <input name="theory_score" type="number" min="0" max="100" step="0.01" defaultValue={r.theory_score ?? ""} placeholder="Theory" style={inp} aria-label="Theory score" />
                         <input name="practical_score" type="number" min="0" max="100" step="0.01" defaultValue={r.practical_score ?? ""} placeholder="Practical" style={inp} aria-label="Practical score" />
-                        <div style={{ fontWeight: 700, textAlign: "center" }}>{r.overall_score ?? "—"}</div>
+                        <div style={{ fontWeight: 700, textAlign: "center" }}>{overallScore(r.theory_score, r.practical_score)}</div>
                         <select name="result" defaultValue={r.result} style={inp} aria-label="Result">
                           {RESULTS.map((s) => <option key={s} value={s}>{label(s)}</option>)}
                         </select>
-                        <select name="competency_status" defaultValue={r.competency_status} style={inp} aria-label="Competency">
+                        <select name="competency_status" defaultValue={r.competency_status ?? ""} style={inp} aria-label="Competency">
+                          <option value="">— (not applicable)</option>
                           {COMPETENCIES.map((s) => <option key={s} value={s}>{label(s)}</option>)}
                         </select>
                         <input name="remarks" defaultValue={r.remarks ?? ""} placeholder="Remarks" style={inp} aria-label="Remarks" />
@@ -126,13 +140,13 @@ export function AssessmentTable({
                     <>
                       <td>
                         <strong>{r.participant?.full_name}</strong>
-                        <div style={{ color: "var(--ta-muted)", fontSize: 11 }}>{r.participant?.participant_id}{r.locked ? " · 🔒 locked" : ""}</div>
+                        <div style={{ color: "var(--ta-muted)", fontSize: 11 }}>{r.participant?.participant_id}{r.locked ? " · 🔒 locked" : ""}{!r.id ? " · not assessed" : ""}</div>
                       </td>
                       <td>{r.theory_score ?? "—"}</td>
                       <td>{r.practical_score ?? "—"}</td>
-                      <td><strong>{r.overall_score ?? "—"}</strong></td>
+                      <td><strong>{overallScore(r.theory_score, r.practical_score)}</strong></td>
                       <td><Badge status={r.result} /></td>
-                      <td><Badge status={r.competency_status} /></td>
+                      <td>{r.competency_status ? <Badge status={r.competency_status} /> : "—"}</td>
                       <td>{r.remarks ?? "—"}</td>
                       {canManage && <td>{r.locked ? "🔒" : ""}</td>}
                     </>

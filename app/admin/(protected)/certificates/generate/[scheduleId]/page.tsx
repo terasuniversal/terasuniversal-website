@@ -13,9 +13,14 @@ export default async function GenerateForSchedulePage({ params }: { params: Prom
   const { scheduleId } = await params;
   const supabase = await createSupabaseServerClient();
 
-  const { data: s } = await supabase.from("training_schedules").select("id, schedule_id, course_name, trainer, start_date").eq("id", scheduleId).single();
-  if (!s) notFound();
+  const { data: scheduleRow } = await supabase.from("course_schedules").select("id, schedule_code, trainer_name, start_date, courses(course_name)").eq("id", scheduleId).single();
+  if (!scheduleRow) notFound();
+  const s = { ...scheduleRow, course_name: (scheduleRow as any).courses?.course_name ?? "—", trainer: (scheduleRow as any).trainer_name, schedule_id: (scheduleRow as any).schedule_code };
 
+  // v_certificate_eligibility does not exist live -- certificate eligibility
+  // logic is an explicit later follow-up, not part of this migration (see
+  // SCHEDULES_ARCHITECTURE_DECISION.md §J). This query is left as-is: it
+  // will return no rows rather than crash the page.
   const { data: elig } = await supabase.from("v_certificate_eligibility").select("*").eq("schedule_id", scheduleId);
   // Which participants already have a live certificate?
   const { data: existing } = await supabase.from("certificates").select("participant_id").eq("schedule_id", scheduleId).is("deleted_at", null);

@@ -11,17 +11,17 @@ import { isEditor } from "../../../../../lib/auth/rbac";
  * Filters: q, status, course, trainer, month, year. Read = editor and above.
  */
 const COLUMNS: [string, string][] = [
-  ["schedule_id", "Schedule ID"],
+  ["schedule_code", "Schedule ID"],
   ["course_name", "Course"],
-  ["trainer", "Trainer"],
+  ["trainer_name", "Trainer"],
   ["venue", "Venue"],
   ["training_mode", "Mode"],
   ["start_date", "Start Date"],
   ["end_date", "End Date"],
   ["start_time", "Start Time"],
   ["end_time", "End Time"],
-  ["max_participants", "Max"],
-  ["registered_participants", "Registered"],
+  ["capacity", "Capacity"],
+  ["seats_taken", "Enrolled"],
   ["seats_remaining", "Seats Left"],
   ["status", "Status"],
 ];
@@ -34,11 +34,18 @@ export async function GET(request: NextRequest) {
   const format = p.get("format") ?? "csv";
   const supabase = await createSupabaseServerClient();
 
-  let query = supabase.from("training_schedules").select(COLUMNS.map(([k]) => k).join(",")).is("deleted_at", null).order("start_date", { ascending: true });
-  if (p.get("q")) query = query.or(`schedule_id.ilike.%${p.get("q")}%,course_name.ilike.%${p.get("q")}%,trainer.ilike.%${p.get("q")}%,venue.ilike.%${p.get("q")}%`);
+  let query = supabase
+    .from("course_schedules")
+    .select("schedule_code, trainer_name, venue, training_mode, start_date, end_date, start_time, end_time, capacity, seats_taken, status, courses(course_name)")
+    .is("deleted_at", null)
+    .order("start_date", { ascending: true });
+  if (p.get("q")) {
+    const safe = p.get("q")!.replace(/[%_,()]/g, " ").trim();
+    if (safe) query = query.or(`schedule_code.ilike.%${safe}%,trainer_name.ilike.%${safe}%,venue.ilike.%${safe}%`);
+  }
   if (p.get("status")) query = query.eq("status", p.get("status") as any);
-  if (p.get("course")) query = query.eq("course_name", p.get("course")!);
-  if (p.get("trainer")) query = query.eq("trainer", p.get("trainer")!);
+  if (p.get("course")) query = query.eq("course_id", p.get("course")!);
+  if (p.get("trainer")) query = query.eq("trainer_name", p.get("trainer")!);
   if (p.get("year")) {
     const y = Number(p.get("year"));
     const m = p.get("month") ? Number(p.get("month")) : null;
@@ -49,11 +56,15 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await query;
   if (error) return new NextResponse(error.message, { status: 500 });
-  const rows = (data ?? []) as any[];
+  const rows = ((data ?? []) as any[]).map((r) => ({
+    ...r,
+    course_name: r.courses?.course_name ?? "",
+    seats_remaining: Math.max((Number(r.capacity) || 0) - (Number(r.seats_taken) || 0), 0),
+  }));
 
   await supabase.rpc("log_event" as never, {
     p_action: "export",
-    p_entity_type: "training_schedules",
+    p_entity_type: "course_schedules",
     p_summary: `Exported ${rows.length} schedules (${format})`,
   } as never);
 

@@ -9,13 +9,14 @@ export const dynamic = "force-dynamic";
 export default async function GeneratePickerPage() {
   await requireCertificate(true);
   const supabase = await createSupabaseServerClient();
-  const { data: schedules } = await supabase
-    .from("training_schedules")
-    .select("id, schedule_id, course_name, trainer, start_date, status, registered_participants")
+  const { data: schedulesRaw } = await supabase
+    .from("course_schedules")
+    .select("id, schedule_code, trainer_name, start_date, status, seats_taken, courses(course_name)")
     .is("deleted_at", null)
-    .not("status", "in", "(draft,cancelled)")
+    .not("status", "in", "(cancelled)")
     .order("start_date", { ascending: false })
     .limit(60);
+  const schedules = (schedulesRaw ?? []).map((s: any) => ({ ...s, course_name: s.courses?.course_name ?? "—", trainer: s.trainer_name, schedule_id: s.schedule_code, registered_participants: s.seats_taken }));
 
   return (
     <>

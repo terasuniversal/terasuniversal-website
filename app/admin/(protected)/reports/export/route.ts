@@ -14,7 +14,7 @@ const REPORTS: Record<string, { table: string; columns: [string, string][]; orde
   participants: { table: "participants", order: "created_at", columns: [["participant_id", "ID"], ["full_name", "Name"], ["company", "Company"], ["status", "Status"], ["created_at", "Created"]] },
   companies: { table: "companies", order: "company_id", columns: [["company_id", "ID"], ["company_name", "Name"], ["industry", "Industry"], ["state", "State"], ["status", "Status"]] },
   courses: { table: "courses", order: "sort_order", columns: [["title", "Title"], ["category", "Category"], ["status", "Status"]] },
-  schedules: { table: "training_schedules", order: "start_date", columns: [["schedule_id", "ID"], ["course_name", "Course"], ["trainer", "Trainer"], ["start_date", "Start"], ["status", "Status"]] },
+  schedules: { table: "course_schedules", order: "start_date", columns: [["schedule_code", "ID"], ["trainer_name", "Trainer"], ["venue", "Venue"], ["start_date", "Start"], ["status", "Status"]] },
   trainers: { table: "trainers", order: "trainer_id", columns: [["trainer_id", "ID"], ["full_name", "Name"], ["department", "Department"], ["status", "Status"]] },
   certificates: { table: "certificates", order: "issue_date", columns: [["certificate_number", "Number"], ["holder_name", "Holder"], ["status", "Status"], ["issue_date", "Issued"]] },
 };
@@ -36,9 +36,9 @@ export async function GET(request: NextRequest) {
     const today = new Date().toISOString().slice(0, 10);
     const hc = (t: string, f: (q: any) => any = (q) => q) => f(supabase.from(t).select("*", { count: "exact", head: true }).is("deleted_at", null));
     const [participants, companies, courses, schedules, trainers, certs, upcoming] = await Promise.all([
-      hc("participants"), hc("companies"), hc("courses"), hc("training_schedules"), hc("trainers"),
+      hc("participants"), hc("companies"), hc("courses"), hc("course_schedules"), hc("trainers"),
       hc("certificates", (q) => q.eq("status", "valid")),
-      hc("training_schedules", (q) => q.gte("start_date", today).not("status", "in", "(draft,cancelled,archived)")),
+      hc("course_schedules", (q) => q.gte("start_date", today).not("status", "in", "(cancelled)")),
     ]);
     const row = (k: string, v: any) => `<tr><td class="k">${esc(k)}</td><td style="text-align:right;font-weight:700">${esc(v)}</td></tr>`;
     const html = `<!doctype html><html><head><meta charset="utf-8"><title>TERAS UNIVERSAL — Executive Summary</title>

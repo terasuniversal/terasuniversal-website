@@ -28,7 +28,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
       source("courses").select("id, title, category").ilike("title", term).is("deleted_at", null).limit(8),
       source("participants").select("id, full_name, participant_id, company").or(`full_name.ilike.${term},participant_id.ilike.${term},company.ilike.${term}`).is("deleted_at", null).limit(8),
       source("companies").select("id, company_name, company_id, industry").or(`company_name.ilike.${term},company_id.ilike.${term}`).is("deleted_at", null).limit(8),
-      source("training_schedules").select("id, course_name, schedule_id, start_date").or(`course_name.ilike.${term},schedule_id.ilike.${term}`).is("deleted_at", null).limit(8),
+      source("course_schedules").select("id, schedule_code, start_date, courses(course_name)").or(`schedule_code.ilike.${term}`).is("deleted_at", null).limit(8),
       source("certificates").select("id, certificate_number, participant_name, course_name").or(`certificate_number.ilike.${term},participant_name.ilike.${term},course_name.ilike.${term}`).is("deleted_at", null).limit(8),
       source("trainers").select("id, full_name, trainer_id, specialisation").or(`full_name.ilike.${term},trainer_id.ilike.${term}`).is("deleted_at", null).limit(8),
       source("news_posts").select("id, title, status").ilike("title", term).is("deleted_at", null).limit(8),
@@ -38,7 +38,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
     add("course", courses.data, (r) => ({ entity_id: r.id, title: r.title, subtitle: r.category ?? "Course" }));
     add("participant", participants.data, (r) => ({ entity_id: r.id, title: r.full_name, subtitle: [r.participant_id, r.company].filter(Boolean).join(" · ") }));
     add("company", companies.data, (r) => ({ entity_id: r.id, title: r.company_name, subtitle: [r.company_id, r.industry].filter(Boolean).join(" · ") }));
-    add("schedule", schedules.data, (r) => ({ entity_id: r.id, title: r.course_name ?? r.schedule_id, subtitle: [r.schedule_id, r.start_date].filter(Boolean).join(" · ") }));
+    add("schedule", schedules.data, (r: any) => ({ entity_id: r.id, title: r.courses?.course_name ?? r.schedule_code, subtitle: [r.schedule_code, r.start_date].filter(Boolean).join(" · ") }));
     add("certificate", certificates.data, (r) => ({ entity_id: r.id, title: r.certificate_number, subtitle: [r.participant_name, r.course_name].filter(Boolean).join(" · ") }));
     add("trainer", trainers.data, (r) => ({ entity_id: r.id, title: r.full_name, subtitle: [r.trainer_id, r.specialisation].filter(Boolean).join(" · ") }));
     add("news", news.data, (r) => ({ entity_id: r.id, title: r.title, subtitle: r.status ?? "News" }));

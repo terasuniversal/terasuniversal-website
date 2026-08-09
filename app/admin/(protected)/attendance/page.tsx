@@ -19,16 +19,19 @@ export default async function AttendanceListPage({
   const page = Math.max(1, Number(sp.page ?? 1));
   const supabase = await createSupabaseServerClient();
 
-  let query = (supabase
-    .from("training_schedules") as any)
-    .select("id, schedule_id, course_name, trainer, venue, start_date, end_date, status, registered_participants", { count: "exact" })
+  let query = supabase
+    .from("course_schedules")
+    .select("id, schedule_code, trainer_name, venue, start_date, end_date, status, capacity, seats_taken, courses(course_name)", { count: "exact" })
     .is("deleted_at", null)
-    .not("status", "in", "(draft,cancelled)")
+    .not("status", "in", "(cancelled)")
     .order("start_date", { ascending: false })
     .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
-  if (sp.q) query = query.or(`course_name.ilike.%${sp.q}%,schedule_id.ilike.%${sp.q}%,trainer.ilike.%${sp.q}%,venue.ilike.%${sp.q}%`);
+  if (sp.q) {
+    const safe = sp.q.replace(/[%_,()]/g, " ").trim();
+    if (safe) query = query.or(`schedule_code.ilike.%${safe}%,trainer_name.ilike.%${safe}%,venue.ilike.%${safe}%`);
+  }
   if (sp.status) query = query.eq("status", sp.status as any);
-  if (sp.trainer) query = query.eq("trainer", sp.trainer);
+  if (sp.trainer) query = query.eq("trainer_name", sp.trainer);
   if (sp.year) {
     const y = Number(sp.year);
     const m = sp.month ? Number(sp.month) : null;
@@ -37,7 +40,14 @@ export default async function AttendanceListPage({
     query = query.gte("start_date", from).lte("start_date", to);
   }
 
-  const { data: schedules, count } = await query;
+  const { data: schedulesRaw, count } = await query;
+  const schedules = (schedulesRaw ?? []).map((s: any) => ({
+    ...s,
+    course_name: s.courses?.course_name ?? "—",
+    trainer: s.trainer_name,
+    schedule_id: s.schedule_code,
+    registered_participants: s.seats_taken,
+  }));
   const pageCount = Math.ceil((count ?? 0) / PAGE_SIZE);
 
   // Attendance summary per schedule (present counts).
@@ -66,7 +76,7 @@ export default async function AttendanceListPage({
         </div>
         <select name="status" defaultValue={sp.status ?? ""} style={sel} aria-label="Status">
           <option value="">All statuses</option>
-          {["open", "full", "completed", "archived"].map((s) => <option key={s} value={s}>{s}</option>)}
+          {["open", "full", "in_progress", "completed"].map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
         <select name="month" defaultValue={sp.month ?? ""} style={sel} aria-label="Month">
           <option value="">Any month</option>

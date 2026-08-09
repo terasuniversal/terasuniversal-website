@@ -25,13 +25,13 @@ export default async function DashboardPage() {
     recentAssessments,
   ] = await Promise.all([
     supabase.from("courses").select("*", { count: "exact", head: true }).eq("status", "published").is("deleted_at", null),
-    supabase.from("training_schedules").select("*", { count: "exact", head: true }).gte("start_date", today).is("deleted_at", null).not("status", "in", "(draft,cancelled,archived)"),
-    supabase.from("training_schedules").select("id, schedule_id, course_name, start_date, status, max_participants, seats_remaining").gte("start_date", today).is("deleted_at", null).not("status", "in", "(draft,cancelled,archived)").order("start_date", { ascending: true }).limit(6),
+    supabase.from("course_schedules").select("*", { count: "exact", head: true }).gte("start_date", today).is("deleted_at", null).not("status", "in", "(cancelled)"),
+    supabase.from("course_schedules").select("id, schedule_code, start_date, status, capacity, seats_taken, courses(course_name)").gte("start_date", today).is("deleted_at", null).not("status", "in", "(cancelled)").order("start_date", { ascending: true }).limit(6),
     supabase.from("participants").select("id, full_name, company, status, registered_at").is("deleted_at", null).order("registered_at", { ascending: false }).limit(6),
     supabase.from("certificates").select("*", { count: "exact", head: true }).eq("status", "valid").is("deleted_at", null),
     supabase.from("certificates").select("*", { count: "exact", head: true }).eq("status", "draft").is("deleted_at", null),
     supabase.from("participants").select("*", { count: "exact", head: true }).is("deleted_at", null),
-    supabase.from("assessments").select("id, assessment_type, result, overall_score, competency_status, assessment_date, participants(full_name)").is("deleted_at", null).order("assessment_date", { ascending: false, nullsFirst: false }).limit(6),
+    supabase.from("assessments").select("id, assessment_type, result, theory_score, practical_score, competency_status, assessed_at, participants(full_name)").is("deleted_at", null).order("assessed_at", { ascending: false, nullsFirst: false }).limit(6),
   ]);
 
   return (
@@ -66,9 +66,9 @@ export default async function DashboardPage() {
                 <tbody>
                   {upcoming.data.map((s: any) => (
                     <tr key={s.id}>
-                      <td>{s.course_name ?? "—"}</td>
+                      <td>{s.courses?.course_name ?? "—"}</td>
                       <td>{new Date(s.start_date).toLocaleDateString("en-MY", { day: "numeric", month: "short" })}</td>
-                      <td>{s.seats_remaining}/{s.max_participants}</td>
+                      <td>{s.seats_taken}/{s.capacity}</td>
                       <td><Badge status={s.status} /></td>
                     </tr>
                   ))}
@@ -107,14 +107,17 @@ export default async function DashboardPage() {
               <table className="ta-table">
                 <thead><tr><th>Participant</th><th>Type</th><th>Overall</th><th>Result</th></tr></thead>
                 <tbody>
-                  {recentAssessments.data.map((a: any) => (
-                    <tr key={a.id}>
-                      <td>{a.participants?.full_name ?? "—"}</td>
-                      <td>{a.assessment_type ?? "—"}</td>
-                      <td>{a.overall_score ?? "—"}</td>
-                      <td><Badge status={a.result} /></td>
-                    </tr>
-                  ))}
+                  {recentAssessments.data.map((a: any) => {
+                    const overall = a.theory_score != null && a.practical_score != null ? ((a.theory_score + a.practical_score) / 2).toFixed(2) : a.theory_score ?? a.practical_score ?? "—";
+                    return (
+                      <tr key={a.id}>
+                        <td>{a.participants?.full_name ?? "—"}</td>
+                        <td>{a.assessment_type ?? "—"}</td>
+                        <td>{overall}</td>
+                        <td><Badge status={a.result} /></td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

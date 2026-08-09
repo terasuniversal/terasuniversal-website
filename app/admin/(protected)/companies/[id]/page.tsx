@@ -33,12 +33,20 @@ export default async function CompanyProfilePage({ params }: { params: Promise<{
     pIds.length ? supabase.from("certificates").select("*", { count: "exact", head: true }).in("participant_id", pIds).is("deleted_at", null) : Promise.resolve({ count: 0 } as any),
     pIds.length ? supabase.from("certificates").select("id, certificate_number, holder_name, status, issue_date").in("participant_id", pIds).is("deleted_at", null).order("issue_date", { ascending: false }).limit(10) : Promise.resolve({ data: [] } as any),
   ]);
-  // Distinct schedules the company's participants attended.
+  // Distinct schedules the company's participants are actively enrolled in.
   const { data: sp } = pIds.length
-    ? await supabase.from("schedule_participants").select("training_schedules(id, schedule_id, course_name, start_date, status)").in("participant_id", pIds)
+    ? await supabase
+        .from("schedule_participants")
+        .select("course_schedules(id, schedule_code, start_date, status, courses(course_name))")
+        .in("participant_id", pIds)
+        .is("deleted_at", null)
+        .neq("registration_status", "cancelled")
     : { data: [] as any };
   const scheduleMap = new Map<string, any>();
-  for (const row of sp ?? []) { const s = (row as any).training_schedules; if (s) scheduleMap.set(s.id, s); }
+  for (const row of sp ?? []) {
+    const s = (row as any).course_schedules;
+    if (s) scheduleMap.set(s.id, { ...s, course_name: s.courses?.course_name ?? "—", schedule_id: s.schedule_code });
+  }
   const schedules = Array.from(scheduleMap.values()).sort((a, b) => (a.start_date < b.start_date ? 1 : -1));
 
   const current = (participants ?? []).filter((p: any) => ["registered", "confirmed", "attended"].includes(p.status));

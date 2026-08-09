@@ -43,17 +43,18 @@ export default async function CalendarPage({
   }
 
   const supabase = await createSupabaseServerClient();
-  const { data: rows } = await supabase
-    .from("training_schedules")
-    .select("id, schedule_id, course_name, trainer, status, start_date, end_date, start_time")
+  const { data: rawRows } = await supabase
+    .from("course_schedules")
+    .select("id, schedule_code, trainer_name, status, start_date, end_date, start_time, courses(course_name)")
     .is("deleted_at", null)
     .gte("start_date", ymd(windowStart))
     .lte("start_date", ymd(windowEnd))
     .order("start_date", { ascending: true });
+  const rows = (rawRows ?? []).map((r: any) => ({ ...r, course_name: r.courses?.course_name ?? "—", trainer: r.trainer_name }));
 
   // Bucket by start day.
   const byDay: Record<string, any[]> = {};
-  for (const r of rows ?? []) (byDay[r.start_date] ??= []).push(r);
+  for (const r of rows) (byDay[r.start_date] ??= []).push(r);
 
   const prev = view === "week" ? addDays(anchor, -7) : view === "list" ? addDays(anchor, -30) : new Date(anchor.getFullYear(), anchor.getMonth() - 1, 1);
   const next = view === "week" ? addDays(anchor, 7) : view === "list" ? addDays(anchor, 30) : new Date(anchor.getFullYear(), anchor.getMonth() + 1, 1);

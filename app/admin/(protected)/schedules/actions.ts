@@ -14,48 +14,39 @@ function readForm(formData: FormData) {
     return x === null ? "" : String(x).trim();
   };
   return {
-    course_id: v("course_id") || null,
-    trainer_id: v("trainer_id") || null,
-    course_name: v("course_name"),
-    trainer: v("trainer"),
+    course_id: v("course_id"),
+    trainer_name: v("trainer_name"),
     venue: v("venue"),
     training_mode: v("training_mode"),
     start_date: v("start_date"),
     end_date: v("end_date"),
     start_time: v("start_time"),
     end_time: v("end_time"),
-    max_participants: formData.get("max_participants") ?? 0,
-    status: (v("status") || "draft") as any,
-    remarks: v("remarks"),
+    capacity: formData.get("capacity") ?? 0,
+    status: (v("status") || "open") as any,
+    is_published: formData.get("is_published") === "on",
+    notes: v("notes"),
   };
 }
 
 function clean(data: any) {
   const out: any = { ...data };
-  for (const k of ["course_id", "trainer_id", "trainer", "venue", "training_mode", "start_time", "end_time", "remarks"]) {
+  for (const k of ["trainer_name", "venue", "training_mode", "start_time", "end_time", "notes"]) {
     if (!out[k]) out[k] = null;
   }
   return out;
 }
 
-/**
- * Prevents double-booking a trainer: rejects overlapping date ranges for the
- * same trainer (ignoring cancelled/archived and, on edit, the row itself).
- */
-async function trainerConflict(supabase: any, trainerId: string | null, startDate: string, endDate: string, exceptId?: string) {
-  if (!trainerId) return false;
-  let q = supabase
-    .from("training_schedules")
-    .select("id", { count: "exact", head: true })
-    .eq("trainer_id", trainerId)
-    .is("deleted_at", null)
-    .not("status", "in", "(cancelled,archived)")
-    .lte("start_date", endDate)
-    .gte("end_date", startDate);
-  if (exceptId) q = q.neq("id", exceptId);
-  const { count } = await q;
-  return (count ?? 0) > 0;
-}
+// TRAINER CONFLICT CHECK DEFERRED UNTIL TRAINERS ARE NORMALIZED.
+//
+// course_schedules only has a free-text trainer_name column today (no
+// trainers table, no trainer_id FK -- see SCHEDULES_ARCHITECTURE_DECISION.md
+// §F). A reliable double-booking check requires a stable trainer identity to
+// key on; matching on free-text names would silently misbehave on typos/name
+// variants and give staff false confidence in a check that isn't reliable.
+// createSchedule/updateSchedule below intentionally do NOT attempt a
+// trainer-conflict check -- do not add a free-text-matching version as a
+// stopgap; wait for a real trainers table.
 
 export async function createSchedule(_prev: ScheduleFormState, formData: FormData): Promise<ScheduleFormState> {
   await requireRole("admin"); // Editors are read-only.
@@ -63,10 +54,7 @@ export async function createSchedule(_prev: ScheduleFormState, formData: FormDat
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
   const supabase = await createSupabaseServerClient();
-  if (await trainerConflict(supabase, parsed.data.trainer_id ?? null, parsed.data.start_date, parsed.data.end_date)) {
-    return { errors: { trainer_id: "This trainer is already scheduled during these dates." } };
-  }
-  const { error } = await supabase.from("training_schedules").insert(clean(parsed.data));
+  const { error } = await supabase.from("course_schedules").insert(clean(parsed.data));
   if (error) return { message: error.message };
   revalidatePath("/admin/schedules");
   redirect("/admin/schedules");
@@ -78,74 +66,88 @@ export async function updateSchedule(id: string, _prev: ScheduleFormState, formD
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
   const supabase = await createSupabaseServerClient();
-  if (await trainerConflict(supabase, parsed.data.trainer_id ?? null, parsed.data.start_date, parsed.data.end_date, id)) {
-    return { errors: { trainer_id: "This trainer is already scheduled during these dates." } };
-  }
-  const { error } = await supabase.from("training_schedules").update(clean(parsed.data)).eq("id", id);
+  const { error } = await supabase.from("course_schedules").update(clean(parsed.data)).eq("id", id);
   if (error) return { message: error.message };
   revalidatePath("/admin/schedules");
   revalidatePath(`/admin/schedules/${id}`);
   redirect(`/admin/schedules/${id}`);
 }
 
-/** Duplicate — clone core fields; reset participants + status to draft. */
+/** Duplicate — clone core fields; reset status to open, no enrollments. */
 export async function duplicateSchedule(id: string) {
   await requireRole("admin");
   const supabase = await createSupabaseServerClient();
-  const { data: src } = await supabase.from("training_schedules").select("*").eq("id", id).single();
+  const { data: src } = await supabase.from("course_schedules").select("*").eq("id", id).single();
   if (!src) return;
   const s: any = src;
-  await supabase.from("training_schedules").insert({
-    course_id: s.course_id, course_name: s.course_name, trainer: s.trainer, venue: s.venue,
+  await supabase.from("course_schedules").insert({
+    course_id: s.course_id, trainer_name: s.trainer_name, venue: s.venue,
     training_mode: s.training_mode, start_date: s.start_date, end_date: s.end_date,
-    start_time: s.start_time, end_time: s.end_time, max_participants: s.max_participants,
-    remarks: s.remarks, status: "draft", registered_participants: 0,
+    start_time: s.start_time, end_time: s.end_time, capacity: s.capacity,
+    notes: s.notes, status: "open", is_published: false,
   });
   revalidatePath("/admin/schedules");
 }
 
-export async function archiveSchedule(id: string) {
-  await requireRole("admin");
-  const supabase = await createSupabaseServerClient();
-  await supabase.from("training_schedules").update({ status: "archived" }).eq("id", id);
-  revalidatePath("/admin/schedules");
-  revalidatePath(`/admin/schedules/${id}`);
-}
+// "Archive" as a distinct status was removed: cancelled already represents a
+// cancelled event, and deleted_at (softDeleteSchedule below) already handles
+// removing a schedule from active views -- a third state would overlap both
+// (see SCHEDULES_ARCHITECTURE_DECISION.md / this migration's Phase 6 brief).
 
 export async function softDeleteSchedule(id: string) {
   await requireRole("admin");
   const supabase = await createSupabaseServerClient();
-  await supabase.from("training_schedules").update({ deleted_at: new Date().toISOString() }).eq("id", id);
+  await supabase.from("course_schedules").update({ deleted_at: new Date().toISOString() }).eq("id", id);
   revalidatePath("/admin/schedules");
 }
 
 export async function restoreSchedule(id: string) {
   await requireRole("admin");
   const supabase = await createSupabaseServerClient();
-  await supabase.from("training_schedules").update({ deleted_at: null }).eq("id", id);
+  await supabase.from("course_schedules").update({ deleted_at: null }).eq("id", id);
   revalidatePath("/admin/schedules");
   revalidatePath(`/admin/schedules/${id}`);
 }
 
 // --------------------------------------------------------------------
-// Participant assignment
+// Participant enrollment (schedule_participants)
 // --------------------------------------------------------------------
 
-/** Assign one or many participants. Duplicates are ignored (unique constraint). */
+/**
+ * Enroll one or many participants. The active-enrollment uniqueness is a
+ * PARTIAL unique index (schedule_id, participant_id) WHERE deleted_at IS
+ * NULL AND registration_status <> 'cancelled' -- PostgREST upsert/onConflict
+ * cannot target a partial index, so duplicates are pre-filtered with a
+ * single batched lookup query instead of a per-row loop; the index remains
+ * the race-condition safety net if two requests race past the pre-check.
+ */
 export async function assignParticipants(scheduleId: string, formData: FormData) {
   await requireRole("admin");
   const ids = formData.getAll("participant_ids").map(String).filter(Boolean);
   if (ids.length === 0) return;
   const supabase = await createSupabaseServerClient();
-  // Insert; ignore rows that already exist (duplicate registration).
-  const rows = ids.map((participant_id) => ({ schedule_id: scheduleId, participant_id }));
-  await supabase.from("schedule_participants").upsert(rows, { onConflict: "schedule_id,participant_id", ignoreDuplicates: true });
+
+  const { data: existing } = await supabase
+    .from("schedule_participants")
+    .select("participant_id")
+    .eq("schedule_id", scheduleId)
+    .is("deleted_at", null)
+    .neq("registration_status", "cancelled")
+    .in("participant_id", ids);
+  const already = new Set((existing ?? []).map((r: any) => r.participant_id as string));
+  const rows = ids.filter((id) => !already.has(id)).map((participant_id) => ({ schedule_id: scheduleId, participant_id }));
+
+  if (rows.length > 0) {
+    await supabase.from("schedule_participants").insert(rows);
+  }
   revalidatePath(`/admin/schedules/${scheduleId}`);
 }
 
+/** "Remove" cancels the enrollment rather than deleting it, so registration
+ * history survives and the participant can be re-enrolled later. */
 export async function removeParticipant(scheduleId: string, assignmentId: string) {
   await requireRole("admin");
   const supabase = await createSupabaseServerClient();
-  await supabase.from("schedule_participants").delete().eq("id", assignmentId);
+  await supabase.from("schedule_participants").update({ registration_status: "cancelled" }).eq("id", assignmentId);
   revalidatePath(`/admin/schedules/${scheduleId}`);
 }

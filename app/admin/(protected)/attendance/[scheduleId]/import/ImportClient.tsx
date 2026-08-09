@@ -23,7 +23,7 @@ function parseCsv(text: string): RawRow[] {
 
 const TEMPLATE = ["Participant ID", "Status", "Check-in", "Check-out", "Remarks"];
 
-export function ImportClient({ scheduleId }: { scheduleId: string }) {
+export function ImportClient({ scheduleId, sessionDate }: { scheduleId: string; sessionDate: string }) {
   const [raw, setRaw] = useState<RawRow[]>([]);
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [done, setDone] = useState<{ updated: number; skipped: number; message?: string } | null>(null);
@@ -34,14 +34,14 @@ export function ImportClient({ scheduleId }: { scheduleId: string }) {
     if (!file) return;
     setDone(null);
     const reader = new FileReader();
-    reader.onload = () => { const rows = parseCsv(String(reader.result ?? "")); setRaw(rows); start(async () => setAnalysis(await analyzeImport(scheduleId, rows))); };
+    reader.onload = () => { const rows = parseCsv(String(reader.result ?? "")); setRaw(rows); start(async () => setAnalysis(await analyzeImport(scheduleId, sessionDate, rows))); };
     reader.readAsText(file);
   }
   function downloadTemplate() {
     const blob = new Blob(["﻿" + TEMPLATE.join(",") + "\n"], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "attendance-import-template.csv"; a.click();
   }
-  function doImport() { start(async () => { const r = await commitImport(scheduleId, raw); setDone(r); setAnalysis(null); setRaw([]); }); }
+  function doImport() { start(async () => { const r = await commitImport(scheduleId, sessionDate, raw); setDone(r); setAnalysis(null); setRaw([]); }); }
 
   return (
     <div style={{ display: "grid", gap: 18 }}>
@@ -51,7 +51,7 @@ export function ImportClient({ scheduleId }: { scheduleId: string }) {
           <label className="ta-btn ta-btn-primary" style={{ cursor: "pointer" }}>Choose CSV<input type="file" accept=".csv,text/csv" onChange={onFile} style={{ display: "none" }} /></label>
           {pending && <span style={{ color: "var(--ta-muted)" }}>Processing…</span>}
         </div>
-        <p style={{ color: "var(--ta-muted)", fontSize: 12, marginBottom: 0 }}>Columns: <strong>Participant ID, Status</strong> (present/absent/late/medical_leave/excused/pending), Check-in, Check-out, Remarks. Only participants assigned to this schedule are accepted.</p>
+        <p style={{ color: "var(--ta-muted)", fontSize: 12, marginBottom: 0 }}>Columns: <strong>Participant ID, Status</strong> (present/absent/late/excused), Check-in, Check-out, Remarks. Only participants enrolled in this schedule are accepted, for the session date shown above.</p>
       </div>
 
       {done && (

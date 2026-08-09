@@ -25,11 +25,11 @@ export default async function ReportsPage() {
     headCount(supabase, "participants"),
     headCount(supabase, "companies"),
     headCount(supabase, "courses"),
-    headCount(supabase, "training_schedules"),
+    headCount(supabase, "course_schedules"),
     headCount(supabase, "trainers"),
     headCount(supabase, "certificates", (q) => q.eq("status", "valid")),
     headCount(supabase, "courses", (q) => q.eq("status", "published")),
-    headCount(supabase, "training_schedules", (q) => q.gte("start_date", today).not("status", "in", "(draft,cancelled,archived)")),
+    headCount(supabase, "course_schedules", (q) => q.gte("start_date", today).not("status", "in", "(cancelled)")),
     supabase.from("v_attendance_breakdown").select("*"),
     supabase.from("v_assessment_passfail").select("*"),
     supabase.from("v_participants_per_month").select("*"),
@@ -42,7 +42,7 @@ export default async function ReportsPage() {
     supabase.from("participants").select("id, participant_id, full_name, company, status, created_at").is("deleted_at", null).order("created_at", { ascending: false }).limit(5),
     supabase.from("certificates").select("id, certificate_number, holder_name, status, issue_date").is("deleted_at", null).order("issue_date", { ascending: false }).limit(5),
     supabase.from("companies").select("id, company_id, company_name, status, created_at").is("deleted_at", null).order("created_at", { ascending: false }).limit(5),
-    supabase.from("training_schedules").select("id, course_name, start_date, status, seats_remaining, max_participants").gte("start_date", today).is("deleted_at", null).order("start_date").limit(5),
+    supabase.from("course_schedules").select("id, start_date, status, capacity, seats_taken, courses(course_name)").gte("start_date", today).is("deleted_at", null).order("start_date").limit(5),
     supabase.from("audit_logs").select("actor_email, action, entity_type, summary, created_at").order("created_at", { ascending: false }).limit(6),
   ]);
 
@@ -110,7 +110,7 @@ export default async function ReportsPage() {
 
       {/* Widgets */}
       <div className="ta-grid cols-2" style={{ marginTop: 22 }}>
-        <Widget title="Upcoming Training" href="/admin/schedules" rows={(upcoming.data ?? []).map((s: any) => ({ main: s.course_name, sub: `${new Date(s.start_date).toLocaleDateString("en-MY", { day: "numeric", month: "short" })} · ${s.seats_remaining}/${s.max_participants} seats`, badge: s.status }))} />
+        <Widget title="Upcoming Training" href="/admin/schedules" rows={(upcoming.data ?? []).map((s: any) => ({ main: s.courses?.course_name ?? "—", sub: `${new Date(s.start_date).toLocaleDateString("en-MY", { day: "numeric", month: "short" })} · ${s.seats_taken}/${s.capacity} seats`, badge: s.status }))} />
         <Widget title="Recent Participants" href="/admin/participants" rows={(latestParticipants.data ?? []).map((p: any) => ({ main: p.full_name, sub: p.company, badge: p.status }))} />
         <Widget title="Recent Certificates" href="/admin/certificates" rows={(latestCerts.data ?? []).map((c: any) => ({ main: c.certificate_number, sub: c.holder_name, badge: c.status }))} />
         <Widget title="Latest Companies" href="/admin/companies" rows={(latestCompanies.data ?? []).map((c: any) => ({ main: c.company_name, sub: c.company_id, badge: c.status }))} />

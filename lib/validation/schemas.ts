@@ -54,27 +54,39 @@ export const newsSchema = z.object({
 });
 export type NewsInput = z.infer<typeof newsSchema>;
 
+// Targets the live public.course_schedules table (the canonical schedule
+// table -- see SCHEDULES_ARCHITECTURE_DECISION.md). trainer_id/trainer_name
+// stays a plain text field until a real trainers table exists (deferred).
 export const scheduleSchema = z
   .object({
-    course_id: z.string().uuid().optional().nullable(),
-    trainer_id: z.string().uuid().optional().nullable(),
-    course_name: z.string().trim().min(2, "Course name is required").max(200),
-    trainer: z.string().trim().max(160).optional().or(z.literal("")),
+    course_id: z.string().uuid("Select a course"),
+    trainer_name: z.string().trim().max(160).optional().or(z.literal("")),
     venue: z.string().trim().max(200).optional().or(z.literal("")),
     training_mode: z.string().trim().max(40).optional().or(z.literal("")),
     start_date: z.string().date("Enter a valid start date"),
     end_date: z.string().date("Enter a valid end date"),
     start_time: z.string().optional().or(z.literal("")),
     end_time: z.string().optional().or(z.literal("")),
-    max_participants: z.coerce.number().int().min(0).default(0),
-    status: z.enum(["draft", "open", "full", "completed", "cancelled", "archived"]).default("draft"),
-    remarks: z.string().trim().max(2000).optional().or(z.literal("")),
+    capacity: z.coerce.number().int().min(0).default(0),
+    status: z.enum(["open", "full", "in_progress", "completed", "cancelled"]).default("open"),
+    is_published: z.boolean().default(true),
+    notes: z.string().trim().max(2000).optional().or(z.literal("")),
   })
   .refine((v) => v.end_date >= v.start_date, {
     message: "End date must be on or after the start date",
     path: ["end_date"],
   });
 export type ScheduleInput = z.infer<typeof scheduleSchema>;
+
+// schedule_participants enrollment write path (previously had no Zod schema
+// at all -- the insert payload was built ad hoc).
+export const scheduleParticipantSchema = z.object({
+  schedule_id: z.string().uuid(),
+  participant_id: z.string().uuid(),
+  registration_status: z.enum(["registered", "confirmed", "cancelled", "completed"]).default("registered"),
+  notes: z.string().trim().max(1000).optional().or(z.literal("")),
+});
+export type ScheduleParticipantInput = z.infer<typeof scheduleParticipantSchema>;
 
 export const participantSchema = z.object({
   // Required fields (friendly messages).

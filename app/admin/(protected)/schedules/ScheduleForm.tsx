@@ -8,19 +8,18 @@ import { Field } from "../../../../components/admin/ui";
 interface Option { id: string; label: string }
 
 const MODES = ["Public", "In-house", "Onsite", "Online", "Hybrid"];
+const STATUSES = ["open", "full", "in_progress", "completed", "cancelled"];
 
 export function ScheduleForm({
   action,
   schedule,
   courses,
-  trainers = [],
   defaultTrainingMode,
   mode,
 }: {
   action: (prev: ScheduleFormState, fd: FormData) => Promise<ScheduleFormState>;
   schedule?: any;
   courses: Option[];
-  trainers?: { id: string; label: string; name: string }[];
   defaultTrainingMode?: string;
   mode: "create" | "edit";
 }) {
@@ -32,50 +31,21 @@ export function ScheduleForm({
     <form action={formAction} className="ta-form" style={{ maxWidth: 780 }}>
       {state.message && <div className="ta-alert ta-alert-error">{state.message}</div>}
 
-      <div className="ta-field-row">
-        <Field label="Course" name="course_id" hint="Picks the name below; you can still edit it">
-          <select
-            id="course_id"
-            name="course_id"
-            defaultValue={d.course_id ?? ""}
-            onChange={(ev) => {
-              const opt = courses.find((c) => c.id === ev.target.value);
-              const nameInput = document.getElementById("course_name") as HTMLInputElement | null;
-              if (opt && nameInput && !nameInput.value) nameInput.value = opt.label;
-            }}
-          >
-            <option value="">— Select —</option>
-            {courses.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
-          </select>
-        </Field>
-        <Field label="Course name *" name="course_name" error={e.course_name}>
-          <input id="course_name" name="course_name" defaultValue={d.course_name ?? ""} required />
-        </Field>
-      </div>
+      <Field label="Course *" name="course_id" error={e.course_id}>
+        <select id="course_id" name="course_id" defaultValue={d.course_id ?? ""} required>
+          <option value="">— Select —</option>
+          {courses.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+        </select>
+      </Field>
 
       <div className="ta-field-row">
-        <Field label="Trainer" name="trainer_id" hint="Select a registered trainer, or type a name below">
-          <select
-            id="trainer_id"
-            name="trainer_id"
-            defaultValue={d.trainer_id ?? ""}
-            onChange={(ev) => {
-              const opt = trainers.find((t) => t.id === ev.target.value);
-              const txt = document.getElementById("trainer") as HTMLInputElement | null;
-              if (opt && txt) txt.value = opt.name;
-            }}
-          >
-            <option value="">— Select trainer —</option>
-            {trainers.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
-          </select>
+        <Field label="Trainer name" name="trainer_name" hint="Free text until Trainers is normalized">
+          <input id="trainer_name" name="trainer_name" defaultValue={d.trainer_name ?? ""} />
         </Field>
-        <Field label="Trainer name" name="trainer">
-          <input id="trainer" name="trainer" defaultValue={d.trainer ?? ""} />
+        <Field label="Venue" name="venue">
+          <input id="venue" name="venue" defaultValue={d.venue ?? ""} />
         </Field>
       </div>
-      <Field label="Venue" name="venue">
-        <input id="venue" name="venue" defaultValue={d.venue ?? ""} />
-      </Field>
 
       <div className="ta-field-row">
         <Field label="Training mode" name="training_mode">
@@ -84,8 +54,8 @@ export function ScheduleForm({
             {MODES.map((m) => <option key={m} value={m}>{m}</option>)}
           </select>
         </Field>
-        <Field label="Max participants" name="max_participants">
-          <input id="max_participants" name="max_participants" type="number" min="0" defaultValue={d.max_participants ?? 20} />
+        <Field label="Capacity" name="capacity">
+          <input id="capacity" name="capacity" type="number" min="0" defaultValue={d.capacity ?? 20} />
         </Field>
       </div>
 
@@ -108,18 +78,18 @@ export function ScheduleForm({
       </div>
 
       <Field label="Status" name="status">
-        <select id="status" name="status" defaultValue={d.status ?? "draft"}>
-          <option value="draft">Draft</option>
-          <option value="open">Open</option>
-          <option value="full">Full</option>
-          <option value="completed">Completed</option>
-          <option value="cancelled">Cancelled</option>
-          <option value="archived">Archived</option>
+        <select id="status" name="status" defaultValue={d.status ?? "open"}>
+          {STATUSES.map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
         </select>
       </Field>
 
-      <Field label="Remarks" name="remarks">
-        <textarea id="remarks" name="remarks" rows={3} defaultValue={d.remarks ?? ""} />
+      <label style={{ display: "flex", gap: 8, alignItems: "center", margin: "4px 0 16px" }}>
+        <input type="checkbox" name="is_published" defaultChecked={d.is_published ?? true} />
+        Published (visible/bookable)
+      </label>
+
+      <Field label="Notes" name="notes">
+        <textarea id="notes" name="notes" rows={3} defaultValue={d.notes ?? ""} />
       </Field>
 
       <div className="ta-form-actions">

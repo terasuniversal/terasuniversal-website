@@ -38,7 +38,7 @@ export default async function AutomationCentrePage() {
     getAutomationSettings(),
     supabase.from("automation_runs").select("*").order("created_at", { ascending: false }).limit(10),
     supabase.from("audit_logs").select("actor_email, action, entity_type, summary, created_at").order("created_at", { ascending: false }).limit(12),
-    supabase.from("training_schedules").select("id, course_name, start_date, status").gte("start_date", today).lte("start_date", in14).is("deleted_at", null).not("status", "in", "(draft,cancelled,archived)").order("start_date").limit(6),
+    supabase.from("course_schedules").select("id, start_date, status").gte("start_date", today).lte("start_date", in14).is("deleted_at", null).not("status", "in", "(cancelled)").order("start_date").limit(6),
     supabase.from("automation_runs").select("*").eq("run_type", "bulk_import").order("created_at", { ascending: false }).limit(5),
     supabase.from("v_certificate_eligibility").select("participant_id", { count: "exact", head: true }).eq("eligible", true),
     supabase.from("automation_templates").select("id", { count: "exact", head: true }).is("deleted_at", null),
