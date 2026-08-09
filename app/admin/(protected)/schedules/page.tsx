@@ -46,7 +46,18 @@ export default async function SchedulesPage({
 
   if (sp.q) {
     const safe = sp.q.replace(/[%_,()]/g, " ").trim();
-    if (safe) query = query.or(`schedule_code.ilike.%${safe}%,trainer_name.ilike.%${safe}%,venue.ilike.%${safe}%`);
+    if (safe) {
+      // Also match related course title/course_name: resolve matching course
+      // IDs first (single batched query — no N+1, same strategy as
+      // /admin/search), then OR course_id.in(...) into the same filter so a
+      // schedule matching code/trainer/venue OR course is found without dupes.
+      const { data: courseHits } = await supabase.from("courses").select("id").or(`title.ilike.%${safe}%,course_name.ilike.%${safe}%`).is("deleted_at", null).limit(500);
+      const courseIds = (courseHits ?? []).map((c: any) => c.id as string);
+      const or = courseIds.length > 0
+        ? `schedule_code.ilike.%${safe}%,trainer_name.ilike.%${safe}%,venue.ilike.%${safe}%,course_id.in.(${courseIds.join(",")})`
+        : `schedule_code.ilike.%${safe}%,trainer_name.ilike.%${safe}%,venue.ilike.%${safe}%`;
+      query = query.or(or);
+    }
   }
   if (sp.status) query = query.eq("status", sp.status as any);
   if (sp.course) query = query.eq("course_id", sp.course);

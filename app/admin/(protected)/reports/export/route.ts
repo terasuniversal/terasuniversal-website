@@ -10,11 +10,20 @@ import { isEditor } from "../../../../../lib/auth/rbac";
  * Reports: participants, companies, courses, schedules, trainers, certificates.
  * View = editor and above. Every export is audited.
  */
-const REPORTS: Record<string, { table: string; columns: [string, string][]; order: string }> = {
+type ReportDef = { table: string; columns: [string, string][]; order: string; select?: string };
+const REPORTS: Record<string, ReportDef> = {
   participants: { table: "participants", order: "created_at", columns: [["participant_id", "ID"], ["full_name", "Name"], ["company", "Company"], ["status", "Status"], ["created_at", "Created"]] },
   companies: { table: "companies", order: "company_id", columns: [["company_id", "ID"], ["company_name", "Name"], ["industry", "Industry"], ["state", "State"], ["status", "Status"]] },
   courses: { table: "courses", order: "sort_order", columns: [["title", "Title"], ["category", "Category"], ["status", "Status"]] },
-  schedules: { table: "course_schedules", order: "start_date", columns: [["schedule_code", "ID"], ["trainer_name", "Trainer"], ["venue", "Venue"], ["start_date", "Start"], ["status", "Status"]] },
+  schedules: {
+    table: "course_schedules",
+    order: "start_date",
+    // Course is not a column on course_schedules — pull it through the
+    // course_id → courses relation (embedded, flattened below). Legacy
+    // course_name is used to match the rest of the schedules UI.
+    select: "schedule_code, courses(course_name), trainer_name, venue, start_date, status",
+    columns: [["schedule_code", "ID"], ["course_name", "Course"], ["trainer_name", "Trainer"], ["venue", "Venue"], ["start_date", "Start"], ["status", "Status"]],
+  },
   trainers: { table: "trainers", order: "trainer_id", columns: [["trainer_id", "ID"], ["full_name", "Name"], ["department", "Department"], ["status", "Status"]] },
   certificates: { table: "certificates", order: "issue_date", columns: [["certificate_number", "Number"], ["holder_name", "Holder"], ["status", "Status"], ["issue_date", "Issued"]] },
 };
@@ -52,9 +61,17 @@ export async function GET(request: NextRequest) {
 
   const def = REPORTS[report];
   if (!def) return new NextResponse("Unknown report", { status: 400 });
-  const { data, error } = await supabase.from(def.table).select(def.columns.map(([k]) => k).join(",")).is("deleted_at", null).order(def.order);
+  const select = def.select ?? def.columns.map(([k]) => k).join(",");
+  const { data, error } = await supabase.from(def.table).select(select).is("deleted_at", null).order(def.order);
   if (error) return new NextResponse(error.message, { status: 500 });
-  const rows = (data ?? []) as any[];
+  // Flatten any embedded relation (only schedules carries one today) so column
+  // keys like course_name resolve to the related course value; missing/null
+  // relations degrade to an empty string rather than breaking the export.
+  const rows = ((data ?? []) as any[]).map((r) => {
+    const flat: any = { ...r };
+    if (r.courses && "course_name" in r.courses) flat.course_name = r.courses.course_name ?? "";
+    return flat;
+  });
 
   if (format === "excel") {
     const head = def.columns.map(([, l]) => `<th>${esc(l)}</th>`).join("");

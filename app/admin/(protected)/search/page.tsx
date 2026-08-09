@@ -24,11 +24,22 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   const results: Result[] = [];
 
   if (q) {
+    // Schedules: schedule_code is the only flat text on course_schedules, and
+    // a generic .or() cannot reliably mix a joined-course filter in here, so
+    // resolve matching course IDs first (single batched query — no N+1), then
+    // select course_schedules where course_id IN (...) OR schedule_code matches.
+    const courseHits = await source("courses").select("id").or(`title.ilike.${term},course_name.ilike.${term}`).is("deleted_at", null).limit(500);
+    const courseIds = ((courseHits.data ?? []) as any[]).map((c: any) => c.id as string);
+    let scheduleQuery = source("course_schedules").select("id, schedule_code, start_date, courses(course_name)").is("deleted_at", null).limit(8);
+    scheduleQuery = courseIds.length > 0
+      ? scheduleQuery.or(`course_id.in.(${courseIds.join(",")}),schedule_code.ilike.${term}`)
+      : scheduleQuery.or(`schedule_code.ilike.${term}`);
+
     const [courses, participants, companies, schedules, certificates, trainers, news, downloads] = await Promise.all([
       source("courses").select("id, title, category").ilike("title", term).is("deleted_at", null).limit(8),
       source("participants").select("id, full_name, participant_id, company").or(`full_name.ilike.${term},participant_id.ilike.${term},company.ilike.${term}`).is("deleted_at", null).limit(8),
       source("companies").select("id, company_name, company_id, industry").or(`company_name.ilike.${term},company_id.ilike.${term}`).is("deleted_at", null).limit(8),
-      source("course_schedules").select("id, schedule_code, start_date, courses(course_name)").or(`schedule_code.ilike.${term}`).is("deleted_at", null).limit(8),
+      scheduleQuery,
       source("certificates").select("id, certificate_number, participant_name, course_name").or(`certificate_number.ilike.${term},participant_name.ilike.${term},course_name.ilike.${term}`).is("deleted_at", null).limit(8),
       source("trainers").select("id, full_name, trainer_id, specialisation").or(`full_name.ilike.${term},trainer_id.ilike.${term}`).is("deleted_at", null).limit(8),
       source("news_posts").select("id, title, status").ilike("title", term).is("deleted_at", null).limit(8),
