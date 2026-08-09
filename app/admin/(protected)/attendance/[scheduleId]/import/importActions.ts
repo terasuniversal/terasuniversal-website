@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
 import { requireAttendance } from "../../../../../../lib/auth/session";
+import { isSessionDateInRange } from "../../actions";
 
 export interface RawRow { [key: string]: string }
 export interface AnalyzedRow {
@@ -67,11 +68,11 @@ export async function analyzeImport(scheduleId: string, _sessionDate: string, ra
 
 export async function commitImport(scheduleId: string, sessionDate: string, raw: RawRow[]): Promise<{ updated: number; skipped: number; message?: string }> {
   await requireAttendance(true);
+  const supabase = await createSupabaseServerClient();
+  if (!(await isSessionDateInRange(supabase, scheduleId, sessionDate))) return { updated: 0, skipped: 0, message: "Session date is outside this schedule's date range." };
   const analysis = await analyzeImport(scheduleId, sessionDate, raw);
   const ok = analysis.rows.filter((r) => r.status === "ok");
   if (ok.length === 0) return { updated: 0, skipped: analysis.summary.total };
-
-  const supabase = await createSupabaseServerClient();
   const { data: roster } = await supabase
     .from("schedule_participants")
     .select("participant_id, participants(participant_id)")

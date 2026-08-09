@@ -65,7 +65,7 @@ export default async function SchedulesPage({
   const qsBase: Record<string, string> = {};
   for (const k of ["q", "status", "course", "trainer", "month", "year", "sort", "dir"] as const) if (sp[k]) qsBase[k] = sp[k]!;
   const exportQs = new URLSearchParams(qsBase).toString();
-  const thisYear = 2026;
+  const thisYear = new Date().getFullYear();
 
   return (
     <>

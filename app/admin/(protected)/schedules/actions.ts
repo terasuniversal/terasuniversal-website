@@ -121,12 +121,16 @@ export async function restoreSchedule(id: string) {
  * single batched lookup query instead of a per-row loop; the index remains
  * the race-condition safety net if two requests race past the pre-check.
  */
-export async function assignParticipants(scheduleId: string, formData: FormData) {
+export async function assignParticipants(scheduleId: string, _prev: ScheduleFormState, formData: FormData): Promise<ScheduleFormState> {
   await requireRole("admin");
   const ids = formData.getAll("participant_ids").map(String).filter(Boolean);
-  if (ids.length === 0) return;
+  if (ids.length === 0) return {};
   const supabase = await createSupabaseServerClient();
 
+  // Active-enrollment lookup first so the capacity check counts NET-NEW
+  // participants only: someone already actively enrolled consumes zero
+  // additional seats, so the raw selection size would otherwise reject a
+  // valid batch that re-picks an enrolled participant.
   const { data: existing } = await supabase
     .from("schedule_participants")
     .select("participant_id")
@@ -137,10 +141,27 @@ export async function assignParticipants(scheduleId: string, formData: FormData)
   const already = new Set((existing ?? []).map((r: any) => r.participant_id as string));
   const rows = ids.filter((id) => !already.has(id)).map((participant_id) => ({ schedule_id: scheduleId, participant_id }));
 
+  // Capacity is enforced here too, not just by the client's disable-the-button
+  // check: seats can be taken between page load and submit, and the DB check
+  // constraint (seats_taken <= capacity) would then reject the insert silently.
+  // Reject with a message instead of trusting the UI or swallowing the error.
+  const { data: sched } = await supabase
+    .from("course_schedules")
+    .select("capacity, seats_taken")
+    .eq("id", scheduleId)
+    .single();
+  if (!sched) return { message: "Schedule not found." };
+  const remaining = Math.max((Number(sched.capacity) || 0) - (Number(sched.seats_taken) || 0), 0);
+  if (rows.length > remaining) {
+    return { message: `Only ${remaining} seat(s) remaining, but ${rows.length} selected. Increase capacity or select fewer participants.` };
+  }
+
   if (rows.length > 0) {
-    await supabase.from("schedule_participants").insert(rows);
+    const { error } = await supabase.from("schedule_participants").insert(rows);
+    if (error) return { message: error.message };
   }
   revalidatePath(`/admin/schedules/${scheduleId}`);
+  return {};
 }
 
 /** "Remove" cancels the enrollment rather than deleting it, so registration

@@ -39,22 +39,22 @@ export function ScheduleForm({
       </Field>
 
       <div className="ta-field-row">
-        <Field label="Trainer name" name="trainer_name" hint="Free text until Trainers is normalized">
+        <Field label="Trainer name" name="trainer_name" hint="Free text until Trainers is normalized" error={e.trainer_name}>
           <input id="trainer_name" name="trainer_name" defaultValue={d.trainer_name ?? ""} />
         </Field>
-        <Field label="Venue" name="venue">
+        <Field label="Venue" name="venue" error={e.venue}>
           <input id="venue" name="venue" defaultValue={d.venue ?? ""} />
         </Field>
       </div>
 
       <div className="ta-field-row">
-        <Field label="Training mode" name="training_mode">
+        <Field label="Training mode" name="training_mode" error={e.training_mode}>
           <select id="training_mode" name="training_mode" defaultValue={d.training_mode ?? defaultTrainingMode ?? ""}>
             <option value="">—</option>
             {MODES.map((m) => <option key={m} value={m}>{m}</option>)}
           </select>
         </Field>
-        <Field label="Capacity" name="capacity">
+        <Field label="Capacity" name="capacity" error={e.capacity}>
           <input id="capacity" name="capacity" type="number" min="0" defaultValue={d.capacity ?? 20} />
         </Field>
       </div>
@@ -88,7 +88,7 @@ export function ScheduleForm({
         Published (visible/bookable)
       </label>
 
-      <Field label="Notes" name="notes">
+      <Field label="Notes" name="notes" error={e.notes}>
         <textarea id="notes" name="notes" rows={3} defaultValue={d.notes ?? ""} />
       </Field>
 

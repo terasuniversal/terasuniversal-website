@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { assignParticipants } from "./actions";
+import { useActionState, useState } from "react";
+import { assignParticipants, type ScheduleFormState } from "./actions";
 
 interface Available { id: string; participant_id: string; full_name: string; company: string | null }
 
@@ -21,6 +21,7 @@ export function AssignParticipants({
 }) {
   const [q, setQ] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [state, formAction, pending] = useActionState<ScheduleFormState, FormData>(assignParticipants.bind(null, scheduleId), {});
   const filtered = q.trim()
     ? available.filter((p) =>
         (p.full_name + " " + p.participant_id + " " + (p.company ?? "")).toLowerCase().includes(q.toLowerCase())
@@ -38,7 +39,8 @@ export function AssignParticipants({
   const overCapacity = seatsRemaining >= 0 && selected.size > seatsRemaining;
 
   return (
-    <form action={assignParticipants.bind(null, scheduleId)}>
+    <form action={formAction}>
+      {state.message && <div className="ta-alert ta-alert-error" style={{ marginBottom: 10 }}>{state.message}</div>}
       <div className="ta-search" style={{ maxWidth: "100%", marginBottom: 10 }}>
         <span className="ta-search-ico" aria-hidden="true">⌕</span>
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search participants to assign…" />
@@ -68,8 +70,8 @@ export function AssignParticipants({
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12 }}>
         <span style={{ color: "var(--ta-muted)", fontSize: 13 }}>{selected.size} selected · {seatsRemaining} seat(s) left</span>
-        <button type="submit" className="ta-btn ta-btn-primary" disabled={selected.size === 0 || overCapacity}>
-          Assign selected
+        <button type="submit" className="ta-btn ta-btn-primary" disabled={selected.size === 0 || overCapacity || pending}>
+          {pending ? "Assigning…" : "Assign selected"}
         </button>
       </div>
     </form>

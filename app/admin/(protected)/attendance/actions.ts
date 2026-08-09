@@ -10,7 +10,7 @@ const STATUS = z.enum(["present", "absent", "late", "excused"]);
 /** Server-side guard: the UI's day-navigation strip only lets staff pick an
  * in-range date, but nothing stopped a bound action from being invoked with
  * an out-of-range session_date directly. Reject rather than trust the UI. */
-async function isSessionDateInRange(supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>, scheduleId: string, sessionDate: string): Promise<boolean> {
+export async function isSessionDateInRange(supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>, scheduleId: string, sessionDate: string): Promise<boolean> {
   const { data } = await supabase.from("course_schedules").select("start_date, end_date").eq("id", scheduleId).single();
   if (!data) return false;
   return sessionDate >= data.start_date && sessionDate <= data.end_date;

@@ -69,9 +69,14 @@ export default async function TakeAttendancePage({
     return m;
   }, {});
 
-  // Simple day-by-day navigation across the schedule's date range.
+  // Simple day-by-day navigation across the schedule's date range. Built in
+  // UTC: start_date is a bare date, so parsing it as local time and then
+  // slicing toISOString() would shift every button a day early on any
+  // UTC+x server (e.g. Vercel's UTC), making the nav links out-of-range.
   const days: string[] = [];
-  for (let d = new Date(s.start_date + "T00:00:00"); d <= new Date(s.end_date + "T00:00:00"); d.setDate(d.getDate() + 1)) {
+  const startDay = new Date(s.start_date + "T00:00:00Z");
+  const endDay = new Date(s.end_date + "T00:00:00Z");
+  for (let d = new Date(startDay); d <= endDay; d.setUTCDate(d.getUTCDate() + 1)) {
     days.push(d.toISOString().slice(0, 10));
   }
 

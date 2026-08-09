@@ -84,7 +84,7 @@ export default async function AttendanceListPage({
         </select>
         <select name="year" defaultValue={sp.year ?? ""} style={sel} aria-label="Year">
           <option value="">Any year</option>
-          {[2025, 2026, 2027].map((y) => <option key={y} value={y}>{y}</option>)}
+          {[new Date().getFullYear() - 1, new Date().getFullYear(), new Date().getFullYear() + 1].map((y) => <option key={y} value={y}>{y}</option>)}
         </select>
         <button type="submit" className="ta-btn ta-btn-outline ta-btn-sm">Apply</button>
       </form>
