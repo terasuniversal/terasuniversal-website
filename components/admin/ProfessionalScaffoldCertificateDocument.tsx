@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import type { CertData, TemplateConfig } from "./CertificateDocument";
 import { fitHolderNameSize, formatDateRange, formatHumanDate, isAffirmativeStatus } from "../../lib/certificate-format";
+import { renderTemplateACrestSvg } from "../../lib/template-a-crest";
 
 /**
  * Dedicated 2-page renderer for the TERAS Professional Scaffold Erection
@@ -295,61 +296,6 @@ function BottomGeoPanel({ navy, gold }: { navy: string; gold: string }) {
         <div key={`${x}-${y}`} style={{ position: "absolute", left: `${x}%`, top: y * scale, width: 4, height: 4, background: gold, transform: "translate(-50%,-50%) rotate(45deg)" }} />
       ))}
     </div>
-  );
-}
-
-/** Two angled swallow-tail ribbons anchored behind the seal's lower edge, medal-style. Rendered before PremiumSeal in DOM order so normal paint order puts the circle on top without needing z-index. */
-function RibbonTails({ navy, gold, size }: { navy: string; gold: string; size: number }) {
-  const tail = (side: "left" | "right") => {
-    const rotate = side === "left" ? -16 : 16;
-    const align = side === "left" ? "right" : "left";
-    const nudge = side === "left" ? -1 : 1;
-    return (
-      <div
-        style={{
-          position: "absolute", [side]: "50%", top: 0, width: size * 0.19, height: size * 0.36,
-          background: `linear-gradient(180deg, #F0CD6E, ${gold} 55%, #B8912A)`, border: `1px solid ${navy}`,
-          clipPath: "polygon(0% 0%, 100% 0%, 100% 100%, 50% 80%, 0% 100%)",
-          transformOrigin: `top ${align}`, transform: `translateX(${nudge}px) rotate(${rotate}deg)`,
-        } as CSSProperties}
-      />
-    );
-  };
-  return (
-    <div style={{ position: "absolute", left: "50%", top: size * 0.68, width: 0, height: 0 }}>
-      {tail("left")}
-      {tail("right")}
-    </div>
-  );
-}
-
-/** Circular navy/gold seal with curved ribbon text top and bottom — decorative only, no accreditation claim. */
-function PremiumSeal({ navy, gold, size = 116 }: { navy: string; gold: string; size?: number }) {
-  const uid = "pssSeal";
-  return (
-    <svg viewBox="0 0 200 200" width={size} height={size}>
-      <defs>
-        <path id={`${uid}-top`} d="M 26,108 A 74,74 0 0 1 174,108" fill="none" />
-        <path id={`${uid}-bottom`} d="M 34,132 A 74,74 0 0 0 166,132" fill="none" />
-      </defs>
-      <circle cx="100" cy="100" r="92" fill={navy} stroke={gold} strokeWidth="3.5" />
-      <circle cx="100" cy="100" r="80" fill="none" stroke={gold} strokeWidth="1.4" opacity={0.9} />
-      <circle cx="100" cy="100" r="74" fill="none" stroke={gold} strokeWidth="1" opacity={0.6} />
-      {[...Array(5)].map((_, i) => {
-        const a = (-90 + i * 15) * (Math.PI / 180);
-        const r = 68;
-        return <circle key={i} cx={100 + r * Math.cos(a)} cy={100 + r * Math.sin(a) - 4} r="1.6" fill={gold} opacity={0.9} />;
-      })}
-      <text fontSize="13.2" fontWeight={800} fill={gold} letterSpacing="2.2">
-        <textPath href={`#${uid}-top`} startOffset="50%" textAnchor="middle">BUILDING COMPETENCE</textPath>
-      </text>
-      <text fontSize="13.2" fontWeight={800} fill={gold} letterSpacing="2.2">
-        <textPath href={`#${uid}-bottom`} startOffset="50%" textAnchor="middle">CREATING OPPORTUNITIES</textPath>
-      </text>
-      <text x="100" y="95" textAnchor="middle" fontSize="33" fontWeight={700} fill="#fff" fontFamily="Georgia, serif">TU</text>
-      <text x="100" y="114" textAnchor="middle" fontSize="9.2" fontWeight={600} fill={gold} letterSpacing="1.5">EST. 2012</text>
-      <line x1="70" y1="122" x2="130" y2="122" stroke={gold} strokeWidth="0.9" opacity={0.7} />
-    </svg>
   );
 }
 
@@ -654,8 +600,11 @@ export function ProfessionalScaffoldCertificateDocument({ data, config }: { data
           lines, which reopens the vertical A4-overflow bug this file's own
           history documents. */}
       <div style={{ position: "absolute", left: "50%", bottom: 40, transform: "translateX(-50%)", zIndex: 2 }}>
-        <RibbonTails navy={navy} gold={gold} size={154} />
-        <PremiumSeal navy={navy} gold={gold} size={154} />
+        <div
+          aria-label="TERAS crest"
+          style={{ width: 154, height: 162, lineHeight: 0 }}
+          dangerouslySetInnerHTML={{ __html: renderTemplateACrestSvg(navy, gold) }}
+        />
       </div>
     </div>
   );
