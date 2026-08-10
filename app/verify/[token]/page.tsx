@@ -31,9 +31,12 @@ function safeDecodeURIComponent(value: string): string {
 }
 
 /**
- * QR target: /verify/{verification_token}. Verifies by token (falls back to
- * auto so a certificate number pasted into the URL also resolves) and logs
- * the attempt with IP + user-agent.
+ * QR target: /verify/{certificate_number} (certData.ts prefers the
+ * certificate's own stored verification_url when set, falling back to
+ * building one from certificate_number). verify_and_log's p_method:'auto'
+ * matches on either verification_token or certificate_number, so either
+ * identifier resolves here — same RPC, same enabled/deleted semantics as
+ * the landing page's search.
  */
 export default async function VerifyTokenPage({ params }: { params: Promise<{ token: string }> }) {
   const { token: rawToken } = await params;
@@ -45,8 +48,9 @@ export default async function VerifyTokenPage({ params }: { params: Promise<{ to
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.rpc("verify_and_log", { p_query: token, p_method: "auto", p_ip: ip, p_ua: ua });
   if (error) {
-    // Never surface DB internals on a public page — log server-side only,
-    // then fall through to the same "not found" UI a genuine miss would show.
+    // Never surface DB internals on a public page, and never log the
+    // submitted value itself — log server-side only, then fall through to
+    // the same "not found" UI a genuine miss would show.
     console.error("verify_and_log RPC failed", { message: error.message });
   }
   const result: VerifyRow | null = !error && data && data.length > 0 ? (data[0] as VerifyRow) : null;

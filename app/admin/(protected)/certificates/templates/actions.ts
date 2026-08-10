@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { requireCertificate } from "../../../../../lib/auth/session";
+import { certificateTemplateConfigSchema, fieldErrors } from "../../../../../lib/validation/schemas";
 
 export type TemplateFormState = { errors?: Record<string, string>; message?: string };
 
@@ -84,9 +85,11 @@ export async function createTemplate(_prev: TemplateFormState, formData: FormDat
   await requireCertificate(true);
   const parsed = schema.safeParse(read(formData));
   if (!parsed.success) return { errors: { name: parsed.error.issues[0]?.message ?? "Invalid" } };
+  const configParsed = certificateTemplateConfigSchema.safeParse(buildConfig(formData));
+  if (!configParsed.success) return { errors: fieldErrors(configParsed.error) };
   const supabase = await createSupabaseServerClient();
   await ensureSingleDefault(supabase, parsed.data.is_default);
-  const { error } = await supabase.from("certificate_templates").insert({ ...parsed.data, config: buildConfig(formData) });
+  const { error } = await supabase.from("certificate_templates").insert({ ...parsed.data, config: configParsed.data });
   if (error) return { message: error.message };
   revalidatePath("/admin/certificates/templates");
   redirect("/admin/certificates/templates");
@@ -96,13 +99,15 @@ export async function updateTemplate(id: string, _prev: TemplateFormState, formD
   await requireCertificate(true);
   const parsed = schema.safeParse(read(formData));
   if (!parsed.success) return { errors: { name: parsed.error.issues[0]?.message ?? "Invalid" } };
+  const configParsed = certificateTemplateConfigSchema.safeParse(buildConfig(formData));
+  if (!configParsed.success) return { errors: fieldErrors(configParsed.error) };
   const supabase = await createSupabaseServerClient();
   await ensureSingleDefault(supabase, parsed.data.is_default, id);
   // Merge onto the existing stored config rather than replacing it outright,
   // so a key this form doesn't know about (an older/legacy config property)
   // survives a save instead of being silently dropped.
   const { data: existing } = await supabase.from("certificate_templates").select("config").eq("id", id).maybeSingle();
-  const mergedConfig = { ...((existing?.config as object) ?? {}), ...buildConfig(formData) };
+  const mergedConfig = { ...((existing?.config as object) ?? {}), ...configParsed.data };
   const { error } = await supabase.from("certificate_templates").update({ ...parsed.data, config: mergedConfig }).eq("id", id);
   if (error) return { message: error.message };
   revalidatePath("/admin/certificates/templates");

@@ -30,8 +30,16 @@ export default async function VerifyLandingPage({ searchParams }: { searchParams
     const ip = firstIp(h.get("x-forwarded-for") || h.get("x-real-ip"));
     const ua = h.get("user-agent");
     const supabase = await createSupabaseServerClient();
-    const { data } = await supabase.rpc("verify_and_log", { p_query: query, p_method: "auto", p_ip: ip, p_ua: ua });
-    result = data && data.length > 0 ? (data[0] as VerifyRow) : null;
+    const { data, error } = await supabase.rpc("verify_and_log", { p_query: query, p_method: "auto", p_ip: ip, p_ua: ua });
+    if (error) {
+      // Never surface DB internals on a public page, and never log the
+      // submitted value itself — it can be a certificate number, token, or
+      // (if a confused visitor pastes one) an IC/passport number. Log
+      // server-side only, then fall through to the same "not found" UI a
+      // genuine miss would show.
+      console.error("verify_and_log RPC failed", { message: error.message });
+    }
+    result = !error && data && data.length > 0 ? (data[0] as VerifyRow) : null;
   }
 
   return (

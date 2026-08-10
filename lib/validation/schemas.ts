@@ -206,6 +206,37 @@ export const newUserSchema = z.object({
   role: z.enum(["super_admin", "admin", "editor", "trainer", "client", "participant"]),
 });
 
+/**
+ * Bounds on the free-text certificate-template config fields that render
+ * directly onto the fixed-height, overflow:hidden A4 certificate pages
+ * (front page: body_text/duration_label; back page: everything else here).
+ * There was previously no length validation on any of these at all — an
+ * admin could type an arbitrarily long paragraph and it would silently clip
+ * under the frame with no warning. Limits are generous relative to the
+ * default content (e.g. important_notice's default four paragraphs run
+ * ~600 characters) so normal editing is never blocked, while still
+ * rejecting genuinely pathological input before it reaches the renderer.
+ * `.passthrough()` because this only guards the print-risk subset of a
+ * larger config object (colors, urls, contact fields, etc. aren't bounded
+ * here) — see certificate-template `buildConfig()` for the full shape.
+ */
+export const certificateTemplateConfigSchema = z
+  .object({
+    programme_title: z.string().trim().max(140).optional().or(z.literal("")),
+    duration_label: z.string().trim().max(80).optional().or(z.literal("")),
+    body_text: z.string().trim().max(400).optional().or(z.literal("")),
+    objectives_text: z.string().trim().max(700).optional().or(z.literal("")),
+    important_notice: z.string().trim().max(1500).optional().or(z.literal("")),
+    coverage_items: z.array(z.string().trim().min(1).max(90)).max(14).default([]),
+    learning_outcomes: z.array(z.string().trim().min(1).max(120)).max(10).default([]),
+    assessment_methods: z.array(z.string().trim().min(1).max(60)).max(8).default([]),
+    skills_record: z
+      .array(z.object({ area: z.string().trim().min(1).max(60), status: z.string().trim().min(1).max(40) }))
+      .max(10)
+      .default([]),
+  })
+  .passthrough();
+
 /** Helper to flatten Zod errors into a { field: message } map for forms. */
 export function fieldErrors(error: z.ZodError): Record<string, string> {
   const out: Record<string, string> = {};
