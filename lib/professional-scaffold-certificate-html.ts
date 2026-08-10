@@ -1,5 +1,6 @@
 import type { CertData, TemplateConfig } from "../components/admin/CertificateDocument";
 import { fitHolderNameSize, formatDateRange, formatHumanDate, isAffirmativeStatus } from "./certificate-format";
+import { renderTemplateACrestSvg } from "./template-a-crest";
 
 /**
  * Standalone HTML string mirror of
@@ -161,44 +162,6 @@ function bottomGeoPanel(navy: string, gold: string): string {
     </svg>
     ${studs}
   </div>`;
-}
-
-/** Circular navy/gold seal with curved ribbon text — decorative only, no accreditation claim. Mirrors PremiumSeal. */
-function premiumSeal(navy: string, gold: string, size = 138): string {
-  const uid = "pssSeal";
-  const stars = [...Array(5)]
-    .map((_, i) => {
-      const a = (-90 + i * 15) * (Math.PI / 180);
-      const r = 68;
-      return `<circle cx="${100 + r * Math.cos(a)}" cy="${100 + r * Math.sin(a) - 4}" r="1.6" fill="${gold}" opacity="0.9"/>`;
-    })
-    .join("");
-  return `<svg viewBox="0 0 200 200" width="${size}" height="${size}">
-    <defs>
-      <path id="${uid}-top" d="M 26,108 A 74,74 0 0 1 174,108" fill="none"/>
-      <path id="${uid}-bottom" d="M 34,132 A 74,74 0 0 0 166,132" fill="none"/>
-    </defs>
-    <circle cx="100" cy="100" r="92" fill="${navy}" stroke="${gold}" stroke-width="3.5"/>
-    <circle cx="100" cy="100" r="80" fill="none" stroke="${gold}" stroke-width="1.4" opacity="0.9"/>
-    <circle cx="100" cy="100" r="74" fill="none" stroke="${gold}" stroke-width="1" opacity="0.6"/>
-    ${stars}
-    <text font-size="13.2" font-weight="800" fill="${gold}" letter-spacing="2.2"><textPath href="#${uid}-top" startOffset="50%" text-anchor="middle">BUILDING COMPETENCE</textPath></text>
-    <text font-size="13.2" font-weight="800" fill="${gold}" letter-spacing="2.2"><textPath href="#${uid}-bottom" startOffset="50%" text-anchor="middle">CREATING OPPORTUNITIES</textPath></text>
-    <text x="100" y="95" text-anchor="middle" font-size="33" font-weight="700" fill="#fff" font-family="Georgia, serif">TU</text>
-    <text x="100" y="114" text-anchor="middle" font-size="9.2" font-weight="600" fill="${gold}" letter-spacing="1.5">EST. 2012</text>
-    <line x1="70" y1="122" x2="130" y2="122" stroke="${gold}" stroke-width="0.9" opacity="0.7"/>
-  </svg>`;
-}
-
-/** Two angled swallow-tail ribbons anchored behind the seal's lower edge, medal-style. Rendered before the seal in DOM order so normal paint order puts the circle on top without needing z-index. */
-function ribbonTails(navy: string, gold: string, size: number): string {
-  const tail = (side: "left" | "right") => {
-    const rotate = side === "left" ? -16 : 16;
-    const align = side === "left" ? "right" : "left";
-    const nudge = side === "left" ? "-1px" : "1px";
-    return `<div style="position:absolute;${side}:50%;top:0;width:${size * 0.19}px;height:${size * 0.36}px;background:linear-gradient(180deg,#F0CD6E,${gold} 55%,#B8912A);border:1px solid ${navy};clip-path:polygon(0% 0%,100% 0%,100% 100%,50% 80%,0% 100%);transform-origin:top ${align};transform:translateX(${nudge}) rotate(${rotate}deg);"></div>`;
-  };
-  return `<div style="position:absolute;left:50%;top:${size * 0.68}px;width:0;height:0;">${tail("left")}${tail("right")}</div>`;
 }
 
 /** Mirrors ScaffoldSideArt — standards, irregular ledgers, diagonal braces, planks, ladder, base plates and coupler clamps at the structural joints, not a lattice. Standards render in their own heavier-weight group for a natural thick/thin hierarchy, and the whole watermark fades out via a mask-image toward the page edge rather than cutting off hard. */
@@ -378,7 +341,7 @@ export function renderProfessionalScaffoldCertificateFront(data: CertData, confi
     </div>
   </div>
   <!-- size=154 (+10% over the prior 140): 162 measured only a 4px gap to the signature block, a real near-collision — see React component's comment for the full reasoning. 154 was live-measured to keep a safe gap; do not push toward 162 without re-measuring. -->
-  <div style="position:absolute;left:50%;bottom:40px;transform:translateX(-50%);z-index:2;">${ribbonTails(navy, gold, 154)}${premiumSeal(navy, gold, 154)}</div>
+  <div aria-label="TERAS crest" style="position:absolute;left:50%;bottom:40px;transform:translateX(-50%);z-index:2;width:154px;height:162px;line-height:0;">${renderTemplateACrestSvg(navy, gold)}</div>
 </div>`;
 }
 
