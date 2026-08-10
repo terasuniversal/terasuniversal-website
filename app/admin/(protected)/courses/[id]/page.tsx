@@ -21,6 +21,13 @@ export default async function EditCoursePage({
   const { data: course } = await supabase.from("courses").select("*").eq("id", id).single();
   if (!course) notFound();
 
+  const { data: templates } = await supabase
+    .from("certificate_templates")
+    .select("id, name")
+    .is("deleted_at", null)
+    .eq("is_active", true)
+    .order("name");
+
   // Bind the id into the update action.
   const boundUpdate = updateCourse.bind(null, id);
   const boundDelete = softDeleteCourse.bind(null, id);
@@ -41,7 +48,7 @@ export default async function EditCoursePage({
           </div>
         }
       />
-      <CourseForm action={boundUpdate} course={course as Course} />
+      <CourseForm action={boundUpdate} course={course as Course} templates={templates ?? []} />
     </>
   );
 }

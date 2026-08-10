@@ -48,6 +48,7 @@ export type CourseDeliveryMode =
   | "onsite"
   | "online"
   | "hybrid";
+export type CertificateType = "participation" | "completion" | "competency";
 
 export interface Profile {
   id: string;
@@ -92,6 +93,12 @@ export interface Course {
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
+  certificate_type: CertificateType;
+  attendance_min_percent: number;
+  assessment_required: boolean;
+  competency_required: boolean;
+  certificate_generation_enabled: boolean;
+  certificate_template_id: string | null;
 }
 
 export interface Enquiry {

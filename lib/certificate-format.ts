@@ -25,7 +25,8 @@ export async function generateQrSvg(value: string, colorDark = "#0B3A63"): Promi
     // embedded at any display size (front page ~100px, back page smaller)
     // just by sizing its wrapping container.
     return svg.replace("<svg ", '<svg width="100%" height="100%" ');
-  } catch {
+  } catch (err) {
+    console.error("generateQrSvg failed", err);
     return null;
   }
 }

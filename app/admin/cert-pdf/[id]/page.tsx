@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { requireCertificate } from "../../../../lib/auth/session";
 import { loadCertificateRender } from "../../(protected)/certificates/certData";
-import { CertificateDocument, CertificateBackPage } from "../../../../components/admin/CertificateDocument";
+import { CertificateFront, CertificateBack } from "../../../../components/admin/CertificateRenderer";
 
 export const metadata = { title: "Certificate PDF — TERAS UNIVERSAL", robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
@@ -37,10 +37,10 @@ export default async function CertPdfPage({ params }: { params: Promise<{ id: st
         }
       `}</style>
       <div className="cert-pdf-wrap" style={{ display: "grid", gap: 20 }}>
-        <div className="cert-pdf-page"><CertificateDocument data={r.data} config={r.config} /></div>
-        {hasBack && <div className="cert-pdf-page"><CertificateBackPage data={r.data} config={r.config} /></div>}
+        <div className="cert-pdf-page"><CertificateFront data={r.data} config={r.config} /></div>
+        {hasBack && <div className="cert-pdf-page"><CertificateBack data={r.data} config={r.config} /></div>}
       </div>
-      <script dangerouslySetInnerHTML={{ __html: "window.onload=function(){setTimeout(function(){window.print()},400)}" }} />
+      <script dangerouslySetInnerHTML={{ __html: "window.onload=function(){if(!new URLSearchParams(window.location.search).has('preview')){setTimeout(function(){window.print()},400)}}" }} />
     </div>
   );
 }

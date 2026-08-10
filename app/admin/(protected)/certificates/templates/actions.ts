@@ -46,6 +46,7 @@ function buildConfig(formData: FormData) {
     // Front page
     duration_label: v("duration_label") || undefined,
     skills_update_recommendation: v("skills_update_recommendation") || undefined,
+    certificate_number_prefix: v("certificate_number_prefix") || undefined,
     // Back page ("Programme Information")
     show_back_page: formData.get("show_back_page") === "on",
     show_skills_record: formData.get("show_skills_record") === "on",

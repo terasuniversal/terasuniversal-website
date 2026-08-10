@@ -29,6 +29,8 @@ export interface CertData {
 }
 
 export interface TemplateConfig {
+  /** Selects a dedicated renderer component in CertificateRenderer.tsx instead of this generic one. Routed by exact key match, never by course-name/title matching. */
+  design_variant?: string;
   logo_url?: string;
   background_url?: string;
   accent_color?: string;
@@ -36,11 +38,15 @@ export interface TemplateConfig {
   signature_url?: string;
   signature_name?: string;
   signature_title?: string;
+  /** "dual" (default) = Trainer + Training Manager blocks either side of the stamp, matching the generic template. "single" = one signature block (e.g. Director) beside the stamp only — used by templates that must show exactly one signatory. */
+  signature_layout?: "dual" | "single";
   body_text?: string;
   show_qr?: boolean;
   // Front page
   duration_label?: string;
   skills_update_recommendation?: string;
+  /** e.g. "TU-SESP" — when set, generateCertificate/bulkGenerate assign "{prefix}-{year}-{0001}" instead of the generic CERT-YYYY-NNNNNN fallback. Unset for every other template today; see certificates/actions.ts. */
+  certificate_number_prefix?: string;
   // Back page ("Programme Information") — configurable per template because
   // it's programme-specific content, not per-certificate data.
   show_back_page?: boolean;
@@ -299,20 +305,32 @@ export function CertificateDocument({ data, config }: { data: CertData; config: 
           {config.show_qr !== false && data.qr_svg && <QrBlock svg={data.qr_svg} navy={navy} gold={gold} size={104} caption />}
         </div>
 
-        {/* Signatures — Trainer (left), Training Manager (middle), Company Stamp (right), matching the reference order */}
+        {/* Signatures. "single" = one signatory (e.g. Director) beside the stamp only.
+            "dual" (default) = Trainer (left), Training Manager (middle), Company Stamp (right). */}
         <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginTop: 28, paddingTop: 4 }}>
           <div style={{ textAlign: "center", fontSize: 11.5, width: 180 }}>
             {config.signature_url && <img src={config.signature_url} alt="" style={{ height: 38, objectFit: "contain" }} />}
             <div style={{ borderTop: `1px solid ${navy}`, margin: "4px 0 4px" }} />
-            <strong style={{ color: navy }}>{config.signature_name || "Trainer"}</strong>
-            <div style={{ color: "#6b7280" }}>Trainer Signature</div>
+            {config.signature_layout === "single" ? (
+              <strong style={{ color: navy }}>{config.signature_name || config.signature_title || "Director"}</strong>
+            ) : (
+              <>
+                <strong style={{ color: navy }}>{config.signature_name || "Trainer"}</strong>
+                <div style={{ color: "#6b7280" }}>Trainer Signature</div>
+              </>
+            )}
+            {config.signature_layout === "single" && config.signature_name && (
+              <div style={{ color: "#6b7280" }}>{config.signature_title || "Director"}</div>
+            )}
           </div>
-          <div style={{ textAlign: "center", fontSize: 11.5, width: 180 }}>
-            <div style={{ height: 38 }} />
-            <div style={{ borderTop: `1px solid ${navy}`, margin: "4px 0 4px" }} />
-            <strong style={{ color: navy }}>{config.signature_title || "Training Manager"}</strong>
-            <div style={{ color: "#6b7280" }}>Training Manager</div>
-          </div>
+          {config.signature_layout !== "single" && (
+            <div style={{ textAlign: "center", fontSize: 11.5, width: 180 }}>
+              <div style={{ height: 38 }} />
+              <div style={{ borderTop: `1px solid ${navy}`, margin: "4px 0 4px" }} />
+              <strong style={{ color: navy }}>{config.signature_title || "Training Manager"}</strong>
+              <div style={{ color: "#6b7280" }}>Training Manager</div>
+            </div>
+          )}
           <div style={{ textAlign: "center", fontSize: 10.5, width: 66, height: 66, borderRadius: "50%", border: `1px dashed ${gold}`, display: "flex", alignItems: "center", justifyContent: "center", color: "#9ca3af", padding: 4 }}>
             COMPANY STAMP
           </div>

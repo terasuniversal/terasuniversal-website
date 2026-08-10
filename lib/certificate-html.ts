@@ -1,5 +1,6 @@
 import type { CertData, TemplateConfig } from "../components/admin/CertificateDocument";
 import { fitHolderNameSize, formatDateRange, isAffirmativeStatus } from "./certificate-format";
+import { renderProfessionalScaffoldCertificateDocument } from "./professional-scaffold-certificate-html";
 
 /**
  * Standalone HTML string renderer for a certificate — no React / no
@@ -167,6 +168,29 @@ export function renderCertificateFront(data: CertData, config: TemplateConfig): 
   const qrHtml = config.show_qr !== false && data.qr_svg ? qrBlock(data.qr_svg, navy, gold, 104, true) : "";
   const signatureImg = config.signature_url ? `<img src="${esc(config.signature_url)}" alt="" style="height:38px;object-fit:contain;"/>` : "";
 
+  const isSingleSignature = config.signature_layout === "single";
+  const primarySignatureBlock = isSingleSignature
+    ? `<div style="text-align:center;font-size:11.5px;width:180px;">
+        ${signatureImg}
+        <div style="border-top:1px solid ${navy};margin:4px 0;"></div>
+        <strong style="color:${navy};">${esc(config.signature_name || config.signature_title || "Director")}</strong>
+        ${config.signature_name ? `<div style="color:#6b7280;">${esc(config.signature_title || "Director")}</div>` : ""}
+      </div>`
+    : `<div style="text-align:center;font-size:11.5px;width:180px;">
+        ${signatureImg}
+        <div style="border-top:1px solid ${navy};margin:4px 0;"></div>
+        <strong style="color:${navy};">${esc(config.signature_name || "Trainer")}</strong>
+        <div style="color:#6b7280;">Trainer Signature</div>
+      </div>`;
+  const secondarySignatureBlock = isSingleSignature
+    ? ""
+    : `<div style="text-align:center;font-size:11.5px;width:180px;">
+        <div style="height:38px;"></div>
+        <div style="border-top:1px solid ${navy};margin:4px 0;"></div>
+        <strong style="color:${navy};">${esc(config.signature_title || "Training Manager")}</strong>
+        <div style="color:#6b7280;">Training Manager</div>
+      </div>`;
+
   return `<div style="width:${PAGE_W}px;height:${PAGE_H}px;margin:0 auto;position:relative;background:#fff;box-sizing:border-box;padding:34px;font-family:Georgia,'Times New Roman',serif;color:#1F2937;overflow:hidden;${bgImage}">
   ${motif}
   ${ornateBorder(navy, gold)}
@@ -203,18 +227,8 @@ export function renderCertificateFront(data: CertData, config: TemplateConfig): 
       ${qrHtml}
     </div>
     <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-top:28px;padding-top:4px;">
-      <div style="text-align:center;font-size:11.5px;width:180px;">
-        ${signatureImg}
-        <div style="border-top:1px solid ${navy};margin:4px 0;"></div>
-        <strong style="color:${navy};">${esc(config.signature_name || "Trainer")}</strong>
-        <div style="color:#6b7280;">Trainer Signature</div>
-      </div>
-      <div style="text-align:center;font-size:11.5px;width:180px;">
-        <div style="height:38px;"></div>
-        <div style="border-top:1px solid ${navy};margin:4px 0;"></div>
-        <strong style="color:${navy};">${esc(config.signature_title || "Training Manager")}</strong>
-        <div style="color:#6b7280;">Training Manager</div>
-      </div>
+      ${primarySignatureBlock}
+      ${secondarySignatureBlock}
       <div style="text-align:center;font-size:10.5px;width:66px;height:66px;border-radius:50%;border:1px dashed ${gold};display:flex;align-items:center;justify-content:center;color:#9ca3af;padding:4px;">COMPANY STAMP</div>
     </div>
   </div>
@@ -327,8 +341,17 @@ export function renderCertificateBody(data: CertData, config: TemplateConfig): s
   return `<div style="page-break-after:always;">${front}</div>${back}`;
 }
 
-/** Full standalone, printable HTML document for one certificate (front + back, A4 portrait). */
+/**
+ * Full standalone, printable HTML document for one certificate (front +
+ * back, A4 portrait). Routed by `config.design_variant` — never by
+ * course-name matching — to the dedicated Professional Scaffold renderer;
+ * every other template (including the untouched generic default) falls
+ * through to the layout below.
+ */
 export function renderCertificateDocument(data: CertData, config: TemplateConfig): string {
+  if (config.design_variant === "professional_scaffold_erection_skills") {
+    return renderProfessionalScaffoldCertificateDocument(data, config);
+  }
   const title = data.certificate_number || data.holder_name || "Certificate";
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${esc(title)}</title>
 <style>

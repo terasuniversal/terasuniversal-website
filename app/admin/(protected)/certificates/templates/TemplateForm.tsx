@@ -4,13 +4,14 @@ import { useActionState, useState, useEffect } from "react";
 import Link from "next/link";
 import type { TemplateFormState } from "./actions";
 import { Field } from "../../../../../components/admin/ui";
-import { CertificateDocument, CertificateBackPage, type CertData } from "../../../../../components/admin/CertificateDocument";
+import { CertificateFront, CertificateBack } from "../../../../../components/admin/CertificateRenderer";
+import type { CertData } from "../../../../../components/admin/CertificateDocument";
 import { generateQrSvg } from "../../../../../lib/certificate-format";
 
 const PREVIEW_DATA_BASE: Omit<CertData, "qr_svg"> = {
-  certificate_number: "TU/AWA/2026/0001",
+  certificate_number: "TU-SESP-2026-0001",
   holder_name: "Ahmad Bin Ali",
-  course_name: "Scaffolding Competency Programme",
+  course_name: "TERAS Professional Scaffold Erection Skills Programme",
   programme_duration: null,
   ic_passport: "900101-01-5523",
   participant_id: "TU-000123",
@@ -19,7 +20,7 @@ const PREVIEW_DATA_BASE: Omit<CertData, "qr_svg"> = {
   venue: "TERAS Training Centre",
   trainer: "En. Ali",
   issue_date: "21 July 2026",
-  verification_url: "https://www.terasuniversal.com.my/verify/TU%2FAWA%2F2026%2F0001",
+  verification_url: "https://www.terasuniversal.com.my/verify/TU-SESP-2026-0001",
 };
 
 export function TemplateForm({
@@ -35,6 +36,10 @@ export function TemplateForm({
   const c = template?.config ?? {};
   const joinLines = (arr?: string[]) => (arr ?? []).join("\n");
   const [preview, setPreview] = useState({
+    // Read-only pass-through — which dedicated design a template uses is an
+    // exclusive binding set up alongside the template itself, not a field
+    // exposed for editing here (see CertificateRenderer.tsx).
+    design_variant: c.design_variant as string | undefined,
     logo_url: c.logo_url ?? "/teras-universal-logo.png",
     primary_color: c.primary_color ?? "#0B3A63",
     accent_color: c.accent_color ?? "#D4AF37",
@@ -44,6 +49,7 @@ export function TemplateForm({
     show_qr: c.show_qr !== false,
     duration_label: c.duration_label ?? "",
     skills_update_recommendation: c.skills_update_recommendation ?? "",
+    certificate_number_prefix: c.certificate_number_prefix ?? "",
     show_back_page: c.show_back_page !== false,
     show_skills_record: c.show_skills_record !== false,
     programme_title: c.programme_title ?? "",
@@ -75,7 +81,7 @@ export function TemplateForm({
         .split("\n")
         .map((line) => {
           const [area, status] = line.split("|").map((s) => s.trim());
-          return area ? { area, status: status || "Pending" } : null;
+          return area ? { area, status: status || "Not Recorded" } : null;
         })
         .filter((r): r is { area: string; status: string } => r !== null)
     );
@@ -121,6 +127,9 @@ export function TemplateForm({
             <input id="skills_update_recommendation" name="skills_update_recommendation" defaultValue={preview.skills_update_recommendation} onChange={(e) => upd("skills_update_recommendation", e.target.value)} placeholder="Within Three (3) Years" />
           </Field>
         </div>
+        <Field label="Certificate number prefix (optional — e.g. TU-SESP; leave blank to use the default CERT-YYYY-NNNNNN numbering)" name="certificate_number_prefix">
+          <input id="certificate_number_prefix" name="certificate_number_prefix" defaultValue={preview.certificate_number_prefix} onChange={(e) => upd("certificate_number_prefix", e.target.value)} placeholder="TU-SESP" />
+        </Field>
         <div className="ta-field-row">
           <Field label="Trainer name" name="signature_name">
             <input id="signature_name" name="signature_name" defaultValue={preview.signature_name} onChange={(e) => upd("signature_name", e.target.value)} />
@@ -206,7 +215,7 @@ export function TemplateForm({
         <div style={{ fontWeight: 700, color: "var(--ta-navy)", marginBottom: 8 }}>Live preview — Front</div>
         <div style={{ overflow: "hidden", border: "1px solid var(--ta-line)", borderRadius: 10, background: "#eef1f6", padding: 10, marginBottom: 16 }}>
           <div style={{ transform: "scale(0.42)", transformOrigin: "top left", height: 480 }}>
-            <CertificateDocument config={preview} data={previewData} />
+            <CertificateFront config={preview} data={previewData} />
           </div>
         </div>
         {preview.show_back_page && (
@@ -214,7 +223,7 @@ export function TemplateForm({
             <div style={{ fontWeight: 700, color: "var(--ta-navy)", marginBottom: 8 }}>Live preview — Back</div>
             <div style={{ overflow: "hidden", border: "1px solid var(--ta-line)", borderRadius: 10, background: "#eef1f6", padding: 10 }}>
               <div style={{ transform: "scale(0.42)", transformOrigin: "top left", height: 480 }}>
-                <CertificateBackPage config={preview} data={previewData} />
+                <CertificateBack config={preview} data={previewData} />
               </div>
             </div>
           </>

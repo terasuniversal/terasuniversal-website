@@ -8,6 +8,37 @@ import { generateCertificate, bulkGenerate } from "../../actions";
 export const metadata = { title: "Generate Certificates — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
 
+interface EligibilityRow {
+  participant_id: string;
+  holder_name: string;
+  attendance_percentage: number;
+  attendance_min_percent: number;
+  result: string | null;
+  competency_status: string | null;
+  eligible: boolean;
+  ineligibility_reason: string | null;
+  existing_certificate_id: string | null;
+}
+
+const REASON_LABEL: Record<string, string> = {
+  certificate_generation_disabled: "Certificate generation not enabled for this course",
+  certificate_template_not_configured: "No certificate template configured for this course",
+  enrollment_cancelled: "Enrollment cancelled",
+  schedule_not_completed: "Schedule not completed",
+  attendance_not_met: "Attendance below required minimum",
+  assessment_missing: "Assessment pending",
+  assessment_not_passed: "Assessment not passed",
+  competency_not_met: "Competency not achieved",
+  certificate_already_exists: "Certificate already issued",
+};
+
+function reasonText(r: EligibilityRow): string {
+  if (r.ineligibility_reason === "attendance_not_met") {
+    return `Attendance ${r.attendance_percentage}% / Required ${r.attendance_min_percent}%`;
+  }
+  return REASON_LABEL[r.ineligibility_reason ?? ""] ?? r.ineligibility_reason ?? "Not eligible";
+}
+
 export default async function GenerateForSchedulePage({ params }: { params: Promise<{ scheduleId: string }> }) {
   await requireCertificate(true);
   const { scheduleId } = await params;
@@ -17,19 +48,14 @@ export default async function GenerateForSchedulePage({ params }: { params: Prom
   if (!scheduleRow) notFound();
   const s = { ...scheduleRow, course_name: (scheduleRow as any).courses?.course_name ?? "—", trainer: (scheduleRow as any).trainer_name, schedule_id: (scheduleRow as any).schedule_code };
 
-  // v_certificate_eligibility does not exist live -- certificate eligibility
-  // logic is an explicit later follow-up, not part of this migration (see
-  // SCHEDULES_ARCHITECTURE_DECISION.md §J). This query is left as-is: it
-  // will return no rows rather than crash the page.
-  const { data: elig } = await supabase.from("v_certificate_eligibility").select("*").eq("schedule_id", scheduleId);
-  // Which participants already have a live certificate?
-  const { data: existing } = await supabase.from("certificates").select("participant_id").eq("schedule_id", scheduleId).is("deleted_at", null);
-  const certified = new Set((existing ?? []).map((c: any) => c.participant_id));
+  const { data: eligRaw } = await supabase.from("v_certificate_eligibility").select("*").eq("schedule_id", scheduleId);
+  const rows = (eligRaw ?? []) as EligibilityRow[];
+  const eligibleCount = rows.filter((r) => r.eligible).length;
 
-  const rows = elig ?? [];
-  const eligibleCount = rows.filter((r: any) => r.eligible && !certified.has(r.participant_id)).length;
-
-  const boundBulk = async () => { await bulkGenerate(scheduleId); };
+  const boundBulk = async () => {
+    "use server";
+    await bulkGenerate(scheduleId);
+  };
 
   return (
     <>
@@ -46,26 +72,29 @@ export default async function GenerateForSchedulePage({ params }: { params: Prom
       />
 
       <div className="ta-alert" style={{ background: "rgba(47,111,237,.08)", color: "var(--ta-info)", marginBottom: 16 }}>
-        A certificate can only be generated when the participant is <strong>Present</strong>, the assessment <strong>result = Pass</strong>, and competency = <strong>Competent</strong>.
+        A certificate can only be generated once the schedule is <strong>Completed</strong> and the participant meets the course&apos;s configured attendance minimum and assessment/competency requirements.
       </div>
 
       <Card>
         {rows.length > 0 ? (
           <div className="ta-table-wrap">
             <table className="ta-table">
-              <thead><tr><th>Participant</th><th>Attendance</th><th>Result</th><th>Competency</th><th>Eligible</th><th></th></tr></thead>
+              <thead><tr><th>Participant</th><th>Attendance</th><th>Result</th><th>Competency</th><th>Status</th><th></th></tr></thead>
               <tbody>
-                {rows.map((r: any) => {
-                  const already = certified.has(r.participant_id);
-                  const canGen = r.eligible && !already;
-                  const boundGen = async () => { await generateCertificate(scheduleId, r.participant_id); };
+                {rows.map((r) => {
+                  const already = !!r.existing_certificate_id;
+                  const canGen = r.eligible;
+                  const boundGen = async () => {
+                    "use server";
+                    await generateCertificate(scheduleId, r.participant_id);
+                  };
                   return (
                     <tr key={r.participant_id}>
                       <td><strong>{r.holder_name}</strong></td>
-                      <td>{r.attendance_status ? <Badge status={r.attendance_status} /> : "—"}</td>
+                      <td>{r.attendance_percentage}%</td>
                       <td>{r.result ? <Badge status={r.result} /> : "—"}</td>
                       <td>{r.competency_status ? <Badge status={r.competency_status} /> : "—"}</td>
-                      <td>{r.eligible ? "✅" : "—"}</td>
+                      <td>{r.eligible ? "✅ Eligible" : <span style={{ color: "var(--ta-muted)", fontSize: 12.5 }}>{reasonText(r)}</span>}</td>
                       <td style={{ textAlign: "right" }}>
                         {already ? (
                           <span style={{ color: "var(--ta-success)", fontSize: 13 }}>✓ Certified</span>

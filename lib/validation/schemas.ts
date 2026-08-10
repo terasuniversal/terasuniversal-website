@@ -37,7 +37,27 @@ export const courseSchema = z.object({
   sort_order: z.coerce.number().int().default(0),
   seo_title: z.string().trim().max(160).optional().or(z.literal("")),
   seo_description: z.string().trim().max(320).optional().or(z.literal("")),
-});
+  // Certificate eligibility engine config (v_certificate_eligibility) --
+  // never inferred from category/template names, always explicit per course.
+  certificate_type: z.enum(["participation", "completion", "competency"]).default("completion"),
+  attendance_min_percent: z.coerce.number().min(0).max(100).default(100),
+  assessment_required: z.coerce.boolean().default(false),
+  competency_required: z.coerce.boolean().default(false),
+  // Generation safety (v_certificate_eligibility's certificate_generation_disabled /
+  // certificate_template_not_configured gate) -- a course must never be able to
+  // generate certificates without staff having explicitly enabled it AND bound
+  // a specific template. IDs only, never resolved by title/course-name matching.
+  certificate_generation_enabled: z.coerce.boolean().default(false),
+  certificate_template_id: z.string().uuid().optional().nullable(),
+})
+  .refine((v) => !v.competency_required || v.assessment_required, {
+    message: "Competency requirement needs assessment to also be required",
+    path: ["competency_required"],
+  })
+  .refine((v) => !v.certificate_generation_enabled || !!v.certificate_template_id, {
+    message: "Select a certificate template before enabling certificate generation",
+    path: ["certificate_template_id"],
+  });
 export type CourseInput = z.infer<typeof courseSchema>;
 
 export const newsSchema = z.object({

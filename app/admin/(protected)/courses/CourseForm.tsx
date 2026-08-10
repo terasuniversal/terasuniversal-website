@@ -21,9 +21,11 @@ const DELIVERY = [
 export function CourseForm({
   action,
   course,
+  templates = [],
 }: {
   action: (prev: CourseFormState, fd: FormData) => Promise<CourseFormState>;
   course?: Course;
+  templates?: { id: string; name: string }[];
 }) {
   const [state, formAction, pending] = useActionState<CourseFormState, FormData>(action, {});
   const e = state.errors ?? {};
@@ -115,6 +117,70 @@ export function CourseForm({
             <input type="checkbox" name="featured" defaultChecked={course?.featured} style={{ width: "auto" }} />
             Show in featured programmes
           </label>
+        </Field>
+      </div>
+
+      <div className="ta-field-row">
+        <Field label="Certificate Type" name="certificate_type" hint="Drives the eligibility engine — never inferred from category">
+          <select id="certificate_type" name="certificate_type" defaultValue={course?.certificate_type ?? "completion"}>
+            <option value="participation">Participation</option>
+            <option value="completion">Completion</option>
+            <option value="competency">Competency</option>
+          </select>
+        </Field>
+        <Field label="Attendance Minimum (%)" name="attendance_min_percent" error={e.attendance_min_percent}>
+          <input
+            id="attendance_min_percent"
+            name="attendance_min_percent"
+            type="number"
+            min="0"
+            max="100"
+            defaultValue={course?.attendance_min_percent ?? 100}
+          />
+        </Field>
+      </div>
+
+      <Field label="Assessment / Competency" name="assessment_required" error={e.competency_required} hint="Competency requires assessment to also be checked">
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+          <label style={{ display: "flex", gap: 6, alignItems: "center", fontWeight: 500 }}>
+            <input type="checkbox" name="assessment_required" defaultChecked={course?.assessment_required} style={{ width: "auto" }} />
+            Assessment required (result must be Pass)
+          </label>
+          <label style={{ display: "flex", gap: 6, alignItems: "center", fontWeight: 500 }}>
+            <input type="checkbox" name="competency_required" defaultChecked={course?.competency_required} style={{ width: "auto" }} />
+            Competency required (also needs competency_status = Competent)
+          </label>
+        </div>
+      </Field>
+
+      <div className="ta-field-row">
+        <Field
+          label="Certificate Generation"
+          name="certificate_generation_enabled"
+          hint="Off by default. Enabling requires a template to be selected below — generation is otherwise blocked, even if attendance/assessment pass."
+        >
+          <label style={{ display: "flex", gap: 8, alignItems: "center", fontWeight: 500, paddingTop: 8 }}>
+            <input
+              type="checkbox"
+              name="certificate_generation_enabled"
+              defaultChecked={course?.certificate_generation_enabled}
+              style={{ width: "auto" }}
+            />
+            Enabled
+          </label>
+        </Field>
+        <Field
+          label="Certificate Template"
+          name="certificate_template_id"
+          error={e.certificate_template_id}
+          hint="Exclusive to this course — never resolved by course name/title at generation time"
+        >
+          <select id="certificate_template_id" name="certificate_template_id" defaultValue={course?.certificate_template_id ?? ""}>
+            <option value="">— None selected —</option>
+            {templates.map((t) => (
+              <option key={t.id} value={t.id}>{t.name}</option>
+            ))}
+          </select>
         </Field>
       </div>
 

@@ -39,6 +39,12 @@ function readForm(formData: FormData) {
     sort_order: Number(formData.get("sort_order") ?? 0),
     seo_title: String(formData.get("seo_title") ?? ""),
     seo_description: String(formData.get("seo_description") ?? ""),
+    certificate_type: String(formData.get("certificate_type") ?? "completion"),
+    attendance_min_percent: formData.get("attendance_min_percent") ?? 100,
+    assessment_required: formData.get("assessment_required") === "on",
+    competency_required: formData.get("competency_required") === "on",
+    certificate_generation_enabled: formData.get("certificate_generation_enabled") === "on",
+    certificate_template_id: (formData.get("certificate_template_id") as string) || null,
   };
 }
 
