@@ -278,7 +278,7 @@ export function renderProfessionalScaffoldCertificateFront(data: CertData, confi
   const durationBlock = ribbonBanner(`<span style="font-size:15px;font-weight:600;letter-spacing:.6px;">${esc(duration)}</span>`, navy, gold, "margin:8px auto 0;display:block;width:fit-content;", "gold");
   const dateBlock = dateRange ? `<p style="font-size:12.5px;color:#4b5563;margin:5px 0 0;"><strong style="color:${navy};">Conducted from</strong> ${esc(dateRange)}</p>` : "";
   const qrHtml = config.show_qr !== false && data.qr_svg ? qrCard(data.qr_svg, navy, gold, 76, true) : "";
-  const signatureImg = `<img src="${esc(config.signature_url || DEFAULT_SIGNATURE_URL)}" alt="" style="height:65px;max-width:236px;object-fit:contain;"/>`;
+  const signatureImg = `<img src="${esc(config.signature_url || DEFAULT_SIGNATURE_URL)}" alt="" style="display:block;width:236px;height:65px;margin:0 auto;object-fit:contain;object-position:center bottom;background:transparent;border:0;box-shadow:none;"/>`;
 
   return `<div style="width:${PAGE_W};height:${PAGE_H};margin:0 auto;position:relative;background:#FDFCF8;box-sizing:border-box;font-family:Georgia,'Times New Roman',serif;line-height:1.3;color:#1F2937;overflow:hidden;">
   ${pageVignette(navy)}
