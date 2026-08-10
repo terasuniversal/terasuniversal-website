@@ -573,7 +573,21 @@ export function ProfessionalScaffoldCertificateDocument({ data, config }: { data
                 the seal's horizontal footprint (a real bug caught here: the
                 two were colliding at 320px/148px). */}
             <div style={{ textAlign: "center", fontSize: 11.5, width: 248 }}>
-              <img src={config.signature_url || DEFAULT_SIGNATURE_URL} alt="" style={{ height: 65, maxWidth: 236, objectFit: "contain" }} />
+              <img
+                src={config.signature_url || DEFAULT_SIGNATURE_URL}
+                alt=""
+                style={{
+                  display: "block",
+                  width: 236,
+                  height: 65,
+                  margin: "0 auto",
+                  objectFit: "contain",
+                  objectPosition: "center bottom",
+                  background: "transparent",
+                  border: 0,
+                  boxShadow: "none",
+                }}
+              />
               <div style={{ borderTop: `1.5px solid ${gold}`, margin: "6px 0 6px" }} />
               <strong style={{ color: navy, fontSize: 12.5, whiteSpace: "nowrap", display: "block" }}>Muhammad Azri Bin Mohd Latifi Amir</strong>
               <div style={{ color: "#6b7280", marginTop: 3 }}>Director</div>
