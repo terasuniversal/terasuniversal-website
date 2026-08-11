@@ -471,17 +471,25 @@ export function ProfessionalScaffoldCertificateDocument({ data, config }: { data
   // `data.course_name` happens to be (e.g. a template-editor preview's
   // generic sample data) — same fallback pattern the back page already uses.
   const programmeName = config.programme_title || data.course_name;
-  // Renders TEMPLATE_A_LOGO_SRC — a real, pre-cropped, genuinely transparent
-  // icon-only asset (see lib/template-a-logo.ts) — instead of CSS-cropping
-  // the full public/teras-universal-logo.png lockup with
-  // background-position/background-size + mix-blend-mode:multiply. That
-  // approach visibly clipped the gold swoosh's anti-aliased tips (multiply
-  // blending fades near-white pixels to invisible, and the coded crop box
-  // had almost no source-pixel margin to absorb that). A configured
-  // config.logo_url is a differently-shaped asset (the full lockup, not a
-  // pre-cropped icon), so it still renders as-is via object-fit:contain
-  // rather than being cropped to match.
-  const logoSrc = config.logo_url || TEMPLATE_A_LOGO_SRC;
+  // Template A's top mark is ALWAYS TEMPLATE_A_LOGO_SRC — config.logo_url is
+  // deliberately never consulted here, unlike the generic renderer. This
+  // component only ever renders when config.design_variant ===
+  // "professional_scaffold_erection_skills" (see CertificateRenderer.tsx's
+  // dispatch), so there is no legitimate case where a different logo should
+  // show. The live certificate_templates row for this template has
+  // config.logo_url = "/teras-universal-logo.png" (the full company lockup,
+  // with the "TERAS UNIVERSAL" wordmark and tagline baked into the image)
+  // left over from before this template had its own dedicated icon-only
+  // asset — `config.logo_url || TEMPLATE_A_LOGO_SRC` let that persisted
+  // value win every time, which is what actually put the wordmark inside
+  // the rendered logo image. TEMPLATE_A_LOGO_SRC (see lib/template-a-logo.ts)
+  // is a real, pre-cropped, genuinely transparent icon-only asset — instead
+  // of CSS-cropping the full lockup with background-position/background-size
+  // + mix-blend-mode:multiply, which visibly clipped the gold swoosh's
+  // anti-aliased tips (multiply blending fades near-white pixels to
+  // invisible, and the coded crop box had almost no source-pixel margin to
+  // absorb that).
+  const logoSrc = TEMPLATE_A_LOGO_SRC;
 
   return (
     <div style={{ width: PAGE_W, height: PAGE_H, margin: "0 auto", position: "relative", background: "#FDFCF8", boxSizing: "border-box", fontFamily: "Georgia, 'Times New Roman', serif", lineHeight: 1.3, color: "#1F2937", overflow: "hidden" }}>

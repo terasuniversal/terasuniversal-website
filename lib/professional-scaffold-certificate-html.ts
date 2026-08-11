@@ -263,17 +263,25 @@ export function renderProfessionalScaffoldCertificateFront(data: CertData, confi
   const nameSize = fitHolderNameSize(data.holder_name) + 10;
   const programmeName = config.programme_title || data.course_name;
 
-  // Renders TEMPLATE_A_LOGO_SRC — a real, pre-cropped, genuinely transparent
-  // icon-only asset (see lib/template-a-logo.ts) — instead of CSS-cropping
-  // the full public/teras-universal-logo.png lockup with
-  // background-position/background-size + mix-blend-mode:multiply. That
-  // approach visibly clipped the gold swoosh's anti-aliased tips (multiply
+  // Template A's top mark is ALWAYS TEMPLATE_A_LOGO_SRC — config.logo_url is
+  // deliberately never consulted here, unlike the generic renderer. This
+  // function only ever renders when config.design_variant ===
+  // "professional_scaffold_erection_skills" (see certificate-html.ts's
+  // renderCertificateDocument dispatch), so there is no legitimate case
+  // where a different logo should show. The live certificate_templates row
+  // for this template has config.logo_url = "/teras-universal-logo.png"
+  // (the full company lockup, with the "TERAS UNIVERSAL" wordmark and
+  // tagline baked into the image) left over from before this template had
+  // its own dedicated icon-only asset — `config.logo_url ? ... :
+  // TEMPLATE_A_LOGO_SRC` let that persisted value win every time, which is
+  // what actually put the wordmark inside the rendered logo image.
+  // TEMPLATE_A_LOGO_SRC (see lib/template-a-logo.ts) is a real, pre-cropped,
+  // genuinely transparent icon-only asset — instead of CSS-cropping the full
+  // lockup with background-position/background-size + mix-blend-mode:multiply,
+  // which visibly clipped the gold swoosh's anti-aliased tips (multiply
   // blending fades near-white pixels to invisible, and the coded crop box
-  // had almost no source-pixel margin to absorb that). A configured
-  // config.logo_url is a differently-shaped asset (the full lockup, not a
-  // pre-cropped icon), so it still renders as-is via object-fit:contain
-  // rather than being cropped to match.
-  const logoSrc = config.logo_url ? esc(config.logo_url) : TEMPLATE_A_LOGO_SRC;
+  // had almost no source-pixel margin to absorb that).
+  const logoSrc = TEMPLATE_A_LOGO_SRC;
   const logo = `<img src="${logoSrc}" alt="" style="width:116px;height:103px;object-fit:contain;margin:0 auto 2px;display:block;"/>`;
   const icBlock = data.ic_passport ? `<p style="font-size:12.5px;line-height:1.3;color:#6b7280;margin:5px 0 0;">Passport / IC No: ${esc(data.ic_passport)}</p>` : "";
   const durationBlock = ribbonBanner(`<span style="font-size:15px;font-weight:600;letter-spacing:.6px;">${esc(duration)}</span>`, navy, gold, "margin:8px auto 0;display:block;width:fit-content;", "gold");
