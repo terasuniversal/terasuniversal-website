@@ -26,6 +26,17 @@ export interface CertData {
   verification_url?: string | null;
   /** Inline QR SVG markup, generated once in certData.ts (see generateQrSvg). */
   qr_svg?: string | null;
+  /**
+   * Participant-specific skills-record rows, populated by certData.ts only
+   * for the areas actually provable from live data (currently: Attendance
+   * Requirement, from v_certificate_eligibility.attendance_satisfied).
+   * Absent/null whenever the certificate has no schedule_id/participant_id
+   * or the eligibility lookup fails — never fabricated. Takes precedence
+   * over the template's config.skills_record when present; see
+   * ProfessionalScaffoldCertificateDocument.tsx / professional-scaffold-
+   * certificate-html.ts for the fallback chain.
+   */
+  participant_skills_record?: { area: string; status: string }[] | null;
 }
 
 export interface TemplateConfig {
