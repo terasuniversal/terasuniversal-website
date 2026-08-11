@@ -5,11 +5,12 @@ import { usePathname } from "next/navigation";
 import { NAV } from "../../lib/admin-nav";
 import { hasMinRole } from "../../lib/auth/rbac";
 import type { UserRole } from "../../lib/supabase/database.types";
+import { NavIcon } from "./icons";
 
 /**
- * Left navigation. Renders only the items the current role may access.
- * Counts (e.g. new enquiries) are passed in so the sidebar stays a pure,
- * cache-friendly client component.
+ * Left navigation. Renders only the items the current role may access, grouped
+ * by department. Counts (e.g. new enquiries) are passed in so the sidebar stays
+ * a pure, cache-friendly client component.
  */
 export function Sidebar({
   role,
@@ -26,7 +27,7 @@ export function Sidebar({
         <img src="/teras-universal-logo.png" alt="" />
         <span>
           <strong>TERAS UNIVERSAL</strong>
-          Admin CMS
+          <small>Admin CMS</small>
         </span>
       </div>
       <nav className="ta-nav">
@@ -48,9 +49,9 @@ export function Sidebar({
                     aria-current={active ? "page" : undefined}
                   >
                     <span className="ta-ico" aria-hidden="true">
-                      {item.icon}
+                      <NavIcon name={item.icon} />
                     </span>
-                    {item.label}
+                    <span className="ta-nav-label">{item.label}</span>
                     {count ? <span className="ta-badge">{count}</span> : null}
                   </Link>
                 );
@@ -60,8 +61,11 @@ export function Sidebar({
         })}
       </nav>
       <div className="ta-sidebar-footer" aria-label="Workspace status">
-        <strong>Secure workspace</strong>
-        <span>Admin system online</span>
+        <span className="ta-status-dot" aria-hidden="true" />
+        <div>
+          <strong>Secure workspace</strong>
+          <small>Admin system online</small>
+        </div>
       </div>
     </aside>
   );

@@ -4,7 +4,8 @@ export interface NavItem {
   key: string;
   label: string;
   href: string;
-  icon: string; // emoji glyph keeps this dependency-free; swap for an icon set later
+  /** Lightweight inline-SVG icon key, rendered by components/admin/icons.tsx. */
+  icon: string;
   minRole: UserRole;
 }
 
@@ -14,50 +15,57 @@ export interface NavGroup {
 }
 
 /**
- * Admin navigation — reflects the LOCKED operational scope.
+ * Admin navigation — reflects the LOCKED operational scope, grouped by
+ * department (Overview / Training Operations / Certification / Sales /
+ * Website Content / Administration). Only routes that exist are listed.
  * Excluded by scope: Enquiries, Proposal Requests, Website Settings.
  */
 export const NAV: NavGroup[] = [
   {
     label: "Overview",
     items: [
-      { key: "dashboard", label: "Dashboard", href: "/admin/dashboard", icon: "▦", minRole: "editor" },
-      { key: "reports", label: "Reports & Analytics", href: "/admin/reports", icon: "📊", minRole: "editor" },
+      { key: "dashboard", label: "Dashboard", href: "/admin/dashboard", icon: "dashboard", minRole: "editor" },
+      { key: "reports", label: "Reports & Analytics", href: "/admin/reports", icon: "reports", minRole: "editor" },
     ],
   },
   {
     label: "Training Operations",
     items: [
-      { key: "courses", label: "Courses", href: "/admin/courses", icon: "🎓", minRole: "editor" },
-      { key: "trainers", label: "Trainers", href: "/admin/trainers", icon: "🧑‍🏫", minRole: "editor" },
-      { key: "schedules", label: "Training Schedule", href: "/admin/schedules", icon: "🗓", minRole: "editor" },
-      { key: "participants", label: "Participants", href: "/admin/participants", icon: "👥", minRole: "editor" },
-      { key: "companies", label: "Companies", href: "/admin/companies", icon: "🏢", minRole: "editor" },
-      { key: "attendance", label: "Attendance", href: "/admin/attendance", icon: "✅", minRole: "trainer" },
-      { key: "assessment", label: "Assessment", href: "/admin/assessment", icon: "📝", minRole: "trainer" },
-      { key: "certificates", label: "Certificates", href: "/admin/certificates", icon: "🏅", minRole: "trainer" },
-      { key: "cert-templates", label: "Certificate Templates", href: "/admin/certificates/templates", icon: "🧩", minRole: "admin" },
+      { key: "courses", label: "Courses", href: "/admin/courses", icon: "courses", minRole: "editor" },
+      { key: "trainers", label: "Trainers", href: "/admin/trainers", icon: "trainers", minRole: "editor" },
+      { key: "schedules", label: "Training Schedule", href: "/admin/schedules", icon: "schedules", minRole: "editor" },
+      { key: "participants", label: "Participants", href: "/admin/participants", icon: "participants", minRole: "editor" },
+      { key: "companies", label: "Companies", href: "/admin/companies", icon: "companies", minRole: "editor" },
+      { key: "attendance", label: "Attendance", href: "/admin/attendance", icon: "attendance", minRole: "trainer" },
+      { key: "assessment", label: "Assessment", href: "/admin/assessment", icon: "assessment", minRole: "trainer" },
+    ],
+  },
+  {
+    label: "Certification",
+    items: [
+      { key: "certificates", label: "Certificates", href: "/admin/certificates", icon: "certificates", minRole: "trainer" },
+      { key: "cert-templates", label: "Certificate Templates", href: "/admin/certificates/templates", icon: "cert-templates", minRole: "admin" },
     ],
   },
   {
     label: "Website Content",
     items: [
-      { key: "news", label: "News", href: "/admin/news", icon: "📰", minRole: "editor" },
-      { key: "gallery", label: "Gallery", href: "/admin/gallery", icon: "🖼", minRole: "editor" },
-      { key: "faq", label: "FAQ", href: "/admin/faq", icon: "❔", minRole: "editor" },
-      { key: "downloads", label: "Downloads", href: "/admin/downloads", icon: "⬇", minRole: "editor" },
-      { key: "company", label: "Company Profile", href: "/admin/company", icon: "🏢", minRole: "editor" },
-      { key: "media", label: "Media Library", href: "/admin/media", icon: "🗂", minRole: "editor" },
+      { key: "news", label: "News", href: "/admin/news", icon: "news", minRole: "editor" },
+      { key: "gallery", label: "Gallery", href: "/admin/gallery", icon: "gallery", minRole: "editor" },
+      { key: "faq", label: "FAQ", href: "/admin/faq", icon: "faq", minRole: "editor" },
+      { key: "downloads", label: "Downloads", href: "/admin/downloads", icon: "downloads", minRole: "editor" },
+      { key: "company", label: "Company Profile", href: "/admin/company", icon: "company", minRole: "editor" },
+      { key: "media", label: "Media Library", href: "/admin/media", icon: "media", minRole: "editor" },
     ],
   },
   {
     label: "Administration",
     items: [
-      { key: "automation", label: "Automation Centre", href: "/admin/automation", icon: "⚙️", minRole: "admin" },
-      { key: "system", label: "System Health", href: "/admin/system", icon: "🩺", minRole: "admin" },
-      { key: "backups", label: "Backup Manager", href: "/admin/backups", icon: "🛡️", minRole: "admin" },
-      { key: "audit", label: "Audit Log", href: "/admin/audit", icon: "📋", minRole: "admin" },
-      { key: "users", label: "Users & Roles", href: "/admin/users", icon: "🔑", minRole: "super_admin" },
+      { key: "automation", label: "Automation Centre", href: "/admin/automation", icon: "automation", minRole: "admin" },
+      { key: "system", label: "System Health", href: "/admin/system", icon: "system", minRole: "admin" },
+      { key: "backups", label: "Backup Manager", href: "/admin/backups", icon: "backups", minRole: "admin" },
+      { key: "audit", label: "Audit Log", href: "/admin/audit", icon: "audit", minRole: "admin" },
+      { key: "users", label: "Users & Roles", href: "/admin/users", icon: "users", minRole: "super_admin" },
     ],
   },
 ];
