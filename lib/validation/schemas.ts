@@ -108,6 +108,23 @@ export const scheduleParticipantSchema = z.object({
 });
 export type ScheduleParticipantInput = z.infer<typeof scheduleParticipantSchema>;
 
+/**
+ * One row of participant_skill_results (Phase 2 schema — table ships empty;
+ * no CMS screen writes through this yet, see supabase/migrations/
+ * 20260811090000_create_participant_skill_results.sql). Enums mirror the
+ * table's CHECK constraints exactly; no business rules beyond shape
+ * validation are encoded here until Phase 2B/2C are approved.
+ */
+export const participantSkillResultSchema = z.object({
+  schedule_id: z.string().uuid(),
+  participant_id: z.string().uuid(),
+  area: z.enum(["theory_session", "practical_training", "safety_awareness", "practical_assessment"]),
+  status: z.enum(["not_recorded", "completed", "passed", "failed"]).default("not_recorded"),
+  score: z.coerce.number().min(0).max(100).optional().nullable(),
+  notes: z.string().trim().max(2000).optional().or(z.literal("")),
+});
+export type ParticipantSkillResultInput = z.infer<typeof participantSkillResultSchema>;
+
 export const participantSchema = z.object({
   // Required fields (friendly messages).
   full_name: z.string().trim().min(2, "Full name is required").max(160),
