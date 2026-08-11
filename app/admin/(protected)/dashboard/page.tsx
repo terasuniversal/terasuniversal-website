@@ -13,6 +13,12 @@ export default async function DashboardPage() {
   if (profile.role === "trainer") redirect("/admin/attendance");
   const supabase = await createSupabaseServerClient();
   const today = new Date().toISOString().slice(0, 10);
+  const dateLabel = new Date().toLocaleDateString("en-MY", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
 
   const [
     coursesCount,
@@ -22,6 +28,7 @@ export default async function DashboardPage() {
     certsIssued,
     certsPending,
     participantsCount,
+    recentCertificates,
     recentAssessments,
   ] = await Promise.all([
     supabase.from("courses").select("*", { count: "exact", head: true }).eq("status", "published").is("deleted_at", null),
@@ -31,6 +38,7 @@ export default async function DashboardPage() {
     supabase.from("certificates").select("*", { count: "exact", head: true }).eq("status", "valid").is("deleted_at", null),
     supabase.from("certificates").select("*", { count: "exact", head: true }).eq("status", "draft").is("deleted_at", null),
     supabase.from("participants").select("*", { count: "exact", head: true }).is("deleted_at", null),
+    supabase.from("certificates").select("id, certificate_number, holder_name, status, issue_date").is("deleted_at", null).order("created_at", { ascending: false }).limit(6),
     supabase.from("assessments").select("id, assessment_type, result, theory_score, practical_score, competency_status, assessed_at, participants(full_name)").is("deleted_at", null).order("assessed_at", { ascending: false, nullsFirst: false }).limit(6),
   ]);
 
@@ -39,6 +47,14 @@ export default async function DashboardPage() {
       <PageHead
         title={`Welcome back, ${(profile.full_name || profile.email).split(" ")[0]}`}
         subtitle="Your training operations at a glance."
+        action={
+          <div className="ta-page-head-actions">
+            <span className="ta-date-chip">{dateLabel}</span>
+            <Link className="ta-btn ta-btn-primary" href="/admin/schedules/new">
+              + New Schedule
+            </Link>
+          </div>
+        }
       />
 
       <section className="ta-dashboard-intro" aria-label="Dashboard summary">
@@ -46,10 +62,9 @@ export default async function DashboardPage() {
           <strong>Today&apos;s operations</strong>
           <p>Review upcoming training, participant activity and certificate progress from one workspace.</p>
         </div>
-        <Link className="ta-btn ta-btn-primary" href="/admin/schedules/new">+ New Schedule</Link>
       </section>
 
-      <div className="ta-grid cols-4" style={{ marginBottom: 22 }}>
+      <div className="ta-grid cols-5" style={{ marginBottom: 22 }}>
         <StatCard icon="🎓" label="Published courses" value={coursesCount.count ?? 0} href="/admin/courses" />
         <StatCard icon="🗓" label="Upcoming schedules" value={upcomingCount.count ?? 0} href="/admin/schedules" />
         <StatCard icon="👥" label="Total participants" value={participantsCount.count ?? 0} href="/admin/participants" />
@@ -57,7 +72,7 @@ export default async function DashboardPage() {
         <StatCard icon="⏳" label="Certificates draft" value={certsPending.count ?? 0} href="/admin/certificates" />
       </div>
 
-      <div className="ta-grid cols-2" style={{ marginBottom: 22 }}>
+      <div className="ta-grid cols-3" style={{ marginBottom: 22 }}>
         <Card title="Upcoming Courses" action={<Link className="ta-btn ta-btn-outline ta-btn-sm" href="/admin/schedules">View all</Link>}>
           {upcoming.data && upcoming.data.length > 0 ? (
             <div className="ta-table-wrap">
@@ -76,7 +91,12 @@ export default async function DashboardPage() {
               </table>
             </div>
           ) : (
-            <EmptyState icon="🗓" message="No upcoming schedules. Add one from Training Schedule." />
+            <EmptyState
+              icon="🗓"
+              title="No upcoming schedules"
+              message="Create a new training schedule to see it here."
+              action={<Link className="ta-btn ta-btn-primary ta-btn-sm" href="/admin/schedules/new">+ New Schedule</Link>}
+            />
           )}
         </Card>
 
@@ -87,7 +107,7 @@ export default async function DashboardPage() {
                 <tbody>
                   {latestParticipants.data.map((p: any) => (
                     <tr key={p.id}>
-                      <td><strong>{p.full_name}</strong>{p.company ? <div style={{ color: "var(--ta-muted)", fontSize: 12 }}>{p.company}</div> : null}</td>
+                      <td><strong>{p.full_name}</strong>{p.company ? <div className="ta-muted-sub">{p.company}</div> : null}</td>
                       <td><Badge status={p.status} /></td>
                     </tr>
                   ))}
@@ -95,7 +115,28 @@ export default async function DashboardPage() {
               </table>
             </div>
           ) : (
-            <EmptyState icon="👥" message="No participants recorded yet." />
+            <EmptyState icon="👥" title="No participants yet" message="Registered participants will appear here." />
+          )}
+        </Card>
+
+        <Card title="Recent Certificates" action={<Link className="ta-btn ta-btn-outline ta-btn-sm" href="/admin/certificates">View all</Link>}>
+          {recentCertificates.data && recentCertificates.data.length > 0 ? (
+            <div className="ta-table-wrap">
+              <table className="ta-table">
+                <thead><tr><th>Certificate</th><th>Holder</th><th>Status</th></tr></thead>
+                <tbody>
+                  {recentCertificates.data.map((c: any) => (
+                    <tr key={c.id}>
+                      <td><strong>{c.certificate_number ?? "—"}</strong></td>
+                      <td>{c.holder_name ?? "—"}</td>
+                      <td><Badge status={c.status} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <EmptyState icon="🏅" title="No certificates yet" message="Generated certificates will appear here." />
           )}
         </Card>
       </div>
@@ -122,17 +163,19 @@ export default async function DashboardPage() {
               </table>
             </div>
           ) : (
-            <EmptyState icon="✅" message="No assessments recorded yet." />
+            <EmptyState icon="✅" title="No assessments yet" message="Completed assessments will appear here." />
           )}
         </Card>
 
         <Card title="Quick Actions">
-          <div className="ta-card-pad" style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <Link className="ta-btn ta-btn-primary" href="/admin/courses/new">+ New Course</Link>
-            <Link className="ta-btn ta-btn-gold" href="/admin/schedules/new">+ New Schedule</Link>
-            <Link className="ta-btn ta-btn-outline" href="/admin/participants">Register Participant</Link>
-            <Link className="ta-btn ta-btn-outline" href="/admin/certificates">Issue Certificate</Link>
-            <Link className="ta-btn ta-btn-outline" href="/admin/news/new">+ News Post</Link>
+          <div className="ta-card-pad">
+            <div className="ta-quick-actions">
+              <Link className="ta-btn ta-btn-primary" href="/admin/courses/new">+ New Course</Link>
+              <Link className="ta-btn ta-btn-gold" href="/admin/schedules/new">+ New Schedule</Link>
+              <Link className="ta-btn ta-btn-outline" href="/admin/participants">Register Participant</Link>
+              <Link className="ta-btn ta-btn-outline" href="/admin/certificates">Issue Certificate</Link>
+              <Link className="ta-btn ta-btn-outline" href="/admin/news/new">+ News Post</Link>
+            </div>
           </div>
         </Card>
       </div>
