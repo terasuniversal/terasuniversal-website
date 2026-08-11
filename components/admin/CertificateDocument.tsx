@@ -27,14 +27,24 @@ export interface CertData {
   /** Inline QR SVG markup, generated once in certData.ts (see generateQrSvg). */
   qr_svg?: string | null;
   /**
-   * Participant-specific skills-record rows, populated by certData.ts only
-   * for the areas actually provable from live data (currently: Attendance
-   * Requirement, from v_certificate_eligibility.attendance_satisfied).
+   * Immutable issuance snapshot (Phase 2C), loaded from
+   * certificate_skill_results keyed by this certificate's own id — what was
+   * true when THIS certificate was issued, permanently. Takes precedence
+   * over everything else when present (a Phase-2C-issued certificate always
+   * has all 5 rows; never partially present). Never merged row-by-row with
+   * participant_skills_record — the snapshot is authoritative as a whole or
+   * not used at all. Null for every certificate issued before Phase 2C.
+   */
+  certificate_skills_record?: { area: string; status: string }[] | null;
+  /**
+   * Participant-specific LIVE fallback (Phase 1), populated by certData.ts
+   * only for the areas actually provable from live data (currently:
+   * Attendance Requirement, from v_certificate_eligibility.attendance_satisfied).
    * Absent/null whenever the certificate has no schedule_id/participant_id
-   * or the eligibility lookup fails — never fabricated. Takes precedence
-   * over the template's config.skills_record when present; see
-   * ProfessionalScaffoldCertificateDocument.tsx / professional-scaffold-
-   * certificate-html.ts for the fallback chain.
+   * or the eligibility lookup fails — never fabricated. Only reached when
+   * certificate_skills_record is absent — i.e. schedule-linked certificates
+   * issued before Phase 2C; see ProfessionalScaffoldCertificateDocument.tsx /
+   * professional-scaffold-certificate-html.ts for the full fallback chain.
    */
   participant_skills_record?: { area: string; status: string }[] | null;
 }

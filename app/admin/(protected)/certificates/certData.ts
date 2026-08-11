@@ -49,6 +49,57 @@ async function buildParticipantSkillsRecord(
   }
 }
 
+const CERT_SKILL_AREA_LABELS: Record<string, string> = {
+  theory_session: "Theory Session",
+  practical_training: "Practical Training",
+  safety_awareness: "Safety Awareness",
+  practical_assessment: "Practical Assessment",
+  attendance_requirement: "Attendance Requirement",
+};
+const CERT_SKILL_STATUS_LABELS: Record<string, string> = {
+  not_recorded: "Not Recorded",
+  completed: "Completed",
+  passed: "Passed",
+  failed: "Failed",
+  met: "Met",
+  not_met: "Not Met",
+};
+
+/**
+ * Immutable issuance snapshot (Phase 2C) for the certificate's own id — the
+ * authoritative source once it exists; see CertData.certificate_skills_record.
+ * Keyed strictly by certificate_id, never by schedule/participant, so a
+ * duplicated certificate reads its own copied rows rather than the source's.
+ * Returns null (never synthesizes rows) when the certificate has zero
+ * snapshot rows — legacy/pre-Phase-2C certificates — or if the query itself
+ * fails; either case must fall through to buildParticipantSkillsRecord below,
+ * never to a fabricated Completed/Passed value.
+ */
+async function buildCertificateSkillsRecord(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  certificateId: string
+): Promise<{ area: string; status: string }[] | null> {
+  try {
+    const { data, error } = await supabase
+      .from("certificate_skill_results")
+      .select("area, status")
+      .eq("certificate_id", certificateId)
+      .order("area", { ascending: true });
+    if (error) {
+      console.error("certData: certificate_skill_results lookup failed", { certificateId, message: error.message });
+      return null;
+    }
+    if (!data || data.length === 0) return null;
+    return data.map((row: any) => ({
+      area: CERT_SKILL_AREA_LABELS[row.area] ?? row.area,
+      status: CERT_SKILL_STATUS_LABELS[row.status] ?? row.status,
+    }));
+  } catch (err) {
+    console.error("certData: certificate_skill_results lookup threw", { certificateId, err });
+    return null;
+  }
+}
+
 /** Loads a certificate + its template + related data for rendering. */
 export async function loadCertificateRender(id: string): Promise<
   | { cert: any; data: CertData; config: TemplateConfig }
@@ -118,7 +169,12 @@ export async function loadCertificateRender(id: string): Promise<
   // c.participant_id is the raw uuid FK on `certificates` (distinct from
   // c.participants?.participant_id below, which is the joined participant's
   // display code like "TU-000158") — the eligibility view keys on the uuid.
-  const participantSkillsRecord = await buildParticipantSkillsRecord(supabase, c.schedule_id, c.participant_id);
+  const certificateSkillsRecord = await buildCertificateSkillsRecord(supabase, c.id);
+  // Only queried when there's no snapshot to use instead — a Phase-2C-issued
+  // certificate never needs this live lookup at all.
+  const participantSkillsRecord = certificateSkillsRecord
+    ? null
+    : await buildParticipantSkillsRecord(supabase, c.schedule_id, c.participant_id);
 
   const data: CertData = {
     certificate_number: certificateNumber,
@@ -138,6 +194,7 @@ export async function loadCertificateRender(id: string): Promise<
     // number-based fallback both resolve correctly here.
     verification_url: verificationUrl,
     qr_svg: qrSvg,
+    certificate_skills_record: certificateSkillsRecord,
     participant_skills_record: participantSkillsRecord,
   };
   return { cert, data, config };

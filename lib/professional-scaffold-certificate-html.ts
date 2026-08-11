@@ -369,11 +369,16 @@ export function renderProfessionalScaffoldCertificateBack(data: CertData, config
   const coverage = config.coverage_items?.length ? config.coverage_items : DEFAULT_COVERAGE;
   const outcomes = config.learning_outcomes?.length ? config.learning_outcomes : DEFAULT_OUTCOMES;
   const assessment = config.assessment_methods?.length ? config.assessment_methods : DEFAULT_ASSESSMENT;
-  // Real, participant-specific results (certData.ts) win over the template's
-  // own config default, which wins over the hardcoded "Not Recorded" rows.
-  const skillsRecord = data.participant_skills_record?.length
-    ? data.participant_skills_record
-    : config.skills_record?.length ? config.skills_record : DEFAULT_SKILLS_RECORD;
+  // Precedence: the immutable issuance snapshot (certificate_skills_record)
+  // wins whole, never merged row-by-row with the live fallback below it —
+  // then the live participant fallback (schedule-linked certs issued before
+  // Phase 2C), then the template's own config default, then the hardcoded
+  // "Not Recorded" rows.
+  const skillsRecord = data.certificate_skills_record?.length
+    ? data.certificate_skills_record
+    : data.participant_skills_record?.length
+      ? data.participant_skills_record
+      : config.skills_record?.length ? config.skills_record : DEFAULT_SKILLS_RECORD;
   const noticeParagraphs = config.important_notice ? config.important_notice.split(/\n{2,}/).filter(Boolean) : DEFAULT_NOTICE_PARAGRAPHS;
 
   const section = (icon: IconKind, title: string, body: string) =>
