@@ -49,6 +49,12 @@ export type CourseDeliveryMode =
   | "online"
   | "hybrid";
 export type CertificateType = "participation" | "completion" | "competency";
+export type ParticipantSkillArea =
+  | "theory_session"
+  | "practical_training"
+  | "safety_awareness"
+  | "practical_assessment";
+export type ParticipantSkillStatus = "not_recorded" | "completed" | "passed" | "failed";
 
 export interface Profile {
   id: string;
@@ -140,6 +146,24 @@ export interface ProposalRequest {
   deleted_at: string | null;
 }
 
+export interface ParticipantSkillResult {
+  id: string;
+  schedule_id: string;
+  participant_id: string;
+  area: ParticipantSkillArea;
+  status: ParticipantSkillStatus;
+  score: number | null;
+  notes: string | null;
+  assessed_by: string | null;
+  assessed_at: string | null;
+  locked: boolean;
+  locked_at: string | null;
+  locked_by: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+}
+
 /**
  * Minimal Database shape so `createServerClient<Database>()` is typed. Tables
  * not listed here fall back to `any` via the index signature, so nothing
@@ -155,6 +179,12 @@ export interface Database {
         Row: ProposalRequest;
         Insert: Partial<ProposalRequest>;
         Update: Partial<ProposalRequest>;
+        Relationships: [];
+      };
+      participant_skill_results: {
+        Row: ParticipantSkillResult;
+        Insert: Partial<ParticipantSkillResult>;
+        Update: Partial<ParticipantSkillResult>;
         Relationships: [];
       };
       // New operational tables are added through migrations. This fallback
