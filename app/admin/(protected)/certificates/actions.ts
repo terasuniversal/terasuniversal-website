@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { requireCertificate, getCurrentProfile } from "../../../../lib/auth/session";
+import { requireCertificate } from "../../../../lib/auth/session";
 import { siteOrigin } from "../../../../lib/site-origin";
 
 /**
@@ -61,20 +61,20 @@ async function nextPrefixedCertificateNumber(
 }
 
 /**
- * Inserts one certificate from an already-fetched, already-eligible row.
- * Not exported — every caller must have checked `elig.eligible` itself,
- * which (per v_certificate_eligibility) guarantees `certificate_template_id`
- * is non-null here — the course's bound template is used directly, never a
- * global "default" template. Populates the training-date/venue/trainer
- * snapshot fields from the schedule (the certificates_before_insert trigger
- * only auto-fills certificate_number/certificate_no/verification_token/
- * holder_name↔participant_name/course_name — it does not know about
- * schedules or per-course template bindings).
+ * Inserts one certificate from an already-fetched, already-eligible row, via
+ * the atomic app.issue_certificate_with_skill_snapshot RPC (Phase 2C — see
+ * supabase/migrations/20260811100000_certificate_skill_results_and_issuance_rpc.sql).
+ * Not exported. `elig` is used only to resolve the certificate-number prefix
+ * here; the RPC itself re-reads v_certificate_eligibility fresh, inside its
+ * own transaction, and is the actual authority on eligibility and on every
+ * training-date/venue/trainer/course field — this function no longer trusts
+ * `elig`'s copy of those for the write itself, closing the race between this
+ * read and the insert. The RPC also derives `issued_by` from auth.uid()
+ * server-side rather than a caller-supplied value.
  */
 async function insertEligibleCertificate(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
-  elig: EligibilityRow,
-  issuedBy: string | null
+  elig: EligibilityRow
 ): Promise<string> {
   const { data: tmpl } = await supabase
     .from("certificate_templates")
@@ -82,38 +82,28 @@ async function insertEligibleCertificate(
     .eq("id", elig.certificate_template_id)
     .maybeSingle();
   const prefix = (tmpl?.config as { certificate_number_prefix?: string } | null)?.certificate_number_prefix;
-  const certificateNumber = prefix ? await nextPrefixedCertificateNumber(supabase, prefix) : undefined;
+  const certificateNumber = prefix ? await nextPrefixedCertificateNumber(supabase, prefix) : null;
 
-  const { data: created, error } = await supabase
-    .from("certificates")
-    .insert({
-      participant_id: elig.participant_id,
-      schedule_id: elig.schedule_id,
-      course_id: elig.course_id,
-      template_id: elig.certificate_template_id,
-      ...(certificateNumber ? { certificate_number: certificateNumber } : {}),
-      holder_name: elig.holder_name,
-      participant_name: elig.holder_name,
-      course_name: elig.course_name,
-      training_start_date: elig.schedule_start_date,
-      training_end_date: elig.schedule_end_date,
-      venue: elig.venue,
-      trainer_name: elig.trainer_name,
-      status: "valid",
-      issue_date: new Date().toISOString().slice(0, 10),
-      issued_by: issuedBy,
-    })
-    .select("id, verification_token")
-    .single();
+  const { data, error } = await supabase.rpc("issue_certificate_with_skill_snapshot" as never, {
+    p_schedule_id: elig.schedule_id,
+    p_participant_id: elig.participant_id,
+    p_certificate_number: certificateNumber,
+  } as never);
 
   if (error) {
     // certificates_active_schedule_participant_uniq is the real guard against
-    // a race between the eligibility read and this insert (two admins
-    // generating for the same pair at once) — surface it as "exists", not a
-    // raw constraint-name error.
-    if (error.code === "23505") return "exists";
+    // a race between two concurrent issuance calls for the same pair —
+    // surface it as "exists", not a raw constraint-name error. The RPC's own
+    // fresh eligibility re-check (closing the TS-read-to-write race) raises a
+    // distinct "Not eligible" error, mapped to "not-eligible" here.
+    const code = (error as { code?: string }).code;
+    if (code === "23505") return "exists";
+    if (error.message?.includes("Not eligible")) return "not-eligible";
     return error.message;
   }
+
+  const created = (data as { id: string; verification_token: string }[] | null)?.[0];
+  if (!created) return "error";
 
   const origin = await siteOrigin();
   await supabase.from("certificates").update({ verification_url: `${origin}/verify/${created.verification_token}` }).eq("id", created.id);
@@ -141,8 +131,7 @@ export async function generateCertificate(scheduleId: string, participantId: str
   const row = elig as EligibilityRow;
   if (!row.eligible) return row.ineligibility_reason ?? "not-eligible";
 
-  const profile = await getCurrentProfile();
-  const result = await insertEligibleCertificate(supabase, row, profile?.id ?? null);
+  const result = await insertEligibleCertificate(supabase, row);
   if (result === "ok") revalidatePath("/admin/certificates");
   return result;
 }
@@ -163,11 +152,9 @@ export async function bulkGenerate(scheduleId: string): Promise<{ generated: num
   const { data: rows } = await supabase.from("v_certificate_eligibility").select("*").eq("schedule_id", scheduleId);
   const eligibleRows = ((rows ?? []) as EligibilityRow[]).filter((r) => r.eligible);
 
-  const profile = await getCurrentProfile();
-
   let generated = 0, skipped = 0;
   for (const row of eligibleRows) {
-    const result = await insertEligibleCertificate(supabase, row, profile?.id ?? null);
+    const result = await insertEligibleCertificate(supabase, row);
     if (result === "ok") generated++; else skipped++;
   }
 
@@ -192,24 +179,25 @@ export async function reissueCertificate(id: string) {
   revalidatePath(`/admin/certificates/${id}`);
 }
 
-/** Duplicate — new cert (new number + token) for the same holder. */
+/**
+ * Duplicate — new cert (new number + token) for the same holder, plus a
+ * verbatim copy of the source certificate's certificate_skill_results
+ * snapshot rows, atomically via app.duplicate_certificate_with_skill_snapshot
+ * (Phase 2C). Never re-derives skill results from current
+ * participant_skill_results — a duplicate must preserve what the source
+ * certificate recorded at its own original issuance, not today's data. If
+ * the source has no snapshot rows (pre-Phase-2C or legacy), the duplicate
+ * simply gets none either — nothing is fabricated.
+ */
 export async function duplicateCertificate(id: string) {
   await requireCertificate(true);
   const supabase = await createSupabaseServerClient();
-  const { data: src } = await supabase.from("certificates").select("*").eq("id", id).single();
-  if (!src) return;
-  const s: any = src;
-  const profile = await getCurrentProfile();
-  const { data: created } = await supabase
-    .from("certificates")
-    .insert({
-      participant_id: s.participant_id, schedule_id: s.schedule_id, course_id: s.course_id,
-      template_id: s.template_id, holder_name: s.holder_name, status: "draft",
-      issue_date: new Date().toISOString().slice(0, 10), issued_by: profile?.id ?? null,
-      expiry_date: s.expiry_date, remarks: s.remarks,
-    })
-    .select("id, verification_token")
-    .single();
+
+  const { data, error } = await supabase.rpc("duplicate_certificate_with_skill_snapshot" as never, {
+    p_source_certificate_id: id,
+  } as never);
+  if (error) return;
+  const created = (data as { id: string; verification_token: string }[] | null)?.[0];
 
   // Stamp verification_url now that we have the new token — matches
   // generateCertificate's pattern. Without this, the duplicate's QR code
