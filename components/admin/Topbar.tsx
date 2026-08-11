@@ -48,7 +48,7 @@ export function Topbar({ profile }: { profile: Profile }) {
           type="search"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Search courses, enquiries, media…"
+          placeholder="Search courses, participants, companies, enquiries…"
           aria-label="Global search"
         />
       </form>

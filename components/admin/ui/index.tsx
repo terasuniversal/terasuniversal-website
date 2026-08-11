@@ -8,11 +8,14 @@ export function StatCard({
   value,
   icon,
   href,
+  context,
 }: {
   label: string;
   value: ReactNode;
-  icon: string;
+  icon: ReactNode;
   href?: string;
+  /** Optional small context line — only pass real data, never fabricated trends. */
+  context?: string;
 }) {
   const body = (
     <div className="ta-card ta-card-pad ta-stat ta-stat-card">
@@ -23,6 +26,7 @@ export function StatCard({
       </div>
       <div className="ta-stat-value">{value}</div>
       <div className="ta-stat-label">{label}</div>
+      {context && <div className="ta-stat-context">{context}</div>}
     </div>
   );
   return href ? <Link href={href}>{body}</Link> : body;
@@ -54,13 +58,25 @@ export function Card({
   );
 }
 
-export function EmptyState({ icon = "📭", message }: { icon?: string; message: string }) {
+export function EmptyState({
+  icon = "📭",
+  title,
+  message,
+  action,
+}: {
+  icon?: ReactNode;
+  title?: string;
+  message: string;
+  action?: ReactNode;
+}) {
   return (
     <div className="ta-empty">
       <div className="ta-empty-ico" aria-hidden="true">
         {icon}
       </div>
+      {title && <div className="ta-empty-title">{title}</div>}
       <p>{message}</p>
+      {action && <div className="ta-empty-action">{action}</div>}
     </div>
   );
 }
