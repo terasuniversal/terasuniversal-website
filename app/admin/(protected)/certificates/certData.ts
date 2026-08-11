@@ -12,6 +12,43 @@ function fmtDate(d?: string | null): string | null {
   return d ? formatHumanDate(d) : null;
 }
 
+/**
+ * Participant-specific skills-record rows for the certificate's back page.
+ * Only "Attendance Requirement" is provable from live data today (via the
+ * same v_certificate_eligibility view that gates certificate generation —
+ * reused here, not reimplemented); the other four areas have no per-area
+ * data source in attendance/assessments (see DATABASE_AUDIT.md discussion),
+ * so they stay "Not Recorded" rather than being inferred from the single
+ * combined assessment result. Returns null (never fabricates) when the
+ * certificate has no schedule/participant link or the lookup fails/finds
+ * no row — callers must treat null as "fall through to template config".
+ */
+async function buildParticipantSkillsRecord(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  scheduleId: string | null | undefined,
+  participantId: string | null | undefined
+): Promise<{ area: string; status: string }[] | null> {
+  if (!scheduleId || !participantId) return null;
+  try {
+    const { data: elig, error } = await supabase
+      .from("v_certificate_eligibility")
+      .select("attendance_satisfied")
+      .eq("schedule_id", scheduleId)
+      .eq("participant_id", participantId)
+      .maybeSingle();
+    if (error || !elig) return null;
+    return [
+      { area: "Theory Session", status: "Not Recorded" },
+      { area: "Practical Training", status: "Not Recorded" },
+      { area: "Safety Awareness", status: "Not Recorded" },
+      { area: "Practical Assessment", status: "Not Recorded" },
+      { area: "Attendance Requirement", status: elig.attendance_satisfied ? "Met" : "Not Met" },
+    ];
+  } catch {
+    return null;
+  }
+}
+
 /** Loads a certificate + its template + related data for rendering. */
 export async function loadCertificateRender(id: string): Promise<
   | { cert: any; data: CertData; config: TemplateConfig }
@@ -78,6 +115,11 @@ export async function loadCertificateRender(id: string): Promise<
   // approach was silently broken by this app's CSP.
   const qrSvg = config.show_qr !== false && verificationUrl ? await generateQrSvg(verificationUrl, config.primary_color || "#0B3A63") : null;
 
+  // c.participant_id is the raw uuid FK on `certificates` (distinct from
+  // c.participants?.participant_id below, which is the joined participant's
+  // display code like "TU-000158") — the eligibility view keys on the uuid.
+  const participantSkillsRecord = await buildParticipantSkillsRecord(supabase, c.schedule_id, c.participant_id);
+
   const data: CertData = {
     certificate_number: certificateNumber,
     holder_name: c.holder_name || c.participant_name,
@@ -96,6 +138,7 @@ export async function loadCertificateRender(id: string): Promise<
     // number-based fallback both resolve correctly here.
     verification_url: verificationUrl,
     qr_svg: qrSvg,
+    participant_skills_record: participantSkillsRecord,
   };
   return { cert, data, config };
 }
