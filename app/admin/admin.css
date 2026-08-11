@@ -269,7 +269,13 @@
      this stylesheet loads globally via app/admin/layout.tsx, not just
      wherever QuotationPrintPreview is mounted. */
   body:has(.ta-quotation-print) * { visibility: hidden; }
-  .ta-quotation-print, .ta-quotation-print * { visibility: visible; }
+  /* Qualified with the same body:has(...) prefix as the hide rule above so
+     specificity matches (0,1,1) vs (0,1,1) instead of losing to it — a bare
+     `.ta-quotation-print { visibility: visible }` (0,1,0) is weaker than
+     `body:has(.ta-quotation-print) *` (0,1,0 class weight from :has() + the
+     body type selector) and was silently re-hidden by it. */
+  body:has(.ta-quotation-print) .ta-quotation-print,
+  body:has(.ta-quotation-print) .ta-quotation-print * { visibility: visible; }
   .ta-quotation-print { position: absolute; inset: 0; width: 100%; }
   .ta-dialog-overlay { position: absolute; }
 }
