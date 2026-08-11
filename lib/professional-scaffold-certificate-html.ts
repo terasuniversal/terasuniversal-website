@@ -1,6 +1,6 @@
 import type { CertData, TemplateConfig } from "../components/admin/CertificateDocument";
 import { fitHolderNameSize, formatDateRange, formatHumanDate, isAffirmativeStatus } from "./certificate-format";
-import { renderTemplateACrestSvg } from "./template-a-crest";
+import { TEMPLATE_A_CREST_SRC } from "./template-a-crest";
 
 /**
  * Standalone HTML string mirror of
@@ -340,8 +340,10 @@ export function renderProfessionalScaffoldCertificateFront(data: CertData, confi
       </div>
     </div>
   </div>
-  <!-- size=154 (+10% over the prior 140): 162 measured only a 4px gap to the signature block, a real near-collision — see React component's comment for the full reasoning. 154 was live-measured to keep a safe gap; do not push toward 162 without re-measuring. -->
-  <div aria-label="TERAS crest" style="position:absolute;left:50%;bottom:40px;transform:translateX(-50%);z-index:2;width:154px;height:162px;line-height:0;">${renderTemplateACrestSvg(navy, gold)}</div>
+  <!-- v3 crest is a true circle (200x200 viewBox) — box kept square so object-fit:contain doesn't letterbox a visible gap. Sized down to 140x140 (from 154) and lifted to bottom:60px (from 40px) so it reads as part of the signature/authentication row instead of sitting on top of the bottom navy chevron panel — see React component's matching comment for the full reasoning. -->
+  <div style="position:absolute;left:50%;bottom:60px;transform:translateX(-50%);z-index:2;">
+    <img src="${TEMPLATE_A_CREST_SRC}" alt="TERAS crest" style="display:block;width:140px;height:140px;object-fit:contain;background:transparent;border:0;"/>
+  </div>
 </div>`;
 }
 

@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="TERAS crest" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <linearGradient id="taCrestGold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F5D982"/>
+      <stop offset="0.5" stop-color="#D4AF37"/>
+      <stop offset="1" stop-color="#A77C16"/>
+    </linearGradient>
+    <radialGradient id="taCrestNavy" cx="50%" cy="38%" r="65%">
+      <stop offset="0" stop-color="#174F7B"/>
+      <stop offset="1" stop-color="#0B3A63"/>
+    </radialGradient>
+    <path id="taCrestTop" d="M 34 103 A 66 66 0 0 1 166 103" fill="none"/>
+    <path id="taCrestBottom" d="M 36 137 A 70 70 0 0 0 164 137" fill="none"/>
+    <filter id="taCrestShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="1.5" stdDeviation="1.5" flood-color="#061D33" flood-opacity="0.32"/>
+    </filter>
+  </defs>
+  <g filter="url(#taCrestShadow)">
+    <circle cx="100" cy="100" r="86" fill="url(#taCrestNavy)" stroke="url(#taCrestGold)" stroke-width="5"/>
+    <circle cx="100" cy="100" r="78" fill="none" stroke="#D4AF37" stroke-width="1.8"/>
+    <circle cx="100" cy="100" r="73" fill="none" stroke="#D4AF37" stroke-width="0.9" opacity="0.7"/>
+    <text font-family="Arial, Helvetica, sans-serif" font-size="9.6" font-weight="800" fill="#D4AF37" letter-spacing="1.2"><textPath href="#taCrestTop" startOffset="50%" text-anchor="middle">BUILDING COMPETENCE</textPath></text>
+    <text font-family="Arial, Helvetica, sans-serif" font-size="9.6" font-weight="800" fill="#D4AF37" letter-spacing="0.6"><textPath href="#taCrestBottom" startOffset="50%" text-anchor="middle">CREATING OPPORTUNITIES</textPath></text>
+    <line x1="66" y1="112" x2="134" y2="112" stroke="#D4AF37" stroke-width="0.75" opacity="0.55"/>
+    <text x="100" y="106" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="34" font-weight="700" fill="url(#taCrestGold)" stroke="#0A2C4D" stroke-width="0.75" paint-order="stroke">TU</text>
+    <line x1="74" y1="122" x2="126" y2="122" stroke="#D4AF37" stroke-width="1"/>
+    <text x="100" y="134" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="9" font-weight="700" fill="#D4AF37" letter-spacing="1.4">EST. 2012</text>
+  </g>
+</svg>
