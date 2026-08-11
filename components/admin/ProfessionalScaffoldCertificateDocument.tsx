@@ -580,7 +580,29 @@ export function ProfessionalScaffoldCertificateDocument({ data, config }: { data
                 the seal's horizontal footprint (a real bug caught here: the
                 two were colliding at 320px/148px). */}
             <div style={{ textAlign: "center", fontSize: 11.5, width: 248 }}>
-              <img src={config.signature_url || DEFAULT_SIGNATURE_URL} alt="" style={{ height: 65, maxWidth: 236, objectFit: "contain" }} />
+              {/* Box width corrected from an earlier 236 down to match the
+                  asset's true aspect ratio (public/signatures/director-signature.png,
+                  418x285, genuinely transparent, only ~6px of transparent
+                  padding on every side — not "excessive") — object-fit:contain
+                  inside a mismatched box left an invisible oversized hit-box
+                  around the ink. 110x75 keeps the 418:285 ratio exactly
+                  (110 * 285/418 ≈ 75) while sizing the ink up slightly so it
+                  no longer reads as a small detached image. */}
+              <img
+                src={config.signature_url || DEFAULT_SIGNATURE_URL}
+                alt=""
+                style={{
+                  display: "block",
+                  width: 110,
+                  height: 75,
+                  margin: "3px auto 0",
+                  objectFit: "contain",
+                  objectPosition: "center bottom",
+                  background: "transparent",
+                  border: 0,
+                  boxShadow: "none",
+                }}
+              />
               <div style={{ borderTop: `1.5px solid ${gold}`, margin: "6px 0 6px" }} />
               <strong style={{ color: navy, fontSize: 12.5, whiteSpace: "nowrap", display: "block" }}>Muhammad Azri Bin Mohd Latifi Amir</strong>
               <div style={{ color: "#6b7280", marginTop: 3 }}>Director</div>
