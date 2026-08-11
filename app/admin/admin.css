@@ -262,6 +262,18 @@
 
 .teras-admin :is(a, button, input, select, textarea):focus-visible { outline: 3px solid rgba(212,175,55,.6); outline-offset: 2px; }
 
+@media print {
+  /* Scoped with :has() so this only fires on a page that actually renders
+     the quotation preview panel — an unscoped `body *` here previously hid
+     every element on every /admin print (certificates included) because
+     this stylesheet loads globally via app/admin/layout.tsx, not just
+     wherever QuotationPrintPreview is mounted. */
+  body:has(.ta-quotation-print) * { visibility: hidden; }
+  .ta-quotation-print, .ta-quotation-print * { visibility: visible; }
+  .ta-quotation-print { position: absolute; inset: 0; width: 100%; }
+  .ta-dialog-overlay { position: absolute; }
+}
+
 /* --- Login --------------------------------------------------------- */
 .ta-login { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: linear-gradient(135deg, var(--ta-navy), #09203f); }
 .ta-login-card { width: 100%; max-width: 400px; background: #fff; border-radius: 16px; padding: 34px; box-shadow: 0 30px 70px rgba(0,0,0,.3); }
