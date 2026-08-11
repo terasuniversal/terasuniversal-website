@@ -287,7 +287,14 @@ export function renderProfessionalScaffoldCertificateFront(data: CertData, confi
   const durationBlock = ribbonBanner(`<span style="font-size:15px;font-weight:600;letter-spacing:.6px;">${esc(duration)}</span>`, navy, gold, "margin:8px auto 0;display:block;width:fit-content;", "gold");
   const dateBlock = dateRange ? `<p style="font-size:12.5px;color:#4b5563;margin:5px 0 0;"><strong style="color:${navy};">Conducted from</strong> ${esc(dateRange)}</p>` : "";
   const qrHtml = config.show_qr !== false && data.qr_svg ? qrCard(data.qr_svg, navy, gold, 76, true) : "";
-  const signatureImg = `<img src="${esc(config.signature_url || DEFAULT_SIGNATURE_URL)}" alt="" style="height:65px;max-width:236px;object-fit:contain;"/>`;
+  // Box width corrected from an earlier 236 down to match the asset's true
+  // aspect ratio (public/signatures/director-signature.png, 418x285,
+  // genuinely transparent, only ~6px of transparent padding on every side —
+  // not "excessive") — object-fit:contain inside a mismatched box left an
+  // invisible oversized hit-box around the ink. 110x75 keeps the 418:285
+  // ratio exactly (110 * 285/418 ≈ 75) while sizing the ink up slightly so
+  // it no longer reads as a small detached image.
+  const signatureImg = `<img src="${esc(config.signature_url || DEFAULT_SIGNATURE_URL)}" alt="" style="display:block;width:110px;height:75px;margin:3px auto 0;object-fit:contain;object-position:center bottom;background:transparent;border:0;box-shadow:none;"/>`;
 
   return `<div style="width:${PAGE_W};height:${PAGE_H};margin:0 auto;position:relative;background:#FDFCF8;box-sizing:border-box;font-family:Georgia,'Times New Roman',serif;line-height:1.3;color:#1F2937;overflow:hidden;">
   ${pageVignette(navy)}
