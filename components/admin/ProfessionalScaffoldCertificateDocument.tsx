@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import type { CertData, TemplateConfig } from "./CertificateDocument";
 import { fitHolderNameSize, formatDateRange, formatHumanDate, isAffirmativeStatus } from "../../lib/certificate-format";
-import { renderTemplateACrestSvg } from "../../lib/template-a-crest";
+import { TEMPLATE_A_CREST_SRC } from "../../lib/template-a-crest";
 
 /**
  * Dedicated 2-page renderer for the TERAS Professional Scaffold Erection
@@ -599,11 +599,21 @@ export function ProfessionalScaffoldCertificateDocument({ data, config }: { data
           instead was rejected: it would force the Director's name onto two
           lines, which reopens the vertical A4-overflow bug this file's own
           history documents. */}
-      <div style={{ position: "absolute", left: "50%", bottom: 40, transform: "translateX(-50%)", zIndex: 2 }}>
-        <div
-          aria-label="TERAS crest"
-          style={{ width: 154, height: 162, lineHeight: 0 }}
-          dangerouslySetInnerHTML={{ __html: renderTemplateACrestSvg(navy, gold) }}
+      {/* v3 crest is a true circle (200x200 viewBox) — box kept square so
+          object-fit:contain doesn't letterbox a visible gap. Sized down to
+          140x140 (from 154) and lifted to bottom:60 (from 40) so it reads
+          as part of the signature/authentication row instead of sitting on
+          top of the bottom navy chevron panel — at bottom:40/154 tall its
+          lower half visually overlapped the panel's top peak. Width/bottom
+          both stay well inside the previously live-measured safe margins
+          (154 wide / 40 from bottom were themselves the tested maximums
+          before colliding with the signature block and the panel
+          respectively), so shrinking+lifting only widens those margins. */}
+      <div style={{ position: "absolute", left: "50%", bottom: 60, transform: "translateX(-50%)", zIndex: 2 }}>
+        <img
+          src={TEMPLATE_A_CREST_SRC}
+          alt="TERAS crest"
+          style={{ display: "block", width: 140, height: 140, objectFit: "contain", background: "transparent", border: 0 }}
         />
       </div>
     </div>
