@@ -2,6 +2,7 @@ import type { CSSProperties, ReactNode } from "react";
 import type { CertData, TemplateConfig } from "./CertificateDocument";
 import { fitHolderNameSize, formatDateRange, formatHumanDate, isAffirmativeStatus } from "../../lib/certificate-format";
 import { TEMPLATE_A_CREST_SRC } from "../../lib/template-a-crest";
+import { TEMPLATE_A_LOGO_SRC } from "../../lib/template-a-logo";
 
 /**
  * Dedicated 2-page renderer for the TERAS Professional Scaffold Erection
@@ -470,15 +471,17 @@ export function ProfessionalScaffoldCertificateDocument({ data, config }: { data
   // `data.course_name` happens to be (e.g. a template-editor preview's
   // generic sample data) — same fallback pattern the back page already uses.
   const programmeName = config.programme_title || data.course_name;
-  // Crops the default lockup (public/teras-universal-logo.png, 1144x806)
-  // down to just the globe+TU mark — bounding box (225,4)-(903,608) measured
-  // directly against the source pixels — so the wordmark underneath (already
-  // duplicated by the "TERAS UNIVERSAL SDN. BHD." text line below) doesn't
-  // render twice. mix-blend-mode:multiply drops the mark's baked-in white
-  // background against the cream page instead of showing a visible box. Both
-  // numbers are tuned to this specific asset; a differently-cropped
-  // config.logo_url would need this recomputed.
-  const isDefaultLogo = !config.logo_url || config.logo_url === "/teras-universal-logo.png";
+  // Renders TEMPLATE_A_LOGO_SRC — a real, pre-cropped, genuinely transparent
+  // icon-only asset (see lib/template-a-logo.ts) — instead of CSS-cropping
+  // the full public/teras-universal-logo.png lockup with
+  // background-position/background-size + mix-blend-mode:multiply. That
+  // approach visibly clipped the gold swoosh's anti-aliased tips (multiply
+  // blending fades near-white pixels to invisible, and the coded crop box
+  // had almost no source-pixel margin to absorb that). A configured
+  // config.logo_url is a differently-shaped asset (the full lockup, not a
+  // pre-cropped icon), so it still renders as-is via object-fit:contain
+  // rather than being cropped to match.
+  const logoSrc = config.logo_url || TEMPLATE_A_LOGO_SRC;
 
   return (
     <div style={{ width: PAGE_W, height: PAGE_H, margin: "0 auto", position: "relative", background: "#FDFCF8", boxSizing: "border-box", fontFamily: "Georgia, 'Times New Roman', serif", lineHeight: 1.3, color: "#1F2937", overflow: "hidden" }}>
@@ -499,15 +502,11 @@ export function ProfessionalScaffoldCertificateDocument({ data, config }: { data
       <CornerDiamonds gold={gold} />
 
       <div style={{ position: "relative", height: "100%", boxSizing: "border-box", padding: `${PAD + 2}px ${PAD + 30}px ${PAD + 170}px`, display: "flex", flexDirection: "column", textAlign: "center" }}>
-        {isDefaultLogo ? (
-          <div style={{ width: 132, height: 118, margin: "0 auto 2px", backgroundImage: "url(/teras-universal-logo.png)", backgroundRepeat: "no-repeat", backgroundPosition: "-43.8px -0.8px", backgroundSize: "223px 157px", mixBlendMode: "multiply" }} />
-        ) : (
-          <img src={config.logo_url} alt="" style={{ width: 132, height: 118, objectFit: "contain", margin: "0 auto 2px", display: "block" }} />
-        )}
+        <img src={logoSrc} alt="" style={{ width: 116, height: 103, objectFit: "contain", margin: "0 auto 2px", display: "block" }} />
         <div style={{ letterSpacing: 2.4, fontSize: 19, lineHeight: 1.2, color: navy, fontWeight: 700, marginTop: 4 }}>TERAS UNIVERSAL SDN. BHD.</div>
         <div style={{ fontSize: 11, lineHeight: 1.2, color: "#6b7280", marginTop: 2 }}>{REG_NO}</div>
 
-        <h1 style={{ fontSize: 73, margin: "8px 0 0", letterSpacing: 3, fontWeight: 700, lineHeight: 1, fontFamily: "Georgia, 'Times New Roman', serif", background: `linear-gradient(180deg, #F5D982 0%, ${gold} 45%, #B8912A 100%)`, WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent", textShadow: "0 1px 0 rgba(11,58,99,.1)" } as CSSProperties}>CERTIFICATE</h1>
+        <h1 style={{ fontSize: 73, margin: "14px 0 0", letterSpacing: 3, fontWeight: 700, lineHeight: 1, fontFamily: "Georgia, 'Times New Roman', serif", background: `linear-gradient(180deg, #F5D982 0%, ${gold} 45%, #B8912A 100%)`, WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent", textShadow: "0 1px 0 rgba(11,58,99,.1)" } as CSSProperties}>CERTIFICATE</h1>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 14, marginTop: 9 }}>
           <span style={{ width: 85, height: 2, background: gold, display: "inline-block" }} />
           <span style={{ fontSize: 16, lineHeight: 1.2, color: navy, letterSpacing: 4, fontWeight: 600 }}>OF SUCCESSFUL COMPLETION</span>
