@@ -6,6 +6,7 @@ import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { requireAssessment } from "../../../../lib/auth/session";
 import { getCurrentProfile } from "../../../../lib/auth/session";
 import { isSuperAdmin } from "../../../../lib/auth/rbac";
+import { participantSkillResultSchema } from "../../../../lib/validation/schemas";
 
 const RESULT = z.enum(["pending", "pass", "fail"]);
 const COMPETENCY = z.enum(["pending_review", "competent", "not_yet_competent"]);
@@ -125,4 +126,80 @@ export async function unlockAssessments(scheduleId: string, formData: FormData) 
   if (ids.length > 0) q = q.in("id", ids);
   await q;
   revalidatePath(`/admin/assessment/${scheduleId}`);
+}
+
+export type SkillsFormState = { message?: string; error?: string };
+
+// A "use server" file may only export async functions at runtime, so this
+// stays local (the client's <select> options are instead derived straight
+// from participantSkillResultSchema's area enum in AssessmentTable.tsx --
+// same source of truth, not a second implementation).
+type SkillArea = "theory_session" | "practical_training" | "safety_awareness" | "practical_assessment";
+const SKILL_AREAS: readonly SkillArea[] = ["theory_session", "practical_training", "safety_awareness", "practical_assessment"];
+
+/**
+ * Business rule, not a DB constraint: participant_skill_results' CHECK
+ * allows all four statuses on any area (see 20260811090000_create_
+ * participant_skill_results.sql) -- Theory Session / Practical Training /
+ * Safety Awareness are completion-only on the certificate, only Practical
+ * Assessment is a scored pass/fail. The <select> options already constrain
+ * this in the UI, but per-area allowed values are re-checked here too --
+ * never trust raw form values for a business rule the DB doesn't encode.
+ */
+const ALLOWED_STATUS: Record<SkillArea, readonly string[]> = {
+  theory_session: ["not_recorded", "completed"],
+  practical_training: ["not_recorded", "completed"],
+  safety_awareness: ["not_recorded", "completed"],
+  practical_assessment: ["not_recorded", "passed", "failed"],
+};
+
+/**
+ * Saves all four Participant Skills Record areas for one participant on one
+ * schedule in a single upsert. Reuses the existing assessment row's `locked`
+ * flag as the sole edit gate for this phase, rather than introducing a
+ * second, independent lock workflow on participant_skill_results.locked
+ * (see Phase 2B report §H) -- that column stays in the table, unused by the
+ * UI, for a possible later phase.
+ */
+export async function updateParticipantSkillResults(
+  scheduleId: string,
+  _prev: SkillsFormState,
+  formData: FormData
+): Promise<SkillsFormState> {
+  const profile = await requireAssessment(true); // same guard as updateAssessment: admin+trainer
+  const participantId = String(formData.get("participant_id") ?? "");
+  if (!participantId) return { error: "Missing participant." };
+
+  const supabase = await createSupabaseServerClient();
+
+  // Same lock check as updateAssessment: the UI hides the form when locked,
+  // but a direct call must not be able to write over a locked assessment.
+  const { data: existing } = await supabase
+    .from("assessments")
+    .select("locked")
+    .eq("schedule_id", scheduleId)
+    .eq("participant_id", participantId)
+    .maybeSingle();
+  if (existing?.locked) return { error: "This participant's assessment is locked." };
+
+  const nowIso = new Date().toISOString();
+  const rows: { schedule_id: string; participant_id: string; area: SkillArea; status: string; assessed_by: string; assessed_at: string }[] = [];
+  for (const area of SKILL_AREAS) {
+    const raw = formData.get(area);
+    if (raw === null) continue;
+    const status = String(raw);
+    if (!ALLOWED_STATUS[area].includes(status)) return { error: `Invalid status for ${area.replace(/_/g, " ")}.` };
+    const parsed = participantSkillResultSchema.safeParse({ schedule_id: scheduleId, participant_id: participantId, area, status });
+    if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid skills record." };
+    rows.push({ schedule_id: scheduleId, participant_id: participantId, area, status, assessed_by: profile.id, assessed_at: nowIso });
+  }
+  if (rows.length === 0) return { error: "Nothing to save." };
+
+  const { error } = await supabase
+    .from("participant_skill_results")
+    .upsert(rows, { onConflict: "schedule_id,participant_id,area" });
+  if (error) return { error: error.message };
+
+  revalidatePath(`/admin/assessment/${scheduleId}`);
+  return { message: "Skills record saved." };
 }

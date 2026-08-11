@@ -46,6 +46,20 @@ export default async function AssessSchedulePage({
     .is("deleted_at", null);
   const byParticipant = new Map<string, any>((asm ?? []).map((a: any): [string, any] => [a.participant_id, a]));
 
+  // Participant Skills Record (Phase 2B) -- a missing row per area just
+  // means "not_recorded"; nothing is auto-created by viewing this page.
+  const { data: skillRows } = await supabase
+    .from("participant_skill_results")
+    .select("participant_id, area, status")
+    .eq("schedule_id", scheduleId)
+    .is("deleted_at", null);
+  const skillsByParticipant = new Map<string, Record<string, string>>();
+  for (const row of (skillRows ?? []) as { participant_id: string; area: string; status: string }[]) {
+    const m = skillsByParticipant.get(row.participant_id) ?? {};
+    m[row.area] = row.status;
+    skillsByParticipant.set(row.participant_id, m);
+  }
+
   const rows: AsmRow[] = (roster ?? []).map((r: any) => {
     const a = byParticipant.get(r.participant_id);
     return {
@@ -59,6 +73,7 @@ export default async function AssessSchedulePage({
       remarks: a?.remarks ?? null,
       locked: a?.locked ?? false,
       participant: r.participants,
+      skills: skillsByParticipant.get(r.participant_id) ?? {},
     };
   });
 

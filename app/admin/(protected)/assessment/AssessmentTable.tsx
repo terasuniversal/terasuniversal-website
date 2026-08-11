@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useActionState, useState } from "react";
 import { Badge } from "../../../../components/admin/ui";
-import { updateAssessment, bulkUpdateResult, lockAssessments, unlockAssessments } from "./actions";
+import { updateAssessment, bulkUpdateResult, lockAssessments, unlockAssessments, updateParticipantSkillResults, type SkillsFormState } from "./actions";
+import { participantSkillResultSchema } from "../../../../lib/validation/schemas";
 
 export interface AsmRow {
   id: string | null; // null = not assessed yet (roster-driven, no auto-create)
@@ -15,12 +16,90 @@ export interface AsmRow {
   remarks: string | null;
   locked: boolean;
   participant: { participant_id: string; full_name: string; company: string | null } | null;
+  /** Participant Skills Record (Phase 2B) -- keyed by area, missing key means "not_recorded". */
+  skills: Record<string, string>;
 }
 
 const TYPES = ["theory", "practical", "combined"];
 const RESULTS = ["pending", "pass", "fail"];
 const COMPETENCIES = ["pending_review", "competent", "not_yet_competent"];
 const label = (s: string) => s.replace(/_/g, " ");
+
+// Same source of truth as the Server Action's validation (lib/validation/
+// schemas.ts's participantSkillResultSchema) -- not a second enum definition.
+const SKILL_AREAS = participantSkillResultSchema.shape.area.options;
+const SKILL_LABELS: Record<string, string> = {
+  theory_session: "Theory Session",
+  practical_training: "Practical Training",
+  safety_awareness: "Safety Awareness",
+  practical_assessment: "Practical Assessment",
+};
+const STATUS_LABELS: Record<string, string> = {
+  not_recorded: "Not Recorded",
+  completed: "Completed",
+  passed: "Passed",
+  failed: "Failed",
+};
+// Only Practical Assessment is a scored pass/fail; the other three are
+// completion-only -- mirrors the Server Action's ALLOWED_STATUS exactly.
+const SKILL_STATUS_OPTIONS: Record<string, string[]> = {
+  theory_session: ["not_recorded", "completed"],
+  practical_training: ["not_recorded", "completed"],
+  safety_awareness: ["not_recorded", "completed"],
+  practical_assessment: ["not_recorded", "passed", "failed"],
+};
+
+/**
+ * Compact "Participant Skills Record" strip rendered as a second row under
+ * each participant. Reuses the participant's existing assessment `locked`
+ * state as the sole edit gate (see actions.ts's updateParticipantSkillResults
+ * doc comment) -- no separate lock UI for participant_skill_results.locked
+ * in this phase.
+ */
+function SkillsRow({ scheduleId, row, editable, colSpan }: { scheduleId: string; row: AsmRow; editable: boolean; colSpan: number }) {
+  const [state, formAction, pending] = useActionState<SkillsFormState, FormData>(
+    updateParticipantSkillResults.bind(null, scheduleId),
+    {}
+  );
+
+  return (
+    <tr>
+      <td colSpan={colSpan} style={{ padding: "2px 9px 10px", borderBottom: "1px solid #e5e7eb" }}>
+        {editable ? (
+          <form action={formAction} style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center", fontSize: 11 }}>
+            <input type="hidden" name="participant_id" value={row.participant_id} />
+            <span style={{ color: "var(--ta-muted)", fontWeight: 600 }}>Skills Record</span>
+            {SKILL_AREAS.map((area) => (
+              <label key={area} style={{ display: "flex", gap: 5, alignItems: "center" }}>
+                {SKILL_LABELS[area]}
+                <select name={area} defaultValue={row.skills[area] ?? "not_recorded"} style={inp} aria-label={SKILL_LABELS[area]}>
+                  {SKILL_STATUS_OPTIONS[area].map((s) => (
+                    <option key={s} value={s}>{STATUS_LABELS[s]}</option>
+                  ))}
+                </select>
+              </label>
+            ))}
+            <button type="submit" className="ta-btn ta-btn-outline ta-btn-sm" disabled={pending}>
+              {pending ? "Saving…" : "Save"}
+            </button>
+            {state.message && <span style={{ color: "var(--ta-success)" }}>{state.message}</span>}
+            {state.error && <span role="alert" style={{ color: "var(--ta-danger)" }}>{state.error}</span>}
+          </form>
+        ) : (
+          <div style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center", fontSize: 11 }}>
+            <span style={{ color: "var(--ta-muted)", fontWeight: 600 }}>Skills Record{row.locked ? " · 🔒 locked" : ""}</span>
+            {SKILL_AREAS.map((area) => (
+              <span key={area} style={{ display: "flex", gap: 5, alignItems: "center" }}>
+                {SKILL_LABELS[area]}
+                <Badge status={row.skills[area] ?? "not_recorded"} />
+              </span>
+            ))}
+          </div>
+        )}
+      </td>
+    </tr>
+  );
+}
 
 /** Display-only: overall_score is not persisted (no single formula is
  * confirmed across programmes yet -- see SCHEDULES_ARCHITECTURE_DECISION.md
@@ -107,8 +186,10 @@ export function AssessmentTable({
           <tbody>
             {filtered.map((r) => {
               const editable = canManage && !r.locked;
+              const totalCols = 7 + (canManage ? 2 : 0);
               return (
-                <tr key={r.participant_id}>
+                <Fragment key={r.participant_id}>
+                <tr>
                   {canManage && <td>{r.id && <input type="checkbox" checked={selected.has(r.id)} onChange={() => toggle(r.id!)} aria-label="Select" />}</td>}
                   {editable ? (
                     <td colSpan={8}>
@@ -152,6 +233,8 @@ export function AssessmentTable({
                     </>
                   )}
                 </tr>
+                <SkillsRow scheduleId={scheduleId} row={r} editable={editable} colSpan={totalCols} />
+                </Fragment>
               );
             })}
           </tbody>
