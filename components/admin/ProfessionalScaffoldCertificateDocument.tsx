@@ -580,24 +580,42 @@ export function ProfessionalScaffoldCertificateDocument({ data, config }: { data
                 the seal's horizontal footprint (a real bug caught here: the
                 two were colliding at 320px/148px). */}
             <div style={{ textAlign: "center", fontSize: 11.5, width: 248 }}>
-              {/* Box width corrected from an earlier 236 down to match the
-                  asset's true aspect ratio (public/signatures/director-signature.png,
-                  418x285, genuinely transparent, only ~6px of transparent
-                  padding on every side — not "excessive") — object-fit:contain
-                  inside a mismatched box left an invisible oversized hit-box
-                  around the ink. 110x75 keeps the 418:285 ratio exactly
-                  (110 * 285/418 ≈ 75) while sizing the ink up slightly so it
-                  no longer reads as a small detached image. */}
+              {/* Source asset measured, not assumed: public/signatures/director-signature.png
+                  is 418x285 RGBA, 80.8% fully transparent, with the ink's
+                  bounding box at 406x273 — i.e. ~6px of transparent padding
+                  per side. That is not "excessive padding", so the asset is
+                  used as-is and no cropped variant exists; a tighter crop
+                  would buy ~1.5% of box and risk shaving anti-aliased stroke
+                  ends off real handwriting.
+
+                  154x105 holds the 418:285 ratio exactly (154 * 285/418 = 105)
+                  so object-fit:contain letterboxes by zero pixels. The earlier
+                  110x75 was correct-ratio but under-scaled next to the 84px
+                  stamp and the 140px crest, which is what made the ink read as
+                  a small pasted sticker rather than a signature. 154 still
+                  leaves 47px of slack on each side of the 248px block, so it
+                  cannot reach the page-centred crest (crest starts at x≈327;
+                  the block ends at x≈312).
+
+                  The negative bottom margin is the "naturally signed" part:
+                  it collapses against the rule's own 6px top margin to pull
+                  the gold line ~10px up into the ink, and position/zIndex put
+                  the ink ON TOP of that line rather than behind it — a
+                  signature written over the line, not stamped above it.
+                  No filter, no blend mode, no shadow: blend modes are the one
+                  thing print/PDF engines are least consistent about, and this
+                  file exists because the PDF output has to be trustworthy. */}
               <img
                 src={config.signature_url || DEFAULT_SIGNATURE_URL}
                 alt=""
                 style={{
                   display: "block",
-                  width: 110,
-                  height: 75,
-                  margin: "3px auto 0",
+                  position: "relative",
+                  zIndex: 1,
+                  width: 154,
+                  height: 105,
+                  margin: "3px auto -16px",
                   objectFit: "contain",
-                  objectPosition: "center bottom",
                   background: "transparent",
                   border: 0,
                   boxShadow: "none",
