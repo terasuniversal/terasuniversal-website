@@ -4,7 +4,7 @@ import { useActionState } from "react";
 import Link from "next/link";
 import type { Course } from "../../../../lib/supabase/database.types";
 import type { CourseFormState } from "./actions";
-import { Field } from "../../../../components/admin/ui";
+import { Field, Card } from "../../../../components/admin/ui";
 
 const DELIVERY = [
   ["public", "Public"],
@@ -31,165 +31,181 @@ export function CourseForm({
   const e = state.errors ?? {};
 
   return (
-    <form action={formAction} className="ta-form" style={{ maxWidth: 820 }}>
+    <form action={formAction} className="ta-form" style={{ maxWidth: 880 }}>
       {state.message && <div className="ta-alert ta-alert-error">{state.message}</div>}
 
-      <div className="ta-field-row">
-        <Field label="Title" name="title" error={e.title}>
-          <input id="title" name="title" defaultValue={course?.title ?? ""} required />
-        </Field>
-        <Field label="Slug" name="slug" error={e.slug} hint="lowercase-with-hyphens">
-          <input id="slug" name="slug" defaultValue={course?.slug ?? ""} required />
-        </Field>
-      </div>
+      <Card title="Basic information">
+        <div className="ta-form-pad">
+          <div className="ta-field-row">
+            <Field label="Title" name="title" error={e.title} required>
+              <input id="title" name="title" defaultValue={course?.title ?? ""} required />
+            </Field>
+            <Field label="Slug" name="slug" error={e.slug} hint="lowercase-with-hyphens" required>
+              <input id="slug" name="slug" defaultValue={course?.slug ?? ""} required />
+            </Field>
+          </div>
+          <div className="ta-field-row">
+            <Field label="Category" name="category" error={e.category}>
+              <input id="category" name="category" defaultValue={course?.category ?? ""} />
+            </Field>
+            <Field label="Duration" name="duration" error={e.duration}>
+              <input id="duration" name="duration" defaultValue={course?.duration ?? ""} placeholder="e.g. 2 days" />
+            </Field>
+          </div>
+          <Field label="Summary" name="summary" error={e.summary} hint="Short one-line description for cards">
+            <textarea id="summary" name="summary" rows={2} defaultValue={course?.summary ?? ""} />
+          </Field>
+        </div>
+      </Card>
 
-      <div className="ta-field-row">
-        <Field label="Category" name="category" error={e.category}>
-          <input id="category" name="category" defaultValue={course?.category ?? ""} />
-        </Field>
-        <Field label="Duration" name="duration" error={e.duration}>
-          <input id="duration" name="duration" defaultValue={course?.duration ?? ""} placeholder="e.g. 2 days" />
-        </Field>
-      </div>
+      <Card title="Course content">
+        <div className="ta-form-pad">
+          <Field label="Overview" name="overview" error={e.overview}>
+            <textarea id="overview" name="overview" rows={5} defaultValue={course?.overview ?? ""} />
+          </Field>
+          <div className="ta-field-row">
+            <Field label="Objectives" name="objectives" hint="One per line">
+              <textarea id="objectives" name="objectives" rows={4} defaultValue={(course?.objectives ?? []).join("\n")} />
+            </Field>
+            <Field label="Target Audience" name="target_audience" hint="One per line">
+              <textarea id="target_audience" name="target_audience" rows={4} defaultValue={(course?.target_audience ?? []).join("\n")} />
+            </Field>
+          </div>
+          <div className="ta-field-row">
+            <Field label="Requirements" name="requirements" hint="One per line">
+              <textarea id="requirements" name="requirements" rows={4} defaultValue={(course?.requirements ?? []).join("\n")} />
+            </Field>
+            <Field label="Modules" name="modules" hint="One module title per line">
+              <textarea id="modules" name="modules" rows={4} defaultValue={(course?.modules ?? []).map((m) => m.title).join("\n")} />
+            </Field>
+          </div>
+          <Field label="Delivery Modes" name="delivery_modes">
+            <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+              {DELIVERY.map(([val, label]) => (
+                <label key={val} style={{ display: "flex", gap: 6, alignItems: "center", fontWeight: 500 }}>
+                  <input
+                    type="checkbox"
+                    name="delivery_modes"
+                    value={val}
+                    defaultChecked={course?.delivery_modes?.includes(val as any)}
+                    style={{ width: "auto" }}
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+          </Field>
+        </div>
+      </Card>
 
-      <Field label="Summary" name="summary" error={e.summary} hint="Short one-line description for cards">
-        <textarea id="summary" name="summary" rows={2} defaultValue={course?.summary ?? ""} />
-      </Field>
+      <Card title="Pricing & ordering">
+        <div className="ta-form-pad">
+          <div className="ta-field-row">
+            <Field label="Fee (RM, optional)" name="fee" error={e.fee}>
+              <input id="fee" name="fee" type="number" step="0.01" min="0" defaultValue={course?.fee ?? ""} />
+            </Field>
+            <Field label="Sort order" name="sort_order">
+              <input id="sort_order" name="sort_order" type="number" defaultValue={course?.sort_order ?? 0} />
+            </Field>
+          </div>
+        </div>
+      </Card>
 
-      <Field label="Overview" name="overview" error={e.overview}>
-        <textarea id="overview" name="overview" rows={5} defaultValue={course?.overview ?? ""} />
-      </Field>
+      <Card title="Publication">
+        <div className="ta-form-pad">
+          <div className="ta-field-row">
+            <Field label="Status" name="status">
+              <select id="status" name="status" defaultValue={course?.status ?? "draft"}>
+                <option value="draft">Draft</option>
+                <option value="published">Published</option>
+                <option value="archived">Archived</option>
+              </select>
+            </Field>
+            <Field label="Featured" name="featured">
+              <label className="ta-check" style={{ paddingTop: 8 }}>
+                <input type="checkbox" name="featured" defaultChecked={course?.featured} />
+                Show in featured programmes
+              </label>
+            </Field>
+          </div>
+        </div>
+      </Card>
 
-      <div className="ta-field-row">
-        <Field label="Objectives" name="objectives" hint="One per line">
-          <textarea id="objectives" name="objectives" rows={4} defaultValue={(course?.objectives ?? []).join("\n")} />
-        </Field>
-        <Field label="Target Audience" name="target_audience" hint="One per line">
-          <textarea id="target_audience" name="target_audience" rows={4} defaultValue={(course?.target_audience ?? []).join("\n")} />
-        </Field>
-      </div>
-
-      <div className="ta-field-row">
-        <Field label="Requirements" name="requirements" hint="One per line">
-          <textarea id="requirements" name="requirements" rows={4} defaultValue={(course?.requirements ?? []).join("\n")} />
-        </Field>
-        <Field label="Modules" name="modules" hint="One module title per line">
-          <textarea id="modules" name="modules" rows={4} defaultValue={(course?.modules ?? []).map((m) => m.title).join("\n")} />
-        </Field>
-      </div>
-
-      <Field label="Delivery Modes" name="delivery_modes">
-        <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-          {DELIVERY.map(([val, label]) => (
-            <label key={val} style={{ display: "flex", gap: 6, alignItems: "center", fontWeight: 500 }}>
+      <Card title="Certificate eligibility">
+        <div className="ta-form-pad">
+          <div className="ta-field-row">
+            <Field label="Certificate Type" name="certificate_type" hint="Drives the eligibility engine — never inferred from category">
+              <select id="certificate_type" name="certificate_type" defaultValue={course?.certificate_type ?? "completion"}>
+                <option value="participation">Participation</option>
+                <option value="completion">Completion</option>
+                <option value="competency">Competency</option>
+              </select>
+            </Field>
+            <Field label="Attendance Minimum (%)" name="attendance_min_percent" error={e.attendance_min_percent}>
               <input
-                type="checkbox"
-                name="delivery_modes"
-                value={val}
-                defaultChecked={course?.delivery_modes?.includes(val as any)}
-                style={{ width: "auto" }}
+                id="attendance_min_percent"
+                name="attendance_min_percent"
+                type="number"
+                min="0"
+                max="100"
+                defaultValue={course?.attendance_min_percent ?? 100}
               />
-              {label}
-            </label>
-          ))}
-        </div>
-      </Field>
-
-      <div className="ta-field-row">
-        <Field label="Fee (RM, optional)" name="fee" error={e.fee}>
-          <input id="fee" name="fee" type="number" step="0.01" min="0" defaultValue={course?.fee ?? ""} />
-        </Field>
-        <Field label="Sort order" name="sort_order">
-          <input id="sort_order" name="sort_order" type="number" defaultValue={course?.sort_order ?? 0} />
-        </Field>
-      </div>
-
-      <div className="ta-field-row">
-        <Field label="Status" name="status">
-          <select id="status" name="status" defaultValue={course?.status ?? "draft"}>
-            <option value="draft">Draft</option>
-            <option value="published">Published</option>
-            <option value="archived">Archived</option>
-          </select>
-        </Field>
-        <Field label="Featured" name="featured">
-          <label style={{ display: "flex", gap: 8, alignItems: "center", fontWeight: 500, paddingTop: 8 }}>
-            <input type="checkbox" name="featured" defaultChecked={course?.featured} style={{ width: "auto" }} />
-            Show in featured programmes
-          </label>
-        </Field>
-      </div>
-
-      <div className="ta-field-row">
-        <Field label="Certificate Type" name="certificate_type" hint="Drives the eligibility engine — never inferred from category">
-          <select id="certificate_type" name="certificate_type" defaultValue={course?.certificate_type ?? "completion"}>
-            <option value="participation">Participation</option>
-            <option value="completion">Completion</option>
-            <option value="competency">Competency</option>
-          </select>
-        </Field>
-        <Field label="Attendance Minimum (%)" name="attendance_min_percent" error={e.attendance_min_percent}>
-          <input
-            id="attendance_min_percent"
-            name="attendance_min_percent"
-            type="number"
-            min="0"
-            max="100"
-            defaultValue={course?.attendance_min_percent ?? 100}
-          />
-        </Field>
-      </div>
-
-      <Field label="Assessment / Competency" name="assessment_required" error={e.competency_required} hint="Competency requires assessment to also be checked">
-        <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-          <label style={{ display: "flex", gap: 6, alignItems: "center", fontWeight: 500 }}>
-            <input type="checkbox" name="assessment_required" defaultChecked={course?.assessment_required} style={{ width: "auto" }} />
-            Assessment required (result must be Pass)
-          </label>
-          <label style={{ display: "flex", gap: 6, alignItems: "center", fontWeight: 500 }}>
-            <input type="checkbox" name="competency_required" defaultChecked={course?.competency_required} style={{ width: "auto" }} />
-            Competency required (also needs competency_status = Competent)
-          </label>
-        </div>
-      </Field>
-
-      <div className="ta-field-row">
-        <Field
-          label="Certificate Generation"
-          name="certificate_generation_enabled"
-          hint="Off by default. Enabling requires a template to be selected below — generation is otherwise blocked, even if attendance/assessment pass."
-        >
-          <label style={{ display: "flex", gap: 8, alignItems: "center", fontWeight: 500, paddingTop: 8 }}>
-            <input
-              type="checkbox"
+            </Field>
+          </div>
+          <Field label="Assessment / Competency" name="assessment_required" error={e.competency_required} hint="Competency requires assessment to also be checked">
+            <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+              <label className="ta-check">
+                <input type="checkbox" name="assessment_required" defaultChecked={course?.assessment_required} />
+                Assessment required (result must be Pass)
+              </label>
+              <label className="ta-check">
+                <input type="checkbox" name="competency_required" defaultChecked={course?.competency_required} />
+                Competency required (also needs competency_status = Competent)
+              </label>
+            </div>
+          </Field>
+          <div className="ta-field-row">
+            <Field
+              label="Certificate Generation"
               name="certificate_generation_enabled"
-              defaultChecked={course?.certificate_generation_enabled}
-              style={{ width: "auto" }}
-            />
-            Enabled
-          </label>
-        </Field>
-        <Field
-          label="Certificate Template"
-          name="certificate_template_id"
-          error={e.certificate_template_id}
-          hint="Exclusive to this course — never resolved by course name/title at generation time"
-        >
-          <select id="certificate_template_id" name="certificate_template_id" defaultValue={course?.certificate_template_id ?? ""}>
-            <option value="">— None selected —</option>
-            {templates.map((t) => (
-              <option key={t.id} value={t.id}>{t.name}</option>
-            ))}
-          </select>
-        </Field>
-      </div>
+              hint="Off by default. Enabling requires a template to be selected below — generation is otherwise blocked, even if attendance/assessment pass."
+            >
+              <label className="ta-check" style={{ paddingTop: 8 }}>
+                <input
+                  type="checkbox"
+                  name="certificate_generation_enabled"
+                  defaultChecked={course?.certificate_generation_enabled}
+                />
+                Enabled
+              </label>
+            </Field>
+            <Field
+              label="Certificate Template"
+              name="certificate_template_id"
+              error={e.certificate_template_id}
+              hint="Exclusive to this course — never resolved by course name/title at generation time"
+            >
+              <select id="certificate_template_id" name="certificate_template_id" defaultValue={course?.certificate_template_id ?? ""}>
+                <option value="">— None selected —</option>
+                {templates.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+            </Field>
+          </div>
+        </div>
+      </Card>
 
-      <Field label="SEO Title" name="seo_title" error={e.seo_title}>
-        <input id="seo_title" name="seo_title" defaultValue={course?.seo_title ?? ""} />
-      </Field>
-      <Field label="SEO Description" name="seo_description" error={e.seo_description}>
-        <textarea id="seo_description" name="seo_description" rows={2} defaultValue={course?.seo_description ?? ""} />
-      </Field>
+      <Card title="Search engine (SEO)">
+        <div className="ta-form-pad">
+          <Field label="SEO Title" name="seo_title" error={e.seo_title}>
+            <input id="seo_title" name="seo_title" defaultValue={course?.seo_title ?? ""} />
+          </Field>
+          <Field label="SEO Description" name="seo_description" error={e.seo_description}>
+            <textarea id="seo_description" name="seo_description" rows={2} defaultValue={course?.seo_description ?? ""} />
+          </Field>
+        </div>
+      </Card>
 
       <div className="ta-form-actions">
         <Link href="/admin/courses" className="ta-btn ta-btn-outline">Cancel</Link>
