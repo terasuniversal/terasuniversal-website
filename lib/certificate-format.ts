@@ -75,7 +75,12 @@ export function formatDateRange(start?: string | null, end?: string | null): str
  * an affirmative outcome. Without this, a neutral status ("Pending", "N/A")
  * would still get a green "✓" purely from its position in the table, which
  * reads as an unearned achievement claim rather than the template's own words.
+ *
+ * "met" is anchored (^...$), matching the whole trimmed string only — not a
+ * substring test — so "Not Met" can never match this branch; it's a distinct
+ * full string, not "met" with extra characters. Same reasoning already
+ * applies to "pass(ed)?" not matching "Not Passed" etc.
  */
 export function isAffirmativeStatus(status: string): boolean {
-  return /^(completed|achieved|pass(ed)?|present|competent)$/i.test((status || "").trim());
+  return /^(completed|achieved|pass(ed)?|present|competent|met)$/i.test((status || "").trim());
 }
