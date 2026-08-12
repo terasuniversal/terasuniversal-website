@@ -12,43 +12,6 @@ function fmtDate(d?: string | null): string | null {
   return d ? formatHumanDate(d) : null;
 }
 
-/**
- * Participant-specific skills-record rows for the certificate's back page.
- * Only "Attendance Requirement" is provable from live data today (via the
- * same v_certificate_eligibility view that gates certificate generation —
- * reused here, not reimplemented); the other four areas have no per-area
- * data source in attendance/assessments (see DATABASE_AUDIT.md discussion),
- * so they stay "Not Recorded" rather than being inferred from the single
- * combined assessment result. Returns null (never fabricates) when the
- * certificate has no schedule/participant link or the lookup fails/finds
- * no row — callers must treat null as "fall through to template config".
- */
-async function buildParticipantSkillsRecord(
-  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
-  scheduleId: string | null | undefined,
-  participantId: string | null | undefined
-): Promise<{ area: string; status: string }[] | null> {
-  if (!scheduleId || !participantId) return null;
-  try {
-    const { data: elig, error } = await supabase
-      .from("v_certificate_eligibility")
-      .select("attendance_satisfied")
-      .eq("schedule_id", scheduleId)
-      .eq("participant_id", participantId)
-      .maybeSingle();
-    if (error || !elig) return null;
-    return [
-      { area: "Theory Session", status: "Not Recorded" },
-      { area: "Practical Training", status: "Not Recorded" },
-      { area: "Safety Awareness", status: "Not Recorded" },
-      { area: "Practical Assessment", status: "Not Recorded" },
-      { area: "Attendance Requirement", status: elig.attendance_satisfied ? "Met" : "Not Met" },
-    ];
-  } catch {
-    return null;
-  }
-}
-
 const CERT_SKILL_AREA_LABELS: Record<string, string> = {
   theory_session: "Theory Session",
   practical_training: "Practical Training",
@@ -64,6 +27,104 @@ const CERT_SKILL_STATUS_LABELS: Record<string, string> = {
   met: "Met",
   not_met: "Not Met",
 };
+/**
+ * Reading order of the Participant Skills Record table. Both builders below
+ * sort by this rather than by the `area` key, which is why it exists: the
+ * snapshot builder previously ordered alphabetically, so a snapshot-backed
+ * certificate would have listed Attendance Requirement first and Theory
+ * Session last — a different row order from every other code path's
+ * (chronological) one. Not visible in production yet only because
+ * certificate_skill_results is still empty.
+ */
+const CERT_SKILL_AREA_ORDER = [
+  "theory_session",
+  "practical_training",
+  "safety_awareness",
+  "practical_assessment",
+  "attendance_requirement",
+] as const;
+
+/**
+ * LEGACY FALLBACK ONLY — used for certificates that have no immutable
+ * certificate_skill_results snapshot of their own (every certificate issued
+ * before Phase 2C, which today is all of them). A Phase-2C-issued certificate
+ * never reaches this function; see loadCertificateRender's precedence.
+ *
+ * Reads the per-area statuses staff actually recorded in
+ * participant_skill_results (the Assessment module's Participant Skills Record
+ * form — app/admin/(protected)/assessment/actions.ts), which is the same table
+ * app.issue_certificate_with_skill_snapshot snapshots from. This function used
+ * to hardcode all four areas to "Not Recorded" on the premise that no per-area
+ * source existed; that premise is simply out of date — the table has been
+ * populated since Phase 2B, so real recorded results were being thrown away
+ * and the back page under-reported completed training.
+ *
+ * Statuses are read, never derived: a combined assessment's pass/competent
+ * result is NOT mapped onto these four areas here. Inferring them would
+ * overwrite explicitly recorded staff input with a guess, and would invent a
+ * per-area result the assessor never entered. An area with no row stays
+ * "Not Recorded".
+ *
+ * Returns null (never fabricates) only when there is no evidence at all —
+ * no schedule/participant link, or neither table yields anything — so callers
+ * fall through to the template config's own default rows.
+ */
+async function buildParticipantSkillsRecord(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  scheduleId: string | null | undefined,
+  participantId: string | null | undefined
+): Promise<{ area: string; status: string }[] | null> {
+  if (!scheduleId || !participantId) return null;
+  try {
+    const [skills, eligibility] = await Promise.all([
+      supabase
+        .from("participant_skill_results")
+        .select("area, status")
+        .eq("schedule_id", scheduleId)
+        .eq("participant_id", participantId)
+        .is("deleted_at", null),
+      supabase
+        .from("v_certificate_eligibility")
+        .select("attendance_satisfied")
+        .eq("schedule_id", scheduleId)
+        .eq("participant_id", participantId)
+        .maybeSingle(),
+    ]);
+
+    if (skills.error) {
+      console.error("certData: participant_skill_results lookup failed", { scheduleId, message: skills.error.message });
+    }
+    if (eligibility.error) {
+      console.error("certData: v_certificate_eligibility lookup failed", { scheduleId, message: eligibility.error.message });
+    }
+
+    const recorded = new Map<string, string>();
+    for (const row of (skills.data ?? []) as { area: string; status: string }[]) {
+      recorded.set(row.area, row.status);
+    }
+    const elig = eligibility.error ? null : eligibility.data;
+
+    // No usable evidence from either source — stay out of the way rather than
+    // rendering five "Not Recorded" rows over a template's own configured ones.
+    if (recorded.size === 0 && !elig) return null;
+
+    return CERT_SKILL_AREA_ORDER.map((area) => {
+      if (area === "attendance_requirement") {
+        const status = !elig || elig.attendance_satisfied === null || elig.attendance_satisfied === undefined
+          ? "not_recorded"
+          : elig.attendance_satisfied
+            ? "met"
+            : "not_met";
+        return { area: CERT_SKILL_AREA_LABELS[area], status: CERT_SKILL_STATUS_LABELS[status] };
+      }
+      const raw = recorded.get(area) ?? "not_recorded";
+      return { area: CERT_SKILL_AREA_LABELS[area], status: CERT_SKILL_STATUS_LABELS[raw] ?? raw };
+    });
+  } catch (err) {
+    console.error("certData: participant skills record build threw", { scheduleId, err });
+    return null;
+  }
+}
 
 /**
  * Immutable issuance snapshot (Phase 2C) for the certificate's own id — the
@@ -83,17 +144,26 @@ async function buildCertificateSkillsRecord(
     const { data, error } = await supabase
       .from("certificate_skill_results")
       .select("area, status")
-      .eq("certificate_id", certificateId)
-      .order("area", { ascending: true });
+      .eq("certificate_id", certificateId);
     if (error) {
       console.error("certData: certificate_skill_results lookup failed", { certificateId, message: error.message });
       return null;
     }
     if (!data || data.length === 0) return null;
-    return data.map((row: any) => ({
-      area: CERT_SKILL_AREA_LABELS[row.area] ?? row.area,
-      status: CERT_SKILL_STATUS_LABELS[row.status] ?? row.status,
-    }));
+    // Sorted by reading order, not by `area` — see CERT_SKILL_AREA_ORDER. Any
+    // area outside the known set keeps its row and lands after the known ones
+    // rather than being silently dropped.
+    const rank = (area: string) => {
+      const i = CERT_SKILL_AREA_ORDER.indexOf(area as (typeof CERT_SKILL_AREA_ORDER)[number]);
+      return i === -1 ? CERT_SKILL_AREA_ORDER.length : i;
+    };
+    return (data as { area: string; status: string }[])
+      .slice()
+      .sort((a, b) => rank(a.area) - rank(b.area) || a.area.localeCompare(b.area))
+      .map((row) => ({
+        area: CERT_SKILL_AREA_LABELS[row.area] ?? row.area,
+        status: CERT_SKILL_STATUS_LABELS[row.status] ?? row.status,
+      }));
   } catch (err) {
     console.error("certData: certificate_skill_results lookup threw", { certificateId, err });
     return null;

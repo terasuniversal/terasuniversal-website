@@ -77,5 +77,10 @@ export function formatDateRange(start?: string | null, end?: string | null): str
  * reads as an unearned achievement claim rather than the template's own words.
  */
 export function isAffirmativeStatus(status: string): boolean {
-  return /^(completed|achieved|pass(ed)?|present|competent)$/i.test((status || "").trim());
+  // "met" is the Attendance Requirement row's affirmative value (the
+  // attendance_requirement CHECK allows exactly not_recorded|met|not_met), and
+  // it was missing here — that row rendered "– Met" in muted grey while every
+  // other satisfied area got a gold "✓". The alternation is anchored, so
+  // "Not Met" still correctly reads as non-affirmative.
+  return /^(completed|achieved|pass(ed)?|present|competent|met)$/i.test((status || "").trim());
 }
