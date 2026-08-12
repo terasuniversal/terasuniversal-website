@@ -5,8 +5,9 @@ import { canViewAttendance } from "../../../../../../lib/auth/rbac";
 
 /**
  * Export a schedule's attendance sheet for one session date.
- *   ?format=csv | excel | print   ?date=YYYY-MM-DD (defaults to schedule start_date)
+ *   ?format=csv | excel   ?date=YYYY-MM-DD (defaults to schedule start_date)
  * View access = editor+ or trainer.
+ * Printing is handled by the dedicated print route (…/print), not here.
  */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ scheduleId: string }> }) {
   const profile = await getCurrentProfile();
@@ -23,6 +24,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     .single();
   const s = scheduleRow as any;
   const sessionDate = sp.get("date") || s?.start_date;
+
+  // The printable sheet now lives at …/print (whole-schedule attendance);
+  // keep the old format=print URL working (stale links/bookmarks) instead
+  // of silently returning CSV. CSV/Excel exports below remain date-scoped.
+  if (format === "print") {
+    return NextResponse.redirect(new URL(`/admin/attendance/${scheduleId}/print`, request.url));
+  }
 
   const { data: roster } = await supabase
     .from("schedule_participants")
@@ -63,19 +71,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const stamp = new Date().toISOString().slice(0, 10);
   const escHtml = (v: unknown) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-  if (format === "excel" || format === "print") {
+  if (format === "excel") {
     const head = HEADERS.map(([, l]) => `<th>${escHtml(l)}</th>`).join("");
     const body = flat.map((r) => `<tr>${HEADERS.map(([k]) => `<td>${escHtml(r[k])}</td>`).join("")}</tr>`).join("");
-    if (format === "print") {
-      const title = `${s?.courses?.course_name ?? "Training"} — Attendance Sheet (${sessionDate})`;
-      const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escHtml(title)}</title>
-<style>body{font-family:Arial,sans-serif;color:#0B2C56;padding:24px}h1{font-size:18px;margin:0 0 4px}p{margin:2px 0;color:#555;font-size:13px}table{border-collapse:collapse;width:100%;font-size:12px;margin-top:14px}th,td{border:1px solid #ccc;padding:6px 8px;text-align:left}th{background:#0B2C56;color:#fff}</style>
-</head><body onload="window.print()">
-<h1>${escHtml(title)}</h1>
-<p>Schedule: ${escHtml(s?.schedule_code ?? "")} · Trainer: ${escHtml(s?.trainer_name ?? "-")} · Venue: ${escHtml(s?.venue ?? "-")} · Date: ${escHtml(sessionDate ?? "")}</p>
-<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></body></html>`;
-      return new NextResponse(html, { headers: { "Content-Type": "text/html; charset=utf-8" } });
-    }
     const xls = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8"></head><body><table border="1"><tr>${head}</tr>${body}</table></body></html>`;
     return new NextResponse(xls, { headers: { "Content-Type": "application/vnd.ms-excel; charset=utf-8", "Content-Disposition": `attachment; filename="attendance-${s?.schedule_code ?? "sheet"}-${sessionDate}-${stamp}.xls"` } });
   }

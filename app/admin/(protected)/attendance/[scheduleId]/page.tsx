@@ -134,7 +134,7 @@ export default async function TakeAttendancePage({
           <div className="ta-spacer" />
           <a href={`/admin/attendance/${scheduleId}/export?format=csv&date=${sessionDate}`} className="ta-btn ta-btn-outline ta-btn-sm">⬇ CSV</a>
           <a href={`/admin/attendance/${scheduleId}/export?format=excel&date=${sessionDate}`} className="ta-btn ta-btn-outline ta-btn-sm">⬇ Excel</a>
-          <a href={`/admin/attendance/${scheduleId}/export?format=print&date=${sessionDate}`} target="_blank" className="ta-btn ta-btn-outline ta-btn-sm">🖨 Sheet</a>
+          <a href={`/admin/attendance/${scheduleId}/print`} target="_blank" className="ta-btn ta-btn-outline ta-btn-sm">🖨 Print Attendance Sheet</a>
           <Link href={`/admin/attendance/${scheduleId}/import?date=${sessionDate}`} className="ta-btn ta-btn-outline ta-btn-sm">⬆ Import</Link>
         </div>
       )}
