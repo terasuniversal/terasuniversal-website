@@ -2,6 +2,7 @@ import type { CertData, TemplateConfig } from "../components/admin/CertificateDo
 import { fitHolderNameSize, formatDateRange, formatHumanDate, isAffirmativeStatus } from "./certificate-format";
 import { TEMPLATE_A_CREST_SRC } from "./template-a-crest";
 import { TEMPLATE_A_LOGO_SRC } from "./template-a-logo";
+import { PRINT_WHEN_READY_SCRIPT } from "./print-when-ready";
 
 /**
  * Standalone HTML string mirror of
@@ -287,14 +288,11 @@ export function renderProfessionalScaffoldCertificateFront(data: CertData, confi
   const durationBlock = ribbonBanner(`<span style="font-size:15px;font-weight:600;letter-spacing:.6px;">${esc(duration)}</span>`, navy, gold, "margin:8px auto 0;display:block;width:fit-content;", "gold");
   const dateBlock = dateRange ? `<p style="font-size:12.5px;color:#4b5563;margin:5px 0 0;"><strong style="color:${navy};">Conducted from</strong> ${esc(dateRange)}</p>` : "";
   const qrHtml = config.show_qr !== false && data.qr_svg ? qrCard(data.qr_svg, navy, gold, 76, true) : "";
-  // Box width corrected from an earlier 236 down to match the asset's true
-  // aspect ratio (public/signatures/director-signature.png, 418x285,
-  // genuinely transparent, only ~6px of transparent padding on every side —
-  // not "excessive") — object-fit:contain inside a mismatched box left an
-  // invisible oversized hit-box around the ink. 110x75 keeps the 418:285
-  // ratio exactly (110 * 285/418 ≈ 75) while sizing the ink up slightly so
-  // it no longer reads as a small detached image.
-  const signatureImg = `<img src="${esc(config.signature_url || DEFAULT_SIGNATURE_URL)}" alt="" style="display:block;width:110px;height:75px;margin:3px auto 0;object-fit:contain;object-position:center bottom;background:transparent;border:0;box-shadow:none;"/>`;
+  // Mirrors the React renderer's signature block exactly — see the long
+  // comment there for why 154x105 (exact 418:285 ratio, no letterboxing), why
+  // the asset is used uncropped, and why the negative bottom margin plus
+  // z-index is what makes the ink sit over the rule instead of above it.
+  const signatureImg = `<img src="${esc(config.signature_url || DEFAULT_SIGNATURE_URL)}" alt="" style="display:block;position:relative;z-index:1;width:154px;height:105px;margin:3px auto -16px;object-fit:contain;background:transparent;border:0;box-shadow:none;"/>`;
 
   return `<div style="width:${PAGE_W};height:${PAGE_H};margin:0 auto;position:relative;background:#FDFCF8;box-sizing:border-box;font-family:Georgia,'Times New Roman',serif;line-height:1.3;color:#1F2937;overflow:hidden;">
   ${pageVignette(navy)}
@@ -498,6 +496,6 @@ export function renderProfessionalScaffoldCertificateDocument(data: CertData, co
   @media screen { body { background:#eef1f6; padding:20px; } }
   @media print { * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } }
 </style></head><body>${renderProfessionalScaffoldCertificateBody(data, config)}
-<script>window.onload=function(){setTimeout(function(){try{window.print()}catch(e){}},400)}</script>
+<script>${PRINT_WHEN_READY_SCRIPT}</script>
 </body></html>`;
 }
