@@ -2,7 +2,7 @@ import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { requireRole } from "../../../../lib/auth/session";
 import { isAdmin } from "../../../../lib/auth/rbac";
-import { PageHead, Card, Badge, EmptyState, Pagination } from "../../../../components/admin/ui";
+import { PageHead, Card, Badge, EmptyState, Pagination, StatCard, SvgIcon } from "../../../../components/admin/ui";
 import { duplicateSchedule } from "./actions";
 
 export const metadata = { title: "Training Schedule — TERAS UNIVERSAL Admin" };
@@ -12,6 +12,23 @@ const PAGE_SIZE = 15;
 const SORTABLE: Record<string, string> = { start: "start_date", id: "schedule_code", created: "created_at" };
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const STATUSES = ["open", "full", "in_progress", "completed", "cancelled"];
+
+function fmt(d: Date, opts?: Intl.DateTimeFormatOptions) {
+  return d.toLocaleDateString("en-MY", opts);
+}
+
+/** "12 Aug 2026" for single-day, "12–14 Aug 2026" for a same-month range,
+ *  "28 Jul – 2 Aug 2026" otherwise. Safe for the server's locale — uses the
+ *  same toLocaleDateString path the previous table already relied on. */
+function formatRange(start: string, end: string) {
+  const s = new Date(start);
+  const e = new Date(end);
+  if (end === start) return fmt(s, { day: "numeric", month: "short", year: "numeric" });
+  if (start.slice(0, 7) === end.slice(0, 7)) {
+    return `${fmt(s, { day: "numeric" })} – ${fmt(e, { day: "numeric", month: "short", year: "numeric" })}`;
+  }
+  return `${fmt(s, { day: "numeric", month: "short" })} – ${fmt(e, { day: "numeric", month: "short", year: "numeric" })}`;
+}
 
 export default async function SchedulesPage({
   searchParams,
@@ -36,6 +53,34 @@ export default async function SchedulesPage({
   const { data: trainerOpts } = await supabase.from("course_schedules").select("trainer_name").is("deleted_at", null).not("trainer_name", "is", null).limit(1000);
   const courses = (courseOpts ?? []) as { id: string; course_name: string }[];
   const trainers = Array.from(new Set<string>(((trainerOpts ?? []) as any[]).map((r) => r.trainer_name).filter((value): value is string => typeof value === "string"))).sort();
+
+  // KPI summary — counts derived from the same live course_schedules rows the
+  // table lists. "Upcoming" = starts today or later and isn't finished/cancelled.
+  // postgrest-js v2 builders MUTATE in place (`.eq()` returns `this`), so every
+  // count query must be built from a fresh `.from()` chain — sharing one builder
+  // folds all filters into a single impossible query and reports 0 for every card.
+  // A failed count logs a sanitized message and omits that card (never 0).
+  const today = new Date().toISOString().slice(0, 10);
+  const kpiBase = () => supabase.from("course_schedules").select("*", { count: "exact", head: true }).is("deleted_at", null);
+  const [upcoming, inProgress, completed, cancelled] = await Promise.all([
+    kpiBase().gte("start_date", today).not("status", "in", "(completed,cancelled)"),
+    kpiBase().eq("status", "in_progress"),
+    kpiBase().eq("status", "completed"),
+    kpiBase().eq("status", "cancelled"),
+  ]);
+  const kpiCount = (r: { count: number | null; error: { message: string } | null }, label: string): number | null => {
+    if (r.error) {
+      console.error(`KPI count "${label}" failed: ${r.error.message}`);
+      return null;
+    }
+    return r.count ?? null;
+  };
+  const kpis = [
+    { label: "Upcoming", value: kpiCount(upcoming, "upcoming"), icon: <SvgIcon><rect x="3" y="4.5" width="18" height="16" rx="2" /><path d="M3 9h18" /><path d="M8 2.5v4M16 2.5v4" /></SvgIcon>, href: "/admin/schedules" },
+    { label: "In Progress", value: kpiCount(inProgress, "in_progress"), icon: <SvgIcon><path d="M12 3v12" /><path d="M8 7 12 3l4 4" /><path d="M4 17v2a1.5 1.5 0 0 0 1.5 1.5h13A1.5 1.5 0 0 0 20 19v-2" /></SvgIcon>, href: "/admin/schedules?status=in_progress" },
+    { label: "Completed", value: kpiCount(completed, "completed"), icon: <SvgIcon><path d="M9 11.5 11 13.5 15.5 9" /><rect x="3.5" y="4.5" width="17" height="16" rx="2" /></SvgIcon>, href: "/admin/schedules?status=completed" },
+    { label: "Cancelled", value: kpiCount(cancelled, "cancelled"), icon: <SvgIcon><circle cx="12" cy="12" r="8.5" /><path d="m9 9 6 6M15 9l-6 6" /></SvgIcon>, href: "/admin/schedules?status=cancelled" },
+  ];
 
   let query = supabase
     .from("course_schedules")
@@ -82,46 +127,59 @@ export default async function SchedulesPage({
     <>
       <PageHead
         title="Training Schedule"
-        subtitle="Manage training sessions and participant assignments."
+        subtitle="Plan and manage upcoming TERAS training sessions."
         action={
           <div style={{ display: "flex", gap: 8 }}>
-            <Link href="/admin/schedules/calendar" className="ta-btn ta-btn-outline">📅 Calendar</Link>
+            <Link href="/admin/schedules/calendar" className="ta-btn ta-btn-outline">Calendar</Link>
             {canWrite && <Link href="/admin/schedules/new" className="ta-btn ta-btn-primary">+ New Schedule</Link>}
           </div>
         }
       />
 
+      {kpis.filter((k) => k.value != null).length > 0 && (
+        <div className="ta-kpi-grid">
+          {kpis.filter((k) => k.value != null).map((k) => (
+            <StatCard key={k.label} label={k.label} value={k.value} icon={k.icon} href={k.href} />
+          ))}
+        </div>
+      )}
+
       <form className="ta-toolbar" style={{ alignItems: "flex-end" }}>
         <div className="ta-search" style={{ maxWidth: 240 }}>
           <span className="ta-search-ico" aria-hidden="true">⌕</span>
-          <input name="q" defaultValue={sp.q ?? ""} placeholder="Course, trainer, venue, ID…" />
+          <input name="q" defaultValue={sp.q ?? ""} placeholder="Course, trainer, venue, ID…" aria-label="Search schedules" />
         </div>
-        <select name="status" defaultValue={sp.status ?? ""} style={sel} aria-label="Status">
+        <select name="status" defaultValue={sp.status ?? ""} className="ta-select" aria-label="Filter by status">
           <option value="">All statuses</option>
           {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
-        <select name="course" defaultValue={sp.course ?? ""} style={sel} aria-label="Course">
+        <select name="course" defaultValue={sp.course ?? ""} className="ta-select" aria-label="Filter by course">
           <option value="">All courses</option>
           {courses.map((c) => <option key={c.id} value={c.id}>{c.course_name}</option>)}
         </select>
-        <select name="trainer" defaultValue={sp.trainer ?? ""} style={sel} aria-label="Trainer">
+        <select name="trainer" defaultValue={sp.trainer ?? ""} className="ta-select" aria-label="Filter by trainer">
           <option value="">All trainers</option>
           {trainers.map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
-        <select name="month" defaultValue={sp.month ?? ""} style={sel} aria-label="Month">
+        <select name="month" defaultValue={sp.month ?? ""} className="ta-select" aria-label="Filter by month">
           <option value="">Any month</option>
           {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
         </select>
-        <select name="year" defaultValue={sp.year ?? ""} style={sel} aria-label="Year">
+        <select name="year" defaultValue={sp.year ?? ""} className="ta-select" aria-label="Filter by year">
           <option value="">Any year</option>
           {[thisYear - 1, thisYear, thisYear + 1].map((y) => <option key={y} value={y}>{y}</option>)}
+        </select>
+        <select name="sort" defaultValue={sp.sort ?? "start"} className="ta-select" aria-label="Sort schedules">
+          <option value="start">Sort: Date</option>
+          <option value="id">Sort: Schedule ID</option>
+          <option value="created">Sort: Created</option>
         </select>
         <button type="submit" className="ta-btn ta-btn-outline ta-btn-sm">Apply</button>
         {(sp.q || sp.status || sp.course || sp.trainer || sp.month || sp.year || sp.sort || sp.dir) && <Link className="ta-btn ta-btn-outline ta-btn-sm" href="/admin/schedules">Reset filters</Link>}
         <div className="ta-spacer" />
-        <a href={`/admin/schedules/export?format=csv${exportQs ? "&" + exportQs : ""}`} className="ta-btn ta-btn-outline ta-btn-sm">⬇ CSV</a>
-        <a href={`/admin/schedules/export?format=excel${exportQs ? "&" + exportQs : ""}`} className="ta-btn ta-btn-outline ta-btn-sm">⬇ Excel</a>
-        <a href={`/admin/schedules/export?format=print${exportQs ? "&" + exportQs : ""}`} target="_blank" className="ta-btn ta-btn-outline ta-btn-sm">🖨 Print</a>
+        <a href={`/admin/schedules/export?format=csv${exportQs ? "&" + exportQs : ""}`} className="ta-btn ta-btn-outline ta-btn-sm">CSV</a>
+        <a href={`/admin/schedules/export?format=excel${exportQs ? "&" + exportQs : ""}`} className="ta-btn ta-btn-outline ta-btn-sm">Excel</a>
+        <a href={`/admin/schedules/export?format=print${exportQs ? "&" + exportQs : ""}`} target="_blank" className="ta-btn ta-btn-outline ta-btn-sm">Print</a>
       </form>
 
       <Card>
@@ -129,7 +187,15 @@ export default async function SchedulesPage({
           <div className="ta-table-wrap">
             <table className="ta-table">
               <thead>
-                <tr><th>Schedule ID</th><th>Course</th><th>Trainer</th><th>Dates</th><th>Seats</th><th>Status</th><th></th></tr>
+                <tr>
+                  <th>Course / Programme</th>
+                  <th>Date</th>
+                  <th>Venue</th>
+                  <th>Trainer</th>
+                  <th>Seats</th>
+                  <th>Status</th>
+                  <th className="ta-row-actions"><span className="ta-sr-only">Actions</span></th>
+                </tr>
               </thead>
               <tbody>
                 {rows.map((s: any) => {
@@ -140,37 +206,44 @@ export default async function SchedulesPage({
                   const capacityColor = capacityPercent >= 100 ? "var(--ta-danger)" : capacityPercent >= 80 ? "#a9791a" : "var(--ta-success)";
                   const courseName = s.courses?.course_name ?? "—";
                   return (
-                  <tr key={s.id}>
-                    <td><code style={{ fontSize: 12 }}>{s.schedule_code}</code></td>
-                    <td><strong>{courseName}</strong>{s.venue ? <div style={{ color: "var(--ta-muted)", fontSize: 12 }}>{s.venue}</div> : null}</td>
-                    <td>{s.trainer_name ?? "—"}</td>
-                    <td style={{ whiteSpace: "nowrap" }}>
-                      {new Date(s.start_date).toLocaleDateString("en-MY", { day: "numeric", month: "short" })}
-                      {s.end_date !== s.start_date ? ` – ${new Date(s.end_date).toLocaleDateString("en-MY", { day: "numeric", month: "short" })}` : ""}
-                    </td>
-                    <td style={{ minWidth: 132 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}><span>{registered}/{capacity || "—"}</span><span style={{ color: "var(--ta-muted)", fontSize: 11 }}>{seatsRemaining} left</span></div>
-                      <div role="progressbar" aria-label={`Capacity for ${courseName}`} aria-valuemin={0} aria-valuemax={capacity} aria-valuenow={registered} style={{ height: 5, marginTop: 6, borderRadius: 99, background: "var(--ta-line)", overflow: "hidden" }}>
-                        <div style={{ width: `${capacityPercent}%`, height: "100%", background: capacityColor, borderRadius: 99 }} />
-                      </div>
-                    </td>
-                    <td><Badge status={s.status} /></td>
-                    <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
-                      <Link href={`/admin/schedules/${s.id}`} className="ta-btn ta-btn-outline ta-btn-sm">View</Link>{" "}
-                      {canWrite && (
-                        <form action={duplicateSchedule.bind(null, s.id)} style={{ display: "inline" }}>
-                          <button className="ta-btn ta-btn-outline ta-btn-sm" title="Duplicate">⧉</button>
-                        </form>
-                      )}
-                    </td>
-                  </tr>
+                    <tr key={s.id}>
+                      <td>
+                        <strong>{courseName}</strong>
+                        <div className="ta-cell-sub">{s.schedule_code}</div>
+                      </td>
+                      <td className="ta-nowrap"><span className="ta-date-range">{formatRange(s.start_date, s.end_date)}</span></td>
+                      <td>{s.venue ?? <span className="ta-cell-sub">Not set</span>}</td>
+                      <td>{s.trainer_name ?? <span className="ta-cell-sub">Unassigned</span>}</td>
+                      <td style={{ minWidth: 132 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}><span>{registered}/{capacity || "—"}</span><span style={{ color: "var(--ta-muted)", fontSize: 11 }}>{seatsRemaining} left</span></div>
+                        {capacity > 0 && (
+                          <div role="progressbar" aria-label={`Capacity for ${courseName}`} aria-valuemin={0} aria-valuemax={capacity} aria-valuenow={registered} style={{ height: 5, marginTop: 6, borderRadius: 99, background: "var(--ta-line)", overflow: "hidden" }}>
+                            <div style={{ width: `${capacityPercent}%`, height: "100%", background: capacityColor, borderRadius: 99 }} />
+                          </div>
+                        )}
+                      </td>
+                      <td><Badge status={s.status} /></td>
+                      <td className="ta-row-actions">
+                        <Link href={`/admin/schedules/${s.id}`} className="ta-btn ta-btn-outline ta-btn-sm">View</Link>{" "}
+                        {canWrite && (
+                          <form action={duplicateSchedule.bind(null, s.id)} style={{ display: "inline" }}>
+                            <button className="ta-btn ta-btn-outline ta-btn-sm" title="Duplicate">Duplicate</button>
+                          </form>
+                        )}
+                      </td>
+                    </tr>
                   );
                 })}
               </tbody>
             </table>
           </div>
         ) : (
-          <EmptyState icon="🗓" message="No schedules found. Create your first session." />
+          <EmptyState
+            icon="🗓"
+            title="No schedules found"
+            message="No training sessions match the current view. Create your first session to get started."
+            action={canWrite ? <Link href="/admin/schedules/new" className="ta-btn ta-btn-primary">+ New Schedule</Link> : undefined}
+          />
         )}
       </Card>
 
@@ -181,5 +254,3 @@ export default async function SchedulesPage({
     </>
   );
 }
-
-const sel = { padding: "9px 10px", borderRadius: 9, border: "1px solid var(--ta-line)", maxWidth: 150 } as const;

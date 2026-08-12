@@ -142,19 +142,75 @@ export function Field({
   error,
   children,
   hint,
+  required,
 }: {
   label: string;
   name: string;
   error?: string;
   hint?: string;
+  required?: boolean;
   children: ReactNode;
 }) {
   return (
     <div className="ta-field">
-      <label htmlFor={name}>{label}</label>
+      <label htmlFor={name}>
+        {label}
+        {required && <span className="ta-req" aria-hidden="true"> *</span>}
+      </label>
       {children}
       {hint && <small style={{ color: "var(--ta-muted)" }}>{hint}</small>}
       {error && <span className="ta-error">{error}</span>}
     </div>
+  );
+}
+
+/** Small 24-grid stroke icon wrapper for KPI cards (matches icons.tsx style). */
+export function SvgIcon({ children }: { children: ReactNode }) {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {children}
+    </svg>
+  );
+}
+
+/** Round avatar — photo when provided, initials placeholder otherwise. */
+export function Avatar({
+  name,
+  src,
+  size = 38,
+}: {
+  name: string;
+  src?: string | null;
+  size?: number;
+}) {
+  const initials = name
+    .trim()
+    .split(/\s+/)
+    .map((p) => p[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+  if (src) {
+    return <img className="ta-avatar-img" src={src} alt="" style={{ width: size, height: size }} />;
+  }
+  return (
+    <span
+      className="ta-avatar"
+      style={{ width: size, height: size, fontSize: Math.round(size * 0.34) }}
+      aria-hidden="true"
+    >
+      {initials || "•"}
+    </span>
   );
 }
