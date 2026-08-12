@@ -50,15 +50,55 @@ export default async function AttendanceListPage({
   }));
   const pageCount = Math.ceil((count ?? 0) / PAGE_SIZE);
 
-  // Attendance summary per schedule (present counts).
+  // Attendance summary per schedule: a participant counts toward "present"
+  // only if they have a record for every distinct recorded session_date of
+  // that schedule AND all of those records are "present" (Present 10/10 —
+  // not Present 8/10, not Present 9/10 + Late 1/10). Row-count against a
+  // participant-count denominator previously inflated the numerator past the
+  // total (e.g. 110/11 for 11 participants present across 10 dates); "at
+  // least one present row" was still too weak for a multi-day schedule.
+  // Two batched queries (not per-schedule), aggregated in memory — no N+1.
   const ids = (schedules ?? []).map((s: any) => s.id);
-  const summary: Record<string, { present: number; total: number }> = {};
+  const summary: Record<string, { present: number }> = {};
   if (ids.length) {
-    const { data: att } = await (supabase.from("attendance") as any).select("schedule_id, attendance_status").in("schedule_id", ids).is("deleted_at", null);
+    const [{ data: roster }, { data: att }] = await Promise.all([
+      supabase
+        .from("schedule_participants")
+        .select("schedule_id, participant_id")
+        .in("schedule_id", ids)
+        .is("deleted_at", null)
+        .neq("registration_status", "cancelled"),
+      (supabase.from("attendance") as any)
+        .select("schedule_id, participant_id, session_date, attendance_status")
+        .in("schedule_id", ids)
+        .is("deleted_at", null),
+    ]);
+
+    const activeBySchedule: Record<string, Set<string>> = {};
+    for (const r of roster ?? []) {
+      (activeBySchedule[(r as any).schedule_id] ??= new Set()).add((r as any).participant_id);
+    }
+
+    const sessionDatesBySchedule: Record<string, Set<string>> = {};
+    const perParticipant: Record<string, Record<string, { dates: Set<string>; allPresent: boolean }>> = {};
     for (const a of att ?? []) {
-      const s = (summary[a.schedule_id] ??= { present: 0, total: 0 });
-      s.total++;
-      if (a.attendance_status === "present") s.present++;
+      (sessionDatesBySchedule[a.schedule_id] ??= new Set()).add(a.session_date);
+      const participants = (perParticipant[a.schedule_id] ??= {});
+      const p = (participants[a.participant_id] ??= { dates: new Set(), allPresent: true });
+      p.dates.add(a.session_date);
+      if (a.attendance_status !== "present") p.allPresent = false;
+    }
+
+    for (const scheduleId of Object.keys(perParticipant)) {
+      const totalSessions = sessionDatesBySchedule[scheduleId]?.size ?? 0;
+      if (totalSessions === 0) continue; // no recorded sessions -> 0 present, never vacuous
+      const active = activeBySchedule[scheduleId];
+      let present = 0;
+      for (const [participantId, p] of Object.entries(perParticipant[scheduleId])) {
+        if (active && !active.has(participantId)) continue; // stale row for an unenrolled/cancelled participant
+        if (p.dates.size === totalSessions && p.allPresent) present++;
+      }
+      summary[scheduleId] = { present };
     }
   }
 
@@ -96,7 +136,7 @@ export default async function AttendanceListPage({
               <thead><tr><th>Schedule</th><th>Trainer</th><th>Date</th><th>Attendance</th><th>Status</th><th></th></tr></thead>
               <tbody>
                 {schedules.map((s: any) => {
-                  const sm = summary[s.id] ?? { present: 0, total: s.registered_participants };
+                  const sm = summary[s.id] ?? { present: 0 };
                   return (
                     <tr key={s.id}>
                       <td><strong>{s.course_name}</strong><div style={{ color: "var(--ta-muted)", fontSize: 12 }}>{s.schedule_id}{s.venue ? ` · ${s.venue}` : ""}</div></td>
