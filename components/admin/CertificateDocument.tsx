@@ -68,6 +68,16 @@ export interface TemplateConfig {
   skills_update_recommendation?: string;
   /** e.g. "TU-SESP" — when set, generateCertificate/bulkGenerate assign "{prefix}-{year}-{0001}" instead of the generic CERT-YYYY-NNNNNN fallback. Unset for every other template today; see certificates/actions.ts. */
   certificate_number_prefix?: string;
+  /**
+   * "Basic" | "Intermediate" | "Advanced" | "Awareness" — renders a small
+   * level pill under the programme title. Populated per-course by
+   * certData.ts (see lib/standard-scaffold-programmes.ts) for the Standard
+   * Scaffold certificate family; unset (no pill) for every other template,
+   * including Template A, which has its own dedicated renderer.
+   */
+  programme_level?: string;
+  /** "Scaffold Erection" | "Scaffold Inspection" | "Scaffold Awareness" — grouping metadata only, not rendered directly (the programme title already names it); used for template/course-mapping bookkeeping. */
+  programme_category?: string;
   // Back page ("Programme Information") — configurable per template because
   // it's programme-specific content, not per-certificate data.
   show_back_page?: boolean;
@@ -302,8 +312,13 @@ export function CertificateDocument({ data, config }: { data: CertData; config: 
 
         <p style={{ fontSize: 13.5, margin: "20px 0 4px", color: "#4b5563" }}>For successfully completing the</p>
         <div style={{ fontSize: 20, fontWeight: 700, color: navy, textTransform: "uppercase", lineHeight: 1.35, maxWidth: 640, margin: "0 auto" }}>
-          {data.course_name}
+          {config.programme_title || data.course_name}
         </div>
+        {config.programme_level && (
+          <div style={{ display: "inline-block", margin: "9px auto 0", padding: "4px 16px", background: gold, color: navy, fontSize: 11, fontWeight: 700, letterSpacing: 1.4, borderRadius: 3 }}>
+            {config.programme_level.toLowerCase() === "awareness" ? "AWARENESS" : `${config.programme_level.toUpperCase()} LEVEL`}
+          </div>
+        )}
         {duration && (
           <RibbonBanner navy={navy} gold={gold} style={{ margin: "14px auto 0" }}>
             <span style={{ fontSize: 12.5, fontWeight: 600, letterSpacing: 0.5 }}>{duration}</span>
@@ -370,7 +385,19 @@ export function CertificateBackPage({ data, config }: { data: CertData; config: 
   const outcomes = config.learning_outcomes?.length ? config.learning_outcomes : DEFAULT_OUTCOMES;
   const assessment = config.assessment_methods?.length ? config.assessment_methods : DEFAULT_ASSESSMENT;
   const showSkillsRecord = config.show_skills_record !== false;
-  const skillsRecord = config.skills_record?.length ? config.skills_record : DEFAULT_SKILLS_RECORD;
+  // Same precedence as ProfessionalScaffoldCertificateBackPage: the immutable
+  // issuance snapshot wins whole, then the live participant fallback, then
+  // the template's own configured default, then neutral "Not Recorded" rows.
+  // Previously this read only config.skills_record — real recorded results
+  // (certData.ts's certificate_skills_record/participant_skills_record) were
+  // computed but never reached this renderer, so every certificate on the
+  // generic template always showed the template's static placeholder rows
+  // regardless of what staff actually recorded.
+  const skillsRecord = data.certificate_skills_record?.length
+    ? data.certificate_skills_record
+    : data.participant_skills_record?.length
+      ? data.participant_skills_record
+      : config.skills_record?.length ? config.skills_record : DEFAULT_SKILLS_RECORD;
   const noticeParagraphs = config.important_notice
     ? config.important_notice.split(/\n{2,}/).filter(Boolean)
     : DEFAULT_NOTICE_PARAGRAPHS;
