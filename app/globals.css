@@ -3646,10 +3646,6 @@ button:active {
 }
 
 /* ===== About page refinement ===== */
-.about-page .brand img {
-  width: 170px;
-  max-height: 66px;
-}
 .about-page .about-hero-media {
   border: 1px solid rgba(225, 169, 37, .46);
   box-shadow: 0 28px 68px rgba(8, 26, 58, .2), 0 0 0 4px rgba(225, 169, 37, .08);
@@ -3716,9 +3712,6 @@ button:active {
   color: #f4c75d;
 }
 @media (max-width: 920px) {
-  .about-page .brand img {
-    width: 166px;
-  }
   .about-page .about-approach-grid b {
     top: auto;
     right: 50%;
@@ -3730,9 +3723,6 @@ button:active {
   }
 }
 @media (max-width: 590px) {
-  .about-page .brand img {
-    width: 148px;
-  }
   .about-page .about-vision-grid article::before {
     right: 22px;
     left: 22px;
