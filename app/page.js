@@ -6,10 +6,35 @@ import MegaNav from "../components/MegaNav";
 import TrainingGallery from "../components/TrainingGallery";
 import { trainingGallery } from "../data/trainingGallery";
 import { industries } from "../data/industries";
+import { courseCatalog } from "../data/courseCatalog";
 import { getSuccessMetrics } from "../lib/successMetrics";
+import { getUpcomingSchedules } from "../lib/public-content";
 import NewsletterSignup from "../components/NewsletterSignup";
 import Footer from "../components/Footer";
 import JumpNav from "../components/JumpNav";
+
+const dateLabel = (date) => new Intl.DateTimeFormat("en-MY", { day: "numeric", month: "short", year: "numeric" }).format(new Date(`${date}T00:00:00`));
+
+const timeLabel = (time) => new Intl.DateTimeFormat("en-MY", { hour: "numeric", minute: "2-digit" }).format(new Date(`2000-01-01T${time}`));
+
+const scheduleDateLabel = (session) => `${dateLabel(session.start_date)}${session.start_time ? ` · ${timeLabel(session.start_time)}` : ""}`;
+
+const scheduleStatusLabel = (status) => ({
+  open: "Open",
+  full: "Full",
+  in_progress: "In Progress",
+  completed: "Completed",
+  cancelled: "Cancelled",
+}[status] ?? status);
+
+// Real course-detail routes only — a programme maps to a dedicated page or a
+// verified catalogue spec sheet, otherwise it leads to the enquiry flow.
+const dedicatedProgrammePages = { "Scaffolding Competency": "/training/scaffolding-competency" };
+const programmeLink = (title) => {
+  if (dedicatedProgrammePages[title]) return dedicatedProgrammePages[title];
+  const match = courseCatalog.find((course) => course.title === title);
+  return match ? `/training/${match.slug}` : "/request-proposal";
+};
 
 const pillars = [
   {
@@ -88,8 +113,9 @@ const facilities = [
   ["06", "Competency Assessment Area", "A controlled setting representing theoretical and practical evaluation against defined requirements.", "/images/temp-ai-competency-assessment.webp"],
 ];
 
-export default function HomePage() {
+export default async function HomePage() {
   const successMetrics = getSuccessMetrics();
+  const upcomingSchedules = await getUpcomingSchedules();
   return (
     <main>
       <div className="brand-topbar">
@@ -125,8 +151,8 @@ export default function HomePage() {
               the demands of real workplaces.
             </p>
             <div className="hero-actions">
-              <a className="btn btn-primary" href="/training">Explore 2026 Programmes <span aria-hidden="true">&rarr;</span></a>
-              <a className="btn btn-outline" href="/request-proposal">Request Corporate Training</a>
+              <a className="btn btn-primary" href="/training">Explore Training <span aria-hidden="true">&rarr;</span></a>
+              <a className="btn btn-outline" href="/request-proposal">Request Proposal</a>
             </div>
             <div className="hero-proof" aria-label="TERAS UNIVERSAL strengths">
               <span><strong>2012</strong> Established</span>
@@ -181,6 +207,39 @@ export default function HomePage() {
               </article>
             ))}
           </div>
+        </div>
+      </section>
+
+      <section id="upcoming-training" className="upcoming-section" aria-labelledby="upcoming-title">
+        <div className="container">
+          <div className="section-heading split-heading upcoming-heading">
+            <div><span className="eyebrow">Upcoming Training</span><h2 id="upcoming-title">Public training dates.</h2></div>
+            <p>Confirmed public programme sessions. In-house and customised dates are always available on request.</p>
+          </div>
+
+          {upcomingSchedules.length > 0 ? (
+            <div className="upcoming-list">
+              {upcomingSchedules.map((session) => (
+                <article className="upcoming-card" key={session.id}>
+                  <time className="upcoming-date" dateTime={session.start_date}>{scheduleDateLabel(session)}</time>
+                  <div className="upcoming-info">
+                    <h3>{session.title}</h3>
+                    <p>{[session.delivery_mode, session.venue].filter(Boolean).join(" · ") || "Venue to be confirmed"}</p>
+                  </div>
+                  <span className={`upcoming-status is-${session.status}`}>{scheduleStatusLabel(session.status)}</span>
+                  <a className="btn btn-outline upcoming-link" href={session.slug ? `/training/${session.slug}` : "/request-proposal"}>{session.slug ? "View course" : "Enquire"}</a>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="upcoming-empty">
+              <strong>Upcoming dates are being confirmed.</strong>
+              <p>Public programme sessions are published here as soon as they are arranged. Share your preferred timing and we will propose a plan.</p>
+              <a className="btn btn-primary" href="/request-proposal">Request a Proposal</a>
+            </div>
+          )}
+
+          <p className="upcoming-footer-link"><a href="/calendar">View Full Training Calendar <span aria-hidden="true">&rarr;</span></a></p>
         </div>
       </section>
 
@@ -241,7 +300,7 @@ export default function HomePage() {
       <section id="training" className="soft-section">
         <div className="container">
           <div className="section-heading split-heading"><div><span className="eyebrow">Featured Training Programmes</span><h2>Practical programmes for safer and stronger workplaces.</h2></div><p>Programme scope and duration can be tailored to participant profiles, site risks and operational objectives.</p></div>
-          <div className="programme-grid">{programmes.map(([number,title,text])=><article key={title}><span>{number}</span><h3>{title}</h3><p>{text}</p><a href="#contact">Enquire now <span aria-hidden="true">&rarr;</span></a></article>)}</div>
+          <div className="programme-grid">{programmes.map(([number,title,text])=>{const href = programmeLink(title); const hasPage = href !== "/request-proposal"; return <article key={title}><span>{number}</span><h3>{title}</h3><p>{text}</p><a href={href}>{hasPage ? "View programme" : "Enquire now"} <span aria-hidden="true">&rarr;</span></a></article>;})}</div>
           {}
           <div className="training-visual-strip" aria-label="Industrial training visuals">
             <figure>
@@ -307,7 +366,7 @@ export default function HomePage() {
             <p>Our training environment is structured to support theory, practical application, equipment familiarisation and competency assessment.</p>
           </div>
           <div className="facilities-grid">
-            {facilities.map(([number, title, text, image]) => (
+            {facilities.slice(0, 3).map(([number, title, text, image]) => (
               <article className="facility-card" key={title}>
                 <div className="facility-media">
                   <Image src={image} alt={`${title} Industrial training visual.`} width={900} height={600} sizes="(max-width: 590px) 100vw, (max-width: 920px) 50vw, 33vw" />
@@ -428,7 +487,7 @@ export default function HomePage() {
             <h2 id="faq-title">Frequently Asked Questions</h2>
             <p>Find quick answers about our training delivery, programme arrangements and corporate training solutions.</p>
           </div>
-          <FaqAccordion />
+          <FaqAccordion limit={5} />
         </div>
       </section>
 
