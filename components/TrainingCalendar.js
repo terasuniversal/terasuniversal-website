@@ -27,8 +27,6 @@ const dateLabel = (date, options = {}) =>
 const timeLabel = (time) =>
   new Intl.DateTimeFormat("en-MY", { hour: "numeric", minute: "2-digit" }).format(new Date(`2000-01-01T${time}`));
 
-const sessionDateLabel = (session) => `${dateLabel(session.start_date)}${session.start_time ? ` · ${timeLabel(session.start_time)}` : ""}`;
-
 const seatsLabel = (session) => {
   if (session.status === "cancelled") return "Cancelled";
   if (session.status === "full" || (session.capacity > 0 && session.available_seats <= 0)) return "Full";
@@ -64,7 +62,11 @@ function SessionList({ sessions }) {
         const seats = seatsLabel(session);
         return (
           <article className="calendar-session" key={session.id}>
-            <time dateTime={session.start_date}>{sessionDateLabel(session)}</time>
+            <time className="calendar-session-date" dateTime={session.start_date}>
+              <strong>{dateLabel(session.start_date)}</strong>
+              {session.end_date && session.end_date !== session.start_date && <span>– {dateLabel(session.end_date)}</span>}
+              {session.start_time && <small>{timeLabel(session.start_time)}</small>}
+            </time>
             <div>
               <h3>{session.title}</h3>
               <p>{[session.delivery_mode, session.venue].filter(Boolean).join(" · ") || "Venue to be confirmed"}</p>
