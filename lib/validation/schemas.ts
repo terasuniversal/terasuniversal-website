@@ -125,6 +125,22 @@ export const participantSkillResultSchema = z.object({
 });
 export type ParticipantSkillResultInput = z.infer<typeof participantSkillResultSchema>;
 
+// Public contact lead capture (ContactForm.js homepage widget +
+// ContactEnquiryForm.js on /contact). subject/enquiryType option lists
+// differ slightly between the two forms, so subject stays free text rather
+// than an enum -- enquiryType is identical across both and safe to enum.
+export const contactEnquirySchema = z.object({
+  name: z.string().trim().min(2, "Full name is required").max(120),
+  company: z.string().trim().max(160).optional().or(z.literal("")),
+  email: z.string().trim().email("Enter a valid email").max(254),
+  phone: z.string().trim().min(5, "Phone is required").max(40),
+  enquiryType: z.enum(["Corporate", "Individual", "Government", "Training"]),
+  subject: z.string().trim().min(1, "Please select what you're enquiring about").max(160),
+  message: z.string().trim().min(1, "Message is required").max(3000),
+  sourcePage: z.enum(["homepage", "contact_page"]),
+});
+export type ContactEnquiryInput = z.infer<typeof contactEnquirySchema>;
+
 export const participantSchema = z.object({
   // Required fields (friendly messages).
   full_name: z.string().trim().min(2, "Full name is required").max(160),
@@ -147,12 +163,20 @@ export const participantSchema = z.object({
 });
 export type ParticipantInput = z.infer<typeof participantSchema>;
 
-/** Row shape accepted by the CSV/Excel importer (header → field mapping). */
+/**
+ * Row shape accepted by the CSV/Excel importer (header → field mapping).
+ * Company and phone are optional here (unlike participantSchema, which the
+ * manual add/edit form still enforces both as required for) — bulk source
+ * lists (e.g. a passport register) legitimately lack a phone number or, in
+ * rare cases, a confirmed company, and the DB columns are nullable. Leave
+ * blank rather than fabricate a value; do not tighten this back to required
+ * without a corresponding UI/business-rule reason.
+ */
 export const participantImportRowSchema = z.object({
   full_name: z.string().trim().min(2),
   ic_passport_no: z.string().trim().min(3),
-  company: z.string().trim().min(1),
-  phone: z.string().trim().min(5),
+  company: z.string().trim().max(160).optional().or(z.literal("")),
+  phone: z.string().trim().max(40).optional().or(z.literal("")),
   email: z.string().trim().email().optional().or(z.literal("")),
   nationality: z.string().trim().max(80).optional().or(z.literal("")),
   position: z.string().trim().max(120).optional().or(z.literal("")),
