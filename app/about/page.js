@@ -160,7 +160,7 @@ export default function AboutPage() {
 
       <section className="about-commitment-section"><div className="container"><span className="eyebrow">Corporate Commitment</span><h2>Committed to Building Safer and More Competent Workforces</h2><p>We work with organisations that value practical capability, responsible delivery and long-term improvement. Every engagement is an opportunity to help people perform with greater understanding, discipline and confidence.</p></div></section>
 
-      <section className="about-final-cta"><div className="container"><div><span className="eyebrow">Let's Work Together</span><h2>Let&apos;s Build Capability Together</h2></div><div className="hero-actions"><a className="btn btn-light" href="/#contact">Request Proposal</a><a className="btn btn-gold" href="/#contact">Contact Us</a></div></div></section>
+      <section className="about-final-cta"><div className="container"><div><span className="eyebrow">Let's Work Together</span><h2>Let&apos;s Build Capability Together</h2></div><div className="hero-actions"><a className="btn btn-gold" href="/request-proposal">Request Proposal</a><a className="btn btn-light" href="/contact">Contact Us</a></div></div></section>
 
       <Footer />
     </main>

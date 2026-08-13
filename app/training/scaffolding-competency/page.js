@@ -33,7 +33,7 @@ export default function ScaffoldingCompetencyPage() {
 
       <section className="course-faq-section" aria-labelledby="course-faq-title"><div className="container"><div className="section-heading course-section-heading"><span className="eyebrow">Frequently Asked Questions</span><h2 id="course-faq-title">Questions about this programme.</h2></div><div className="course-faq-list">{faqs.map(([question,answer]) => <details key={question}><summary>{question}<span aria-hidden="true">+</span></summary><p>{answer}</p></details>)}</div></div></section>
 
-      <section className="course-final-cta"><div className="container"><div><span className="eyebrow">Corporate Training Solutions</span><h2>Planning Scaffolding Training for Your Workforce?</h2><p>Speak with TERAS UNIVERSAL about participant requirements, delivery arrangements and a customised corporate proposal.</p></div><div className="hero-actions"><a className="btn btn-light" href="/request-proposal">Request Proposal</a><a className="btn btn-gold" href="https://wa.me/60195193834" target="_blank" rel="noreferrer">WhatsApp Our Team</a></div></div></section>
+      <section className="course-final-cta"><div className="container"><div><span className="eyebrow">Corporate Training Solutions</span><h2>Planning Scaffolding Training for Your Workforce?</h2><p>Speak with TERAS UNIVERSAL about participant requirements, delivery arrangements and a customised corporate proposal.</p></div><div className="hero-actions"><a className="btn btn-gold" href="/request-proposal">Request Proposal</a><a className="btn btn-light" href="https://wa.me/60195193834" target="_blank" rel="noreferrer">WhatsApp Our Team</a></div></div></section>
 
       <Footer />
     </main>

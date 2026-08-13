@@ -61,7 +61,7 @@ export default function ContactPage() {
 
       <section className="contact-faq-section" aria-labelledby="contact-faq-title"><div className="container"><div className="section-heading"><span className="eyebrow">Frequently Asked Questions</span><h2 id="contact-faq-title">A few quick answers before we speak.</h2></div><div className="contact-faq-list">{faqs.map(([question, answer]) => <details key={question}><summary>{question}<span aria-hidden="true">+</span></summary><p>{answer}</p></details>)}</div></div></section>
 
-      <section className="contact-page-cta"><div className="container"><div><span className="eyebrow">Corporate &amp; Custom Solutions</span><h2>Ready to Strengthen Your Workforce?</h2></div><div className="hero-actions"><a className="btn btn-light" href="/request-proposal">Request Proposal</a><a className="btn btn-gold" href="https://wa.me/60195193834" target="_blank" rel="noreferrer">WhatsApp</a></div></div></section>
+      <section className="contact-page-cta"><div className="container"><div><span className="eyebrow">Corporate &amp; Custom Solutions</span><h2>Ready to Strengthen Your Workforce?</h2></div><div className="hero-actions"><a className="btn btn-gold" href="/request-proposal">Request Proposal</a><a className="btn btn-light" href="https://wa.me/60195193834" target="_blank" rel="noreferrer">WhatsApp</a></div></div></section>
 
       <Footer />
     </main>
