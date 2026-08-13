@@ -17,8 +17,6 @@ const dateLabel = (date) => new Intl.DateTimeFormat("en-MY", { day: "numeric", m
 
 const timeLabel = (time) => new Intl.DateTimeFormat("en-MY", { hour: "numeric", minute: "2-digit" }).format(new Date(`2000-01-01T${time}`));
 
-const scheduleDateLabel = (session) => `${dateLabel(session.start_date)}${session.start_time ? ` · ${timeLabel(session.start_time)}` : ""}`;
-
 const scheduleStatusLabel = (status) => ({
   open: "Open",
   full: "Full",
@@ -164,12 +162,12 @@ export default async function HomePage() {
           <div className="premium-visual hero-command-panel" aria-label="TERAS UNIVERSAL capability highlights">
             <div className="hero-training-image">
               <Image src="/images/temp-ai-homepage-hero.webp" alt="Industrial trainer briefing trainees in modern personal protective equipment." width={1800} height={1200} priority sizes="(max-width: 920px) 100vw, 52vw" />
+              <div className="hero-image-caption">
+                <span>Competency-based learning</span>
+                <strong>Training that connects knowledge with safe workplace performance.</strong>
+              </div>
+              <div className="hero-corner-mark" aria-hidden="true">TU</div>
             </div>
-            <div className="hero-image-caption">
-              <span>Competency-based learning</span>
-              <strong>Training that connects knowledge with safe workplace performance.</strong>
-            </div>
-            <div className="hero-corner-mark" aria-hidden="true">TU</div>
             <div className="hero-panel-services">
               <article><strong>01</strong><span>Scaffolding Competency</span></article>
               <article><strong>02</strong><span>Occupational Safety &amp; Health</span></article>
@@ -221,7 +219,11 @@ export default async function HomePage() {
             <div className="upcoming-list">
               {upcomingSchedules.map((session) => (
                 <article className="upcoming-card" key={session.id}>
-                  <time className="upcoming-date" dateTime={session.start_date}>{scheduleDateLabel(session)}</time>
+                  <time className="upcoming-date" dateTime={session.start_date}>
+                    <strong>{dateLabel(session.start_date)}</strong>
+                    {session.end_date && session.end_date !== session.start_date && <span>– {dateLabel(session.end_date)}</span>}
+                    {session.start_time && <small>{timeLabel(session.start_time)}</small>}
+                  </time>
                   <div className="upcoming-info">
                     <h3>{session.title}</h3>
                     <p>{[session.delivery_mode, session.venue].filter(Boolean).join(" · ") || "Venue to be confirmed"}</p>
@@ -300,22 +302,8 @@ export default async function HomePage() {
       <section id="training" className="soft-section">
         <div className="container">
           <div className="section-heading split-heading"><div><span className="eyebrow">Featured Training Programmes</span><h2>Practical programmes for safer and stronger workplaces.</h2></div><p>Programme scope and duration can be tailored to participant profiles, site risks and operational objectives.</p></div>
-          <div className="programme-grid">{programmes.map(([number,title,text])=>{const href = programmeLink(title); const hasPage = href !== "/request-proposal"; return <article key={title}><span>{number}</span><h3>{title}</h3><p>{text}</p><a href={href}>{hasPage ? "View programme" : "Enquire now"} <span aria-hidden="true">&rarr;</span></a></article>;})}</div>
-          {}
-          <div className="training-visual-strip" aria-label="Industrial training visuals">
-            <figure>
-              <Image src="/images/temp-ai-corporate-scene-01.webp" alt="Classroom training visual." width={900} height={600} sizes="(max-width: 590px) 100vw, (max-width: 920px) 50vw, 33vw" />
-              <figcaption>Classroom training context</figcaption>
-            </figure>
-            <figure>
-              <Image src="/images/temp-ai-corporate-scene-08.webp" alt="Industrial site inspection visual." width={900} height={600} sizes="(max-width: 590px) 100vw, (max-width: 920px) 50vw, 33vw" />
-              <figcaption>Site inspection context</figcaption>
-            </figure>
-            <figure>
-              <Image src="/images/temp-ai-corporate-scene-07.webp" alt="Technical machinery training visual." width={900} height={600} sizes="(max-width: 590px) 100vw, (max-width: 920px) 50vw, 33vw" />
-              <figcaption>Technical competency context</figcaption>
-            </figure>
-          </div>
+          <div className="programme-grid">{programmes.slice(0, 4).map(([number,title,text])=>{const href = programmeLink(title); const hasPage = href !== "/request-proposal"; return <article key={title}><span>{number}</span><h3>{title}</h3><p>{text}</p><a href={href}>{hasPage ? "View programme" : "Enquire now"} <span aria-hidden="true">&rarr;</span></a></article>;})}</div>
+          <p className="section-view-all"><a href="/training">View all training programmes <span aria-hidden="true">&rarr;</span></a></p>
         </div>
       </section>
 
@@ -441,10 +429,11 @@ export default async function HomePage() {
             <article className="project-card"><span>04</span><h3>Consultancy &amp; Site Support</h3><p>Practical review and advisory support to help organisations identify improvement priorities and strengthen controls.</p></article>
           </div>
         </div>
-      </section><section id="industries">
+      </section>      <section id="industries">
         <div className="container">
           <div className="section-heading"><span className="eyebrow">Industries We Serve</span><h2>Supporting Safety-Critical Industries</h2><p>TERAS UNIVERSAL supports organisations operating in environments where safety, technical competence, operational reliability and compliance are essential.</p></div>
-          <div className="industry-grid">{industries.map((industry,index)=><a className="industry-grid-card" href={`/industries/${industry.slug}`} key={industry.slug}><span>{String(index+1).padStart(2,"0")}</span><h3>{industry.name}</h3></a>)}</div>
+          <div className="industry-grid">{industries.slice(0, 4).map((industry,index)=><a className="industry-grid-card" href={`/industries/${industry.slug}`} key={industry.slug}><span>{String(index+1).padStart(2,"0")}</span><h3>{industry.name}</h3></a>)}</div>
+          <p className="section-view-all"><a href="/industries">Explore all industries <span aria-hidden="true">&rarr;</span></a></p>
         </div>
       </section>
       <section id="methodology" className="method-section" aria-labelledby="methodology-title">
