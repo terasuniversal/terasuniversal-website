@@ -21,7 +21,7 @@ export default function IndustriesPage() {
 
       <section className="industries-hub-grid-section"><div className="container"><div className="industries-hub-grid">{industries.map((industry, index) => <a className="industries-hub-card" href={`/industries/${industry.slug}`} key={industry.slug}><span>{String(index + 1).padStart(2, "0")}</span><h2>{industry.name}</h2><p>{industry.summary}</p><span className="industries-hub-link">View Solutions <span aria-hidden="true">&rarr;</span></span></a>)}</div></div></section>
 
-      <section className="services-cta"><div className="container"><div><span className="eyebrow">Corporate &amp; Custom Solutions</span><h2>Not Sure Which Sector Fits Your Requirements?</h2></div><div className="hero-actions"><a className="btn btn-light" href="/request-proposal">Request Proposal</a><a className="btn btn-gold" href="https://wa.me/60195193834" target="_blank" rel="noreferrer">WhatsApp Us</a></div></div></section>
+      <section className="services-cta"><div className="container"><div><span className="eyebrow">Corporate &amp; Custom Solutions</span><h2>Not Sure Which Sector Fits Your Requirements?</h2></div><div className="hero-actions"><a className="btn btn-gold" href="/request-proposal">Request Proposal</a><a className="btn btn-light" href="https://wa.me/60195193834" target="_blank" rel="noreferrer">WhatsApp Us</a></div></div></section>
 
       <Footer />
     </main>
