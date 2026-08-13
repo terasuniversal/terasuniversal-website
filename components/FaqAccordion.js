@@ -13,16 +13,18 @@ const items = [
   ["Can training dates be arranged according to our schedule?", "Training dates may be discussed according to trainer availability, participant numbers, site arrangements and programme requirements."],
 ];
 
-export default function FaqAccordion() {
+export default function FaqAccordion({ limit }) {
   const [openIndex, setOpenIndex] = useState(null);
   const [query, setQuery] = useState("");
   const visibleItems = useMemo(() => items.filter(([question, answer]) => `${question} ${answer}`.toLowerCase().includes(query.trim().toLowerCase())), [query]);
+  const shownItems = limit ? visibleItems.slice(0, limit) : visibleItems;
+  const hasMore = Boolean(limit && items.length > limit);
 
   return (
     <div className="faq-accordion">
-      <label className="faq-search-label" htmlFor="faq-search">Search FAQs</label>
-      <input className="faq-search" id="faq-search" type="search" placeholder="Search a question..." value={query} onChange={(event) => { setQuery(event.target.value); setOpenIndex(null); }} />
-      {visibleItems.map(([question, answer], index) => {
+      {!limit && <label className="faq-search-label" htmlFor="faq-search">Search FAQs</label>}
+      {!limit && <input className="faq-search" id="faq-search" type="search" placeholder="Search a question..." value={query} onChange={(event) => { setQuery(event.target.value); setOpenIndex(null); }} />}
+      {shownItems.map(([question, answer], index) => {
         const isOpen = openIndex === index;
         return (
           <div className={`faq-item${isOpen ? " is-open" : ""}`} key={question}>
@@ -36,7 +38,8 @@ export default function FaqAccordion() {
           </div>
         );
       })}
-      {!visibleItems.length && <p className="faq-empty">No FAQ matches your search.</p>}
+      {!shownItems.length && <p className="faq-empty">No FAQ matches your search.</p>}
+      {hasMore && <p className="faq-view-all"><a href="/faq">View All FAQ <span aria-hidden="true">&rarr;</span></a></p>}
     </div>
   );
 }
