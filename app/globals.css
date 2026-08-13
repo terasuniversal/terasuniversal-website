@@ -6928,3 +6928,58 @@ footer h3::after {
   .upcoming-link { order: 4; width: 100%; justify-content: center; }
   .upcoming-empty .btn { width: 100%; justify-content: center; }
 }
+
+/* ================================================================
+   UI/UX/CX Polish Pass 4 — Visual Trust & Premium Consistency
+   ================================================================ */
+
+/* ---- P1/P2 Header proportion + logo presentation ----
+   Compact, premium header. Logo stays prominent but no longer dominates
+   the nav bar, leaving clear breathing room around the lockup. */
+.brand img { width: 164px; max-height: 56px; }
+@media (min-width: 921px) {
+  .nav-wrap { min-height: 72px; }
+  .brand img { width: 174px; max-height: 58px; }
+}
+@media (max-width: 590px) {
+  .brand img { width: 148px; max-height: 50px; }
+}
+
+/* ---- P4 Section rhythm: white / soft alternation with navy anchors ----
+   Breaks the long runs of consecutive soft (delivery→facilities→gallery)
+   and consecutive white (gallery→projects→industries) sections so the
+   homepage reads as a deliberate rhythm instead of one flat wash. */
+.delivery-section { background: #fff; }
+.projects-section { background: var(--soft, #f4f7fb); }
+
+/* ---- P5 Card icon treatment: consistent badge containers ---- */
+.method-step-marker { border-radius: 14px; }
+.reason-icon { border-radius: 14px; }
+
+/* ---- P7 Trust cues ---- */
+.success-metrics-grid article { padding: 28px 20px 24px; }
+.capability-grid article { min-height: 126px; padding: 24px; }
+
+/* ---- P8 Footer polish ---- */
+footer { padding: 64px 0 24px; }
+.footer-grid { gap: 40px; }
+footer h3 { font-size: 15px; margin-bottom: 14px; letter-spacing: .02em; }
+footer p { line-height: 2.1; }
+.footer-bottom { margin-top: 40px; }
+.footer-grid a[href="/verify"] { display: inline-block; }
+.footer-grid a[href="/verify"]::before { content: "✓ "; color: var(--gold); font-weight: 900; }
+
+/* ---- P10 Button consistency ---- */
+.btn { line-height: 1.15; }
+
+/* ---- P9 Mobile typography & card density ---- */
+@media (max-width: 590px) {
+  .training-programme-content,
+  .facility-content,
+  .delivery-card,
+  .project-card,
+  .pillar-card,
+  .reason-grid article { padding: 20px; }
+  .success-metrics-grid article { padding: 22px 16px; }
+  .section-heading h2 { font-size: clamp(30px, 9vw, 40px); }
+}
