@@ -377,3 +377,6 @@
   .ta-kpi-grid { grid-template-columns: 1fr; }
   .ta-form-pad { padding: 16px; }
 }
+
+.ta-badge-pill.proposal_sent { background: rgba(124, 92, 255, 0.12); color: #6d4aff; }
+.ta-badge-pill.negotiation { background: rgba(212,175,55,.16); color: #a9791a; }
