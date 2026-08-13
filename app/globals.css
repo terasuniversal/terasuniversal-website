@@ -6973,3 +6973,32 @@ footer p { line-height: 2.1; }
   .success-metrics-grid article { padding: 22px 16px; }
   .section-heading h2 { font-size: clamp(30px, 9vw, 40px); }
 }
+
+/* ---- Contact lead capture: server-side submission states ---- */
+.form-status {
+  margin: 14px 0 0;
+  color: var(--blue);
+  font-size: 13px;
+  font-weight: 750;
+}
+.form-status-success,
+.contact-form-status-success {
+  color: #1a7a4c;
+}
+.form-status-error,
+.contact-form-status-error {
+  color: #b3261e;
+}
+.form-field-error {
+  display: block;
+  margin-top: 4px;
+  color: #b3261e;
+  font-size: 12px;
+  font-weight: 600;
+}
+.form-note,
+.contact-form-note {
+  margin: 14px 0 0;
+  color: var(--muted, #6b7280);
+  font-size: 13px;
+}
