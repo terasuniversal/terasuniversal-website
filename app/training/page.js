@@ -97,7 +97,6 @@ export default function TrainingPage() {
                   <span className="training-card-category">{category}</span>
                   <h3>{title}</h3>
                   <p>{text}</p>
-                  <div className="training-card-badges" aria-label="Programme features"><span>Practical</span><span>Theory</span><span>Assessment</span></div>
                   <div className="training-card-industries" aria-label="Relevant industries">{industries.map((industry) => <span key={industry}>{industry}</span>)}</div>
                   <p className="training-card-audience"><strong>Suitable for</strong>{audience}</p>
                   <a className="training-card-link" href={title === "Scaffolding Competency" ? "/training/scaffolding-competency" : courseCatalog.find((course) => course.title === title) ? `/training/${courseCatalog.find((course) => course.title === title).slug}` : "/request-proposal"}>View programme <span aria-hidden="true">&rarr;</span></a>
@@ -122,7 +121,7 @@ export default function TrainingPage() {
         </div>
       </section>
 
-      <section className="training-corporate-cta"><div className="container"><div><span className="eyebrow">Corporate &amp; Custom Solutions</span><h2>Need a Programme Built Around Your Workforce?</h2><p>Speak with our team about a customised training solution aligned with your operational requirements, participant profile and preferred delivery arrangement.</p></div><div className="hero-actions"><a className="btn btn-light" href="/request-proposal">Request a Proposal</a><a className="btn btn-gold" href="https://wa.me/60195193834" target="_blank" rel="noreferrer">WhatsApp Our Team</a></div></div></section>
+      <section className="training-corporate-cta"><div className="container"><div><span className="eyebrow">Corporate &amp; Custom Solutions</span><h2>Need a Programme Built Around Your Workforce?</h2><p>Speak with our team about a customised training solution aligned with your operational requirements, participant profile and preferred delivery arrangement.</p></div><div className="hero-actions"><a className="btn btn-gold" href="/request-proposal">Request a Proposal</a><a className="btn btn-light" href="https://wa.me/60195193834" target="_blank" rel="noreferrer">WhatsApp Our Team</a></div></div></section>
 
       <Footer />
     </main>

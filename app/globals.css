@@ -2310,14 +2310,12 @@ summary:focus-visible {
 .training-programme-content {
   gap: 0;
 }
-.training-card-badges,
 .training-card-industries {
   display: flex;
   flex-wrap: wrap;
   gap: 7px;
-  margin-top: 16px;
+  margin-top: 14px;
 }
-.training-card-badges span,
 .training-card-industries span {
   display: inline-flex;
   align-items: center;
@@ -2327,14 +2325,6 @@ summary:focus-visible {
   font-size: 10px;
   font-weight: 800;
   line-height: 1;
-}
-.training-card-badges span {
-  border: 1px solid rgba(225, 169, 37, .4);
-  background: rgba(225, 169, 37, .1);
-  color: #8a650b;
-}
-.training-card-industries {
-  margin-top: 9px;
 }
 .training-card-industries span {
   border: 1px solid rgba(11, 44, 86, .12);
@@ -6868,3 +6858,73 @@ footer h3::after {
 .btn-outline:hover { background: #eef4ff; }
 .mega-nav-verify { display: inline-flex; align-items: center; gap: 5px; }
 .mega-nav-verify::before { content: "✓"; color: var(--gold); font-weight: 900; font-size: 12px; }
+
+/* ================================================================
+   UI/UX/CX Polish Pass 3
+   ================================================================ */
+
+/* ---- P1 Hero: calm, balanced, premium ---- */
+.hero-corporate { padding: 96px 0 84px; }
+.hero-corporate .hero-copy { padding-block: 10px; }
+.hero-lead { max-width: 60ch; line-height: 1.7; }
+.hero-actions { margin-top: 32px; }
+.hero-proof { margin-top: 30px; padding-top: 16px; gap: 10px 24px; }
+.hero-image-caption { box-shadow: 0 10px 26px rgba(0, 0, 0, .28); }
+.hero-image-caption strong { letter-spacing: .01em; }
+.hero-panel-services article { min-height: 62px; padding: 13px 14px; }
+.hero-panel-services strong { flex-basis: 30px; width: 30px; height: 30px; font-size: 10.5px; }
+
+/* ---- P2/P8 Header: Request Proposal is the primary action; WhatsApp is support ---- */
+.nav-proposal {
+  padding: 10px 16px;
+  border: 1px solid var(--blue);
+  border-radius: 10px;
+  background: var(--blue);
+  color: #fff;
+  box-shadow: 0 8px 18px rgba(10, 61, 145, .2);
+}
+.nav-proposal:hover { background: var(--blue2); border-color: var(--blue2); color: #fff; }
+.nav-cta {
+  padding: 9px 14px;
+  border: 1px solid rgba(10, 61, 145, .2);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--blue2);
+  box-shadow: none;
+}
+.nav-cta:hover { background: #eef4ff; color: var(--blue2); }
+.mega-nav { gap: 16px; }
+
+/* ---- P4 Card system refinements ---- */
+.programme-grid article { padding: 26px; border-radius: 22px; }
+.reason-grid article { padding: 22px; }
+.training-programme-content { padding: 22px; }
+.training-programme-content h3 { font-size: 1.2rem; margin: 10px 0 8px; }
+
+/* ---- P5 Training card: single strong action ---- */
+.training-card-link { font-size: 13.5px; }
+
+/* ---- P6 Upcoming training ---- */
+.upcoming-card { align-items: center; }
+.upcoming-date strong { font-size: 15px; }
+.upcoming-status { min-height: 26px; }
+
+/* ---- P7 Calendar density ---- */
+.calendar-session { padding: 16px 20px; gap: 16px; }
+.calendar-status { min-height: 26px; }
+
+/* ---- P10 Typography ---- */
+.section-heading p { line-height: 1.7; }
+
+/* ---- P9 Mobile: intuitive stacking + touch targets ---- */
+@media (max-width: 760px) {
+  .hero-corporate { padding: 52px 0 56px; }
+  .hero-copy .hero-actions { gap: 10px; }
+  .upcoming-card { grid-template-columns: 1fr; gap: 10px; padding: 18px; }
+  .upcoming-date { justify-items: start; }
+  .upcoming-info { order: 1; }
+  .upcoming-date { order: 2; }
+  .upcoming-status { order: 3; justify-self: start; }
+  .upcoming-link { order: 4; width: 100%; justify-content: center; }
+  .upcoming-empty .btn { width: 100%; justify-content: center; }
+}
