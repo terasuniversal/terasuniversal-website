@@ -262,6 +262,311 @@
 
 .teras-admin :is(a, button, input, select, textarea):focus-visible { outline: 3px solid rgba(212,175,55,.6); outline-offset: 2px; }
 
+/* --- Sales (Phase 1A) ---------------------------------------------- */
+/* Sales pages use the approved corporate palette (navy #0B3A63, gold #D4AF37),
+   scoped under .ta-sales so the rest of the CMS keeps its existing palette. */
+.ta-sales {
+  --ta-navy: #0B3A63;
+  --ta-navy-700: #09294a;
+  --ta-gold: #D4AF37;
+}
+
+.ta-sales-demo-note {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 11px 16px; margin: -6px 0 22px;
+  border: 1px solid rgba(11, 58, 99, 0.18); border-left: 4px solid var(--ta-gold);
+  border-radius: 10px; background: linear-gradient(105deg, rgba(11,58,99,.04), rgba(212,175,55,.10));
+  color: var(--ta-navy); font-size: 13px;
+}
+
+.ta-sales-kpi-hint { margin-top: 2px; color: var(--ta-muted); font-size: 11.5px; }
+
+/* Pipeline */
+.ta-sales-pipeline { display: flex; gap: 10px; align-items: stretch; overflow-x: auto; padding: 2px 0 6px; }
+.ta-sales-stage-row { display: flex; align-items: center; gap: 10px; flex: 1 1 0; min-width: 158px; }
+.ta-sales-stage {
+  flex: 1; padding: 14px 16px; border: 1px solid var(--ta-line); border-radius: 12px;
+  background: #fff; box-shadow: var(--ta-shadow); min-width: 0;
+}
+.ta-sales-stage-label { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; color: var(--ta-muted); }
+.ta-sales-stage-count { margin-top: 6px; color: var(--ta-navy); }
+.ta-sales-stage-count strong { font-size: 22px; font-family: var(--font-montserrat), sans-serif; letter-spacing: -.03em; }
+.ta-sales-stage-value { margin-top: 2px; color: var(--ta-navy); font-weight: 800; font-size: 14.5px; }
+.ta-sales-arrow { color: var(--ta-gold); font-size: 18px; font-weight: 800; flex-shrink: 0; }
+.ta-sales-stage-new { border-top: 3px solid var(--ta-info); }
+.ta-sales-stage-qualified { border-top: 3px solid var(--ta-gold); }
+.ta-sales-stage-quotation { border-top: 3px solid #a9791a; }
+.ta-sales-stage-negotiation { border-top: 3px solid #7c5cff; }
+.ta-sales-stage-won { border-top: 3px solid var(--ta-success); background: linear-gradient(180deg, rgba(46,158,91,.06), #fff 55%); }
+.ta-sales-stage-lost { border-top: 3px solid var(--ta-muted); }
+
+/* Follow-ups */
+.ta-sales-followups { display: grid; gap: 0; }
+.ta-sales-followup { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--ta-line); flex-wrap: wrap; }
+.ta-sales-followup:last-child { border-bottom: 0; }
+.ta-sales-followup-time { font-size: 12px; font-weight: 800; color: var(--ta-navy); min-width: 74px; }
+.ta-sales-followup-body { flex: 1; min-width: 140px; }
+.ta-sales-followup-body strong { display: block; }
+.ta-sales-followup-body span { color: var(--ta-muted); font-size: 12px; }
+.ta-sales-followup-actions { display: flex; gap: 8px; }
+
+/* Quotation expiry warning */
+.ta-sales-quote-warn td { background: rgba(212, 175, 55, 0.08); }
+.ta-sales-days { font-weight: 800; }
+.ta-sales-days.urgent { color: var(--ta-danger); }
+
+/* Top clients / courses bars */
+.ta-sales-topclients, .ta-sales-courses { display: grid; gap: 14px; }
+.ta-sales-client, .ta-sales-course { display: grid; grid-template-columns: 1fr auto; gap: 4px 14px; align-items: center; }
+.ta-sales-client-meta, .ta-sales-course-meta { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.ta-sales-client-meta span, .ta-sales-course-meta span { color: var(--ta-muted); font-size: 12px; }
+.ta-sales-client-bar, .ta-sales-course-bar { grid-column: 1 / -1; height: 8px; border-radius: 999px; background: var(--ta-soft); overflow: hidden; }
+.ta-sales-client-bar span, .ta-sales-course-bar span { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--ta-navy), var(--ta-gold)); }
+.ta-sales-client-value, .ta-sales-course-value { font-weight: 800; color: var(--ta-navy); }
+
+/* Priority chips */
+.ta-sales-priority { display: inline-flex; padding: 2px 10px; border-radius: 999px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+.ta-sales-priority.high { background: rgba(214,69,69,.12); color: var(--ta-danger); }
+.ta-sales-priority.medium { background: rgba(212,175,55,.18); color: #9a7a1f; }
+.ta-sales-priority.low { background: rgba(47,111,237,.12); color: var(--ta-info); }
+
+/* Trend legend */
+.ta-sales-trend-legend { display: flex; gap: 16px; margin-bottom: 8px; flex-wrap: wrap; }
+.ta-sales-trend-legend span { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ta-muted); font-weight: 600; }
+.ta-sales-trend-legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+
+/* --- Sales Phase 1B — Lead Management ------------------------------ */
+/* All new lead UI is scoped under .ta-sales and uses the approved corporate
+   palette (navy #0B3A63, gold #D4AF37). */
+
+/* KPI row */
+.ta-lead-kpis { display: grid; grid-template-columns: repeat(6, 1fr); }
+.ta-lead-kpis .ta-stat-value { font-size: clamp(19px, 1.6vw, 26px); }
+
+/* Lead status badge — "contacted" needs its own treatment; new/qualified/lost
+   already map to the shared badge palette. Text label always present so state
+   is never conveyed by colour alone. */
+.ta-lead-status.contacted { background: rgba(124, 92, 255, 0.12); color: #6d4aff; }
+.ta-lead-status.lost { background: rgba(102,112,133,.14); color: var(--ta-muted); text-transform: capitalize; }
+
+/* Sales CRM V1 pipeline statuses beyond the demo Lead module's 4-value set —
+   generic .ta-badge-pill (not .ta-lead-status-scoped) since the real Lead
+   Inbox/Detail use the shared <Badge> primitive directly. */
+.ta-badge-pill.proposal_sent { background: rgba(124, 92, 255, 0.12); color: #6d4aff; }
+.ta-badge-pill.negotiation { background: rgba(212,175,55,.16); color: #a9791a; }
+
+/* Follow-up state pill */
+.ta-followup.overdue { background: rgba(214,69,69,.12); color: var(--ta-danger); }
+.ta-followup.today { background: rgba(212,175,55,.18); color: #9a7a1f; }
+.ta-followup.upcoming { background: rgba(47,111,237,.12); color: var(--ta-info); }
+.ta-followup.none { background: rgba(102,112,133,.14); color: var(--ta-muted); }
+
+/* Filters panel */
+.ta-lead-filters { margin-bottom: 4px; }
+.ta-lead-filters-grid { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 14px 16px; align-items: end; }
+.ta-lead-filters-search { grid-column: 1 / 2; }
+.ta-filter-label { display: block; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--ta-muted); margin-bottom: 5px; }
+.ta-filter-field select, .ta-filter-field input { width: 100%; padding: 9px 12px; border: 1px solid var(--ta-line); border-radius: 9px; background: #fff; font: inherit; color: var(--ta-ink); outline: none; }
+.ta-filter-field select:focus, .ta-filter-field input:focus { border-color: var(--ta-navy); box-shadow: 0 0 0 3px rgba(11,44,86,.08); }
+.ta-filter-actions { display: flex; align-items: center; gap: 12px; }
+.ta-filter-count { color: var(--ta-muted); font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+
+/* Table cell helpers */
+.ta-lead-sub { color: var(--ta-muted); font-size: 12px; }
+.ta-lead-value { font-weight: 800; color: var(--ta-navy); white-space: nowrap; }
+.ta-lead-link { color: var(--ta-navy); font-weight: 700; }
+.ta-lead-link:hover { color: var(--ta-gold); text-decoration: underline; }
+
+/* Mobile card list (hidden on desktop, replaces the table under 760px) */
+.ta-lead-cards { display: none; list-style: none; margin: 0; padding: 10px; gap: 12px; }
+.ta-lead-card { padding: 14px 16px; }
+.ta-lead-card-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.ta-lead-card-company { margin: 8px 0 10px; }
+.ta-lead-card-grid { display: grid; grid-template-columns: 108px 1fr; gap: 7px 14px; font-size: 13px; }
+.ta-lead-card-grid > span:nth-child(odd) { color: var(--ta-muted); font-weight: 600; }
+.ta-lead-card-action { margin-top: 12px; }
+
+/* Detail page */
+.ta-lead-detail-header { padding: 20px; }
+.ta-lead-detail-title { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
+.ta-lead-ref { display: inline-block; font-size: 11px; font-weight: 800; letter-spacing: .08em; color: var(--ta-muted); text-transform: uppercase; margin-bottom: 4px; }
+.ta-lead-detail-title h2 { font-size: clamp(18px, 2vw, 23px); }
+.ta-lead-detail-grid { display: grid; grid-template-columns: 1.6fr 1fr; gap: 18px; align-items: start; margin-top: 18px; }
+.ta-lead-detail-main, .ta-lead-detail-side { display: grid; gap: 18px; align-content: start; }
+
+/* Key/value definition grid */
+.ta-kv { display: grid; grid-template-columns: 150px 1fr; gap: 9px 16px; margin: 0; font-size: 13.5px; }
+.ta-kv dt { color: var(--ta-muted); font-weight: 600; }
+.ta-kv dd { margin: 0; color: var(--ta-ink); }
+.ta-kv select { width: auto; min-width: 170px; padding: 7px 10px; border: 1px solid var(--ta-line); border-radius: 8px; font: inherit; }
+
+/* Timeline */
+.ta-timeline { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+.ta-timeline-item { position: relative; display: grid; grid-template-columns: 34px 1fr; gap: 4px 12px; padding-bottom: 20px; }
+.ta-timeline-item:last-child { padding-bottom: 2px; }
+.ta-timeline-item::before { content: ""; position: absolute; left: 16px; top: 30px; bottom: 2px; width: 2px; background: var(--ta-line); }
+.ta-timeline-item:last-child::before { display: none; }
+.ta-timeline-dot { width: 34px; height: 34px; border-radius: 50%; background: var(--ta-soft); border: 1px solid var(--ta-line); display: grid; place-items: center; font-size: 15px; z-index: 1; }
+.ta-timeline-when { color: var(--ta-muted); font-size: 12px; font-weight: 700; }
+.ta-timeline-title { color: var(--ta-ink); font-size: 13.5px; font-weight: 600; }
+.ta-timeline-note { color: var(--ta-muted); font-size: 12.5px; }
+.ta-timeline-actor { color: var(--ta-muted); font-size: 11.5px; margin-top: 2px; }
+
+/* Follow-up panel */
+.ta-followup-panel .ta-card-head { border: 0; }
+.ta-followup-actions { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+.ta-followup-form { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--ta-line); }
+
+/* Status actions */
+.ta-status-action-row { display: flex; gap: 10px; flex-wrap: wrap; }
+
+/* Contact action buttons */
+.ta-contact-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+
+/* Modal / dialog */
+.ta-dialog-overlay {
+  position: fixed; inset: 0; z-index: 100; background: rgba(9, 32, 63, 0.5);
+  display: grid; place-items: center; padding: 20px; backdrop-filter: blur(2px);
+}
+.ta-dialog {
+  width: 100%; background: #fff; border-radius: 16px; box-shadow: 0 30px 80px rgba(0,0,0,.35);
+  display: flex; flex-direction: column; max-height: 88vh; outline: none;
+}
+.ta-dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 22px; border-bottom: 1px solid var(--ta-line); }
+.ta-dialog-head h3 { font-size: 16px; }
+.ta-dialog-close { border: 0; background: var(--ta-soft); color: var(--ta-navy); width: 32px; height: 32px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 800; }
+.ta-dialog-close:hover { background: rgba(214,69,69,.12); color: var(--ta-danger); }
+.ta-dialog-body { padding: 20px 22px; overflow-y: auto; }
+.ta-dialog-foot { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 22px; border-top: 1px solid var(--ta-line); }
+
+/* Lost reason radio group */
+.ta-radio-group { border: 0; padding: 0; margin: 0; display: grid; gap: 8px; grid-template-columns: 1fr 1fr; }
+.ta-radio-group legend { font-weight: 800; font-size: 12.5px; color: var(--ta-navy); margin-bottom: 8px; }
+.ta-radio { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border: 1px solid var(--ta-line); border-radius: 9px; font-size: 13px; cursor: pointer; }
+.ta-radio:has(input:checked) { border-color: var(--ta-navy); background: rgba(11,58,99,.04); }
+.ta-radio input { width: auto; }
+
+/* Success notice + empty line */
+.ta-lead-notice { margin-bottom: 16px; }
+.ta-sales-empty-line { color: var(--ta-muted); font-size: 13px; }
+.ta-new-lead-success { max-width: 520px; margin: 0 auto; padding: 28px 24px; }
+
+/* --- Sales Phase 1C — Opportunities & Sales Pipeline ---------------- */
+/* Scoped under .ta-sales; approved corporate palette (navy #0B3A63, gold
+   #D4AF37). KPI, forecast and stage-total figures are always derived from the
+   mock dataset via lib/sales/opportunities.ts — never hardcoded. */
+
+.ta-opp-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); }
+.ta-opp-kpis .ta-stat-value { font-size: clamp(18px, 1.5vw, 25px); }
+
+.ta-opp-toolbar { display: grid; gap: 16px; }
+.ta-seg-toggle { display: inline-flex; border: 1px solid var(--ta-line); border-radius: 10px; overflow: hidden; background: #fff; width: max-content; }
+.ta-seg-btn { padding: 9px 20px; font-weight: 700; font-size: 13px; border: 0; background: #fff; color: var(--ta-muted); cursor: pointer; font-family: inherit; }
+.ta-seg-btn:not(:last-child) { border-right: 1px solid var(--ta-line); }
+.ta-seg-btn.active { background: var(--ta-navy); color: #fff; }
+.ta-seg-btn:focus-visible { outline: 3px solid rgba(225,169,37,.65); outline-offset: -2px; }
+
+/* Stage badge — text label always present, colour is reinforcement only */
+.ta-opp-stage.qualified { background: rgba(212,175,55,.18); color: #a9791a; }
+.ta-opp-stage.quotation { background: rgba(47,111,237,.12); color: var(--ta-info); }
+.ta-opp-stage.negotiation { background: rgba(124,92,255,.12); color: #6d4aff; }
+.ta-opp-stage.won { background: rgba(46,158,91,.12); color: var(--ta-success); }
+.ta-opp-stage.lost { background: rgba(102,112,133,.14); color: var(--ta-muted); }
+
+/* Kanban pipeline */
+.ta-kanban { display: flex; gap: 14px; overflow-x: auto; padding: 16px; align-items: flex-start; }
+.ta-kanban-col { flex: 1 1 0; min-width: 262px; max-width: 320px; background: var(--ta-soft); border: 1px solid var(--ta-line); border-radius: 12px; display: flex; flex-direction: column; }
+.ta-kanban-head { padding: 12px 14px; border-bottom: 1px solid var(--ta-line); display: grid; gap: 1px; background: #fff; border-radius: 12px 12px 0 0; }
+.ta-kanban-stage { font-size: 11.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; color: var(--ta-navy); }
+.ta-kanban-count { color: var(--ta-muted); font-size: 12px; }
+.ta-kanban-value { color: var(--ta-navy); font-weight: 800; font-size: 14px; }
+.ta-kanban-body { padding: 12px; display: grid; gap: 10px; max-height: 560px; overflow-y: auto; align-content: start; }
+.ta-kanban-empty { color: var(--ta-muted); font-size: 12.5px; text-align: center; padding: 10px 0; }
+
+/* Opportunity card */
+.ta-opp-card { display: block; padding: 12px 14px; text-decoration: none; transition: transform .15s, box-shadow .15s, border-color .15s; }
+.ta-opp-card:hover { transform: translateY(-2px); box-shadow: var(--ta-shadow-hover); border-color: rgba(11,58,99,.25); }
+.ta-opp-card-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.ta-opp-ref { font-size: 11px; font-weight: 800; letter-spacing: .06em; color: var(--ta-muted); text-transform: uppercase; }
+.ta-opp-card-company { display: block; color: var(--ta-navy); font-size: 14px; }
+.ta-opp-card-line { color: var(--ta-muted); font-size: 12.5px; margin: 2px 0 8px; }
+.ta-opp-card-grid { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; margin: 0; font-size: 12.5px; }
+.ta-opp-card-grid dt { color: var(--ta-muted); }
+.ta-opp-card-grid dd { margin: 0; color: var(--ta-ink); text-align: right; font-weight: 600; }
+.ta-opp-card-src { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--ta-line); color: var(--ta-muted); font-size: 11.5px; }
+
+/* Won banner */
+.ta-opp-won-banner { display: flex; gap: 12px; align-items: center; padding: 14px 18px; margin-bottom: 18px; border: 1px solid rgba(46,158,91,.35); border-left: 4px solid var(--ta-success); border-radius: 12px; background: linear-gradient(105deg, rgba(46,158,91,.08), #fff 60%); color: var(--ta-navy); }
+.ta-opp-won-banner > span { font-size: 26px; }
+.ta-opp-won-banner strong { font-size: 15px; }
+
+/* --- Sales Phase 1D — Quotations Engine ----------------------------- */
+/* Scoped under .ta-sales. KPI totals are derived from the mock dataset via
+   lib/sales/quotations.ts — never hardcoded. Money rolls up through
+   integer-sen helpers, not JSX arithmetic. */
+
+.ta-q-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); }
+.ta-q-kpis .ta-stat-value { font-size: clamp(18px, 1.5vw, 25px); }
+
+/* Quotation status badge — text label always present, colour is reinforcement */
+.ta-q-status.draft { background: rgba(47,111,237,.12); color: var(--ta-info); }
+.ta-q-status.sent { background: rgba(212,175,55,.18); color: #a9791a; }
+.ta-q-status.accepted { background: rgba(46,158,91,.12); color: var(--ta-success); }
+.ta-q-status.rejected { background: rgba(214,69,69,.12); color: var(--ta-danger); }
+.ta-q-status.expired, .ta-q-status.superseded { background: rgba(102,112,133,.14); color: var(--ta-muted); }
+
+/* Expiry warning treatment */
+.ta-q-expiring { color: #9a7a1f; font-weight: 800; }
+.ta-q-row-expired td { opacity: .68; }
+.ta-q-row-expired .ta-q-status { opacity: 1; }
+
+/* Money summary */
+.ta-q-summary dl { display: grid; grid-template-columns: 1fr auto; gap: 7px 16px; margin: 0; max-width: 420px; margin-left: auto; font-size: 13.5px; }
+.ta-q-summary dt { color: var(--ta-muted); font-weight: 600; }
+.ta-q-summary dd { margin: 0; font-weight: 600; }
+.ta-q-summary dl dt:last-of-type, .ta-q-summary dl dd:last-of-type { font-weight: 800; }
+.ta-q-summary-editor dl { max-width: none; }
+
+/* Terms */
+.ta-terms-list { display: grid; gap: 8px; margin: 0; padding-left: 0; list-style: none; }
+.ta-terms-list li { font-size: 13px; color: var(--ta-ink); }
+
+/* Revision history */
+.ta-revision-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.ta-revision-item { display: grid; gap: 4px; }
+.ta-revision-card { display: block; border: 1px solid var(--ta-line); border-radius: 10px; padding: 10px 12px; transition: border-color .15s, box-shadow .15s; }
+.ta-revision-card:hover { border-color: rgba(11,58,99,.3); box-shadow: var(--ta-shadow); }
+.ta-revision-card.ta-revision-current { border-color: var(--ta-gold); box-shadow: 0 0 0 2px rgba(212,175,55,.25); }
+.ta-revision-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ta-revision-top strong { color: var(--ta-navy); }
+.ta-revision-meta { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-top: 4px; font-size: 12.5px; color: var(--ta-muted); }
+.ta-revision-badge { display: inline-block; margin-top: 6px; padding: 1px 8px; border-radius: 999px; background: var(--ta-gold); color: var(--ta-navy); font-size: 10.5px; font-weight: 800; letter-spacing: .06em; }
+.ta-revision-arrow { text-align: center; color: var(--ta-muted); font-size: 14px; line-height: 1; }
+
+/* Quotation line-item editor */
+.ta-q-editor { display: grid; gap: 14px; }
+.ta-q-item-row { display: grid; grid-template-columns: minmax(180px, 1fr) 64px 92px 96px 96px 110px auto; gap: 10px; align-items: end; }
+.ta-q-item-row input, .ta-q-item-row select { width: 100%; padding: 8px 10px; border: 1px solid var(--ta-line); border-radius: 8px; font: inherit; outline: none; }
+.ta-q-item-row input:focus, .ta-q-item-row select:focus { border-color: var(--ta-navy); box-shadow: 0 0 0 3px rgba(11,44,86,.08); }
+.ta-q-item-desc { grid-column: 1 / -1; }
+.ta-q-item-total strong { display: block; padding: 8px 0; color: var(--ta-navy); }
+
+/* Print-friendly preview */
+.ta-quotation-print { padding: 4px; }
+.ta-qp-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; border-bottom: 2px solid var(--ta-navy); padding-bottom: 12px; margin-bottom: 14px; }
+.ta-qp-head strong { display: block; color: var(--ta-navy); font-size: 16px; }
+.ta-qp-head span { color: var(--ta-muted); font-size: 12px; }
+.ta-qp-ref { text-align: right; }
+.ta-qp-ref strong { font-size: 14px; }
+.ta-qp-meta { margin-bottom: 14px; }
+.ta-qp-items { margin-bottom: 14px; }
+.ta-qp-totals dl { display: grid; grid-template-columns: 1fr auto; gap: 6px 16px; margin: 0 0 0 auto; max-width: 360px; font-size: 13px; }
+.ta-qp-totals dt { color: var(--ta-muted); }
+.ta-qp-totals dd { margin: 0; font-weight: 600; }
+.ta-qp-terms { margin-top: 16px; border-top: 1px dashed var(--ta-line); padding-top: 10px; font-size: 12px; color: var(--ta-muted); }
+.ta-qp-terms strong { display: block; margin-bottom: 4px; color: var(--ta-navy); }
+.ta-qp-terms ul { margin: 0; padding-left: 18px; display: grid; gap: 3px; }
+
 @media print {
   /* Scoped with :has() so this only fires on a page that actually renders
      the quotation preview panel — an unscoped `body *` here previously hid

@@ -278,6 +278,39 @@ export const certificateTemplateConfigSchema = z
   })
   .passthrough();
 
+/**
+ * Sales CRM V1 — sales_lead_metadata / sales_activity mutations. Kept
+ * separate from lib/sales/crm.ts's display-oriented type unions so the
+ * validated-input shape (this file's job, per this file's own header
+ * comment) doesn't drift from what components render.
+ */
+export const salesLeadStatusSchema = z
+  .object({
+    status: z.enum(["new", "contacted", "qualified", "proposal_sent", "negotiation", "won", "lost", "archived"]),
+    lost_reason: z.enum(["price", "no_budget", "no_response", "timing", "competitor", "requirement_changed", "duplicate", "other"]).optional().or(z.literal("")),
+  })
+  .refine((v) => v.status !== "lost" || !!v.lost_reason, {
+    message: "Select a reason for marking this lead lost",
+    path: ["lost_reason"],
+  });
+export type SalesLeadStatusInput = z.infer<typeof salesLeadStatusSchema>;
+
+export const salesLeadAssignSchema = z.object({
+  assigned_to: z.string().uuid().optional().or(z.literal("")),
+});
+export type SalesLeadAssignInput = z.infer<typeof salesLeadAssignSchema>;
+
+export const salesLeadNoteSchema = z.object({
+  note: z.string().trim().min(1, "Note is required").max(3000),
+});
+export type SalesLeadNoteInput = z.infer<typeof salesLeadNoteSchema>;
+
+export const salesLeadFollowUpSchema = z.object({
+  follow_up_at: z.string().trim().optional().or(z.literal("")),
+  priority: z.enum(["low", "medium", "high"]).optional(),
+});
+export type SalesLeadFollowUpInput = z.infer<typeof salesLeadFollowUpSchema>;
+
 /** Helper to flatten Zod errors into a { field: message } map for forms. */
 export function fieldErrors(error: z.ZodError): Record<string, string> {
   const out: Record<string, string> = {};
