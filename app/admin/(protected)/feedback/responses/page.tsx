@@ -32,7 +32,11 @@ export default async function FeedbackResponsesPage({
 
   if (scheduleId) query = query.eq("schedule_id", scheduleId);
 
-  const { data: rows, count } = await query;
+  const { data: rows, count, error } = await query;
+  if (error) {
+    console.error("FeedbackResponsesPage: participant_feedback select failed", { scheduleId: scheduleId || null, code: error.code, message: error.message });
+  }
+  const dataUnavailable = Boolean(error);
   const pageCount = Math.ceil((count ?? 0) / PAGE_SIZE);
 
   const overall = (r: any) => {
@@ -62,7 +66,9 @@ export default async function FeedbackResponsesPage({
       </form>
 
       <Card>
-        {rows && rows.length > 0 ? (
+        {dataUnavailable ? (
+          <EmptyState icon="⚠" message="Feedback data is currently unavailable." />
+        ) : rows && rows.length > 0 ? (
           <div className="ta-table-wrap">
             <table className="ta-table">
               <thead>
@@ -127,10 +133,12 @@ export default async function FeedbackResponsesPage({
         )}
       </Card>
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span className="ta-lead-sub" style={{ paddingTop: 14 }}>{count ?? 0} response(s)</span>
-        <Pagination page={page} pageCount={pageCount} basePath="/admin/feedback/responses" query={scheduleId ? { schedule: scheduleId } : {}} />
-      </div>
+      {!dataUnavailable && (
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span className="ta-lead-sub" style={{ paddingTop: 14 }}>{count ?? 0} response(s)</span>
+          <Pagination page={page} pageCount={pageCount} basePath="/admin/feedback/responses" query={scheduleId ? { schedule: scheduleId } : {}} />
+        </div>
+      )}
     </>
   );
 }

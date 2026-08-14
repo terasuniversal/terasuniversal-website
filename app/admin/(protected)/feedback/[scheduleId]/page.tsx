@@ -3,8 +3,8 @@ import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { requireRole } from "../../../../../lib/auth/session";
 import { PageHead, Card, StatCard, EmptyState } from "../../../../../components/admin/ui";
-import { generateFeedbackLinks } from "../actions";
 import { FeedbackLinkCard, type FeedbackLinkRow } from "./FeedbackLinkCard";
+import { GenerateLinksForm } from "./GenerateLinksForm";
 import { siteOrigin } from "../../../../../lib/site-origin";
 
 export const metadata = { title: "Schedule Feedback — TERAS UNIVERSAL Admin" };
@@ -24,7 +24,7 @@ export default async function ScheduleFeedbackPage({ params }: { params: Promise
   if (!schedule) notFound();
   const courseName = (schedule as any).courses?.title ?? (schedule as any).courses?.course_name ?? "—";
 
-  const [{ data: stats }, { data: feedbackRows }] = await Promise.all([
+  const [{ data: stats, error: statsError }, { data: feedbackRows, error: feedbackError }] = await Promise.all([
     supabase.rpc("feedback_anonymous_stats", { p_schedule_id: scheduleId }),
     supabase
       .from("participant_feedback")
@@ -33,18 +33,32 @@ export default async function ScheduleFeedbackPage({ params }: { params: Promise
       .order("created_at", { ascending: true }),
   ]);
 
-  const stat = stats?.[0] as
-    | { total_eligible: number; responses: number; response_rate: number; avg_overall: number; nps: number }
-    | undefined;
+  if (statsError) {
+    console.error("ScheduleFeedbackPage: feedback_anonymous_stats failed", { scheduleId, code: statsError.code, message: statsError.message });
+  }
+  if (feedbackError) {
+    console.error("ScheduleFeedbackPage: participant_feedback select failed", { scheduleId, code: feedbackError.code, message: feedbackError.message });
+  }
 
-  const links: FeedbackLinkRow[] = ((feedbackRows ?? []) as any[]).map((r) => ({
-    id: r.id,
-    participantName: r.participants?.full_name ?? "—",
-    participantCode: r.participants?.participant_id ?? null,
-    company: r.participants?.company ?? null,
-    status: r.status,
-    url: `${origin}/feedback/${r.token}`,
-  }));
+  const statsUnavailable = Boolean(statsError);
+  const linksUnavailable = Boolean(feedbackError);
+
+  const stat = !statsUnavailable
+    ? (stats?.[0] as
+        | { total_eligible: number; responses: number; response_rate: number; avg_overall: number; nps: number }
+        | undefined)
+    : undefined;
+
+  const links: FeedbackLinkRow[] = !linksUnavailable
+    ? ((feedbackRows ?? []) as any[]).map((r) => ({
+        id: r.id,
+        participantName: r.participants?.full_name ?? "—",
+        participantCode: r.participants?.participant_id ?? null,
+        company: r.participants?.company ?? null,
+        status: r.status,
+        url: `${origin}/feedback/${r.token}`,
+      }))
+    : [];
 
   return (
     <>
@@ -59,22 +73,29 @@ export default async function ScheduleFeedbackPage({ params }: { params: Promise
         }
       />
 
-      <div className="ta-grid cols-3" style={{ marginBottom: 22 }}>
-        <StatCard label="Responses" value={stat?.responses ?? 0} icon="✉" />
-        <StatCard label="Eligible Participants" value={stat?.total_eligible ?? 0} icon="👥" />
-        <StatCard label="Response Rate" value={stat?.response_rate != null ? `${stat.response_rate}%` : "—"} icon="📈" />
-        <StatCard label="Overall Score" value={stat?.avg_overall != null ? `${stat.avg_overall} / 5` : "—"} icon="⭐" />
-        <StatCard label="NPS" value={stat?.nps ?? "—"} icon="👍" />
-        <div>
-          <form action={generateFeedbackLinks.bind(null, scheduleId)}>
-            <button className="ta-btn ta-btn-primary" style={{ width: "100%" }}>Generate Feedback Links</button>
-          </form>
+      {statsUnavailable ? (
+        <div className="ta-alert ta-alert-error" style={{ marginBottom: 22 }} role="alert">
+          Feedback data is currently unavailable.
         </div>
+      ) : (
+        <div className="ta-grid cols-3" style={{ marginBottom: 22 }}>
+          <StatCard label="Responses" value={stat?.responses ?? 0} icon="✉" />
+          <StatCard label="Eligible Participants" value={stat?.total_eligible ?? 0} icon="👥" />
+          <StatCard label="Response Rate" value={stat?.response_rate != null ? `${stat.response_rate}%` : "—"} icon="📈" />
+          <StatCard label="Overall Score" value={stat?.avg_overall != null ? `${stat.avg_overall} / 5` : "—"} icon="⭐" />
+          <StatCard label="NPS" value={stat?.nps ?? "—"} icon="👍" />
+        </div>
+      )}
+
+      <div style={{ maxWidth: 320, marginBottom: 22 }}>
+        <GenerateLinksForm scheduleId={scheduleId} />
       </div>
 
       <Card title={`Participant Feedback Links (${links.length})`}>
         <div className="ta-card-pad">
-          {links.length > 0 ? (
+          {linksUnavailable ? (
+            <EmptyState icon="⚠" message="Feedback data is currently unavailable." />
+          ) : links.length > 0 ? (
             <FeedbackLinkCard links={links} baseUrl={`${origin}/feedback/`} />
           ) : (
             <EmptyState

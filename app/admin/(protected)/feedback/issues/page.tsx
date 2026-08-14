@@ -35,10 +35,14 @@ export default async function FeedbackIssuesPage({
     .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
   if (sp.status) query = query.eq("status", sp.status);
 
-  const [{ data: rows, count }, { data: schedules }] = await Promise.all([
+  const [{ data: rows, count, error }, { data: schedules }] = await Promise.all([
     query,
     supabase.from("course_schedules").select("id, schedule_code").is("deleted_at", null).order("start_date", { ascending: false }).limit(200),
   ]);
+  if (error) {
+    console.error("FeedbackIssuesPage: feedback_issues select failed", { status: sp.status || null, code: error.code, message: error.message });
+  }
+  const dataUnavailable = Boolean(error);
   const pageCount = Math.ceil((count ?? 0) / PAGE_SIZE);
 
   return (
@@ -58,7 +62,9 @@ export default async function FeedbackIssuesPage({
       </div>
 
       <Card>
-        {rows && rows.length > 0 ? (
+        {dataUnavailable ? (
+          <EmptyState icon="⚠" message="Feedback data is currently unavailable." />
+        ) : rows && rows.length > 0 ? (
           <div className="ta-table-wrap">
             <table className="ta-table">
               <thead>
@@ -104,7 +110,9 @@ export default async function FeedbackIssuesPage({
         )}
       </Card>
 
-      <Pagination page={page} pageCount={pageCount} basePath="/admin/feedback/issues" query={sp.status ? { status: sp.status } : {}} />
+      {!dataUnavailable && (
+        <Pagination page={page} pageCount={pageCount} basePath="/admin/feedback/issues" query={sp.status ? { status: sp.status } : {}} />
+      )}
     </>
   );
 }

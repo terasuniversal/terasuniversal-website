@@ -19,6 +19,12 @@ export interface FeedbackActionState {
   message?: string;
 }
 
+export interface FeedbackLinkActionState {
+  ok: boolean;
+  message?: string;
+  createdCount?: number;
+}
+
 /** Allowed improvement-action transitions — mirrored by the DB trigger. */
 const ACTION_TRANSITIONS: Record<string, string[]> = {
   open: ["assigned"],
@@ -39,14 +45,23 @@ function readString(formData: FormData, key: string): string {
 }
 
 /** Create pending feedback links for every eligible participant in a schedule. */
-export async function generateFeedbackLinks(scheduleId: string): Promise<void> {
+export async function generateFeedbackLinks(
+  scheduleId: string,
+  _prev: FeedbackLinkActionState,
+  _formData: FormData
+): Promise<FeedbackLinkActionState> {
   await requireRole("editor");
   const parsed = feedbackGenerateLinksSchema.safeParse({ schedule_id: scheduleId });
-  if (!parsed.success) return;
+  if (!parsed.success) {
+    return { ok: false, message: "Invalid schedule." };
+  }
 
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.rpc("feedback_generate_links", { p_schedule_id: parsed.data.schedule_id });
-  if (error) return;
+  if (error) {
+    console.error("generateFeedbackLinks: feedback_generate_links RPC failed", { scheduleId, code: error.code, message: error.message });
+    return { ok: false, message: "Unable to generate feedback links. Please try again or contact an administrator." };
+  }
 
   const created = Number(data?.[0]?.created_count ?? 0);
   await supabase.rpc("log_event", {
@@ -58,6 +73,11 @@ export async function generateFeedbackLinks(scheduleId: string): Promise<void> {
 
   revalidatePath(`/admin/feedback/${scheduleId}`);
   revalidatePath(`/admin/schedules/${scheduleId}`);
+
+  const message = created > 0
+    ? `${created} feedback link${created === 1 ? "" : "s"} generated successfully.`
+    : "All eligible participants already have a feedback link.";
+  return { ok: true, createdCount: created, message };
 }
 
 /** Reopen a submitted feedback so the participant may resubmit (audited). */
