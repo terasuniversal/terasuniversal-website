@@ -56,6 +56,12 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
   const { data: allProfiles } = await supabase.from("profiles").select("id, full_name");
   const actorNames = new Map(((allProfiles ?? []) as { id: string; full_name: string }[]).map((p) => [p.id, p.full_name]));
 
+  const { data: existingOpportunity } = await supabase
+    .from("sales_opportunities")
+    .select("id, opportunity_no")
+    .eq("lead_metadata_id", id)
+    .maybeSingle();
+
   return (
     <>
       <PageHead
@@ -108,6 +114,8 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
             priority={row.priority}
             staff={staff}
             canManage={canManage}
+            existingOpportunity={existingOpportunity ?? null}
+            defaultOpportunityTitle={row.subject ?? undefined}
           />
         </div>
       </div>

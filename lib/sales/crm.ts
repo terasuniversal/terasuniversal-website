@@ -103,7 +103,12 @@ export const LOST_REASON_LABELS: Record<SalesCrmLostReason, string> = {
 };
 export const LOST_REASONS: SalesCrmLostReason[] = ["price", "no_budget", "no_response", "timing", "competitor", "requirement_changed", "duplicate", "other"];
 
-/** Matches supabase/migrations/20260814120000_create_sales_crm_v1.sql's sales_activity type CHECK. */
+/**
+ * Matches supabase/migrations/20260814120000_create_sales_crm_v1.sql's +
+ * 20260814150000_create_sales_crm_phase2_opportunities_quotations.sql's
+ * combined sales_activity type CHECK (Phase 2 extended the constraint
+ * additively, not replaced it).
+ */
 export type SalesCrmActivityType =
   | "lead_created"
   | "status_changed"
@@ -112,7 +117,15 @@ export type SalesCrmActivityType =
   | "note_added"
   | "proposal_sent"
   | "won"
-  | "lost";
+  | "lost"
+  | "opportunity_created"
+  | "quotation_created"
+  | "quotation_sent"
+  | "quotation_revised"
+  | "quotation_accepted"
+  | "quotation_rejected"
+  | "opportunity_won"
+  | "opportunity_lost";
 
 export const CRM_ACTIVITY_ICONS: Record<SalesCrmActivityType, string> = {
   lead_created: "🧲",
@@ -123,6 +136,14 @@ export const CRM_ACTIVITY_ICONS: Record<SalesCrmActivityType, string> = {
   proposal_sent: "📨",
   won: "🏆",
   lost: "🚫",
+  opportunity_created: "🎯",
+  quotation_created: "📄",
+  quotation_sent: "📨",
+  quotation_revised: "🔃",
+  quotation_accepted: "✅",
+  quotation_rejected: "🚫",
+  opportunity_won: "🏆",
+  opportunity_lost: "🚫",
 };
 
 export const CRM_ACTIVITY_LABELS: Record<SalesCrmActivityType, string> = {
@@ -134,12 +155,174 @@ export const CRM_ACTIVITY_LABELS: Record<SalesCrmActivityType, string> = {
   proposal_sent: "Proposal sent",
   won: "Won",
   lost: "Lost",
+  opportunity_created: "Opportunity created",
+  quotation_created: "Quotation created",
+  quotation_sent: "Quotation sent",
+  quotation_revised: "Quotation revised",
+  quotation_accepted: "Quotation accepted",
+  quotation_rejected: "Quotation rejected",
+  opportunity_won: "Opportunity won",
+  opportunity_lost: "Opportunity lost",
 };
 
 export const SOURCE_LABELS: Record<SalesLeadSourceKind, string> = {
   enquiry: "Contact Enquiry",
   proposal_request: "Proposal Request",
 };
+
+/* ------------------------------------------------------------------ */
+/* Phase 2 — Opportunities                                             */
+/* ------------------------------------------------------------------ */
+
+/** Matches sales_opportunities.stage's CHECK. Aligned with the Lead pipeline where practical (Task 4). */
+export type SalesOpportunityStage = "new" | "qualified" | "quotation" | "negotiation" | "won" | "lost" | "archived";
+
+export const OPPORTUNITY_STAGE_ORDER: SalesOpportunityStage[] = ["new", "qualified", "quotation", "negotiation", "won", "lost", "archived"];
+
+export const OPPORTUNITY_STAGE_LABELS: Record<SalesOpportunityStage, string> = {
+  new: "New",
+  qualified: "Qualified",
+  quotation: "Quotation",
+  negotiation: "Negotiation",
+  won: "Won",
+  lost: "Lost",
+  archived: "Archived",
+};
+
+export const OPEN_OPPORTUNITY_STAGES: SalesOpportunityStage[] = ["new", "qualified", "quotation", "negotiation"];
+
+/** Row shape of public.sales_opportunities. */
+export interface SalesOpportunityRow {
+  id: string;
+  lead_metadata_id: string;
+  opportunity_no: string;
+  company_name: string | null;
+  contact_person: string | null;
+  contact_email: string | null;
+  contact_phone: string | null;
+  title: string;
+  programme: string | null;
+  stage: SalesOpportunityStage;
+  assigned_to: string | null;
+  expected_close_date: string | null;
+  probability: number | null;
+  estimated_value: number | null;
+  lost_reason: SalesCrmLostReason | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  won_at: string | null;
+  lost_at: string | null;
+}
+
+/* ------------------------------------------------------------------ */
+/* Phase 2 — Quotations                                                */
+/* ------------------------------------------------------------------ */
+
+/** Matches sales_quotations.status's CHECK. */
+export type SalesQuotationStatus = "draft" | "sent" | "accepted" | "rejected" | "expired" | "superseded";
+
+export const QUOTATION_STATUS_ORDER: SalesQuotationStatus[] = ["draft", "sent", "accepted", "rejected", "expired", "superseded"];
+
+export const QUOTATION_STATUS_LABELS: Record<SalesQuotationStatus, string> = {
+  draft: "Draft",
+  sent: "Sent",
+  accepted: "Accepted",
+  rejected: "Rejected",
+  expired: "Expired",
+  superseded: "Superseded",
+};
+
+export type SalesQuotationUnit = "pax" | "session" | "day" | "lot" | "unit";
+export const QUOTATION_UNITS: SalesQuotationUnit[] = ["pax", "session", "day", "lot", "unit"];
+export const QUOTATION_UNIT_LABELS: Record<SalesQuotationUnit, string> = {
+  pax: "Pax",
+  session: "Session",
+  day: "Day",
+  lot: "Lot",
+  unit: "Unit",
+};
+
+/** "Original" for revision 0, otherwise "R{n}" — same convention as the demo module's revisionLabel(). */
+export function revisionLabel(revisionNo: number): string {
+  return revisionNo === 0 ? "Original" : `R${revisionNo}`;
+}
+
+export interface SalesQuotationRow {
+  id: string;
+  opportunity_id: string;
+  quotation_no: string;
+  revision_no: number;
+  parent_quotation_id: string | null;
+  status: SalesQuotationStatus;
+  issue_date: string;
+  valid_until: string | null;
+  currency: string;
+  subtotal: number;
+  discount: number;
+  sst_applicable: boolean;
+  sst_rate: number;
+  tax: number;
+  total: number;
+  terms: string | null;
+  notes: string | null;
+  rejection_reason: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  sent_at: string | null;
+  accepted_at: string | null;
+  rejected_at: string | null;
+  superseded_at: string | null;
+}
+
+export interface SalesQuotationItemRow {
+  id: string;
+  quotation_id: string;
+  description: string;
+  quantity: number;
+  unit: SalesQuotationUnit;
+  unit_price: number;
+  discount: number;
+  line_total: number;
+  sort_order: number;
+}
+
+/**
+ * Quotation money math — ported (not imported) from lib/sales/quotation-math.ts
+ * to keep this file's zero-demo-dependency invariant. Same algorithm:
+ * integer-sen-safe rounding, so 3 x RM10.33 never drifts by a cent versus
+ * what sales_quotation_items.line_total (a GENERATED column using the same
+ * formula) computes at the database level.
+ */
+export function round2(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+export function computeLineTotal(item: { quantity: number; unitPrice: number; discount: number }): number {
+  const sen = item.quantity * Math.round(item.unitPrice * 100) - Math.round(item.discount * 100);
+  return round2(sen / 100);
+}
+
+export interface QuotationTotals {
+  subtotal: number;
+  taxableAmount: number;
+  tax: number;
+  total: number;
+}
+
+export function computeQuotationTotals(input: {
+  items: { quantity: number; unitPrice: number; discount: number }[];
+  discount: number;
+  sstApplicable: boolean;
+  sstRate: number;
+}): QuotationTotals {
+  const subtotal = round2(input.items.reduce((sum, item) => sum + computeLineTotal(item), 0));
+  const taxableAmount = round2(subtotal - input.discount);
+  const tax = input.sstApplicable ? round2((taxableAmount * input.sstRate) / 100) : 0;
+  const total = round2(taxableAmount + tax);
+  return { subtotal, taxableAmount, tax, total };
+}
 
 /** Row shape of public.v_sales_lead_inbox. */
 export interface SalesLeadInboxRow {
@@ -164,6 +347,8 @@ export interface SalesLeadInboxRow {
 export interface SalesActivityRow {
   id: string;
   lead_metadata_id: string;
+  opportunity_id: string | null;
+  quotation_id: string | null;
   type: SalesCrmActivityType;
   note: string | null;
   actor_id: string | null;

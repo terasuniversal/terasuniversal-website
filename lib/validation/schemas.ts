@@ -311,6 +311,64 @@ export const salesLeadFollowUpSchema = z.object({
 });
 export type SalesLeadFollowUpInput = z.infer<typeof salesLeadFollowUpSchema>;
 
+/**
+ * Sales CRM Phase 2 — sales_opportunities / sales_quotations / sales_quotation_items mutations.
+ */
+export const convertLeadToOpportunitySchema = z.object({
+  title: z.string().trim().min(2, "Title is required").max(200),
+  expected_close_date: z.string().trim().optional().or(z.literal("")),
+  estimated_value: z.coerce.number().min(0).optional().nullable(),
+});
+export type ConvertLeadToOpportunityInput = z.infer<typeof convertLeadToOpportunitySchema>;
+
+export const opportunityStageSchema = z
+  .object({
+    stage: z.enum(["new", "qualified", "quotation", "negotiation", "won", "lost", "archived"]),
+  });
+export type OpportunityStageInput = z.infer<typeof opportunityStageSchema>;
+
+export const opportunityLostSchema = z.object({
+  lost_reason: z.enum(["price", "no_budget", "no_response", "timing", "competitor", "requirement_changed", "duplicate", "other"]),
+});
+export type OpportunityLostInput = z.infer<typeof opportunityLostSchema>;
+
+export const opportunityAssignSchema = z.object({
+  assigned_to: z.string().uuid().optional().or(z.literal("")),
+});
+export type OpportunityAssignInput = z.infer<typeof opportunityAssignSchema>;
+
+export const opportunityExpectedCloseSchema = z.object({
+  expected_close_date: z.string().trim().optional().or(z.literal("")),
+  probability: z.coerce.number().min(0).max(100).optional().nullable(),
+});
+export type OpportunityExpectedCloseInput = z.infer<typeof opportunityExpectedCloseSchema>;
+
+const quotationItemInputSchema = z.object({
+  description: z.string().trim().min(1, "Description is required").max(500),
+  quantity: z.coerce.number().positive("Quantity must be greater than 0"),
+  unit: z.enum(["pax", "session", "day", "lot", "unit"]),
+  unit_price: z.coerce.number().min(0, "Unit price cannot be negative"),
+  discount: z.coerce.number().min(0, "Discount cannot be negative").default(0),
+});
+export type QuotationItemInput = z.infer<typeof quotationItemInputSchema>;
+
+export const quotationHeaderSchema = z.object({
+  valid_until: z.string().trim().optional().or(z.literal("")),
+  currency: z.string().trim().min(1).max(10).default("MYR"),
+  discount: z.coerce.number().min(0, "Discount cannot be negative").default(0),
+  sst_applicable: z.coerce.boolean().default(false),
+  sst_rate: z.coerce.number().min(0).max(100).default(0),
+  terms: z.string().trim().max(3000).optional().or(z.literal("")),
+  notes: z.string().trim().max(3000).optional().or(z.literal("")),
+  items: z.array(quotationItemInputSchema).min(1, "Add at least one line item"),
+});
+export type QuotationHeaderInput = z.infer<typeof quotationHeaderSchema>;
+
+export const quotationRejectSchema = z.object({
+  reason: z.string().trim().min(1, "A rejection reason is required").max(500),
+});
+export type QuotationRejectInput = z.infer<typeof quotationRejectSchema>;
+
 /** Helper to flatten Zod errors into a { field: message } map for forms. */
 export function fieldErrors(error: z.ZodError): Record<string, string> {
   const out: Record<string, string> = {};
