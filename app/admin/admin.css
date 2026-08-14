@@ -1,5 +1,5 @@
-/* =====================================================================
-   TERAS UNIVERSAL Admin CMS — self-contained styles
+﻿/* =====================================================================
+   TERAS UNIVERSAL Admin CMS â€” self-contained styles
    Scoped under .teras-admin so it never affects the public website.
    Brand: navy #0B3A63, gold #D4AF37 (TERAS identity).
    ===================================================================== */
@@ -74,7 +74,7 @@
 /* IMPORTANT: globals.css ships a bare `nav{display:flex;gap:25px;align-items:center}`
    (and `nav{display:none}` at <=920px) which leaks onto the admin sidebar's
    <nav class="ta-nav">. These class-scoped rules must win (class specificity
-   beats the element selector) and force a strict VERTICAL layout — two
+   beats the element selector) and force a strict VERTICAL layout â€” two
    navigation groups must never sit in one horizontal row. */
 .ta-nav {
   flex: 1;
@@ -264,13 +264,13 @@
 
 @media print {
   /* Scoped with :has() so this only fires on a page that actually renders
-     the quotation preview panel — an unscoped `body *` here previously hid
+     the quotation preview panel â€” an unscoped `body *` here previously hid
      every element on every /admin print (certificates included) because
      this stylesheet loads globally via app/admin/layout.tsx, not just
      wherever QuotationPrintPreview is mounted. */
   body:has(.ta-quotation-print) * { visibility: hidden; }
   /* Qualified with the same body:has(...) prefix as the hide rule above so
-     specificity matches (0,1,1) vs (0,1,1) instead of losing to it — a bare
+     specificity matches (0,1,1) vs (0,1,1) instead of losing to it â€” a bare
      `.ta-quotation-print { visibility: visible }` (0,1,0) is weaker than
      `body:has(.ta-quotation-print) *` (0,1,0 class weight from :has() + the
      body type selector) and was silently re-hidden by it. */
@@ -313,7 +313,7 @@
   .ta-card-pad { padding: 16px; }
 }
 
-/* --- UI-1 refresh � additive polish (mobile + shell extras) --------- */
+/* --- UI-1 refresh ï¿½ additive polish (mobile + shell extras) --------- */
 /* Kept additive so the refactored shared base above stays reviewable. */
 @media (max-width: 480px) {
   .ta-page-head-actions { width: 100%; justify-content: flex-end; }
@@ -326,14 +326,14 @@
 }
 
 /* =====================================================================
-   UI-2 — Training Operations refresh (additive, scoped under .teras-admin)
+   UI-2 â€” Training Operations refresh (additive, scoped under .teras-admin)
    Shared primitives for Courses / Trainers / Training Schedule.
    ===================================================================== */
 
 /* KPI summary row (data-backed only; see pages for the queries). */
 .ta-kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-bottom: 24px; }
 
-/* Filter selects — consistent 40px height with the form controls. */
+/* Filter selects â€” consistent 40px height with the form controls. */
 .ta-select {
   min-height: 40px; padding: 9px 12px; border: 1px solid var(--ta-line); border-radius: 9px;
   background: #fff; font: inherit; font-size: 13.5px; color: var(--ta-ink); outline: none;
@@ -392,7 +392,7 @@
 .ta-sales .ta-stat .ta-stat-value { font-size: 24px; }
 .ta-sales .ta-stat .ta-stat-label { font-size: 12px; }
 
-/* Lead Inbox toolbar G�� consistent filter controls */
+/* Lead Inbox toolbar Gï¿½ï¿½ consistent filter controls */
 .ta-toolbar .ta-search { max-width: 260px; }
 .ta-filter-select,
 .ta-filter-date {
@@ -409,22 +409,22 @@
 .ta-filter-date-group { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: var(--ta-muted); }
 .ta-filter-date-group input { padding: 8px 10px; }
 
-/* Source labels G�� subtle, distinct for each lead source */
+/* Source labels Gï¿½ï¿½ subtle, distinct for each lead source */
 .ta-source { background: var(--ta-soft); color: var(--ta-navy); }
 .ta-source.enquiry { background: rgba(47,111,237,.1); color: var(--ta-info); }
 .ta-source.proposal_request { background: rgba(212,175,55,.15); color: #9a7a1f; }
 
-/* Status badge G�� "contacted" had no dedicated treatment */
+/* Status badge Gï¿½ï¿½ "contacted" had no dedicated treatment */
 .ta-badge-pill.contacted { background: rgba(124,92,255,.12); color: #6d4aff; }
 
-/* Lead detail G�� replace inline styles with classes */
+/* Lead detail Gï¿½ï¿½ replace inline styles with classes */
 .ta-lead-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
 .ta-lead-meta-time { color: var(--ta-muted); font-size: 13px; }
 .ta-stack { display: flex; flex-direction: column; gap: 10px; }
 .ta-subhead { margin: 16px 0 6px; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--ta-muted); }
 .ta-pre-wrap { margin: 0; white-space: pre-wrap; color: var(--ta-ink); font-size: 13.5px; line-height: 1.6; }
 
-/* Activity timeline G�� proper CRM treatment (CSS markers, no emoji) */
+/* Activity timeline Gï¿½ï¿½ proper CRM treatment (CSS markers, no emoji) */
 .ta-timeline-item { grid-template-columns: 20px 1fr; gap: 2px 12px; padding-bottom: 18px; }
 .ta-timeline-item::before { left: 9px; top: 26px; width: 2px; }
 .ta-timeline-marker {
@@ -445,10 +445,11 @@
 .ta-timeline-note { margin-top: 4px; color: var(--ta-ink); }
 .ta-timeline-actor { margin-top: 3px; }
 
-/* --- Activity timeline � final polish ---------------------------------- */
+/* --- Activity timeline ï¿½ final polish ---------------------------------- */
 .ta-timeline,
 .ta-timeline li { list-style: none; }
 .ta-timeline li::marker { content: none; }
 .ta-timeline-item { grid-template-columns: 16px 1fr; gap: 2px 9px; padding-bottom: 18px; }
 .ta-timeline-item::before { left: 7px; top: 22px; width: 2px; }
 .ta-timeline-marker { width: 14px; height: 14px; margin-top: 3px; }
+

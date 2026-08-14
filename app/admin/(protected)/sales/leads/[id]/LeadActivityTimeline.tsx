@@ -2,7 +2,7 @@ import { Card } from "../../../../../../components/admin/ui";
 import { CRM_ACTIVITY_LABELS, type SalesActivityRow } from "../../../../../../lib/sales/crm";
 
 /**
- * Reusable activity timeline for the Sales CRM (real data). Oldest GåÆ newest.
+ * Reusable activity timeline for the Sales CRM (real data). Oldest Gï¿½ï¿½ newest.
  * Each event renders a colour-coded marker (restrained admin palette, no
  * emoji), a vertical connector, a title + timestamp row, the optional note
  * and the actor. Rendered as an unnumbered list so no ordered numbering can
