@@ -91,6 +91,11 @@ export const scheduleSchema = z
     status: z.enum(["open", "full", "in_progress", "completed", "cancelled"]).default("open"),
     is_published: z.boolean().default(true),
     notes: z.string().trim().max(2000).optional().or(z.literal("")),
+    // Sales CRM Phase 3 handoff traceability — set only when this schedule
+    // is created from a Won Opportunity's "Create Training Schedule" action;
+    // empty string on every normal create/edit.
+    source_opportunity_id: z.string().uuid().optional().or(z.literal("")),
+    source_quotation_id: z.string().uuid().optional().or(z.literal("")),
   })
   .refine((v) => v.end_date >= v.start_date, {
     message: "End date must be on or after the start date",

@@ -16,12 +16,15 @@ export function ScheduleForm({
   courses,
   defaultTrainingMode,
   mode,
+  handoff,
 }: {
   action: (prev: ScheduleFormState, fd: FormData) => Promise<ScheduleFormState>;
   schedule?: any;
   courses: Option[];
   defaultTrainingMode?: string;
   mode: "create" | "edit";
+  /** Sales CRM Phase 3 — present only when opened via a Won Opportunity's "Create Training Schedule" action. */
+  handoff?: { opportunityId: string; quotationId?: string; opportunityNo?: string; quotationNo?: string };
 }) {
   const [state, formAction, pending] = useActionState<ScheduleFormState, FormData>(action, {});
   const e = state.errors ?? {};
@@ -30,6 +33,16 @@ export function ScheduleForm({
   return (
     <form action={formAction} className="ta-form" style={{ maxWidth: 820 }}>
       {state.message && <div className="ta-alert ta-alert-error">{state.message}</div>}
+
+      {handoff && (
+        <div className="ta-alert ta-alert-info" style={{ marginBottom: 16 }}>
+          Creating from Won Opportunity {handoff.opportunityNo ?? handoff.opportunityId}
+          {handoff.quotationNo ? ` — ${handoff.quotationNo}` : ""}. Review every field below before saving —
+          nothing here has been published or confirmed automatically.
+          <input type="hidden" name="source_opportunity_id" value={handoff.opportunityId} />
+          {handoff.quotationId && <input type="hidden" name="source_quotation_id" value={handoff.quotationId} />}
+        </div>
+      )}
 
       <Card title="Course & trainer">
         <div className="ta-form-pad">
@@ -90,8 +103,8 @@ export function ScheduleForm({
             </select>
           </Field>
           <label className="ta-check">
-            <input type="checkbox" name="is_published" defaultChecked={d.is_published ?? true} />
-            Published (visible/bookable)
+            <input type="checkbox" name="is_published" defaultChecked={d.is_published ?? !handoff} />
+            Published (visible/bookable){handoff && !d.is_published ? " — left unpublished; publish once details are confirmed" : ""}
           </label>
         </div>
       </Card>

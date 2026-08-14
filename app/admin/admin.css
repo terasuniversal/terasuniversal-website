@@ -246,6 +246,7 @@
 .ta-alert { padding: 11px 14px; border-radius: 9px; font-size: 13px; font-weight: 600; }
 .ta-alert-error { background: rgba(214,69,69,.1); color: var(--ta-danger); }
 .ta-alert-success { background: rgba(46,158,91,.1); color: var(--ta-success); }
+.ta-alert-info { background: rgba(47,111,237,.1); color: var(--ta-info); }
 .ta-pagination { display: flex; gap: 6px; justify-content: flex-end; align-items: center; padding: 14px 4px 0; }
 .ta-toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
 .ta-toolbar .ta-spacer { flex: 1; }
@@ -439,6 +440,7 @@
 .ta-timeline-marker.type-proposal_sent { background: rgba(124,92,255,.16); border-color: #6d4aff; }
 .ta-timeline-marker.type-won { background: rgba(46,158,91,.22); border-color: var(--ta-success); }
 .ta-timeline-marker.type-lost { background: rgba(102,112,133,.26); border-color: var(--ta-muted); }
+.ta-timeline-marker.type-training_handoff_created { background: rgba(46,158,91,.22); border-color: var(--ta-success); }
 .ta-timeline-meta { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .ta-timeline-title { font-weight: 700; }
 .ta-timeline-when { font-weight: 600; white-space: nowrap; }
