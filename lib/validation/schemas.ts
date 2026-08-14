@@ -85,6 +85,7 @@ export const scheduleSchema = z
     training_mode: z.string().trim().max(40).optional().or(z.literal("")),
     start_date: z.string().date("Enter a valid start date"),
     end_date: z.string().date("Enter a valid end date"),
+    exam_date: z.string().date("Enter a valid exam date").optional().or(z.literal("")),
     start_time: z.string().optional().or(z.literal("")),
     end_time: z.string().optional().or(z.literal("")),
     capacity: z.coerce.number().int().min(0).default(0),
@@ -373,6 +374,25 @@ export const quotationRejectSchema = z.object({
   reason: z.string().trim().min(1, "A rejection reason is required").max(500),
 });
 export type QuotationRejectInput = z.infer<typeof quotationRejectSchema>;
+
+/**
+ * Sales CRM Phase 4B — sales_tasks mutations. Priority reuses the same
+ * low/medium/high family as salesLeadFollowUpSchema (see
+ * 20260814250000_sales_tasks.sql's comment — this is deliberate, not an
+ * oversight of the low/normal/high/urgent set the task brief suggested).
+ * Relations (lead/opportunity/quotation) are all optional and independent.
+ */
+export const salesTaskSchema = z.object({
+  title: z.string().trim().min(2, "Title is required").max(200),
+  description: z.string().trim().max(2000).optional().or(z.literal("")),
+  priority: z.enum(["low", "medium", "high"]).default("medium"),
+  due_at: z.string().trim().optional().or(z.literal("")),
+  assigned_to: z.string().uuid().optional().or(z.literal("")),
+  lead_metadata_id: z.string().uuid().optional().or(z.literal("")),
+  opportunity_id: z.string().uuid().optional().or(z.literal("")),
+  quotation_id: z.string().uuid().optional().or(z.literal("")),
+});
+export type SalesTaskInput = z.infer<typeof salesTaskSchema>;
 
 /** Helper to flatten Zod errors into a { field: message } map for forms. */
 export function fieldErrors(error: z.ZodError): Record<string, string> {

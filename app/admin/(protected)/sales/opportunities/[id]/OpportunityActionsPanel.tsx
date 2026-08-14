@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import Link from "next/link";
 import { Card, Field } from "../../../../../../components/admin/ui";
 import {
   updateOpportunityStage,
@@ -124,6 +125,14 @@ export function OpportunityActionsPanel({
             {notePending ? "Saving…" : "Add Note"}
           </button>
         </form>
+      </Card>
+
+      <Card title="Tasks">
+        <div className="ta-card-pad">
+          <Link href={`/admin/sales/tasks/new?opportunityId=${opportunityId}`} className="ta-btn ta-btn-outline ta-btn-sm">
+            + Add Task
+          </Link>
+        </div>
       </Card>
 
       {!canManage && (
