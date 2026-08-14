@@ -3,11 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { requireRole } from "../../../../../lib/auth/session";
+import { redirect } from "next/navigation";
 import {
   salesLeadStatusSchema,
   salesLeadAssignSchema,
   salesLeadNoteSchema,
   salesLeadFollowUpSchema,
+  convertLeadToOpportunitySchema,
   fieldErrors,
 } from "../../../../../lib/validation/schemas";
 import { LOST_REASON_LABELS, type SalesCrmLostReason } from "../../../../../lib/sales/crm";
@@ -150,4 +152,45 @@ export async function addLeadNote(
 
   revalidateLead(leadMetadataId);
   return {};
+}
+
+/**
+ * Task 3: Convert Lead to Opportunity — admin+ (matches the RLS floor on
+ * sales_opportunities itself). Delegates the whole cascade (duplicate
+ * check, snapshot, opportunity_created activity) to the
+ * convert_lead_to_opportunity() SECURITY DEFINER RPC so the guard against a
+ * second opportunity for the same lead is enforced atomically at the
+ * database, not just re-checked in this action.
+ */
+export async function convertLeadToOpportunity(
+  leadMetadataId: string,
+  _prev: SalesActionState,
+  formData: FormData
+): Promise<SalesActionState> {
+  await requireRole("admin");
+  const parsed = convertLeadToOpportunitySchema.safeParse({
+    title: formData.get("title"),
+    expected_close_date: formData.get("expected_close_date") ?? "",
+    estimated_value: formData.get("estimated_value") || null,
+  });
+  if (!parsed.success) return { errors: fieldErrors(parsed.error) };
+
+  const supabase = await createSupabaseServerClient();
+  const { data: opportunityId, error } = await supabase.rpc("convert_lead_to_opportunity", {
+    p_lead_metadata_id: leadMetadataId,
+    p_title: parsed.data.title,
+    p_expected_close_date: parsed.data.expected_close_date || null,
+    p_estimated_value: parsed.data.estimated_value ?? null,
+  });
+
+  if (error) {
+    if (error.message?.includes("opportunity_already_exists")) {
+      return { message: "This lead has already been converted to an opportunity." };
+    }
+    return { message: error.message };
+  }
+
+  revalidateLead(leadMetadataId);
+  revalidatePath("/admin/sales/opportunities");
+  redirect(`/admin/sales/opportunities/${opportunityId}`);
 }
