@@ -30,7 +30,7 @@ export function IssueForm({
         {state.errors?.title && <span className="ta-error">{state.errors.title}</span>}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+      <div className="ta-fb-fields-3">
         <div className="ta-field">
           <label htmlFor="issue-category">Category</label>
           <input id="issue-category" name="category" defaultValue={defaultCategory ?? ""} placeholder="e.g. Venue" />

@@ -36,7 +36,7 @@ export function ActionForm({ issues, staff }: { issues: { id: string; title: str
         {state.errors?.title && <span className="ta-error">{state.errors.title}</span>}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10 }}>
+      <div className="ta-fb-fields-4">
         <div className="ta-field">
           <label htmlFor="action-category">Category</label>
           <input id="action-category" name="category" placeholder="e.g. Venue" />
