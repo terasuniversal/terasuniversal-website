@@ -58,42 +58,45 @@ export default async function SalesLeadsPage({
     <>
       <PageHead title="Sales Leads" subtitle="Unified inbox — public contact enquiries and proposal requests in one pipeline." />
 
-      <form className="ta-toolbar" style={{ alignItems: "flex-end" }}>
-        <div className="ta-search" style={{ maxWidth: 260 }}>
+      <form className="ta-toolbar">
+        <div className="ta-search">
           <span className="ta-search-ico" aria-hidden="true">⌕</span>
           <input name="q" defaultValue={sp.q ?? ""} placeholder="Search name, company, email…" />
         </div>
-        <select name="status" defaultValue={sp.status ?? ""} style={{ padding: "9px 10px", borderRadius: 9, border: "1px solid var(--ta-line)" }} aria-label="Status filter">
+        <select name="status" defaultValue={sp.status ?? ""} className="ta-filter-select" aria-label="Status filter">
           <option value="">All statuses</option>
           {CRM_STATUS_ORDER.map((s) => <option key={s} value={s}>{CRM_STATUS_LABELS[s]}</option>)}
         </select>
-        <select name="source" defaultValue={sp.source ?? ""} style={{ padding: "9px 10px", borderRadius: 9, border: "1px solid var(--ta-line)" }} aria-label="Source filter">
+        <select name="source" defaultValue={sp.source ?? ""} className="ta-filter-select" aria-label="Source filter">
           <option value="">All sources</option>
           <option value="enquiry">{SOURCE_LABELS.enquiry}</option>
           <option value="proposal_request">{SOURCE_LABELS.proposal_request}</option>
         </select>
-        <select name="assigned" defaultValue={sp.assigned ?? ""} style={{ padding: "9px 10px", borderRadius: 9, border: "1px solid var(--ta-line)", maxWidth: 180 }} aria-label="Assigned to filter">
+        <select name="assigned" defaultValue={sp.assigned ?? ""} className="ta-filter-select" style={{ maxWidth: 180 }} aria-label="Assigned to filter">
           <option value="">Anyone</option>
           <option value="unassigned">Unassigned</option>
           {staff.map((s) => <option key={s.id} value={s.id}>{s.full_name}</option>)}
         </select>
-        <label style={{ display: "flex", flexDirection: "column", fontSize: 12, color: "var(--ta-muted)" }}>
+        <label className="ta-filter-date-group">
           From
-          <input type="date" name="from" defaultValue={sp.from ?? ""} style={{ padding: "8px 10px", borderRadius: 9, border: "1px solid var(--ta-line)" }} />
+          <input type="date" name="from" defaultValue={sp.from ?? ""} className="ta-filter-date" />
         </label>
-        <label style={{ display: "flex", flexDirection: "column", fontSize: 12, color: "var(--ta-muted)" }}>
+        <label className="ta-filter-date-group">
           To
-          <input type="date" name="to" defaultValue={sp.to ?? ""} style={{ padding: "8px 10px", borderRadius: 9, border: "1px solid var(--ta-line)" }} />
+          <input type="date" name="to" defaultValue={sp.to ?? ""} className="ta-filter-date" />
         </label>
         <button type="submit" className="ta-btn ta-btn-outline ta-btn-sm">Apply</button>
         {(sp.q || sp.status || sp.source || sp.assigned || sp.from || sp.to) && (
           <Link className="ta-btn ta-btn-outline ta-btn-sm" href="/admin/sales/leads">Reset filters</Link>
         )}
-        <div className="ta-spacer" />
-        <a href={`/admin/sales/leads/export${exportQs ? "?" + exportQs : ""}`} className="ta-btn ta-btn-outline ta-btn-sm">⬇ CSV</a>
       </form>
 
-      <Card>
+      <Card
+        title="Lead Inbox"
+        action={
+          <a href={`/admin/sales/leads/export${exportQs ? "?" + exportQs : ""}`} className="ta-btn ta-btn-outline ta-btn-sm">Export CSV</a>
+        }
+      >
         {rows && rows.length > 0 ? (
           <LeadInboxTable rows={rows as SalesLeadInboxRow[]} staffNames={staffNames} />
         ) : (
@@ -102,7 +105,7 @@ export default async function SalesLeadsPage({
       </Card>
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ color: "var(--ta-muted)", fontSize: 13, paddingTop: 14 }}>{count ?? 0} lead(s)</span>
+        <span style={{ color: "var(--ta-muted)", fontSize: 13, paddingTop: 14 }}>{count ?? 0} {count === 1 ? "lead" : "leads"}</span>
         <Pagination page={page} pageCount={pageCount} basePath="/admin/sales/leads" query={qsBase} />
       </div>
     </>
