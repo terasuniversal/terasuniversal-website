@@ -20,21 +20,24 @@ export default async function ScheduleDetailsPage({
   const { id } = await params;
   const supabase = await createSupabaseServerClient();
 
-  const { data: s } = await supabase.from("course_schedules").select("*, courses(course_name)").eq("id", id).single();
+  const { data: s } = await supabase.from("course_schedules").select("*, courses(course_code, course_name)").eq("id", id).single();
   if (!s) notFound();
   const courseName = (s as any).courses?.course_name ?? "—";
   const capacity = Math.max(Number(s.capacity) || 0, 0);
   const seatsTaken = Math.max(Number(s.seats_taken) || 0, 0);
   const seatsRemaining = Math.max(capacity - seatsTaken, 0);
+  const duration = Math.floor((Date.parse(s.end_date) - Date.parse(s.start_date)) / 86_400_000) + 1;
 
   // Active enrollments (join) + available (active participants not currently enrolled).
   const { data: enrolled } = await supabase
     .from("schedule_participants")
-    .select("id, enrolled_at, registration_status, participants(id, participant_id, full_name, company, phone, status)")
+    .select("id, enrolled_at, registration_status, participants(id, participant_id, full_name, company, phone, status, deleted_at)")
     .eq("schedule_id", id)
     .is("deleted_at", null)
     .order("enrolled_at", { ascending: true });
-  const active = (enrolled ?? []).filter((a: any) => a.registration_status !== "cancelled");
+  const active = (enrolled ?? []).filter(
+    (a: any) => a.registration_status !== "cancelled" && a.participants && !a.participants.deleted_at
+  );
   const activeIds = new Set(active.map((a: any) => a.participants?.id).filter(Boolean));
 
   const { data: allActive } = await supabase
@@ -44,6 +47,11 @@ export default async function ScheduleDetailsPage({
     .order("full_name")
     .limit(500);
   const available = (allActive ?? []).filter((p: any) => !activeIds.has(p.id));
+
+  const { data: fbRows } = await supabase.from("participant_feedback").select("id, status").eq("schedule_id", id);
+  const fbSubmitted = (fbRows ?? []).filter((f: any) => f.status === "submitted").length;
+  const fbEligible = active.length;
+  const fbRate = fbEligible > 0 ? Math.round((fbSubmitted / fbEligible) * 100) : 0;
 
   const dl = { display: "grid", gridTemplateColumns: "150px 1fr", gap: 4, margin: 0 } as const;
 
@@ -79,11 +87,13 @@ export default async function ScheduleDetailsPage({
           <Card title="Schedule Details">
             <div className="ta-card-pad">
               <dl style={dl}>
-                <dt style={{ color: "var(--ta-muted)", padding: "6px 0" }}>Course</dt><dd style={{ margin: 0, padding: "6px 0" }}>{courseName}</dd>
+                <dt style={{ color: "var(--ta-muted)", padding: "6px 0" }}>Batch ID</dt><dd style={{ margin: 0, padding: "6px 0" }}>{s.schedule_code ?? "—"}</dd>
+                <dt style={{ color: "var(--ta-muted)", padding: "6px 0" }}>Course</dt><dd style={{ margin: 0, padding: "6px 0" }}>{(s as any).courses?.course_code ? `${(s as any).courses.course_code} — ` : ""}{courseName}</dd>
                 <dt style={{ color: "var(--ta-muted)", padding: "6px 0" }}>Trainer</dt><dd style={{ margin: 0, padding: "6px 0" }}>{s.trainer_name ?? "—"}</dd>
                 <dt style={{ color: "var(--ta-muted)", padding: "6px 0" }}>Venue</dt><dd style={{ margin: 0, padding: "6px 0" }}>{s.venue ?? "—"}</dd>
                 <dt style={{ color: "var(--ta-muted)", padding: "6px 0" }}>Mode</dt><dd style={{ margin: 0, padding: "6px 0" }}>{s.training_mode ?? "—"}</dd>
-                <dt style={{ color: "var(--ta-muted)", padding: "6px 0" }}>Dates</dt><dd style={{ margin: 0, padding: "6px 0" }}>{new Date(s.start_date).toLocaleDateString("en-MY")} – {new Date(s.end_date).toLocaleDateString("en-MY")}</dd>
+                <dt style={{ color: "var(--ta-muted)", padding: "6px 0" }}>Dates</dt><dd style={{ margin: 0, padding: "6px 0" }}>{new Date(s.start_date).toLocaleDateString("en-MY")} – {new Date(s.end_date).toLocaleDateString("en-MY")} ({duration} day(s))</dd>
+                <dt style={{ color: "var(--ta-muted)", padding: "6px 0" }}>Exam date</dt><dd style={{ margin: 0, padding: "6px 0" }}>{s.exam_date ? new Date(s.exam_date).toLocaleDateString("en-MY") : "—"}</dd>
                 <dt style={{ color: "var(--ta-muted)", padding: "6px 0" }}>Time</dt><dd style={{ margin: 0, padding: "6px 0" }}>{s.start_time ? `${s.start_time} – ${s.end_time ?? ""}` : "—"}</dd>
                 <dt style={{ color: "var(--ta-muted)", padding: "6px 0" }}>Notes</dt><dd style={{ margin: 0, padding: "6px 0" }}>{s.notes ?? "—"}</dd>
               </dl>
@@ -101,6 +111,18 @@ export default async function ScheduleDetailsPage({
             </div>
           </Card>
           <Card title="Certificate Generation"><div className="ta-card-pad"><EmptyState icon="🏅" message="Certificate generation for this schedule is a later follow-up (see SCHEDULES_ARCHITECTURE_DECISION.md §J)." /></div></Card>
+          <Card title="Participant Feedback">
+            <div className="ta-card-pad">
+              <div style={{ fontSize: 28, fontWeight: 800, color: "var(--ta-navy)", marginBottom: 4 }}>
+                {fbSubmitted} / {fbEligible} <span style={{ fontSize: 16, fontWeight: 600, color: "var(--ta-muted)" }}>responses</span>
+              </div>
+              <div className="ta-bar" style={{ marginBottom: 12 }}><span style={{ width: `${fbRate}%` }} /></div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <Link href={`/admin/feedback?schedule=${id}`} className="ta-btn ta-btn-outline">Open Feedback Dashboard</Link>
+                <Link href={`/admin/feedback/${id}`} className="ta-btn ta-btn-outline">Show QR / Links</Link>
+              </div>
+            </div>
+          </Card>
         </div>
 
         <div style={{ display: "grid", gap: 18 }}>

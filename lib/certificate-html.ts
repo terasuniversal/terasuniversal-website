@@ -164,6 +164,12 @@ export function renderCertificateFront(data: CertData, config: TemplateConfig): 
   const durationBlock = duration
     ? ribbonBanner(`<span style="font-size:12.5px;font-weight:600;letter-spacing:.5px;">${esc(duration)}</span>`, navy, gold, "margin:14px auto 0;display:block;width:fit-content;")
     : "";
+  // Mirrors CertificateDocument.tsx's programme_level pill — see that file's
+  // TemplateConfig comment for why this is a generic, gated-by-config field
+  // rather than a dedicated design variant.
+  const levelBlock = config.programme_level
+    ? `<div style="display:inline-block;margin:9px auto 0;padding:4px 16px;background:${gold};color:${navy};font-size:11px;font-weight:700;letter-spacing:1.4px;border-radius:3px;">${esc(config.programme_level.toLowerCase() === "awareness" ? "AWARENESS" : `${config.programme_level.toUpperCase()} LEVEL`)}</div>`
+    : "";
   const dateBlock = dateRange ? `<p style="font-size:12.5px;color:#4b5563;margin:13px 0 0;"><strong style="color:${navy};">Conducted from</strong> ${esc(dateRange)}</p>` : "";
   const qrHtml = config.show_qr !== false && data.qr_svg ? qrBlock(data.qr_svg, navy, gold, 104, true) : "";
   const signatureImg = config.signature_url ? `<img src="${esc(config.signature_url)}" alt="" style="height:38px;object-fit:contain;"/>` : "";
@@ -213,7 +219,8 @@ export function renderCertificateFront(data: CertData, config: TemplateConfig): 
     </div>
     ${icBlock}
     <p style="font-size:13.5px;margin:20px 0 4px;color:#4b5563;">For successfully completing the</p>
-    <div style="font-size:20px;font-weight:700;color:${navy};text-transform:uppercase;line-height:1.35;max-width:640px;margin:0 auto;">${esc(data.course_name ?? "")}</div>
+    <div style="font-size:20px;font-weight:700;color:${navy};text-transform:uppercase;line-height:1.35;max-width:640px;margin:0 auto;">${esc(config.programme_title || data.course_name || "")}</div>
+    ${levelBlock}
     ${durationBlock}
     ${dateBlock}
     <p style="font-size:12.5px;line-height:1.65;max-width:590px;margin:16px auto 0;color:#4b5563;">${esc(config.body_text || DEFAULT_BODY_TEXT)}</p>
@@ -244,7 +251,13 @@ export function renderCertificateBack(data: CertData, config: TemplateConfig): s
   const outcomes = config.learning_outcomes?.length ? config.learning_outcomes : DEFAULT_OUTCOMES;
   const assessment = config.assessment_methods?.length ? config.assessment_methods : DEFAULT_ASSESSMENT;
   const showSkillsRecord = config.show_skills_record !== false;
-  const skillsRecord = config.skills_record?.length ? config.skills_record : DEFAULT_SKILLS_RECORD;
+  // Mirrors CertificateDocument.tsx's CertificateBackPage precedence fix —
+  // see that file's comment.
+  const skillsRecord = data.certificate_skills_record?.length
+    ? data.certificate_skills_record
+    : data.participant_skills_record?.length
+      ? data.participant_skills_record
+      : config.skills_record?.length ? config.skills_record : DEFAULT_SKILLS_RECORD;
   const noticeParagraphs = config.important_notice ? config.important_notice.split(/\n{2,}/).filter(Boolean) : DEFAULT_NOTICE_PARAGRAPHS;
 
   const section = (icon: IconKind, title: string, body: string) =>

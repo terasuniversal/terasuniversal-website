@@ -34,6 +34,7 @@ export default function MobileNav({ basePath = "" }) {
     { label: "Industries", href: link("#industries") },
     { label: "FAQ", href: link("#faq") },
     { label: "Contact", href: link("#contact") },
+    { label: "WhatsApp", href: "https://wa.me/60195193834", external: true },
     { label: "Request Proposal", href: basePath ? `${basePath}request-proposal` : "/request-proposal" },
     { label: "Verify Certificate", href: basePath ? `${basePath}verify` : "/verify" },
     { label: "Search", href: basePath ? `${basePath}search` : "/search" },
@@ -49,11 +50,11 @@ export default function MobileNav({ basePath = "" }) {
       <button className={`menu-button ${open ? "is-open" : ""}`} type="button" aria-label={open ? "Close navigation menu" : "Open navigation menu"} aria-expanded={open} aria-controls="mobile-navigation" onClick={() => setOpen(!open)}><span /><span /><span /></button>
       <div id="mobile-navigation" className={`mobile-menu ${open ? "open" : ""}`} role="navigation" aria-label="Mobile navigation" onKeyDown={handleKeyDown}>
         <div className="mobile-menu-heading"><span>TERAS UNIVERSAL</span><strong>Explore our services</strong></div>
-        {items.map(({ label, href }) => {
+        {items.map(({ label, href, external }) => {
           const active = isActive(href);
-          return <a href={href} key={label} onClick={closeMenu} className={active ? "is-active" : undefined} aria-current={active ? "page" : undefined}>{label}</a>;
+          return <a href={href} key={label} onClick={closeMenu} className={active ? "is-active" : undefined} aria-current={active ? "page" : undefined} {...(external ? { target: "_blank", rel: "noreferrer" } : {})}>{label}</a>;
         })}
-        <a className="mobile-menu-cta" href="https://wa.me/60195193834" target="_blank" rel="noreferrer" onClick={closeMenu}>WhatsApp</a>
+        <a className="mobile-menu-cta" href={basePath ? `${basePath}request-proposal` : "/request-proposal"} onClick={closeMenu}>Request Proposal</a>
       </div>
     </>
   );

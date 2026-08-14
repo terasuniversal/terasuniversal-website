@@ -16,12 +16,15 @@ export function ScheduleForm({
   courses,
   defaultTrainingMode,
   mode,
+  handoff,
 }: {
   action: (prev: ScheduleFormState, fd: FormData) => Promise<ScheduleFormState>;
   schedule?: any;
   courses: Option[];
   defaultTrainingMode?: string;
   mode: "create" | "edit";
+  /** Sales CRM Phase 3 — present only when opened via a Won Opportunity's "Create Training Schedule" action. */
+  handoff?: { opportunityId: string; quotationId?: string; opportunityNo?: string; quotationNo?: string };
 }) {
   const [state, formAction, pending] = useActionState<ScheduleFormState, FormData>(action, {});
   const e = state.errors ?? {};
@@ -30,6 +33,26 @@ export function ScheduleForm({
   return (
     <form action={formAction} className="ta-form" style={{ maxWidth: 820 }}>
       {state.message && <div className="ta-alert ta-alert-error">{state.message}</div>}
+      {state.warnings && state.warnings.length > 0 && (
+        <div className="ta-alert ta-alert-info" role="status" style={{ marginBottom: 16 }}>
+          <strong>Schedule conflict warning</strong>
+          <ul style={{ margin: "8px 0 0", paddingLeft: 20 }}>
+            {state.warnings.map((warning, index) => <li key={`${warning.type}-${index}`}>{warning.message}</li>)}
+          </ul>
+          <div style={{ marginTop: 8 }}>You may save this schedule if the assignment is intentional.</div>
+        </div>
+      )}
+      <input type="hidden" name="conflict_token" value={state.conflictToken ?? ""} />
+
+      {handoff && (
+        <div className="ta-alert ta-alert-info" style={{ marginBottom: 16 }}>
+          Creating from Won Opportunity {handoff.opportunityNo ?? handoff.opportunityId}
+          {handoff.quotationNo ? ` — ${handoff.quotationNo}` : ""}. Review every field below before saving —
+          nothing here has been published or confirmed automatically.
+          <input type="hidden" name="source_opportunity_id" value={handoff.opportunityId} />
+          {handoff.quotationId && <input type="hidden" name="source_quotation_id" value={handoff.quotationId} />}
+        </div>
+      )}
 
       <Card title="Course & trainer">
         <div className="ta-form-pad">
@@ -79,6 +102,9 @@ export function ScheduleForm({
               <input id="end_time" name="end_time" type="time" defaultValue={d.end_time ?? ""} />
             </Field>
           </div>
+          <Field label="Exam date" name="exam_date" hint="Optional. Admin can add or update this later." error={e.exam_date}>
+            <input id="exam_date" name="exam_date" type="date" defaultValue={d.exam_date ?? ""} />
+          </Field>
         </div>
       </Card>
 
@@ -90,8 +116,8 @@ export function ScheduleForm({
             </select>
           </Field>
           <label className="ta-check">
-            <input type="checkbox" name="is_published" defaultChecked={d.is_published ?? true} />
-            Published (visible/bookable)
+            <input type="checkbox" name="is_published" defaultChecked={d.is_published ?? !handoff} />
+            Published (visible/bookable){handoff && !d.is_published ? " — left unpublished; publish once details are confirmed" : ""}
           </label>
         </div>
       </Card>
@@ -107,7 +133,7 @@ export function ScheduleForm({
       <div className="ta-form-actions">
         <Link href="/admin/schedules" className="ta-btn ta-btn-outline">Cancel</Link>
         <button type="submit" className="ta-btn ta-btn-primary" disabled={pending}>
-          {pending ? "Saving…" : mode === "edit" ? "Save changes" : "Create schedule"}
+          {pending ? "Saving…" : state.conflictToken ? "Save anyway" : mode === "edit" ? "Save changes" : "Create schedule"}
         </button>
       </div>
     </form>

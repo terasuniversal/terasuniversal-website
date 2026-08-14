@@ -2310,14 +2310,12 @@ summary:focus-visible {
 .training-programme-content {
   gap: 0;
 }
-.training-card-badges,
 .training-card-industries {
   display: flex;
   flex-wrap: wrap;
   gap: 7px;
-  margin-top: 16px;
+  margin-top: 14px;
 }
-.training-card-badges span,
 .training-card-industries span {
   display: inline-flex;
   align-items: center;
@@ -2327,14 +2325,6 @@ summary:focus-visible {
   font-size: 10px;
   font-weight: 800;
   line-height: 1;
-}
-.training-card-badges span {
-  border: 1px solid rgba(225, 169, 37, .4);
-  background: rgba(225, 169, 37, .1);
-  color: #8a650b;
-}
-.training-card-industries {
-  margin-top: 9px;
 }
 .training-card-industries span {
   border: 1px solid rgba(11, 44, 86, .12);
@@ -3656,10 +3646,6 @@ button:active {
 }
 
 /* ===== About page refinement ===== */
-.about-page .brand img {
-  width: 170px;
-  max-height: 66px;
-}
 .about-page .about-hero-media {
   border: 1px solid rgba(225, 169, 37, .46);
   box-shadow: 0 28px 68px rgba(8, 26, 58, .2), 0 0 0 4px rgba(225, 169, 37, .08);
@@ -3726,9 +3712,6 @@ button:active {
   color: #f4c75d;
 }
 @media (max-width: 920px) {
-  .about-page .brand img {
-    width: 166px;
-  }
   .about-page .about-approach-grid b {
     top: auto;
     right: 50%;
@@ -3740,9 +3723,6 @@ button:active {
   }
 }
 @media (max-width: 590px) {
-  .about-page .brand img {
-    width: 148px;
-  }
   .about-page .about-vision-grid article::before {
     right: 22px;
     left: 22px;
@@ -6704,4 +6684,470 @@ footer h3::after {
 /* ===== Mobile: avoid redundant fixed-action overlap ===== */
 @media (max-width: 590px) {
   .floating-whatsapp { display: none; }
+}
+
+/* ================================================================
+   UI/UX/CX Polish Pass 2
+   ================================================================ */
+
+/* ---- P1 Hero visual: caption + corner mark framed inside the image ---- */
+.hero-training-image { position: relative; isolation: isolate; }
+.hero-training-image::after { z-index: 1; }
+.hero-image-caption {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 14px;
+  z-index: 2;
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 255, 255, .14);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(5, 23, 52, .35), rgba(5, 23, 52, .88));
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.hero-image-caption span {
+  display: block;
+  color: #f4c75d;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+.hero-image-caption strong {
+  display: block;
+  margin-top: 5px;
+  color: #fff;
+  font-size: 13.5px;
+  line-height: 1.45;
+  font-weight: 700;
+}
+.hero-corner-mark {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(225, 169, 37, .6);
+  border-radius: 13px;
+  background: rgba(5, 23, 52, .5);
+  color: #f4c75d;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  pointer-events: none;
+}
+.hero-command-panel { gap: 16px; }
+@media (max-width: 590px) {
+  .hero-image-caption { left: 10px; right: 10px; bottom: 10px; padding: 12px 14px; }
+  .hero-image-caption strong { font-size: 12.5px; }
+  .hero-corner-mark { top: 10px; right: 10px; width: 38px; height: 38px; font-size: 12px; }
+}
+
+/* ---- P2/P8 Homepage length + vertical rhythm ---- */
+/* Tighten the default section rhythm on the public site only. Admin pages
+   are wrapped in .teras-admin and keep the original spacing. */
+@media (min-width: 591px) {
+  section { padding-block: 72px; }
+  body:has(.teras-admin) section { padding-block: 86px; }
+  .section-heading { margin-bottom: 34px; }
+}
+.section-heading p { max-width: 62ch; }
+
+.section-view-all { margin: 26px 0 0; text-align: center; }
+.section-view-all a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px 22px;
+  border: 1px solid rgba(10, 61, 145, .22);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--blue2);
+  font-weight: 850;
+  font-size: 14px;
+  transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
+}
+.section-view-all a:hover {
+  border-color: rgba(225, 169, 37, .6);
+  box-shadow: 0 10px 22px rgba(8, 26, 58, .08);
+  transform: translateY(-2px);
+}
+
+/* ---- P3 Card system: remove empty fixed height, unify radius ---- */
+.pillar-card { min-height: 0; }
+.programme-grid article { min-height: 0; }
+.delivery-card { min-height: 0; }
+.project-card { min-height: 0; }
+.method-step { min-height: 0; }
+.reason-grid article { border-radius: 22px; }
+.upcoming-card, .calendar-session { border-radius: 14px; }
+
+/* ---- P4 Mobile header + fixed action bar ---- */
+.menu-button { flex-shrink: 0; }
+.sticky-cta-mobile a { padding: 10px 8px; }
+@media (min-width: 591px) {
+  /* Stack the WhatsApp circle above the bottom-right proposal pill so the
+     two fixed actions never share the same anchor and overlap. */
+  .floating-whatsapp { bottom: calc(88px + env(safe-area-inset-bottom, 0px)); }
+}
+
+/* ---- P5 Calendar polish ---- */
+.calendar-toolbar { margin-bottom: 24px; }
+.calendar-controls select {
+  min-height: 42px;
+  padding-inline: 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 800;
+}
+.calendar-view-tabs button { min-height: 40px; padding: 9px 14px; }
+.calendar-view-tabs button:focus-visible,
+.calendar-controls select:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+.calendar-session-date {
+  display: grid;
+  gap: 2px;
+  align-content: start;
+}
+.calendar-session-date strong { color: var(--navy); font-size: 14px; line-height: 1.3; }
+.calendar-session-date span { color: var(--gold); font-size: 12px; font-weight: 800; }
+.calendar-session-date small { color: var(--muted); font-size: 11px; font-weight: 700; }
+.calendar-session {
+  grid-template-columns: minmax(160px, 190px) minmax(0, 1fr) auto auto auto;
+  transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
+}
+.calendar-session:hover {
+  border-color: rgba(225, 169, 37, .45);
+  box-shadow: 0 12px 28px rgba(8, 26, 58, .07);
+}
+@media (max-width: 920px) {
+  .calendar-session { grid-template-columns: 1fr 1fr; }
+  .calendar-session .btn { grid-column: 1 / -1; }
+}
+
+/* ---- P6 Upcoming training card ---- */
+.upcoming-card { grid-template-columns: minmax(150px, 190px) minmax(0, 1fr) auto auto; }
+.upcoming-date {
+  display: grid;
+  gap: 2px;
+  justify-items: start;
+  align-content: start;
+}
+.upcoming-date strong { color: var(--navy); font-size: 14px; line-height: 1.3; }
+.upcoming-date span { color: var(--gold); font-size: 12px; font-weight: 800; }
+.upcoming-date small { color: var(--muted); font-size: 11px; font-weight: 700; }
+
+/* ---- P7 CTA consistency ---- */
+.btn-outline:hover { background: #eef4ff; }
+.mega-nav-verify { display: inline-flex; align-items: center; gap: 5px; }
+.mega-nav-verify::before { content: "✓"; color: var(--gold); font-weight: 900; font-size: 12px; }
+
+/* ================================================================
+   UI/UX/CX Polish Pass 3
+   ================================================================ */
+
+/* ---- P1 Hero: calm, balanced, premium ---- */
+.hero-corporate { padding: 96px 0 84px; }
+.hero-corporate .hero-copy { padding-block: 10px; }
+.hero-lead { max-width: 60ch; line-height: 1.7; }
+.hero-actions { margin-top: 32px; }
+.hero-proof { margin-top: 30px; padding-top: 16px; gap: 10px 24px; }
+.hero-image-caption { box-shadow: 0 10px 26px rgba(0, 0, 0, .28); }
+.hero-image-caption strong { letter-spacing: .01em; }
+.hero-panel-services article { min-height: 62px; padding: 13px 14px; }
+.hero-panel-services strong { flex-basis: 30px; width: 30px; height: 30px; font-size: 10.5px; }
+
+/* ---- P2/P8 Header: Request Proposal is the primary action; WhatsApp is support ---- */
+.nav-proposal {
+  padding: 10px 16px;
+  border: 1px solid var(--blue);
+  border-radius: 10px;
+  background: var(--blue);
+  color: #fff;
+  box-shadow: 0 8px 18px rgba(10, 61, 145, .2);
+}
+.nav-proposal:hover { background: var(--blue2); border-color: var(--blue2); color: #fff; }
+.nav-cta {
+  padding: 9px 14px;
+  border: 1px solid rgba(10, 61, 145, .2);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--blue2);
+  box-shadow: none;
+}
+.nav-cta:hover { background: #eef4ff; color: var(--blue2); }
+.mega-nav { gap: 16px; }
+
+/* ---- P4 Card system refinements ---- */
+.programme-grid article { padding: 26px; border-radius: 22px; }
+.reason-grid article { padding: 22px; }
+.training-programme-content { padding: 22px; }
+.training-programme-content h3 { font-size: 1.2rem; margin: 10px 0 8px; }
+
+/* ---- P5 Training card: single strong action ---- */
+.training-card-link { font-size: 13.5px; }
+
+/* ---- P6 Upcoming training ---- */
+.upcoming-card { align-items: center; }
+.upcoming-date strong { font-size: 15px; }
+.upcoming-status { min-height: 26px; }
+
+/* ---- P7 Calendar density ---- */
+.calendar-session { padding: 16px 20px; gap: 16px; }
+.calendar-status { min-height: 26px; }
+
+/* ---- P10 Typography ---- */
+.section-heading p { line-height: 1.7; }
+
+/* ---- P9 Mobile: intuitive stacking + touch targets ---- */
+@media (max-width: 760px) {
+  .hero-corporate { padding: 52px 0 56px; }
+  .hero-copy .hero-actions { gap: 10px; }
+  .upcoming-card { grid-template-columns: 1fr; gap: 10px; padding: 18px; }
+  .upcoming-date { justify-items: start; }
+  .upcoming-info { order: 1; }
+  .upcoming-date { order: 2; }
+  .upcoming-status { order: 3; justify-self: start; }
+  .upcoming-link { order: 4; width: 100%; justify-content: center; }
+  .upcoming-empty .btn { width: 100%; justify-content: center; }
+}
+
+/* ================================================================
+   UI/UX/CX Polish Pass 4 — Visual Trust & Premium Consistency
+   ================================================================ */
+
+/* ---- P1/P2 Header proportion + logo presentation ----
+   Compact, premium header. Logo stays prominent but no longer dominates
+   the nav bar, leaving clear breathing room around the lockup. */
+.brand img { width: 164px; max-height: 56px; }
+@media (min-width: 921px) {
+  .nav-wrap { min-height: 72px; }
+  .brand img { width: 174px; max-height: 58px; }
+}
+@media (max-width: 590px) {
+  .brand img { width: 148px; max-height: 50px; }
+}
+
+/* ---- P4 Section rhythm: white / soft alternation with navy anchors ----
+   Breaks the long runs of consecutive soft (delivery→facilities→gallery)
+   and consecutive white (gallery→projects→industries) sections so the
+   homepage reads as a deliberate rhythm instead of one flat wash. */
+.delivery-section { background: #fff; }
+.projects-section { background: var(--soft, #f4f7fb); }
+
+/* ---- P5 Card icon treatment: consistent badge containers ---- */
+.method-step-marker { border-radius: 14px; }
+.reason-icon { border-radius: 14px; }
+
+/* ---- P7 Trust cues ---- */
+.success-metrics-grid article { padding: 28px 20px 24px; }
+.capability-grid article { min-height: 126px; padding: 24px; }
+
+/* ---- P8 Footer polish ---- */
+footer { padding: 64px 0 24px; }
+.footer-grid { gap: 40px; }
+footer h3 { font-size: 15px; margin-bottom: 14px; letter-spacing: .02em; }
+footer p { line-height: 2.1; }
+.footer-bottom { margin-top: 40px; }
+.footer-grid a[href="/verify"] { display: inline-block; }
+.footer-grid a[href="/verify"]::before { content: "✓ "; color: var(--gold); font-weight: 900; }
+
+/* ---- P10 Button consistency ---- */
+.btn { line-height: 1.15; }
+
+/* ---- P9 Mobile typography & card density ---- */
+@media (max-width: 590px) {
+  .training-programme-content,
+  .facility-content,
+  .delivery-card,
+  .project-card,
+  .pillar-card,
+  .reason-grid article { padding: 20px; }
+  .success-metrics-grid article { padding: 22px 16px; }
+  .section-heading h2 { font-size: clamp(30px, 9vw, 40px); }
+}
+
+/* ---- Contact lead capture: server-side submission states ---- */
+.form-status {
+  margin: 14px 0 0;
+  color: var(--blue);
+  font-size: 13px;
+  font-weight: 750;
+}
+.form-status-success,
+.contact-form-status-success {
+  color: #1a7a4c;
+}
+.form-status-error,
+.contact-form-status-error {
+  color: #b3261e;
+}
+.form-field-error {
+  display: block;
+  margin-top: 4px;
+  color: #b3261e;
+  font-size: 12px;
+  font-weight: 600;
+}
+.form-note,
+.contact-form-note {
+  margin: 14px 0 0;
+  color: var(--muted, #6b7280);
+  font-size: 13px;
+}
+
+
+/* ================================================================
+   Participant Feedback — public form (mobile-first)
+   ================================================================ */
+.feedback-page {
+  min-height: 100vh;
+  padding: 32px 16px 64px;
+  background: linear-gradient(160deg, #f4f7fb 0%, #ffffff 55%);
+}
+.feedback-shell {
+  width: min(680px, 100%);
+  margin: 0 auto;
+  padding: 32px 26px 40px;
+  border: 1px solid var(--line, #e1e6ee);
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 24px 60px rgba(8, 26, 58, .10);
+}
+.feedback-logo {
+  display: block;
+  width: 132px;
+  margin: 0 auto 22px;
+  object-fit: contain;
+}
+.feedback-head { text-align: center; margin-bottom: 26px; }
+.feedback-eyebrow {
+  display: inline-block;
+  padding: 6px 12px;
+  border: 1px solid rgba(212, 175, 55, .45);
+  border-radius: 999px;
+  background: #fdf6e3;
+  color: #8a650b;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+.feedback-head h1 {
+  margin: 14px 0 6px;
+  color: var(--navy, #0b2c56);
+  font-size: clamp(24px, 5vw, 34px);
+  line-height: 1.15;
+  letter-spacing: -.02em;
+}
+.feedback-ref { margin: 0; color: var(--muted, #687386); font-size: 12px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+.feedback-meta { margin: 4px 0 0; color: var(--muted, #687386); font-size: 14px; }
+.feedback-intro { margin: 14px auto 0; max-width: 54ch; color: var(--muted, #687386); font-size: 14px; line-height: 1.7; }
+
+.feedback-form { display: grid; gap: 24px; }
+.feedback-block { margin: 0; padding: 0; border: 0; display: grid; gap: 12px; }
+.feedback-block legend {
+  font-size: 13px; font-weight: 850; color: var(--navy, #0b2c56);
+  letter-spacing: .02em; margin-bottom: 4px; padding: 0;
+}
+.feedback-question { display: grid; gap: 8px; padding-bottom: 14px; border-bottom: 1px solid var(--line, #e1e6ee); }
+.feedback-question-text { display: flex; gap: 10px; margin: 0; color: var(--ink, #202733); font-size: 14.5px; line-height: 1.5; }
+.feedback-qnum { color: var(--gold, #e1a925); font-weight: 900; font-size: 12px; padding-top: 1px; }
+.feedback-scale { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.feedback-scale-btn,
+.feedback-nps-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border: 1px solid #ccd4df;
+  border-radius: 50%;
+  background: #fff;
+  color: var(--navy, #0b2c56);
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: border-color .15s ease, background-color .15s ease, color .15s ease, transform .15s ease;
+}
+.feedback-scale-btn:hover,
+.feedback-nps-btn:hover { border-color: var(--gold, #e1a925); transform: translateY(-1px); }
+.feedback-scale-btn.is-selected,
+.feedback-nps-btn.is-selected { background: var(--navy, #0b2c56); border-color: var(--navy, #0b2c56); color: #fff; }
+.feedback-scale-btn:focus-visible,
+.feedback-nps-btn:focus-visible,
+.feedback-input:focus-visible,
+.feedback-submit:focus-visible { outline: 3px solid rgba(212, 175, 55, .55); outline-offset: 2px; }
+.feedback-scale-labels { display: flex; justify-content: space-between; width: 100%; color: var(--muted, #687386); font-size: 11px; margin-top: 2px; }
+.feedback-nps { display: flex; gap: 6px; flex-wrap: wrap; }
+.feedback-nps-btn { width: 40px; height: 40px; font-size: 13.5px; }
+.feedback-nps-labels { display: flex; justify-content: space-between; color: var(--muted, #687386); font-size: 11px; }
+
+.feedback-label { display: block; font-size: 13px; font-weight: 850; color: var(--navy, #0b2c56); }
+.feedback-input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #ccd4df;
+  border-radius: 10px;
+  background: #fff;
+  color: var(--ink, #202733);
+  font: inherit;
+  font-size: 15px;
+  outline: none;
+}
+.feedback-input:focus { border-color: var(--navy, #0b2c56); box-shadow: 0 0 0 3px rgba(11, 44, 86, .08); }
+textarea.feedback-input { resize: vertical; min-height: 88px; }
+
+.feedback-choice-row { display: flex; gap: 10px; }
+.feedback-choice {
+  flex: 1;
+  min-height: 52px;
+  border: 1px solid #ccd4df;
+  border-radius: 10px;
+  background: #fff;
+  color: var(--navy, #0b2c56);
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.feedback-choice.is-selected { border-color: var(--navy, #0b2c56); background: rgba(11, 44, 86, .06); }
+.feedback-choice:focus-visible { outline: 3px solid rgba(212, 175, 55, .55); outline-offset: 2px; }
+.feedback-problem-fields { display: grid; gap: 10px; margin-top: 6px; }
+
+.feedback-error { margin: 0; color: #b3261e; font-size: 13px; font-weight: 600; }
+.feedback-submit {
+  min-height: 54px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--navy, #0b2c56);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 850;
+  letter-spacing: .02em;
+  cursor: pointer;
+  transition: background-color .15s ease, transform .15s ease;
+}
+.feedback-submit:hover { background: #123d72; transform: translateY(-1px); }
+.feedback-submit:disabled { opacity: .65; cursor: wait; }
+.feedback-privacy { margin: 0; color: var(--muted, #687386); font-size: 12px; line-height: 1.6; text-align: center; }
+
+.feedback-state { text-align: center; padding: 20px 8px; }
+.feedback-state h1 { margin: 14px 0 8px; color: var(--navy, #0b2c56); font-size: clamp(22px, 5vw, 30px); }
+.feedback-state p { margin: 6px auto 0; max-width: 52ch; color: var(--muted, #687386); font-size: 15px; line-height: 1.7; }
+.feedback-success { padding-top: 26px; }
+.feedback-success-mark {
+  width: 58px; height: 58px; margin: 0 auto; display: grid; place-items: center;
+  border-radius: 50%; background: #e8f5ec; color: #1f6541; font-size: 26px; font-weight: 900;
+}
+.feedback-success h2 { margin: 16px 0 6px; color: var(--navy, #0b2c56); font-size: 26px; }
+
+@media (min-width: 560px) {
+  .feedback-page { padding: 48px 20px 80px; }
+  .feedback-shell { padding: 40px 44px 48px; }
 }

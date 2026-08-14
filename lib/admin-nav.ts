@@ -48,6 +48,21 @@ export const NAV: NavGroup[] = [
     ],
   },
   {
+    label: "Sales",
+    items: [
+      // Only production-backed routes -- matches this file's own "only
+      // routes that exist" convention. All Sales routes are now real as of
+      // Phase 4C (Reports was the last SalesPlaceholder stub).
+      { key: "sales", label: "Sales Dashboard", href: "/admin/sales", icon: "sales", minRole: "editor" },
+      { key: "sales_leads", label: "Leads", href: "/admin/sales/leads", icon: "leads", minRole: "editor" },
+      { key: "sales_opportunities", label: "Opportunities", href: "/admin/sales/opportunities", icon: "opportunities", minRole: "editor" },
+      { key: "sales_quotations", label: "Quotations", href: "/admin/sales/quotations", icon: "quotations", minRole: "editor" },
+      { key: "sales_followups", label: "Follow-ups", href: "/admin/sales/follow-ups", icon: "followups", minRole: "editor" },
+      { key: "sales_tasks", label: "Tasks", href: "/admin/sales/tasks", icon: "tasks", minRole: "editor" },
+      { key: "sales_reports", label: "Reports", href: "/admin/sales/reports", icon: "sales-reports", minRole: "editor" },
+    ],
+  },
+  {
     label: "Website Content",
     items: [
       { key: "news", label: "News", href: "/admin/news", icon: "news", minRole: "editor" },
@@ -66,6 +81,15 @@ export const NAV: NavGroup[] = [
       { key: "backups", label: "Backup Manager", href: "/admin/backups", icon: "backups", minRole: "admin" },
       { key: "audit", label: "Audit Log", href: "/admin/audit", icon: "audit", minRole: "admin" },
       { key: "users", label: "Users & Roles", href: "/admin/users", icon: "users", minRole: "super_admin" },
+    ],
+  },
+  {
+    label: "Feedback",
+    items: [
+      { key: "feedback", label: "Feedback Dashboard", href: "/admin/feedback", icon: "feedback", minRole: "editor" },
+      { key: "feedback_responses", label: "Responses", href: "/admin/feedback/responses", icon: "feedback-responses", minRole: "editor" },
+      { key: "feedback_issues", label: "Issues", href: "/admin/feedback/issues", icon: "feedback-issues", minRole: "editor" },
+      { key: "feedback_actions", label: "Improvement Actions", href: "/admin/feedback/actions", icon: "feedback-actions", minRole: "editor" },
     ],
   },
 ];

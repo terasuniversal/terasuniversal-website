@@ -45,16 +45,30 @@ export default async function CalendarPage({
   const supabase = await createSupabaseServerClient();
   const { data: rawRows } = await supabase
     .from("course_schedules")
-    .select("id, schedule_code, trainer_name, status, start_date, end_date, start_time, courses(course_name)")
+    .select("id, schedule_code, trainer_name, venue, status, start_date, end_date, start_time, courses(course_code, course_name)")
     .is("deleted_at", null)
-    .gte("start_date", ymd(windowStart))
     .lte("start_date", ymd(windowEnd))
+    .gte("end_date", ymd(windowStart))
     .order("start_date", { ascending: true });
-  const rows = (rawRows ?? []).map((r: any) => ({ ...r, course_name: r.courses?.course_name ?? "—", trainer: r.trainer_name }));
+  const rows = (rawRows ?? []).map((r: any) => ({
+    ...r,
+    course_code: r.courses?.course_code,
+    course_name: r.courses?.course_name ?? "—",
+    trainer: r.trainer_name,
+  }));
 
-  // Bucket by start day.
+  // A multi-day batch belongs to every visible day it occupies. This also
+  // renders valid concurrent batches together instead of replacing one.
   const byDay: Record<string, any[]> = {};
-  for (const r of rows) (byDay[r.start_date] ??= []).push(r);
+  for (const r of rows) {
+    let day = new Date(`${r.start_date}T00:00:00`);
+    const last = new Date(`${r.end_date}T00:00:00`);
+    if (day < windowStart) day = new Date(windowStart);
+    while (day <= last && day <= windowEnd) {
+      (byDay[ymd(day)] ??= []).push(r);
+      day = addDays(day, 1);
+    }
+  }
 
   const prev = view === "week" ? addDays(anchor, -7) : view === "list" ? addDays(anchor, -30) : new Date(anchor.getFullYear(), anchor.getMonth() - 1, 1);
   const next = view === "week" ? addDays(anchor, 7) : view === "list" ? addDays(anchor, 30) : new Date(anchor.getFullYear(), anchor.getMonth() + 1, 1);
@@ -99,13 +113,12 @@ export default async function CalendarPage({
                       return (
                         <td key={dow} style={{ verticalAlign: "top", height: 96, background: inMonth ? "#fff" : "var(--ta-soft)", opacity: inMonth ? 1 : 0.6 }}>
                           <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ta-muted)", marginBottom: 4 }}>{day.getDate()}</div>
-                          {events.slice(0, 3).map((ev) => (
-                            <Link key={ev.id} href={`/admin/schedules/${ev.id}`} title={ev.course_name}
+                          {events.map((ev) => (
+                            <Link key={ev.id} href={`/admin/schedules/${ev.id}`} title={`${ev.course_name}${ev.trainer ? ` — ${ev.trainer}` : ""}`}
                               style={{ display: "block", fontSize: 11, padding: "2px 5px", marginBottom: 2, borderRadius: 5, background: "rgba(11,44,86,.08)", color: "var(--ta-navy)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                              {ev.start_time ? ev.start_time.slice(0, 5) + " " : ""}{ev.course_name}
+                              {ev.start_time ? ev.start_time.slice(0, 5) + " " : ""}{ev.course_code ? `${ev.course_code} — ` : ""}{ev.course_name}
                             </Link>
                           ))}
-                          {events.length > 3 && <div style={{ fontSize: 10, color: "var(--ta-muted)" }}>+{events.length - 3} more</div>}
                         </td>
                       );
                     })}
@@ -127,7 +140,8 @@ export default async function CalendarPage({
                 <div style={{ fontWeight: 700, marginBottom: 8 }}>{WD[day.getDay()]} {day.getDate()}</div>
                 {events.length === 0 ? <span style={{ color: "var(--ta-muted)", fontSize: 12 }}>—</span> : events.map((ev) => (
                   <Link key={ev.id} href={`/admin/schedules/${ev.id}`} style={{ display: "block", fontSize: 12, marginBottom: 6 }}>
-                    <Badge status={ev.status} /><div>{ev.course_name}</div>
+                    <Badge status={ev.status} /><div>{ev.course_code ? `${ev.course_code} — ` : ""}{ev.course_name}</div>
+                    <div style={{ color: "var(--ta-muted)" }}>{ev.trainer ?? "No trainer"}{ev.venue ? ` · ${ev.venue}` : ""}</div>
                   </Link>
                 ))}
               </div>
@@ -141,13 +155,13 @@ export default async function CalendarPage({
           {rows && rows.length > 0 ? (
             <div className="ta-table-wrap">
               <table className="ta-table">
-                <thead><tr><th>Date</th><th>Course</th><th>Trainer</th><th>Status</th></tr></thead>
+                <thead><tr><th>Date range</th><th>Course</th><th>Trainer / Venue</th><th>Status</th></tr></thead>
                 <tbody>
                   {rows.map((ev: any) => (
                     <tr key={ev.id}>
-                      <td style={{ whiteSpace: "nowrap" }}>{new Date(ev.start_date).toLocaleDateString("en-MY", { weekday: "short", day: "numeric", month: "short" })}</td>
-                      <td><Link href={`/admin/schedules/${ev.id}`}><strong>{ev.course_name}</strong></Link></td>
-                      <td>{ev.trainer ?? "—"}</td>
+                      <td style={{ whiteSpace: "nowrap" }}>{new Date(ev.start_date).toLocaleDateString("en-MY", { day: "numeric", month: "short" })} – {new Date(ev.end_date).toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric" })}</td>
+                      <td><Link href={`/admin/schedules/${ev.id}`}><strong>{ev.course_code ? `${ev.course_code} — ` : ""}{ev.course_name}</strong></Link></td>
+                      <td>{ev.trainer ?? "—"}<div style={{ color: "var(--ta-muted)", fontSize: 12 }}>{ev.venue ?? "No venue assigned"}</div></td>
                       <td><Badge status={ev.status} /></td>
                     </tr>
                   ))}

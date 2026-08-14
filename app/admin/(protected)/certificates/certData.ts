@@ -2,6 +2,7 @@ import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { siteOrigin } from "../../../../lib/site-origin";
 import { generateQrSvg, formatHumanDate } from "../../../../lib/certificate-format";
 import type { CertData, TemplateConfig } from "../../../../components/admin/CertificateDocument";
+import { findStandardScaffoldProgrammeByCourseId } from "../../../../lib/standard-scaffold-programmes";
 
 // Delegates to the same UTC-safe, round-trip-validated parser the renderers
 // use (lib/certificate-format.ts) — this file previously used
@@ -218,6 +219,29 @@ export async function loadCertificateRender(id: string): Promise<
     tpl = def ?? null;
   }
   const config: TemplateConfig = { ...((tpl?.config as TemplateConfig) ?? {}) };
+
+  // Standard Scaffold family (see lib/standard-scaffold-programmes.ts): one
+  // shared certificate_templates row covers all seven programmes, so the
+  // programme-specific content (title, level, objectives, coverage, etc.)
+  // can't live on the template row itself — it's merged in here, per
+  // certificate, keyed by the course actually being certified. A template's
+  // own explicitly-set config value always wins over the programme default
+  // (mirrors every other config field's "template row is authoritative,
+  // programme content is only a fallback" precedence in this file), so an
+  // admin can still override wording per template without code changes.
+  if (config.design_variant === "standard_scaffold_certificate") {
+    const programme = findStandardScaffoldProgrammeByCourseId(c.course_id);
+    if (programme) {
+      config.programme_title ||= programme.programme_title;
+      config.programme_level ||= programme.level;
+      config.programme_category ||= programme.category;
+      config.duration_label ||= programme.duration_label;
+      config.objectives_text ||= programme.objectives_text;
+      if (!config.coverage_items?.length) config.coverage_items = programme.coverage_items;
+      if (!config.learning_outcomes?.length) config.learning_outcomes = programme.learning_outcomes;
+      if (!config.assessment_methods?.length) config.assessment_methods = programme.assessment_methods;
+    }
+  }
 
   const certificateNumber: string = c.certificate_number || c.certificate_no;
   const origin = await siteOrigin();

@@ -85,12 +85,18 @@ export const scheduleSchema = z
     training_mode: z.string().trim().max(40).optional().or(z.literal("")),
     start_date: z.string().date("Enter a valid start date"),
     end_date: z.string().date("Enter a valid end date"),
+    exam_date: z.string().date("Enter a valid exam date").optional().or(z.literal("")),
     start_time: z.string().optional().or(z.literal("")),
     end_time: z.string().optional().or(z.literal("")),
     capacity: z.coerce.number().int().min(0).default(0),
     status: z.enum(["open", "full", "in_progress", "completed", "cancelled"]).default("open"),
     is_published: z.boolean().default(true),
     notes: z.string().trim().max(2000).optional().or(z.literal("")),
+    // Sales CRM Phase 3 handoff traceability — set only when this schedule
+    // is created from a Won Opportunity's "Create Training Schedule" action;
+    // empty string on every normal create/edit.
+    source_opportunity_id: z.string().uuid().optional().or(z.literal("")),
+    source_quotation_id: z.string().uuid().optional().or(z.literal("")),
   })
   .refine((v) => v.end_date >= v.start_date, {
     message: "End date must be on or after the start date",
@@ -125,6 +131,22 @@ export const participantSkillResultSchema = z.object({
 });
 export type ParticipantSkillResultInput = z.infer<typeof participantSkillResultSchema>;
 
+// Public contact lead capture (ContactForm.js homepage widget +
+// ContactEnquiryForm.js on /contact). subject/enquiryType option lists
+// differ slightly between the two forms, so subject stays free text rather
+// than an enum -- enquiryType is identical across both and safe to enum.
+export const contactEnquirySchema = z.object({
+  name: z.string().trim().min(2, "Full name is required").max(120),
+  company: z.string().trim().max(160).optional().or(z.literal("")),
+  email: z.string().trim().email("Enter a valid email").max(254),
+  phone: z.string().trim().min(5, "Phone is required").max(40),
+  enquiryType: z.enum(["Corporate", "Individual", "Government", "Training"]),
+  subject: z.string().trim().min(1, "Please select what you're enquiring about").max(160),
+  message: z.string().trim().min(1, "Message is required").max(3000),
+  sourcePage: z.enum(["homepage", "contact_page"]),
+});
+export type ContactEnquiryInput = z.infer<typeof contactEnquirySchema>;
+
 export const participantSchema = z.object({
   // Required fields (friendly messages).
   full_name: z.string().trim().min(2, "Full name is required").max(160),
@@ -147,12 +169,20 @@ export const participantSchema = z.object({
 });
 export type ParticipantInput = z.infer<typeof participantSchema>;
 
-/** Row shape accepted by the CSV/Excel importer (header → field mapping). */
+/**
+ * Row shape accepted by the CSV/Excel importer (header → field mapping).
+ * Company and phone are optional here (unlike participantSchema, which the
+ * manual add/edit form still enforces both as required for) — bulk source
+ * lists (e.g. a passport register) legitimately lack a phone number or, in
+ * rare cases, a confirmed company, and the DB columns are nullable. Leave
+ * blank rather than fabricate a value; do not tighten this back to required
+ * without a corresponding UI/business-rule reason.
+ */
 export const participantImportRowSchema = z.object({
   full_name: z.string().trim().min(2),
   ic_passport_no: z.string().trim().min(3),
-  company: z.string().trim().min(1),
-  phone: z.string().trim().min(5),
+  company: z.string().trim().max(160).optional().or(z.literal("")),
+  phone: z.string().trim().max(40).optional().or(z.literal("")),
   email: z.string().trim().email().optional().or(z.literal("")),
   nationality: z.string().trim().max(80).optional().or(z.literal("")),
   position: z.string().trim().max(120).optional().or(z.literal("")),
@@ -254,6 +284,116 @@ export const certificateTemplateConfigSchema = z
   })
   .passthrough();
 
+/**
+ * Sales CRM V1 — sales_lead_metadata / sales_activity mutations. Kept
+ * separate from lib/sales/crm.ts's display-oriented type unions so the
+ * validated-input shape (this file's job, per this file's own header
+ * comment) doesn't drift from what components render.
+ */
+export const salesLeadStatusSchema = z
+  .object({
+    status: z.enum(["new", "contacted", "qualified", "proposal_sent", "negotiation", "won", "lost", "archived"]),
+    lost_reason: z.enum(["price", "no_budget", "no_response", "timing", "competitor", "requirement_changed", "duplicate", "other"]).optional().or(z.literal("")),
+  })
+  .refine((v) => v.status !== "lost" || !!v.lost_reason, {
+    message: "Select a reason for marking this lead lost",
+    path: ["lost_reason"],
+  });
+export type SalesLeadStatusInput = z.infer<typeof salesLeadStatusSchema>;
+
+export const salesLeadAssignSchema = z.object({
+  assigned_to: z.string().uuid().optional().or(z.literal("")),
+});
+export type SalesLeadAssignInput = z.infer<typeof salesLeadAssignSchema>;
+
+export const salesLeadNoteSchema = z.object({
+  note: z.string().trim().min(1, "Note is required").max(3000),
+});
+export type SalesLeadNoteInput = z.infer<typeof salesLeadNoteSchema>;
+
+export const salesLeadFollowUpSchema = z.object({
+  follow_up_at: z.string().trim().optional().or(z.literal("")),
+  priority: z.enum(["low", "medium", "high"]).optional(),
+});
+export type SalesLeadFollowUpInput = z.infer<typeof salesLeadFollowUpSchema>;
+
+/**
+ * Sales CRM Phase 2 — sales_opportunities / sales_quotations / sales_quotation_items mutations.
+ */
+export const convertLeadToOpportunitySchema = z.object({
+  title: z.string().trim().min(2, "Title is required").max(200),
+  expected_close_date: z.string().trim().optional().or(z.literal("")),
+  estimated_value: z.coerce.number().min(0).optional().nullable(),
+});
+export type ConvertLeadToOpportunityInput = z.infer<typeof convertLeadToOpportunitySchema>;
+
+export const opportunityStageSchema = z
+  .object({
+    stage: z.enum(["new", "qualified", "quotation", "negotiation", "won", "lost", "archived"]),
+  });
+export type OpportunityStageInput = z.infer<typeof opportunityStageSchema>;
+
+export const opportunityLostSchema = z.object({
+  lost_reason: z.enum(["price", "no_budget", "no_response", "timing", "competitor", "requirement_changed", "duplicate", "other"]),
+});
+export type OpportunityLostInput = z.infer<typeof opportunityLostSchema>;
+
+export const opportunityAssignSchema = z.object({
+  assigned_to: z.string().uuid().optional().or(z.literal("")),
+});
+export type OpportunityAssignInput = z.infer<typeof opportunityAssignSchema>;
+
+export const opportunityExpectedCloseSchema = z.object({
+  expected_close_date: z.string().trim().optional().or(z.literal("")),
+  probability: z.coerce.number().min(0).max(100).optional().nullable(),
+});
+export type OpportunityExpectedCloseInput = z.infer<typeof opportunityExpectedCloseSchema>;
+
+const quotationItemInputSchema = z.object({
+  description: z.string().trim().min(1, "Description is required").max(500),
+  quantity: z.coerce.number().positive("Quantity must be greater than 0"),
+  unit: z.enum(["pax", "session", "day", "lot", "unit"]),
+  unit_price: z.coerce.number().min(0, "Unit price cannot be negative"),
+  discount: z.coerce.number().min(0, "Discount cannot be negative").default(0),
+});
+export type QuotationItemInput = z.infer<typeof quotationItemInputSchema>;
+
+export const quotationHeaderSchema = z.object({
+  valid_until: z.string().trim().optional().or(z.literal("")),
+  currency: z.string().trim().min(1).max(10).default("MYR"),
+  discount: z.coerce.number().min(0, "Discount cannot be negative").default(0),
+  sst_applicable: z.coerce.boolean().default(false),
+  sst_rate: z.coerce.number().min(0).max(100).default(0),
+  terms: z.string().trim().max(3000).optional().or(z.literal("")),
+  notes: z.string().trim().max(3000).optional().or(z.literal("")),
+  items: z.array(quotationItemInputSchema).min(1, "Add at least one line item"),
+});
+export type QuotationHeaderInput = z.infer<typeof quotationHeaderSchema>;
+
+export const quotationRejectSchema = z.object({
+  reason: z.string().trim().min(1, "A rejection reason is required").max(500),
+});
+export type QuotationRejectInput = z.infer<typeof quotationRejectSchema>;
+
+/**
+ * Sales CRM Phase 4B — sales_tasks mutations. Priority reuses the same
+ * low/medium/high family as salesLeadFollowUpSchema (see
+ * 20260814250000_sales_tasks.sql's comment — this is deliberate, not an
+ * oversight of the low/normal/high/urgent set the task brief suggested).
+ * Relations (lead/opportunity/quotation) are all optional and independent.
+ */
+export const salesTaskSchema = z.object({
+  title: z.string().trim().min(2, "Title is required").max(200),
+  description: z.string().trim().max(2000).optional().or(z.literal("")),
+  priority: z.enum(["low", "medium", "high"]).default("medium"),
+  due_at: z.string().trim().optional().or(z.literal("")),
+  assigned_to: z.string().uuid().optional().or(z.literal("")),
+  lead_metadata_id: z.string().uuid().optional().or(z.literal("")),
+  opportunity_id: z.string().uuid().optional().or(z.literal("")),
+  quotation_id: z.string().uuid().optional().or(z.literal("")),
+});
+export type SalesTaskInput = z.infer<typeof salesTaskSchema>;
+
 /** Helper to flatten Zod errors into a { field: message } map for forms. */
 export function fieldErrors(error: z.ZodError): Record<string, string> {
   const out: Record<string, string> = {};
@@ -263,3 +403,99 @@ export function fieldErrors(error: z.ZodError): Record<string, string> {
   }
   return out;
 }
+
+// ===== Participant Feedback (Phase 1) =================================
+
+/** Closed list of problem categories a participant may select. */
+export const FEEDBACK_PROBLEM_CATEGORIES = [
+  "registration",
+  "trainer",
+  "training_material",
+  "practical_equipment",
+  "venue",
+  "food_refreshment",
+  "schedule",
+  "assessment_examination",
+  "certificate",
+  "staff_service",
+  "others",
+] as const;
+
+const rating = z.coerce.number().int().min(1).max(5);
+const npsScore = z.coerce.number().int().min(0).max(10);
+
+/** Public feedback form payload — mirrors what feedback_submit accepts. */
+export const feedbackSubmissionSchema = z.object({
+  token: z.string().trim().min(1),
+  q1: rating, q2: rating, q3: rating, q4: rating, q5: rating,
+  q6: rating, q7: rating, q8: rating, q9: rating, q10: rating,
+  nps: npsScore,
+  liked_most: z.string().trim().max(2000).optional().or(z.literal("")),
+  improve: z.string().trim().max(2000).optional().or(z.literal("")),
+  had_problem: z.boolean().default(false),
+  problem_category: z.enum(FEEDBACK_PROBLEM_CATEGORIES).optional().nullable(),
+  problem_description: z.string().trim().max(2000).optional().or(z.literal("")),
+});
+export type FeedbackSubmissionInput = z.infer<typeof feedbackSubmissionSchema>;
+
+/** Admin: generate feedback links for every eligible participant in a schedule. */
+export const feedbackGenerateLinksSchema = z.object({
+  schedule_id: z.string().uuid(),
+});
+export type FeedbackGenerateLinksInput = z.infer<typeof feedbackGenerateLinksSchema>;
+
+/** Admin: reopen a submitted feedback so the participant may resubmit. */
+export const feedbackReopenSchema = z.object({
+  feedback_id: z.string().uuid(),
+});
+export type FeedbackReopenInput = z.infer<typeof feedbackReopenSchema>;
+
+export const FEEDBACK_ISSUE_PRIORITIES = ["low", "medium", "high", "critical"] as const;
+export const FEEDBACK_ISSUE_STATUSES = ["open", "in_progress", "resolved", "closed"] as const;
+export const FEEDBACK_ACTION_STATUSES = [
+  "open", "assigned", "in_progress", "resolved", "verified", "closed",
+] as const;
+
+export const feedbackIssueSchema = z.object({
+  source_feedback_id: z.string().uuid().optional().nullable(),
+  schedule_id: z.string().uuid().optional().nullable(),
+  category: z.string().trim().max(120).optional().or(z.literal("")),
+  department: z.string().trim().max(160).optional().or(z.literal("")),
+  title: z.string().trim().min(3).max(240),
+  description: z.string().trim().max(4000).optional().or(z.literal("")),
+  priority: z.enum(FEEDBACK_ISSUE_PRIORITIES).default("medium"),
+});
+export type FeedbackIssueInput = z.infer<typeof feedbackIssueSchema>;
+
+export const feedbackIssueStatusSchema = z.object({
+  issue_id: z.string().uuid(),
+  status: z.enum(FEEDBACK_ISSUE_STATUSES),
+});
+export type FeedbackIssueStatusInput = z.infer<typeof feedbackIssueStatusSchema>;
+
+export const feedbackActionSchema = z.object({
+  issue_id: z.string().uuid(),
+  schedule_id: z.string().uuid().optional().nullable(),
+  category: z.string().trim().max(120).optional().or(z.literal("")),
+  department: z.string().trim().max(160).optional().or(z.literal("")),
+  title: z.string().trim().min(3).max(240),
+  description: z.string().trim().max(4000).optional().or(z.literal("")),
+  priority: z.enum(FEEDBACK_ISSUE_PRIORITIES).default("medium"),
+  assigned_to: z.string().uuid().optional().nullable(),
+  due_date: z.string().trim().max(10).optional().or(z.literal("")),
+});
+export type FeedbackActionInput = z.infer<typeof feedbackActionSchema>;
+
+export const feedbackActionTransitionSchema = z.object({
+  action_id: z.string().uuid(),
+  status: z.enum(FEEDBACK_ACTION_STATUSES),
+  corrective_action: z.string().trim().max(4000).optional().or(z.literal("")),
+  verification_note: z.string().trim().max(4000).optional().or(z.literal("")),
+});
+export type FeedbackActionTransitionInput = z.infer<typeof feedbackActionTransitionSchema>;
+
+export const feedbackActionAssignSchema = z.object({
+  action_id: z.string().uuid(),
+  assigned_to: z.string().uuid().optional().nullable(),
+});
+export type FeedbackActionAssignInput = z.infer<typeof feedbackActionAssignSchema>;

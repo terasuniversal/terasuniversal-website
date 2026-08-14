@@ -11,10 +11,13 @@ export function CompanyForm({
   action,
   company,
   mode,
+  handoff,
 }: {
   action: (prev: CompanyFormState, fd: FormData) => Promise<CompanyFormState>;
   company?: any;
   mode: "create" | "edit";
+  /** Sales CRM Phase 4A — present only when opened via a Won Opportunity's "Create Company" action. */
+  handoff?: { opportunityId: string; opportunityNo?: string };
 }) {
   const [state, formAction, pending] = useActionState<CompanyFormState, FormData>(action, {});
   const e = state.errors ?? {};
@@ -23,6 +26,15 @@ export function CompanyForm({
   return (
     <form action={formAction} className="ta-form" style={{ maxWidth: 880 }}>
       {state.message && <div className="ta-alert ta-alert-error">{state.message}</div>}
+
+      {handoff && (
+        <div className="ta-alert ta-alert-info" style={{ marginBottom: 16 }}>
+          Creating from Won Opportunity {handoff.opportunityNo ?? handoff.opportunityId}. Only known Sales details are
+          pre-filled — review everything else before saving. This company will be linked back to the opportunity
+          automatically.
+          <input type="hidden" name="source_opportunity_id" value={handoff.opportunityId} />
+        </div>
+      )}
 
       <h3 style={{ fontSize: 15, margin: "4px 0" }}>Company Details</h3>
       <div className="ta-field-row">
@@ -79,7 +91,9 @@ export function CompanyForm({
       <Field label="Remarks" name="remarks"><textarea id="remarks" name="remarks" rows={2} defaultValue={d.remarks ?? ""} /></Field>
 
       <div className="ta-form-actions">
-        <Link href="/admin/companies" className="ta-btn ta-btn-outline">Cancel</Link>
+        <Link href={handoff ? `/admin/sales/opportunities/${handoff.opportunityId}` : "/admin/companies"} className="ta-btn ta-btn-outline">
+          Cancel
+        </Link>
         <button type="submit" className="ta-btn ta-btn-primary" disabled={pending}>{pending ? "Saving…" : mode === "edit" ? "Save company" : "Add company"}</button>
       </div>
     </form>

@@ -47,7 +47,7 @@ export default function ServicesPage() {
 
       <section className="services-industries-section" aria-labelledby="services-industries-title"><div className="container"><div className="section-heading"><span className="eyebrow">Industries Supported</span><h2 id="services-industries-title">Built for safety-critical environments.</h2></div><div className="services-industries-grid">{industries.map((industry, index) => <article key={industry}><span>0{index + 1}</span><h3>{industry}</h3></article>)}</div></div></section>
 
-      <section className="services-cta"><div className="container"><div><span className="eyebrow">Corporate &amp; Custom Solutions</span><h2>Let&apos;s Build a Safer and More Competent Workforce</h2></div><div className="hero-actions"><a className="btn btn-light" href="/request-proposal">Request Proposal</a><a className="btn btn-gold" href="https://wa.me/60195193834" target="_blank" rel="noreferrer">WhatsApp Us</a></div></div></section>
+      <section className="services-cta"><div className="container"><div><span className="eyebrow">Corporate &amp; Custom Solutions</span><h2>Let&apos;s Build a Safer and More Competent Workforce</h2></div><div className="hero-actions"><a className="btn btn-gold" href="/request-proposal">Request Proposal</a><a className="btn btn-light" href="https://wa.me/60195193834" target="_blank" rel="noreferrer">WhatsApp Us</a></div></div></section>
 
       <Footer />
     </main>

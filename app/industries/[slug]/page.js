@@ -33,7 +33,7 @@ export default async function IndustryPage({ params }) {
 
       {industry.clients.length > 0 && <section className="industry-clients-section"><div className="container"><div className="section-heading"><span className="eyebrow">Among Organisations We&apos;ve Supported</span><h2>Trusted across {industry.name.toLowerCase()}.</h2></div><div className="industry-clients-grid">{industry.clients.map((client) => <span key={client}>{client}</span>)}</div></div></section>}
 
-      <section className="services-cta"><div className="container"><div><span className="eyebrow">Corporate &amp; Custom Solutions</span><h2>Planning {industry.name} Training For Your Team?</h2></div><div className="hero-actions"><a className="btn btn-light" href="/request-proposal">Request Proposal</a><a className="btn btn-gold" href="https://wa.me/60195193834" target="_blank" rel="noreferrer">WhatsApp Us</a></div></div></section>
+      <section className="services-cta"><div className="container"><div><span className="eyebrow">Corporate &amp; Custom Solutions</span><h2>Planning {industry.name} Training For Your Team?</h2></div><div className="hero-actions"><a className="btn btn-gold" href="/request-proposal">Request Proposal</a><a className="btn btn-light" href="https://wa.me/60195193834" target="_blank" rel="noreferrer">WhatsApp Us</a></div></div></section>
 
       <Footer />
     </main>

@@ -82,5 +82,10 @@ export function formatDateRange(start?: string | null, end?: string | null): str
  * applies to "pass(ed)?" not matching "Not Passed" etc.
  */
 export function isAffirmativeStatus(status: string): boolean {
+  // "met" is the Attendance Requirement row's affirmative value (the
+  // attendance_requirement CHECK allows exactly not_recorded|met|not_met), and
+  // it was missing here — that row rendered "– Met" in muted grey while every
+  // other satisfied area got a gold "✓". The alternation is anchored, so
+  // "Not Met" still correctly reads as non-affirmative.
   return /^(completed|achieved|pass(ed)?|present|competent|met)$/i.test((status || "").trim());
 }

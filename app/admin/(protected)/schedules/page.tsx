@@ -84,7 +84,7 @@ export default async function SchedulesPage({
 
   let query = supabase
     .from("course_schedules")
-    .select("id, schedule_code, course_id, courses(course_name), trainer_name, venue, start_date, end_date, status, capacity, seats_taken", { count: "exact" })
+    .select("id, schedule_code, course_id, courses(course_code, course_name), trainer_name, venue, start_date, end_date, exam_date, status, capacity, seats_taken", { count: "exact" })
     .is("deleted_at", null)
     .order(sortCol, { ascending })
     .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
@@ -112,7 +112,7 @@ export default async function SchedulesPage({
     const m = sp.month ? Number(sp.month) : null;
     const from = m ? `${y}-${String(m).padStart(2, "0")}-01` : `${y}-01-01`;
     const to = m ? `${y}-${String(m).padStart(2, "0")}-31` : `${y}-12-31`;
-    query = query.gte("start_date", from).lte("start_date", to);
+    query = query.lte("start_date", to).gte("end_date", from);
   }
 
   const { data: rows, count } = await query;
@@ -190,6 +190,7 @@ export default async function SchedulesPage({
                 <tr>
                   <th>Course / Programme</th>
                   <th>Date</th>
+                  <th>Exam</th>
                   <th>Venue</th>
                   <th>Trainer</th>
                   <th>Seats</th>
@@ -212,6 +213,7 @@ export default async function SchedulesPage({
                         <div className="ta-cell-sub">{s.schedule_code}</div>
                       </td>
                       <td className="ta-nowrap"><span className="ta-date-range">{formatRange(s.start_date, s.end_date)}</span></td>
+                      <td className="ta-nowrap">{s.exam_date ? fmt(new Date(s.exam_date), { day: "numeric", month: "short", year: "numeric" }) : <span className="ta-cell-sub">—</span>}</td>
                       <td>{s.venue ?? <span className="ta-cell-sub">Not set</span>}</td>
                       <td>{s.trainer_name ?? <span className="ta-cell-sub">Unassigned</span>}</td>
                       <td style={{ minWidth: 132 }}>
