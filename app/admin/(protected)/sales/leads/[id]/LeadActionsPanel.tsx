@@ -1,8 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useRef, useState } from "react";
 import { Card, Field } from "../../../../../../components/admin/ui";
-import { updateLeadStatus, assignLead, setLeadFollowUp, addLeadNote, type SalesActionState } from "../actions";
+import { updateLeadStatus, assignLead, setLeadFollowUp, addLeadNote, convertLeadToOpportunity, type SalesActionState } from "../actions";
 import { CRM_STATUS_ORDER, CRM_STATUS_LABELS, LOST_REASONS, LOST_REASON_LABELS, type SalesCrmStatus, type SalesCrmPriority } from "../../../../../../lib/sales/crm";
 
 const INITIAL: SalesActionState = {};
@@ -15,6 +16,8 @@ export function LeadActionsPanel({
   priority,
   staff,
   canManage,
+  existingOpportunity,
+  defaultOpportunityTitle,
 }: {
   leadMetadataId: string;
   status: SalesCrmStatus;
@@ -23,7 +26,10 @@ export function LeadActionsPanel({
   priority: SalesCrmPriority;
   staff: { id: string; full_name: string }[];
   canManage: boolean;
+  existingOpportunity: { id: string; opportunity_no: string } | null;
+  defaultOpportunityTitle?: string;
 }) {
+  const [convertState, convertAction, convertPending] = useActionState(convertLeadToOpportunity.bind(null, leadMetadataId), INITIAL);
   const [statusState, statusAction, statusPending] = useActionState(updateLeadStatus.bind(null, leadMetadataId), INITIAL);
   const [assignState, assignAction, assignPending] = useActionState(assignLead.bind(null, leadMetadataId), INITIAL);
   const [followUpState, followUpAction, followUpPending] = useActionState(setLeadFollowUp.bind(null, leadMetadataId), INITIAL);
@@ -48,6 +54,37 @@ export function LeadActionsPanel({
 
   return (
     <>
+      {existingOpportunity ? (
+        <Card title="Opportunity">
+          <div className="ta-card-pad" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <p style={{ margin: 0, fontSize: 13, color: "var(--ta-muted)" }}>This lead has already been converted.</p>
+            <Link href={`/admin/sales/opportunities/${existingOpportunity.id}`} className="ta-btn ta-btn-outline ta-btn-sm">
+              View {existingOpportunity.opportunity_no} →
+            </Link>
+          </div>
+        </Card>
+      ) : (
+        canManage && (
+          <Card title="Convert to Opportunity">
+            <form action={convertAction} className="ta-card-pad ta-stack">
+              {convertState.message && <div className="ta-alert ta-alert-error">{convertState.message}</div>}
+              <Field label="Opportunity title" name="title" error={convertState.errors?.title}>
+                <input id="title" name="title" defaultValue={defaultOpportunityTitle ?? ""} placeholder="e.g. Basic Scaffolder — 8 pax" required />
+              </Field>
+              <Field label="Expected close date" name="expected_close_date" error={convertState.errors?.expected_close_date}>
+                <input id="expected_close_date" name="expected_close_date" type="date" />
+              </Field>
+              <Field label="Estimated value (RM, optional)" name="estimated_value" error={convertState.errors?.estimated_value}>
+                <input id="estimated_value" name="estimated_value" type="number" min="0" step="0.01" />
+              </Field>
+              <button type="submit" className="ta-btn ta-btn-primary ta-btn-sm" disabled={convertPending}>
+                {convertPending ? "Converting…" : "🎯 Convert to Opportunity"}
+              </button>
+            </form>
+          </Card>
+        )
+      )}
+
       {canManage && (
         <Card title="Pipeline Status">
           <form ref={statusFormRef} action={statusAction} className="ta-card-pad ta-stack">
