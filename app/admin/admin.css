@@ -161,6 +161,12 @@
 .ta-grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
 .ta-card { background: var(--ta-white); border: 1px solid var(--ta-line); border-radius: var(--ta-radius); box-shadow: var(--ta-shadow); overflow: hidden; }
 .ta-card-pad { padding: 18px 20px; }
+
+/* Sales CRM Phase 4C — simple CSS bars for report sections (no chart library). */
+.ta-report-bar-row { display: grid; grid-template-columns: 130px 1fr 70px; align-items: center; gap: 10px; padding: 5px 0; font-size: 13px; }
+.ta-report-bar-track { background: var(--ta-soft, #f4f7fb); border-radius: 999px; height: 10px; overflow: hidden; }
+.ta-report-bar-fill { background: var(--ta-navy, #0B3A63); height: 100%; border-radius: 999px; }
+.ta-report-bar-fill.gold { background: var(--ta-gold, #D4AF37); }
 .ta-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--ta-line); background: #fff; }
 .ta-card-head h3 { font-size: 14.5px; }
 
