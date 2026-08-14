@@ -11,6 +11,7 @@ import {
   salesLeadNoteSchema,
   fieldErrors,
 } from "../../../../../lib/validation/schemas";
+import { sanitizeSearchTerm } from "../../../../../lib/sales/crm";
 
 export type SalesActionState = { message?: string; errors?: Record<string, string> };
 
@@ -160,4 +161,71 @@ export async function addOpportunityNote(
 
   revalidateOpportunity(opportunityId);
   return {};
+}
+
+// --------------------------------------------------------------------
+// Phase 4A — Company linking (Client Onboarding)
+// --------------------------------------------------------------------
+
+export interface CompanyCandidate {
+  id: string;
+  company_id: string;
+  company_name: string;
+  industry: string | null;
+  person_in_charge: string | null;
+}
+
+/**
+ * Manual search for "Link Existing Company" — editor+ (read-only; the
+ * mutation itself, linkCompany(), stays admin+). Exact-name/registration
+ * matching for the auto-suggested candidate happens server-side in
+ * opportunities/[id]/page.tsx; this is the broader manual search a staff
+ * member falls back to when there's no suggestion or it's the wrong one.
+ */
+export async function searchCompaniesForLink(_prev: CompanyCandidate[], formData: FormData): Promise<CompanyCandidate[]> {
+  await requireRole("editor");
+  const term = sanitizeSearchTerm(String(formData.get("q") ?? ""));
+  if (!term) return [];
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase
+    .from("companies")
+    .select("id, company_id, company_name, industry, person_in_charge")
+    .is("deleted_at", null)
+    .ilike("company_name", `%${term}%`)
+    .order("company_name")
+    .limit(10);
+  return (data ?? []) as CompanyCandidate[];
+}
+
+/**
+ * Confirms a Company link chosen by staff (either the auto-suggested exact
+ * match or a manual search result) — admin+, matching the RLS floor on
+ * sales_opportunities.company_id's write path. A plain form action (no
+ * useActionState) since each candidate row is its own single-button form;
+ * failures surface as the opportunity page's next render simply not
+ * showing a link yet, which is enough for this low-risk, always-retryable
+ * confirmation step.
+ */
+export async function linkCompany(opportunityId: string, formData: FormData): Promise<void> {
+  const profile = await requireRole("admin");
+  const companyId = String(formData.get("company_id") ?? "").trim();
+  if (!companyId) return;
+
+  const supabase = await createSupabaseServerClient();
+  const [{ data: opp }, { data: company }] = await Promise.all([
+    supabase.from("sales_opportunities").select("lead_metadata_id").eq("id", opportunityId).maybeSingle(),
+    supabase.from("companies").select("id, company_name").eq("id", companyId).is("deleted_at", null).maybeSingle(),
+  ]);
+  if (!opp || !company) return;
+
+  const { error } = await supabase
+    .from("sales_opportunities")
+    .update({ company_id: companyId, updated_at: new Date().toISOString() })
+    .eq("id", opportunityId);
+  if (error) return;
+
+  if (opp.lead_metadata_id) {
+    await logActivity(supabase, opp.lead_metadata_id, opportunityId, "company_linked", `Linked to company ${company.company_name}`, profile.id);
+  }
+  revalidateOpportunity(opportunityId);
 }

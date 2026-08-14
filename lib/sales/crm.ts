@@ -105,9 +105,10 @@ export const LOST_REASONS: SalesCrmLostReason[] = ["price", "no_budget", "no_res
 
 /**
  * Matches supabase/migrations/20260814120000_create_sales_crm_v1.sql's +
- * 20260814150000_create_sales_crm_phase2_opportunities_quotations.sql's
- * combined sales_activity type CHECK (Phase 2 extended the constraint
- * additively, not replaced it).
+ * 20260814150000_create_sales_crm_phase2_opportunities_quotations.sql's +
+ * 20260814220000_sales_activity_training_handoff_type.sql's combined
+ * sales_activity type CHECK (each phase extended the constraint
+ * additively, never replaced it).
  */
 export type SalesCrmActivityType =
   | "lead_created"
@@ -125,7 +126,10 @@ export type SalesCrmActivityType =
   | "quotation_accepted"
   | "quotation_rejected"
   | "opportunity_won"
-  | "opportunity_lost";
+  | "opportunity_lost"
+  | "training_handoff_created"
+  | "company_linked"
+  | "company_created";
 
 export const CRM_ACTIVITY_ICONS: Record<SalesCrmActivityType, string> = {
   lead_created: "🧲",
@@ -144,6 +148,9 @@ export const CRM_ACTIVITY_ICONS: Record<SalesCrmActivityType, string> = {
   quotation_rejected: "🚫",
   opportunity_won: "🏆",
   opportunity_lost: "🚫",
+  training_handoff_created: "🎓",
+  company_linked: "🔗",
+  company_created: "🏢",
 };
 
 export const CRM_ACTIVITY_LABELS: Record<SalesCrmActivityType, string> = {
@@ -163,6 +170,9 @@ export const CRM_ACTIVITY_LABELS: Record<SalesCrmActivityType, string> = {
   quotation_rejected: "Quotation rejected",
   opportunity_won: "Opportunity won",
   opportunity_lost: "Opportunity lost",
+  training_handoff_created: "Training schedule created",
+  company_linked: "Company linked",
+  company_created: "Company created",
 };
 
 export const SOURCE_LABELS: Record<SalesLeadSourceKind, string> = {
@@ -196,6 +206,8 @@ export interface SalesOpportunityRow {
   id: string;
   lead_metadata_id: string;
   opportunity_no: string;
+  /** Phase 4A — confirmed link to companies.id, set only via explicit staff confirmation. Null until linked. */
+  company_id: string | null;
   company_name: string | null;
   contact_person: string | null;
   contact_email: string | null;
