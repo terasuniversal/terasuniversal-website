@@ -83,4 +83,13 @@ export const NAV: NavGroup[] = [
       { key: "users", label: "Users & Roles", href: "/admin/users", icon: "users", minRole: "super_admin" },
     ],
   },
+  {
+    label: "Feedback",
+    items: [
+      { key: "feedback", label: "Feedback Dashboard", href: "/admin/feedback", icon: "feedback", minRole: "editor" },
+      { key: "feedback_responses", label: "Responses", href: "/admin/feedback/responses", icon: "feedback-responses", minRole: "editor" },
+      { key: "feedback_issues", label: "Issues", href: "/admin/feedback/issues", icon: "feedback-issues", minRole: "editor" },
+      { key: "feedback_actions", label: "Improvement Actions", href: "/admin/feedback/actions", icon: "feedback-actions", minRole: "editor" },
+    ],
+  },
 ];

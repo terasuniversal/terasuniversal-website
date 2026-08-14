@@ -779,3 +779,29 @@
 .ta-timeline-item { grid-template-columns: 16px 1fr; gap: 2px 9px; padding-bottom: 18px; }
 .ta-timeline-item::before { left: 7px; top: 22px; width: 2px; }
 .ta-timeline-marker { width: 14px; height: 14px; margin-top: 3px; }
+
+/* --- Participant Feedback module --------------------------------------- */
+.ta-bar { height: 8px; border-radius: 999px; background: var(--ta-soft); overflow: hidden; }
+.ta-bar span { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--ta-navy, #0b3a63), var(--ta-gold, #d4af37)); }
+
+.ta-fb-pill { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 999px; font-size: 11px; font-weight: 800; text-transform: capitalize; letter-spacing: .03em; }
+.ta-fb-priority.low { background: rgba(47,111,237,.12); color: var(--ta-info); }
+.ta-fb-priority.medium { background: rgba(212,175,55,.18); color: #9a7a1f; }
+.ta-fb-priority.high { background: rgba(212,120,40,.16); color: #b45f12; }
+.ta-fb-priority.critical { background: rgba(214,69,69,.14); color: var(--ta-danger); }
+
+.ta-fb-issue.open { background: rgba(47,111,237,.12); color: var(--ta-info); }
+.ta-fb-issue.in_progress { background: rgba(212,175,55,.18); color: #9a7a1f; }
+.ta-fb-issue.resolved { background: rgba(46,158,91,.12); color: var(--ta-success); }
+.ta-fb-issue.closed { background: rgba(102,112,133,.14); color: var(--ta-muted); }
+
+.ta-fb-action.open { background: rgba(102,112,133,.14); color: var(--ta-muted); }
+.ta-fb-action.assigned { background: rgba(47,111,237,.12); color: var(--ta-info); }
+.ta-fb-action.in_progress { background: rgba(212,175,55,.18); color: #9a7a1f; }
+.ta-fb-action.resolved { background: rgba(212,120,40,.16); color: #b45f12; }
+.ta-fb-action.verified { background: rgba(124,92,255,.12); color: #6d4aff; }
+.ta-fb-action.closed { background: rgba(46,158,91,.12); color: var(--ta-success); }
+
+.ta-fb-transition-note { margin-top: 8px; padding: 10px 12px; border-radius: 8px; background: var(--ta-soft); color: var(--ta-muted); font-size: 12.5px; line-height: 1.5; }
+.ta-fb-grid2 { display: grid; grid-template-columns: 1.4fr 1fr; gap: 18px; align-items: start; }
+@media (max-width: 900px) { .ta-fb-grid2 { grid-template-columns: 1fr; } }

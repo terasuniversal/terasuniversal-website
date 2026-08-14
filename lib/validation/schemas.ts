@@ -403,3 +403,99 @@ export function fieldErrors(error: z.ZodError): Record<string, string> {
   }
   return out;
 }
+
+// ===== Participant Feedback (Phase 1) =================================
+
+/** Closed list of problem categories a participant may select. */
+export const FEEDBACK_PROBLEM_CATEGORIES = [
+  "registration",
+  "trainer",
+  "training_material",
+  "practical_equipment",
+  "venue",
+  "food_refreshment",
+  "schedule",
+  "assessment_examination",
+  "certificate",
+  "staff_service",
+  "others",
+] as const;
+
+const rating = z.coerce.number().int().min(1).max(5);
+const npsScore = z.coerce.number().int().min(0).max(10);
+
+/** Public feedback form payload — mirrors what feedback_submit accepts. */
+export const feedbackSubmissionSchema = z.object({
+  token: z.string().trim().min(1),
+  q1: rating, q2: rating, q3: rating, q4: rating, q5: rating,
+  q6: rating, q7: rating, q8: rating, q9: rating, q10: rating,
+  nps: npsScore,
+  liked_most: z.string().trim().max(2000).optional().or(z.literal("")),
+  improve: z.string().trim().max(2000).optional().or(z.literal("")),
+  had_problem: z.boolean().default(false),
+  problem_category: z.enum(FEEDBACK_PROBLEM_CATEGORIES).optional().nullable(),
+  problem_description: z.string().trim().max(2000).optional().or(z.literal("")),
+});
+export type FeedbackSubmissionInput = z.infer<typeof feedbackSubmissionSchema>;
+
+/** Admin: generate feedback links for every eligible participant in a schedule. */
+export const feedbackGenerateLinksSchema = z.object({
+  schedule_id: z.string().uuid(),
+});
+export type FeedbackGenerateLinksInput = z.infer<typeof feedbackGenerateLinksSchema>;
+
+/** Admin: reopen a submitted feedback so the participant may resubmit. */
+export const feedbackReopenSchema = z.object({
+  feedback_id: z.string().uuid(),
+});
+export type FeedbackReopenInput = z.infer<typeof feedbackReopenSchema>;
+
+export const FEEDBACK_ISSUE_PRIORITIES = ["low", "medium", "high", "critical"] as const;
+export const FEEDBACK_ISSUE_STATUSES = ["open", "in_progress", "resolved", "closed"] as const;
+export const FEEDBACK_ACTION_STATUSES = [
+  "open", "assigned", "in_progress", "resolved", "verified", "closed",
+] as const;
+
+export const feedbackIssueSchema = z.object({
+  source_feedback_id: z.string().uuid().optional().nullable(),
+  schedule_id: z.string().uuid().optional().nullable(),
+  category: z.string().trim().max(120).optional().or(z.literal("")),
+  department: z.string().trim().max(160).optional().or(z.literal("")),
+  title: z.string().trim().min(3).max(240),
+  description: z.string().trim().max(4000).optional().or(z.literal("")),
+  priority: z.enum(FEEDBACK_ISSUE_PRIORITIES).default("medium"),
+});
+export type FeedbackIssueInput = z.infer<typeof feedbackIssueSchema>;
+
+export const feedbackIssueStatusSchema = z.object({
+  issue_id: z.string().uuid(),
+  status: z.enum(FEEDBACK_ISSUE_STATUSES),
+});
+export type FeedbackIssueStatusInput = z.infer<typeof feedbackIssueStatusSchema>;
+
+export const feedbackActionSchema = z.object({
+  issue_id: z.string().uuid(),
+  schedule_id: z.string().uuid().optional().nullable(),
+  category: z.string().trim().max(120).optional().or(z.literal("")),
+  department: z.string().trim().max(160).optional().or(z.literal("")),
+  title: z.string().trim().min(3).max(240),
+  description: z.string().trim().max(4000).optional().or(z.literal("")),
+  priority: z.enum(FEEDBACK_ISSUE_PRIORITIES).default("medium"),
+  assigned_to: z.string().uuid().optional().nullable(),
+  due_date: z.string().trim().max(10).optional().or(z.literal("")),
+});
+export type FeedbackActionInput = z.infer<typeof feedbackActionSchema>;
+
+export const feedbackActionTransitionSchema = z.object({
+  action_id: z.string().uuid(),
+  status: z.enum(FEEDBACK_ACTION_STATUSES),
+  corrective_action: z.string().trim().max(4000).optional().or(z.literal("")),
+  verification_note: z.string().trim().max(4000).optional().or(z.literal("")),
+});
+export type FeedbackActionTransitionInput = z.infer<typeof feedbackActionTransitionSchema>;
+
+export const feedbackActionAssignSchema = z.object({
+  action_id: z.string().uuid(),
+  assigned_to: z.string().uuid().optional().nullable(),
+});
+export type FeedbackActionAssignInput = z.infer<typeof feedbackActionAssignSchema>;
