@@ -95,14 +95,14 @@ export default async function SalesDashboardPage() {
               <tbody>
                 {(overdueRows as SalesLeadInboxRow[]).map((r) => (
                   <tr key={r.lead_metadata_id}>
-                    <td><span className="ta-badge-pill">{SOURCE_LABELS[r.lead_source]}</span></td>
+                    <td><span className={`ta-badge-pill ta-source ta-source-${r.lead_source}`}>{SOURCE_LABELS[r.lead_source]}</span></td>
                     <td>
                       <strong>{r.contact_name ?? "—"}</strong>
-                      {r.company && <div style={{ color: "var(--ta-muted)", fontSize: 12.5 }}>{r.company}</div>}
+                      {r.company && <div className="ta-lead-sub">{r.company}</div>}
                     </td>
                     <td>
                       <FollowUpBadge state={followUpState(r.follow_up_at, r.status)} />{" "}
-                      <span style={{ color: "var(--ta-muted)", fontSize: 12.5 }}>
+                      <span className="ta-lead-sub">
                         {r.follow_up_at && new Date(r.follow_up_at).toLocaleString("en-MY", { dateStyle: "medium", timeStyle: "short" })}
                       </span>
                     </td>

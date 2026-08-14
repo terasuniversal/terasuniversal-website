@@ -629,3 +629,68 @@
 @media (min-width: 901px) {
   .ta-hamburger { display: none; }
 }
+
+
+/* --- Sales CRM V1 UI/UX polish ---------------------------------------- */
+/* Scoped under .ta-sales or via specific selectors so the shared admin
+   primitives used elsewhere in the CMS are unaffected. */
+
+/* Compact KPI cards on the Sales Dashboard */
+.ta-sales .ta-stat-card { padding: 16px 18px; }
+.ta-sales .ta-stat { gap: 4px; }
+.ta-sales .ta-stat .ta-stat-ico { width: 34px; height: 34px; font-size: 15px; }
+.ta-sales .ta-stat .ta-stat-value { font-size: 24px; }
+.ta-sales .ta-stat .ta-stat-label { font-size: 12px; }
+
+/* Lead Inbox toolbar — consistent filter controls */
+.ta-toolbar .ta-search { max-width: 260px; }
+.ta-filter-select,
+.ta-filter-date {
+  padding: 9px 12px;
+  border: 1px solid var(--ta-line);
+  border-radius: 9px;
+  background: #fff;
+  color: var(--ta-ink);
+  font: inherit;
+  outline: none;
+}
+.ta-filter-select:focus,
+.ta-filter-date:focus { border-color: var(--ta-navy); box-shadow: 0 0 0 3px rgba(11,58,99,.08); }
+.ta-filter-date-group { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: var(--ta-muted); }
+.ta-filter-date-group input { padding: 8px 10px; }
+
+/* Source labels — subtle, distinct for each lead source */
+.ta-source { background: var(--ta-soft); color: var(--ta-navy); }
+.ta-source.enquiry { background: rgba(47,111,237,.1); color: var(--ta-info); }
+.ta-source.proposal_request { background: rgba(212,175,55,.15); color: #9a7a1f; }
+
+/* Status badge — "contacted" had no dedicated treatment */
+.ta-badge-pill.contacted { background: rgba(124,92,255,.12); color: #6d4aff; }
+
+/* Lead detail — replace inline styles with classes */
+.ta-lead-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+.ta-lead-meta-time { color: var(--ta-muted); font-size: 13px; }
+.ta-stack { display: flex; flex-direction: column; gap: 10px; }
+.ta-subhead { margin: 16px 0 6px; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--ta-muted); }
+.ta-pre-wrap { margin: 0; white-space: pre-wrap; color: var(--ta-ink); font-size: 13.5px; line-height: 1.6; }
+
+/* Activity timeline — proper CRM treatment (CSS markers, no emoji) */
+.ta-timeline-item { grid-template-columns: 20px 1fr; gap: 2px 12px; padding-bottom: 18px; }
+.ta-timeline-item::before { left: 9px; top: 26px; width: 2px; }
+.ta-timeline-marker {
+  width: 18px; height: 18px; margin-top: 2px; border-radius: 50%;
+  background: var(--ta-soft); border: 2px solid var(--ta-line); z-index: 1;
+}
+.ta-timeline-marker.type-lead_created { background: rgba(47,111,237,.2); border-color: var(--ta-info); }
+.ta-timeline-marker.type-status_changed { background: rgba(212,175,55,.28); border-color: #a9791a; }
+.ta-timeline-marker.type-assigned { background: rgba(47,111,237,.14); border-color: var(--ta-info); }
+.ta-timeline-marker.type-followup_scheduled { background: rgba(212,175,55,.2); border-color: #a9791a; }
+.ta-timeline-marker.type-note_added { background: rgba(102,112,133,.22); border-color: var(--ta-muted); }
+.ta-timeline-marker.type-proposal_sent { background: rgba(124,92,255,.16); border-color: #6d4aff; }
+.ta-timeline-marker.type-won { background: rgba(46,158,91,.22); border-color: var(--ta-success); }
+.ta-timeline-marker.type-lost { background: rgba(102,112,133,.26); border-color: var(--ta-muted); }
+.ta-timeline-meta { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.ta-timeline-title { font-weight: 700; }
+.ta-timeline-when { font-weight: 600; white-space: nowrap; }
+.ta-timeline-note { margin-top: 4px; color: var(--ta-ink); }
+.ta-timeline-actor { margin-top: 3px; }
