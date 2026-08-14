@@ -3,7 +3,7 @@ import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { requireRole } from "../../../../lib/auth/session";
 import { PageHead, Card, StatCard, EmptyState } from "../../../../components/admin/ui";
 import { FollowUpBadge } from "../../../../components/admin/sales/FollowUpBadge";
-import { OPEN_OPPORTUNITY_STATUSES, SOURCE_LABELS, followUpState, type SalesLeadInboxRow } from "../../../../lib/sales/crm";
+import { OPEN_OPPORTUNITY_STATUSES, SOURCE_LABELS, followUpState, mytEndOfTodayUtc, type SalesLeadInboxRow } from "../../../../lib/sales/crm";
 
 export const metadata = { title: "Sales Dashboard — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
@@ -22,6 +22,7 @@ export default async function SalesDashboardPage() {
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
   const nowIso = now.toISOString();
+  const endOfTodayMyt = mytEndOfTodayUtc(now).toISOString();
 
   // Each query is built (not awaited) here, then resolved together — no
   // `await` inside the Promise.all array literal (CLAUDE.md §5/§13).
@@ -45,6 +46,38 @@ export default async function SalesDashboardPage() {
     .order("follow_up_at", { ascending: true })
     .limit(10);
 
+  // Phase 4B — compact "Today" operations section. Distinct from the
+  // existing "Follow-ups Due" StatCard above (which uses <= now, a
+  // slightly different long-standing definition) — these four counts use
+  // the same overdue/today boundary as the real Follow-ups/Tasks queues,
+  // added alongside the existing KPIs, not replacing any of them.
+  const overdueFollowUpsQuery = supabase
+    .from("sales_lead_metadata")
+    .select("id", { count: "exact", head: true })
+    .lt("follow_up_at", nowIso)
+    .not("follow_up_at", "is", null)
+    .not("status", "in", "(won,lost,archived)");
+  const followUpsDueTodayQuery = supabase
+    .from("sales_lead_metadata")
+    .select("id", { count: "exact", head: true })
+    .gte("follow_up_at", nowIso)
+    .lt("follow_up_at", endOfTodayMyt)
+    .not("status", "in", "(won,lost,archived)");
+  const overdueTasksQuery = supabase
+    .from("sales_tasks")
+    .select("id", { count: "exact", head: true })
+    .is("deleted_at", null)
+    .lt("due_at", nowIso)
+    .not("due_at", "is", null)
+    .not("status", "in", "(completed,cancelled)");
+  const tasksDueTodayQuery = supabase
+    .from("sales_tasks")
+    .select("id", { count: "exact", head: true })
+    .is("deleted_at", null)
+    .gte("due_at", nowIso)
+    .lt("due_at", endOfTodayMyt)
+    .not("status", "in", "(completed,cancelled)");
+
   const [
     { count: newLeads },
     { count: openOpportunities },
@@ -53,6 +86,10 @@ export default async function SalesDashboardPage() {
     { count: wonThisMonth },
     { count: lost },
     { data: overdueRows },
+    { count: overdueFollowUps },
+    { count: followUpsDueToday },
+    { count: overdueTasks },
+    { count: tasksDueToday },
   ] = await Promise.all([
     newLeadsQuery,
     openOpportunitiesQuery,
@@ -61,6 +98,10 @@ export default async function SalesDashboardPage() {
     wonThisMonthQuery,
     lostQuery,
     overdueRowsQuery,
+    overdueFollowUpsQuery,
+    followUpsDueTodayQuery,
+    overdueTasksQuery,
+    tasksDueTodayQuery,
   ]);
 
   return (
@@ -71,7 +112,16 @@ export default async function SalesDashboardPage() {
         action={<Link className="ta-btn ta-btn-primary" href="/admin/sales/leads">View All Leads</Link>}
       />
 
-      <div className="ta-grid cols-3" style={{ marginBottom: 22 }}>
+      <Card title="Today">
+        <div className="ta-card-pad ta-grid cols-4" style={{ gap: 12 }}>
+          <StatCard label="Overdue Follow-ups" value={overdueFollowUps ?? 0} icon="📞" href="/admin/sales/follow-ups?view=overdue" />
+          <StatCard label="Follow-ups Due Today" value={followUpsDueToday ?? 0} icon="🗓" href="/admin/sales/follow-ups?view=today" />
+          <StatCard label="Overdue Tasks" value={overdueTasks ?? 0} icon="☑" href="/admin/sales/tasks?view=overdue" />
+          <StatCard label="Tasks Due Today" value={tasksDueToday ?? 0} icon="☑" href="/admin/sales/tasks?view=today" />
+        </div>
+      </Card>
+
+      <div className="ta-grid cols-3" style={{ marginBottom: 22, marginTop: 20 }}>
         <StatCard label="New Leads" value={newLeads ?? 0} icon="🧲" href="/admin/sales/leads?status=new" />
         <StatCard label="Open Opportunities" value={openOpportunities ?? 0} icon="📊" />
         <StatCard label="Follow-ups Due" value={followUpsDue ?? 0} icon="📞" context={followUpsDue ? "Includes overdue" : undefined} />

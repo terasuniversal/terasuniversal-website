@@ -753,6 +753,10 @@
 .ta-timeline-marker.type-training_handoff_created { background: rgba(46,158,91,.22); border-color: var(--ta-success); }
 .ta-timeline-marker.type-company_linked { background: rgba(47,111,237,.14); border-color: var(--ta-info); }
 .ta-timeline-marker.type-company_created { background: rgba(47,111,237,.14); border-color: var(--ta-info); }
+.ta-timeline-marker.type-task_created { background: rgba(102,112,133,.22); border-color: var(--ta-muted); }
+.ta-timeline-marker.type-task_completed { background: rgba(46,158,91,.22); border-color: var(--ta-success); }
+.ta-timeline-marker.type-task_reopened { background: rgba(212,175,55,.28); border-color: #a9791a; }
+.ta-timeline-marker.type-task_cancelled { background: rgba(102,112,133,.26); border-color: var(--ta-muted); }
 .ta-timeline-meta { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .ta-timeline-title { font-weight: 700; }
 .ta-timeline-when { font-weight: 600; white-space: nowrap; }
