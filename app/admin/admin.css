@@ -596,6 +596,9 @@
 @media (max-width: 1080px) {
   .ta-grid.cols-4 { grid-template-columns: repeat(2, 1fr); }
   .ta-grid.cols-5 { grid-template-columns: repeat(3, 1fr); }
+  .ta-sales-pipeline { flex-direction: column; overflow-x: visible; }
+  .ta-sales-stage-row { flex-direction: column; align-items: stretch; min-width: 0; }
+  .ta-sales-stage-row .ta-sales-arrow { transform: rotate(90deg); align-self: center; }
 }
 @media (max-width: 900px) {
   .ta-sidebar { transform: translateX(-100%); }
@@ -616,6 +619,63 @@
   .ta-dashboard-intro { align-items: flex-start; flex-direction: column; }
   .ta-card-head { padding: 14px 16px; }
   .ta-card-pad { padding: 16px; }
+}
+
+/* --- Phase 1B responsive ------------------------------------------ */
+@media (max-width: 1180px) {
+  .ta-lead-kpis { grid-template-columns: repeat(3, 1fr); }
+  .ta-lead-filters-grid { grid-template-columns: 1fr 1fr; }
+  .ta-lead-filters-search { grid-column: 1 / -1; }
+}
+@media (max-width: 900px) {
+  .ta-lead-detail-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 760px) {
+  .ta-lead-table { display: none; }
+  .ta-lead-cards { display: grid; }
+  .ta-kv { grid-template-columns: 110px 1fr; }
+  .ta-dialog-overlay { padding: 12px; }
+  .ta-dialog { max-height: 92vh; }
+  .ta-dialog-body { padding: 16px; }
+  .ta-radio-group { grid-template-columns: 1fr; }
+}
+@media (max-width: 620px) {
+  .ta-lead-kpis { grid-template-columns: repeat(2, 1fr); }
+  .ta-lead-filters-grid { grid-template-columns: 1fr; }
+  .ta-lead-filters-search { grid-column: 1; }
+  .ta-filter-actions { flex-wrap: wrap; }
+}
+
+/* --- Phase 1C responsive ------------------------------------------ */
+@media (max-width: 1180px) {
+  .ta-opp-kpis { grid-template-columns: repeat(4, 1fr); }
+}
+@media (max-width: 760px) {
+  .ta-opp-table { display: none; }
+  .ta-kanban { padding: 12px; }
+  .ta-kanban-col { min-width: 244px; }
+}
+@media (max-width: 620px) {
+  .ta-opp-kpis { grid-template-columns: repeat(2, 1fr); }
+  .ta-seg-toggle { width: 100%; }
+  .ta-seg-btn { flex: 1; }
+}
+
+/* --- Phase 1D responsive ------------------------------------------ */
+@media (max-width: 1180px) {
+  .ta-q-kpis { grid-template-columns: repeat(4, 1fr); }
+}
+@media (max-width: 760px) {
+  .ta-q-table { display: none; }
+  .ta-q-item-row { grid-template-columns: 1fr 1fr; }
+  .ta-q-item-desc { grid-column: 1 / -1; }
+  .ta-q-item-total, .ta-q-item-row .ta-btn-danger { grid-column: auto; }
+}
+@media (max-width: 620px) {
+  .ta-q-kpis { grid-template-columns: repeat(2, 1fr); }
+  .ta-q-item-row { grid-template-columns: 1fr 1fr; }
+  .ta-qp-head { flex-direction: column; }
+  .ta-qp-ref { text-align: left; }
 }
 
 /* --- UI-1 refresh � additive polish (mobile + shell extras) --------- */
@@ -694,3 +754,14 @@
 .ta-timeline-when { font-weight: 600; white-space: nowrap; }
 .ta-timeline-note { margin-top: 4px; color: var(--ta-ink); }
 .ta-timeline-actor { margin-top: 3px; }
+
+/* --- Activity timeline — final polish ---------------------------------- */
+/* Unnumbered list semantics (the component now renders a <ul>) plus explicit
+   list-style suppression on the list, its items and ::marker, so no ordered
+   numbering can ever appear. Content is pulled slightly closer to the marker. */
+.ta-timeline,
+.ta-timeline li { list-style: none; }
+.ta-timeline li::marker { content: none; }
+.ta-timeline-item { grid-template-columns: 16px 1fr; gap: 2px 9px; padding-bottom: 18px; }
+.ta-timeline-item::before { left: 7px; top: 22px; width: 2px; }
+.ta-timeline-marker { width: 14px; height: 14px; margin-top: 3px; }
