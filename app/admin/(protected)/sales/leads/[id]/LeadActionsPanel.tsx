@@ -50,7 +50,7 @@ export function LeadActionsPanel({
     <>
       {canManage && (
         <Card title="Pipeline Status">
-          <form ref={statusFormRef} action={statusAction} className="ta-card-pad" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <form ref={statusFormRef} action={statusAction} className="ta-card-pad ta-stack">
             {statusState.message && <div className="ta-alert ta-alert-error">{statusState.message}</div>}
             <Field label="Status" name="status" error={statusState.errors?.status}>
               <select
@@ -73,12 +73,12 @@ export function LeadActionsPanel({
             <button type="submit" className="ta-btn ta-btn-primary ta-btn-sm" disabled={statusPending}>
               {statusPending ? "Saving…" : "Update Status"}
             </button>
-            <div style={{ display: "flex", gap: 8 }}>
+            <div className="ta-status-action-row">
               <button type="button" className="ta-btn ta-btn-outline ta-btn-sm" disabled={statusPending} onClick={() => quickSetStatus("won")}>
-                🏆 Mark Won
+                Mark Won
               </button>
               <button type="button" className="ta-btn ta-btn-outline ta-btn-sm" disabled={statusPending} onClick={() => quickSetStatus("lost")}>
-                🚫 Mark Lost
+                Mark Lost
               </button>
             </div>
           </form>
@@ -87,7 +87,7 @@ export function LeadActionsPanel({
 
       {canManage && (
         <Card title="Assignment">
-          <form action={assignAction} className="ta-card-pad" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <form action={assignAction} className="ta-card-pad ta-stack">
             {assignState.message && <div className="ta-alert ta-alert-error">{assignState.message}</div>}
             <Field label="Assigned to" name="assigned_to" error={assignState.errors?.assigned_to}>
               <select id="assigned_to" name="assigned_to" defaultValue={assignedTo ?? ""}>
@@ -104,7 +104,7 @@ export function LeadActionsPanel({
 
       {canManage && (
         <Card title="Follow-up">
-          <form action={followUpAction} className="ta-card-pad" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <form action={followUpAction} className="ta-card-pad ta-stack">
             {followUpState.message && <div className="ta-alert ta-alert-error">{followUpState.message}</div>}
             <Field label="Follow-up date & time" name="follow_up_at" error={followUpState.errors?.follow_up_at}>
               <input id="follow_up_at" name="follow_up_at" type="datetime-local" defaultValue={localDateTimeValue} />
@@ -124,7 +124,7 @@ export function LeadActionsPanel({
       )}
 
       <Card title="Add Note">
-        <form action={noteAction} className="ta-card-pad" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <form action={noteAction} className="ta-card-pad ta-stack">
           {noteState.message && <div className="ta-alert ta-alert-error">{noteState.message}</div>}
           <Field label="Note" name="note" error={noteState.errors?.note}>
             <textarea id="note" name="note" rows={4} placeholder="Log a call, a client response, or any internal context…" />

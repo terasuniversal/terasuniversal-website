@@ -22,13 +22,11 @@ interface ProposalSource {
   location: string | null; preferred_month: string | null; budget: string | null; objectives: string; notes: string | null; created_at: string;
 }
 
-const dl = { display: "grid", gridTemplateColumns: "170px 1fr", gap: 2, margin: 0 } as const;
-
 function Detail({ label, value }: { label: string; value: any }) {
   return (
     <div style={{ display: "contents" }}>
-      <dt style={{ color: "var(--ta-muted)", padding: "7px 0" }}>{label}</dt>
-      <dd style={{ margin: 0, padding: "7px 0", fontWeight: 500 }}>{value || "—"}</dd>
+      <dt>{label}</dt>
+      <dd>{value || "—"}</dd>
     </div>
   );
 }
@@ -66,20 +64,20 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         action={<Link href="/admin/sales/leads" className="ta-btn ta-btn-outline">← Back to Leads</Link>}
       />
 
-      <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 16, flexWrap: "wrap" }}>
+      <div className="ta-lead-meta">
         <Badge status={row.status} />
         <FollowUpBadge state={followUpState(row.follow_up_at, row.status)} />
-        <span style={{ color: "var(--ta-muted)", fontSize: 13 }}>
+        <span className="ta-lead-meta-time">
           Created {new Date(row.created_at).toLocaleString("en-MY", { dateStyle: "medium", timeStyle: "short" })}
         </span>
-        {row.lost_reason && <span style={{ color: "var(--ta-muted)", fontSize: 13 }}>Lost reason: {row.lost_reason.replace(/_/g, " ")}</span>}
+        {row.lost_reason && <span className="ta-lead-meta-time">Lost reason: {row.lost_reason.replace(/_/g, " ")}</span>}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 20, alignItems: "start" }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <div className="ta-lead-detail-grid">
+        <div className="ta-lead-detail-main">
           <Card title="Contact">
             <div className="ta-card-pad">
-              <dl style={dl}>
+              <dl className="ta-kv">
                 <Detail label="Name" value={row.contact_name} />
                 <Detail label="Company" value={row.company} />
                 <Detail label="Email" value={row.email ? <a href={`mailto:${row.email}`}>{row.email}</a> : null} />
@@ -101,7 +99,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
           <LeadActivityTimeline activities={(activityRows ?? []) as SalesActivityRow[]} actorNames={actorNames} />
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        <div className="ta-lead-detail-side">
           <LeadActionsPanel
             leadMetadataId={row.lead_metadata_id}
             status={row.status}
@@ -121,13 +119,13 @@ function EnquiryDetail({ source }: { source: EnquirySource }) {
   return (
     <Card title="Original Enquiry">
       <div className="ta-card-pad">
-        <dl style={dl}>
+        <dl className="ta-kv">
           <Detail label="Enquiry Type" value={source.enquiry_type} />
           <Detail label="Subject" value={source.subject} />
           <Detail label="Submitted From" value={source.source_page === "homepage" ? "Homepage contact form" : "Contact page"} />
         </dl>
-        <h4 style={{ fontSize: 13, color: "var(--ta-muted)", margin: "16px 0 6px" }}>Message</h4>
-        <p style={{ whiteSpace: "pre-wrap", margin: 0 }}>{source.message}</p>
+        <h4 className="ta-subhead">Message</h4>
+        <p className="ta-pre-wrap">{source.message}</p>
       </div>
     </Card>
   );
@@ -137,7 +135,7 @@ function ProposalDetail({ source }: { source: ProposalSource }) {
   return (
     <Card title="Original Proposal Request">
       <div className="ta-card-pad">
-        <dl style={dl}>
+        <dl className="ta-kv">
           <Detail label="Job Title" value={source.job_title} />
           <Detail label="Industry" value={source.industry} />
           <Detail label="Training Category" value={source.category} />
@@ -147,12 +145,12 @@ function ProposalDetail({ source }: { source: ProposalSource }) {
           <Detail label="Preferred Month" value={source.preferred_month} />
           <Detail label="Budget" value={source.budget} />
         </dl>
-        <h4 style={{ fontSize: 13, color: "var(--ta-muted)", margin: "16px 0 6px" }}>Training Objectives</h4>
-        <p style={{ whiteSpace: "pre-wrap", margin: 0 }}>{source.objectives}</p>
+        <h4 className="ta-subhead">Training Objectives</h4>
+        <p className="ta-pre-wrap">{source.objectives}</p>
         {source.notes && (
           <>
-            <h4 style={{ fontSize: 13, color: "var(--ta-muted)", margin: "16px 0 6px" }}>Additional Notes</h4>
-            <p style={{ whiteSpace: "pre-wrap", margin: 0 }}>{source.notes}</p>
+            <h4 className="ta-subhead">Additional Notes</h4>
+            <p className="ta-pre-wrap">{source.notes}</p>
           </>
         )}
       </div>
