@@ -444,3 +444,11 @@
 .ta-timeline-when { font-weight: 600; white-space: nowrap; }
 .ta-timeline-note { margin-top: 4px; color: var(--ta-ink); }
 .ta-timeline-actor { margin-top: 3px; }
+
+/* --- Activity timeline — final polish ---------------------------------- */
+.ta-timeline,
+.ta-timeline li { list-style: none; }
+.ta-timeline li::marker { content: none; }
+.ta-timeline-item { grid-template-columns: 16px 1fr; gap: 2px 9px; padding-bottom: 18px; }
+.ta-timeline-item::before { left: 7px; top: 22px; width: 2px; }
+.ta-timeline-marker { width: 14px; height: 14px; margin-top: 3px; }

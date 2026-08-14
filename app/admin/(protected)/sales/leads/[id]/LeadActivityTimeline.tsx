@@ -2,10 +2,11 @@ import { Card } from "../../../../../../components/admin/ui";
 import { CRM_ACTIVITY_LABELS, type SalesActivityRow } from "../../../../../../lib/sales/crm";
 
 /**
- * Reusable activity timeline for the Sales CRM (real data). Oldest â†’ newest.
+ * Reusable activity timeline for the Sales CRM (real data). Oldest GåÆ newest.
  * Each event renders a colour-coded marker (restrained admin palette, no
  * emoji), a vertical connector, a title + timestamp row, the optional note
- * and the actor. All logged information is preserved.
+ * and the actor. Rendered as an unnumbered list so no ordered numbering can
+ * ever appear, regardless of CSS. All logged information is preserved.
  */
 export function LeadActivityTimeline({
   activities,
@@ -25,7 +26,7 @@ export function LeadActivityTimeline({
   return (
     <Card title="Activity Timeline">
       <div className="ta-card-pad">
-        <ol className="ta-timeline">
+        <ul className="ta-timeline">
           {activities.map((activity) => (
             <li className="ta-timeline-item" key={activity.id}>
               <span className={`ta-timeline-marker type-${activity.type}`} aria-hidden="true" />
@@ -41,7 +42,7 @@ export function LeadActivityTimeline({
               </div>
             </li>
           ))}
-        </ol>
+        </ul>
       </div>
     </Card>
   );
