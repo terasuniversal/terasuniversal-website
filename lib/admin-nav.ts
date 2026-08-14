@@ -48,6 +48,19 @@ export const NAV: NavGroup[] = [
     ],
   },
   {
+    label: "Sales",
+    items: [
+      // Only production-backed routes. Follow-ups/Tasks/Reports render
+      // SalesPlaceholder ("scheduled for a later Sales phase") today -- not
+      // listed here until they're real, matching this file's own "only
+      // routes that exist" convention.
+      { key: "sales", label: "Sales Dashboard", href: "/admin/sales", icon: "sales", minRole: "editor" },
+      { key: "sales_leads", label: "Leads", href: "/admin/sales/leads", icon: "leads", minRole: "editor" },
+      { key: "sales_opportunities", label: "Opportunities", href: "/admin/sales/opportunities", icon: "opportunities", minRole: "editor" },
+      { key: "sales_quotations", label: "Quotations", href: "/admin/sales/quotations", icon: "quotations", minRole: "editor" },
+    ],
+  },
+  {
     label: "Website Content",
     items: [
       { key: "news", label: "News", href: "/admin/news", icon: "news", minRole: "editor" },
