@@ -26,12 +26,14 @@ function readForm(formData: FormData) {
     status: (v("status") || "open") as any,
     is_published: formData.get("is_published") === "on",
     notes: v("notes"),
+    source_opportunity_id: v("source_opportunity_id"),
+    source_quotation_id: v("source_quotation_id"),
   };
 }
 
 function clean(data: any) {
   const out: any = { ...data };
-  for (const k of ["trainer_name", "venue", "training_mode", "start_time", "end_time", "notes"]) {
+  for (const k of ["trainer_name", "venue", "training_mode", "start_time", "end_time", "notes", "source_opportunity_id", "source_quotation_id"]) {
     if (!out[k]) out[k] = null;
   }
   return out;
@@ -49,13 +51,49 @@ function clean(data: any) {
 // stopgap; wait for a real trainers table.
 
 export async function createSchedule(_prev: ScheduleFormState, formData: FormData): Promise<ScheduleFormState> {
-  await requireRole("admin"); // Editors are read-only.
+  const profile = await requireRole("admin"); // Editors are read-only.
   const parsed = scheduleSchema.safeParse(readForm(formData));
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.from("course_schedules").insert(clean(parsed.data));
-  if (error) return { message: error.message };
+  const payload = clean(parsed.data);
+  const { data: created, error } = await supabase
+    .from("course_schedules")
+    .insert(payload)
+    .select("id, schedule_code")
+    .single();
+  if (error) {
+    // Sales CRM Phase 3 handoff duplicate guard (course_schedules_source_opportunity_unique,
+    // 20260814210000) — a DB constraint, not just the "View Training Schedule"
+    // swap on the Opportunity page, so a second concurrent handoff attempt is
+    // still rejected even if two staff race past that page-level check.
+    if (error.code === "23505" && payload.source_opportunity_id) {
+      return { message: "A training schedule has already been created from this opportunity." };
+    }
+    return { message: error.message };
+  }
+
+  if (payload.source_opportunity_id) {
+    const { data: opp } = await supabase
+      .from("sales_opportunities")
+      .select("lead_metadata_id")
+      .eq("id", payload.source_opportunity_id)
+      .maybeSingle();
+    if (opp?.lead_metadata_id) {
+      await supabase.from("sales_activity").insert({
+        lead_metadata_id: opp.lead_metadata_id,
+        opportunity_id: payload.source_opportunity_id,
+        quotation_id: payload.source_quotation_id,
+        type: "training_handoff_created",
+        note: `Training schedule ${created.schedule_code ?? created.id} created`,
+        actor_id: profile.id,
+      });
+    }
+    revalidatePath(`/admin/sales/opportunities/${payload.source_opportunity_id}`);
+    revalidatePath("/admin/schedules");
+    redirect(`/admin/schedules/${created.id}`);
+  }
+
   revalidatePath("/admin/schedules");
   redirect("/admin/schedules");
 }
