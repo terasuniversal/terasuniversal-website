@@ -127,7 +127,9 @@ export type SalesCrmActivityType =
   | "quotation_rejected"
   | "opportunity_won"
   | "opportunity_lost"
-  | "training_handoff_created";
+  | "training_handoff_created"
+  | "company_linked"
+  | "company_created";
 
 export const CRM_ACTIVITY_ICONS: Record<SalesCrmActivityType, string> = {
   lead_created: "🧲",
@@ -147,6 +149,8 @@ export const CRM_ACTIVITY_ICONS: Record<SalesCrmActivityType, string> = {
   opportunity_won: "🏆",
   opportunity_lost: "🚫",
   training_handoff_created: "🎓",
+  company_linked: "🔗",
+  company_created: "🏢",
 };
 
 export const CRM_ACTIVITY_LABELS: Record<SalesCrmActivityType, string> = {
@@ -167,6 +171,8 @@ export const CRM_ACTIVITY_LABELS: Record<SalesCrmActivityType, string> = {
   opportunity_won: "Opportunity won",
   opportunity_lost: "Opportunity lost",
   training_handoff_created: "Training schedule created",
+  company_linked: "Company linked",
+  company_created: "Company created",
 };
 
 export const SOURCE_LABELS: Record<SalesLeadSourceKind, string> = {
@@ -200,6 +206,8 @@ export interface SalesOpportunityRow {
   id: string;
   lead_metadata_id: string;
   opportunity_no: string;
+  /** Phase 4A — confirmed link to companies.id, set only via explicit staff confirmation. Null until linked. */
+  company_id: string | null;
   company_name: string | null;
   contact_person: string | null;
   contact_email: string | null;

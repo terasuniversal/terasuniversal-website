@@ -441,6 +441,8 @@
 .ta-timeline-marker.type-won { background: rgba(46,158,91,.22); border-color: var(--ta-success); }
 .ta-timeline-marker.type-lost { background: rgba(102,112,133,.26); border-color: var(--ta-muted); }
 .ta-timeline-marker.type-training_handoff_created { background: rgba(46,158,91,.22); border-color: var(--ta-success); }
+.ta-timeline-marker.type-company_linked { background: rgba(47,111,237,.14); border-color: var(--ta-info); }
+.ta-timeline-marker.type-company_created { background: rgba(47,111,237,.14); border-color: var(--ta-info); }
 .ta-timeline-meta { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .ta-timeline-title { font-weight: 700; }
 .ta-timeline-when { font-weight: 600; white-space: nowrap; }
