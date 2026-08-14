@@ -129,7 +129,11 @@ export type SalesCrmActivityType =
   | "opportunity_lost"
   | "training_handoff_created"
   | "company_linked"
-  | "company_created";
+  | "company_created"
+  | "task_created"
+  | "task_completed"
+  | "task_reopened"
+  | "task_cancelled";
 
 export const CRM_ACTIVITY_ICONS: Record<SalesCrmActivityType, string> = {
   lead_created: "🧲",
@@ -151,6 +155,10 @@ export const CRM_ACTIVITY_ICONS: Record<SalesCrmActivityType, string> = {
   training_handoff_created: "🎓",
   company_linked: "🔗",
   company_created: "🏢",
+  task_created: "☑",
+  task_completed: "✅",
+  task_reopened: "🔁",
+  task_cancelled: "🚫",
 };
 
 export const CRM_ACTIVITY_LABELS: Record<SalesCrmActivityType, string> = {
@@ -173,6 +181,10 @@ export const CRM_ACTIVITY_LABELS: Record<SalesCrmActivityType, string> = {
   training_handoff_created: "Training schedule created",
   company_linked: "Company linked",
   company_created: "Company created",
+  task_created: "Task created",
+  task_completed: "Task completed",
+  task_reopened: "Task reopened",
+  task_cancelled: "Task cancelled",
 };
 
 export const SOURCE_LABELS: Record<SalesLeadSourceKind, string> = {
@@ -367,20 +379,92 @@ export interface SalesActivityRow {
   created_at: string;
 }
 
+// Sales CRM Phase 4B — Asia/Kuala_Lumpur is a fixed UTC+8 offset year-round
+// (Malaysia has not observed DST since 1982), so "today" for due-date
+// classification can be computed deterministically with plain arithmetic —
+// no Intl/timezone-database dependency needed, and critically, none of this
+// depends on the server process's own configured timezone (which on a
+// typical Node/Vercel deployment is UTC, not MYT — the exact bug this
+// replaces: the previous version of followUpState() used
+// `new Date().getFullYear()/getMonth()/getDate()`, which reads the JS
+// runtime's local timezone, silently misclassifying anything in the ~8-hour
+// window around midnight MYT if the server itself isn't running in MYT).
+const MYT_OFFSET_MS = 8 * 60 * 60 * 1000;
+
+/** Midnight at the *end* of today in Asia/Kuala_Lumpur, as a real UTC instant — the Due-Today/Upcoming boundary. */
+export function mytEndOfTodayUtc(referenceUtc: Date = new Date()): Date {
+  const shifted = new Date(referenceUtc.getTime() + MYT_OFFSET_MS);
+  const nextMidnightShiftedMs = Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate() + 1);
+  return new Date(nextMidnightShiftedMs - MYT_OFFSET_MS);
+}
+
+/**
+ * Derives OVERDUE / TODAY / UPCOMING / NONE for any due timestamp, in
+ * Asia/Kuala_Lumpur. Rule (documented per Task 3/18):
+ *   overdue  — dueAt < now (absolute instant comparison, timezone-irrelevant)
+ *   today    — now <= dueAt < midnight-tonight-in-MYT
+ *   upcoming — dueAt >= midnight-tonight-in-MYT
+ * A cleared/absent due date is "none" — never shown as active.
+ */
+export function dueDateState(dueAt: string | null): FollowUpState {
+  if (!dueAt) return "none";
+  const due = new Date(dueAt);
+  const now = new Date();
+  if (due < now) return "overdue";
+  if (due < mytEndOfTodayUtc(now)) return "today";
+  return "upcoming";
+}
+
 /** Derives OVERDUE / TODAY / UPCOMING / NONE for a follow-up timestamp on an unresolved lead. */
 export function followUpState(followUpAt: string | null, status: SalesCrmStatus): FollowUpState {
-  if (!followUpAt || status === "won" || status === "lost" || status === "archived") return "none";
-  const due = new Date(followUpAt);
-  const now = new Date();
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const startOfTomorrow = new Date(startOfToday);
-  startOfTomorrow.setDate(startOfTomorrow.getDate() + 1);
-  if (due < now) return "overdue";
-  if (due < startOfTomorrow) return "today";
-  return "upcoming";
+  if (status === "won" || status === "lost" || status === "archived") return "none";
+  return dueDateState(followUpAt);
 }
 
 /** Sanitizes free-text search input before interpolating into a PostgREST .or() filter string (CLAUDE.md §6). */
 export function sanitizeSearchTerm(value: string): string {
   return value.replace(/[%_,()]/g, " ").trim();
+}
+
+/* ------------------------------------------------------------------ */
+/* Phase 4B — Sales Tasks                                              */
+/* ------------------------------------------------------------------ */
+
+/** Matches supabase/migrations/20260814250000_sales_tasks.sql's status CHECK. */
+export type SalesTaskStatus = "open" | "in_progress" | "completed" | "cancelled";
+export const TASK_STATUS_LABELS: Record<SalesTaskStatus, string> = {
+  open: "Open",
+  in_progress: "In Progress",
+  completed: "Completed",
+  cancelled: "Cancelled",
+};
+
+/**
+ * Same 3-value family as sales_lead_metadata_priority_check
+ * (low/medium/high) — confirmed live before adding sales_tasks.priority,
+ * reused rather than inventing a conflicting low/normal/high/urgent set.
+ */
+export type SalesTaskPriority = "low" | "medium" | "high";
+export const TASK_PRIORITY_LABELS: Record<SalesTaskPriority, string> = {
+  low: "Low",
+  medium: "Medium",
+  high: "High",
+};
+
+export interface SalesTaskRow {
+  id: string;
+  title: string;
+  description: string | null;
+  status: SalesTaskStatus;
+  priority: SalesTaskPriority;
+  due_at: string | null;
+  assigned_to: string | null;
+  lead_metadata_id: string | null;
+  opportunity_id: string | null;
+  quotation_id: string | null;
+  created_by: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
 }
