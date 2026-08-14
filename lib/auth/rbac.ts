@@ -52,6 +52,13 @@ export const canManageCertificate = (r?: UserRole | null) => isAdmin(r);
 export const MODULE_ACCESS: Record<string, UserRole> = {
   dashboard: "editor",
   reports: "editor",
+  sales: "editor",
+  sales_leads: "editor",
+  sales_opportunities: "editor",
+  sales_quotations: "editor",
+  sales_followups: "editor",
+  sales_tasks: "editor",
+  sales_reports: "editor",
   courses: "editor",
   trainers: "editor",
   schedules: "editor",

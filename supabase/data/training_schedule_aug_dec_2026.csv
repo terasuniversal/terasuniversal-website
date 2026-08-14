@@ -1,0 +1,30 @@
+planner_row,course_code,course_name,batch_identifier,start_date,end_date,planner_note
+1,BSE,Basic Scaffolding Erector,2026-BSE-01,2026-08-09,2026-08-18,Batch Ogos
+2,ISE,Intermediate Scaffolding Erector,2026-ISE-01,2026-08-09,2026-08-18,Berjalan serentak dengan BSE
+3,BSI,Basic Scaffolding Inspector,2026-BSI-01,2026-08-26,2026-08-27,
+4,ISI,Intermediate Scaffolding Inspector,2026-ISI-01,2026-08-28,2026-08-29,
+5,ASI,Advanced Scaffolding Inspector,2026-ASI-01,2026-08-30,2026-08-31,31 Ogos cuti Merdeka
+6,BSE,Basic Scaffolding Erector,2026-BSE-02,2026-09-01,2026-09-10,
+7,BSI,Basic Scaffolding Inspector,2026-BSI-02,2026-09-07,2026-09-08,
+8,ISI,Intermediate Scaffolding Inspector,2026-ISI-02,2026-09-09,2026-09-10,
+9,ASI,Advanced Scaffolding Inspector,2026-ASI-02,2026-09-11,2026-09-12,
+10,ISE,Intermediate Scaffolding Erector,2026-ISE-02,2026-09-14,2026-09-23,16 Sep Hari Malaysia
+11,ASE,Advanced Scaffolding Erector,2026-ASE-01,2026-09-24,2026-10-03,Cross-month
+12,BSI,Basic Scaffolding Inspector,2026-BSI-03,2026-10-04,2026-10-05,
+13,BSE,Basic Scaffolding Erector,2026-BSE-03,2026-10-04,2026-10-13,
+14,ISI,Intermediate Scaffolding Inspector,2026-ISI-03,2026-10-06,2026-10-07,
+15,ASI,Advanced Scaffolding Inspector,2026-ASI-03,2026-10-08,2026-10-09,
+16,ISE,Intermediate Scaffolding Erector,2026-ISE-03,2026-10-15,2026-10-24,
+17,ASE,Advanced Scaffolding Erector,2026-ASE-02,2026-10-25,2026-11-03,Cross-month
+18,BSE,Basic Scaffolding Erector,2026-BSE-04,2026-11-04,2026-11-13,8 Nov Deepavali
+19,BSI,Basic Scaffolding Inspector,2026-BSI-04,2026-11-15,2026-11-16,
+20,ISE,Intermediate Scaffolding Erector,2026-ISE-04,2026-11-15,2026-11-24,Serentak dengan BSI/ISI/ASI
+21,ISI,Intermediate Scaffolding Inspector,2026-ISI-04,2026-11-17,2026-11-18,
+22,ASI,Advanced Scaffolding Inspector,2026-ASI-04,2026-11-19,2026-11-20,
+23,ASE,Advanced Scaffolding Erector,2026-ASE-03,2026-11-25,2026-12-04,Cross-month
+24,BSI,Basic Scaffolding Inspector,2026-BSI-05,2026-12-06,2026-12-07,
+25,BSE,Basic Scaffolding Erector,2026-BSE-05,2026-12-06,2026-12-15,
+26,ISI,Intermediate Scaffolding Inspector,2026-ISI-05,2026-12-08,2026-12-09,
+27,ASI,Advanced Scaffolding Inspector,2026-ASI-05,2026-12-10,2026-12-11,
+28,ISE,Intermediate Scaffolding Erector,2026-ISE-05,2026-12-15,2026-12-24,Trainer berasingan
+29,ASE,Advanced Scaffolding Erector,2026-ASE-04,2026-12-15,2026-12-24,Trainer berasingan daripada ISE

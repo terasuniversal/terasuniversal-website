@@ -12,12 +12,15 @@ import { isEditor } from "../../../../../lib/auth/rbac";
  */
 const COLUMNS: [string, string][] = [
   ["schedule_code", "Schedule ID"],
+  ["course_code", "Course Code"],
   ["course_name", "Course"],
   ["trainer_name", "Trainer"],
   ["venue", "Venue"],
   ["training_mode", "Mode"],
   ["start_date", "Start Date"],
   ["end_date", "End Date"],
+  ["duration_days", "Duration (Days)"],
+  ["exam_date", "Exam Date"],
   ["start_time", "Start Time"],
   ["end_time", "End Time"],
   ["capacity", "Capacity"],
@@ -36,7 +39,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from("course_schedules")
-    .select("schedule_code, trainer_name, venue, training_mode, start_date, end_date, start_time, end_time, capacity, seats_taken, status, courses(course_name)")
+    .select("schedule_code, trainer_name, venue, training_mode, start_date, end_date, exam_date, start_time, end_time, capacity, seats_taken, status, courses(course_code, course_name)")
     .is("deleted_at", null)
     .order("start_date", { ascending: true });
   if (p.get("q")) {
@@ -51,14 +54,16 @@ export async function GET(request: NextRequest) {
     const m = p.get("month") ? Number(p.get("month")) : null;
     const from = m ? `${y}-${String(m).padStart(2, "0")}-01` : `${y}-01-01`;
     const to = m ? `${y}-${String(m).padStart(2, "0")}-31` : `${y}-12-31`;
-    query = query.gte("start_date", from).lte("start_date", to);
+    query = query.lte("start_date", to).gte("end_date", from);
   }
 
   const { data, error } = await query;
   if (error) return new NextResponse(error.message, { status: 500 });
   const rows = ((data ?? []) as any[]).map((r) => ({
     ...r,
+    course_code: r.courses?.course_code ?? "",
     course_name: r.courses?.course_name ?? "",
+    duration_days: Math.floor((Date.parse(r.end_date) - Date.parse(r.start_date)) / 86_400_000) + 1,
     seats_remaining: Math.max((Number(r.capacity) || 0) - (Number(r.seats_taken) || 0), 0),
   }));
 

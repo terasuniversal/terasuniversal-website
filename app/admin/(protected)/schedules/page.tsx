@@ -13,6 +13,10 @@ const SORTABLE: Record<string, string> = { start: "start_date", id: "schedule_co
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const STATUSES = ["open", "full", "in_progress", "completed", "cancelled"];
 
+function durationDays(startDate: string, endDate: string) {
+  return Math.floor((Date.parse(endDate) - Date.parse(startDate)) / 86_400_000) + 1;
+}
+
 export default async function SchedulesPage({
   searchParams,
 }: {
@@ -39,7 +43,7 @@ export default async function SchedulesPage({
 
   let query = supabase
     .from("course_schedules")
-    .select("id, schedule_code, course_id, courses(course_name), trainer_name, venue, start_date, end_date, status, capacity, seats_taken", { count: "exact" })
+    .select("id, schedule_code, course_id, courses(course_code, course_name), trainer_name, venue, start_date, end_date, exam_date, status, capacity, seats_taken", { count: "exact" })
     .is("deleted_at", null)
     .order(sortCol, { ascending })
     .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
@@ -67,7 +71,7 @@ export default async function SchedulesPage({
     const m = sp.month ? Number(sp.month) : null;
     const from = m ? `${y}-${String(m).padStart(2, "0")}-01` : `${y}-01-01`;
     const to = m ? `${y}-${String(m).padStart(2, "0")}-31` : `${y}-12-31`;
-    query = query.gte("start_date", from).lte("start_date", to);
+    query = query.lte("start_date", to).gte("end_date", from);
   }
 
   const { data: rows, count } = await query;
@@ -129,7 +133,7 @@ export default async function SchedulesPage({
           <div className="ta-table-wrap">
             <table className="ta-table">
               <thead>
-                <tr><th>Schedule ID</th><th>Course</th><th>Trainer</th><th>Dates</th><th>Seats</th><th>Status</th><th></th></tr>
+                <tr><th>Batch ID</th><th>Course</th><th>Trainer / Venue</th><th>Dates</th><th>Exam</th><th>Seats</th><th>Status</th><th></th></tr>
               </thead>
               <tbody>
                 {rows.map((s: any) => {
@@ -142,12 +146,14 @@ export default async function SchedulesPage({
                   return (
                   <tr key={s.id}>
                     <td><code style={{ fontSize: 12 }}>{s.schedule_code}</code></td>
-                    <td><strong>{courseName}</strong>{s.venue ? <div style={{ color: "var(--ta-muted)", fontSize: 12 }}>{s.venue}</div> : null}</td>
-                    <td>{s.trainer_name ?? "—"}</td>
+                    <td><strong>{courseName}</strong>{s.courses?.course_code ? <div style={{ color: "var(--ta-muted)", fontSize: 12 }}>{s.courses.course_code}</div> : null}</td>
+                    <td>{s.trainer_name ?? "—"}<div style={{ color: "var(--ta-muted)", fontSize: 12 }}>{s.venue ?? "No venue assigned"}</div></td>
                     <td style={{ whiteSpace: "nowrap" }}>
                       {new Date(s.start_date).toLocaleDateString("en-MY", { day: "numeric", month: "short" })}
                       {s.end_date !== s.start_date ? ` – ${new Date(s.end_date).toLocaleDateString("en-MY", { day: "numeric", month: "short" })}` : ""}
+                      <div style={{ color: "var(--ta-muted)", fontSize: 12 }}>{durationDays(s.start_date, s.end_date)} day(s)</div>
                     </td>
+                    <td style={{ whiteSpace: "nowrap" }}>{s.exam_date ? new Date(s.exam_date).toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric" }) : "—"}</td>
                     <td style={{ minWidth: 132 }}>
                       <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}><span>{registered}/{capacity || "—"}</span><span style={{ color: "var(--ta-muted)", fontSize: 11 }}>{seatsRemaining} left</span></div>
                       <div role="progressbar" aria-label={`Capacity for ${courseName}`} aria-valuemin={0} aria-valuemax={capacity} aria-valuenow={registered} style={{ height: 5, marginTop: 6, borderRadius: 99, background: "var(--ta-line)", overflow: "hidden" }}>

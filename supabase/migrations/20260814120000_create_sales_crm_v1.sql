@@ -199,3 +199,10 @@ left join public.proposal_requests p on m.lead_source = 'proposal_request' and p
 
 revoke all on public.v_sales_lead_inbox from anon;
 grant select on public.v_sales_lead_inbox to authenticated;
+-- Belt-and-suspenders, found during a later production-readiness audit:
+-- this project's default privileges auto-grant new relations (views
+-- included) broad authenticated access regardless of the explicit GRANT
+-- above. The view isn't actually updatable (LEFT JOINs + CASE expressions),
+-- so these were inert, but tighten to match the least-privilege pattern
+-- already used for enquiries/proposal_requests/sales_lead_metadata.
+revoke insert, update, delete, truncate, references, trigger on public.v_sales_lead_inbox from authenticated;

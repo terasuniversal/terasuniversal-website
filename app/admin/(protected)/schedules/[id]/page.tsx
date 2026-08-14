@@ -20,12 +20,13 @@ export default async function ScheduleDetailsPage({
   const { id } = await params;
   const supabase = await createSupabaseServerClient();
 
-  const { data: s } = await supabase.from("course_schedules").select("*, courses(course_name)").eq("id", id).single();
+  const { data: s } = await supabase.from("course_schedules").select("*, courses(course_code, course_name)").eq("id", id).single();
   if (!s) notFound();
   const courseName = (s as any).courses?.course_name ?? "—";
   const capacity = Math.max(Number(s.capacity) || 0, 0);
   const seatsTaken = Math.max(Number(s.seats_taken) || 0, 0);
   const seatsRemaining = Math.max(capacity - seatsTaken, 0);
+  const duration = Math.floor((Date.parse(s.end_date) - Date.parse(s.start_date)) / 86_400_000) + 1;
 
   // Active enrollments (join) + available (active participants not currently enrolled).
   const { data: enrolled } = await supabase
@@ -79,11 +80,13 @@ export default async function ScheduleDetailsPage({
           <Card title="Schedule Details">
             <div className="ta-card-pad">
               <dl style={dl}>
-                <dt style={{ color: "var(--ta-muted)", padding: "6px 0" }}>Course</dt><dd style={{ margin: 0, padding: "6px 0" }}>{courseName}</dd>
+                <dt style={{ color: "var(--ta-muted)", padding: "6px 0" }}>Batch ID</dt><dd style={{ margin: 0, padding: "6px 0" }}>{s.schedule_code ?? "—"}</dd>
+                <dt style={{ color: "var(--ta-muted)", padding: "6px 0" }}>Course</dt><dd style={{ margin: 0, padding: "6px 0" }}>{(s as any).courses?.course_code ? `${(s as any).courses.course_code} — ` : ""}{courseName}</dd>
                 <dt style={{ color: "var(--ta-muted)", padding: "6px 0" }}>Trainer</dt><dd style={{ margin: 0, padding: "6px 0" }}>{s.trainer_name ?? "—"}</dd>
                 <dt style={{ color: "var(--ta-muted)", padding: "6px 0" }}>Venue</dt><dd style={{ margin: 0, padding: "6px 0" }}>{s.venue ?? "—"}</dd>
                 <dt style={{ color: "var(--ta-muted)", padding: "6px 0" }}>Mode</dt><dd style={{ margin: 0, padding: "6px 0" }}>{s.training_mode ?? "—"}</dd>
-                <dt style={{ color: "var(--ta-muted)", padding: "6px 0" }}>Dates</dt><dd style={{ margin: 0, padding: "6px 0" }}>{new Date(s.start_date).toLocaleDateString("en-MY")} – {new Date(s.end_date).toLocaleDateString("en-MY")}</dd>
+                <dt style={{ color: "var(--ta-muted)", padding: "6px 0" }}>Dates</dt><dd style={{ margin: 0, padding: "6px 0" }}>{new Date(s.start_date).toLocaleDateString("en-MY")} – {new Date(s.end_date).toLocaleDateString("en-MY")} ({duration} day(s))</dd>
+                <dt style={{ color: "var(--ta-muted)", padding: "6px 0" }}>Exam date</dt><dd style={{ margin: 0, padding: "6px 0" }}>{s.exam_date ? new Date(s.exam_date).toLocaleDateString("en-MY") : "—"}</dd>
                 <dt style={{ color: "var(--ta-muted)", padding: "6px 0" }}>Time</dt><dd style={{ margin: 0, padding: "6px 0" }}>{s.start_time ? `${s.start_time} – ${s.end_time ?? ""}` : "—"}</dd>
                 <dt style={{ color: "var(--ta-muted)", padding: "6px 0" }}>Notes</dt><dd style={{ margin: 0, padding: "6px 0" }}>{s.notes ?? "—"}</dd>
               </dl>
