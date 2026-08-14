@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
 import { requireRole } from "../../../../../../lib/auth/session";
@@ -14,6 +15,8 @@ import {
   type SalesQuotationRow,
 } from "../../../../../../lib/sales/crm";
 import { OpportunityActionsPanel } from "./OpportunityActionsPanel";
+import { TrainingHandoffPanel } from "./TrainingHandoffPanel";
+import { matchCourseByProgramme } from "../../../schedules/options";
 
 export const metadata = { title: "Opportunity Detail — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
@@ -39,7 +42,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
   if (!opportunity) notFound();
   const opp = opportunity as SalesOpportunityRow;
 
-  const { data: leadRow } = await supabase.from("v_sales_lead_inbox").select("lead_source, status").eq("lead_metadata_id", opp.lead_metadata_id).maybeSingle();
+  const { data: leadRow } = await supabase.from("v_sales_lead_inbox").select("lead_source, source_id, status").eq("lead_metadata_id", opp.lead_metadata_id).maybeSingle();
 
   const { data: quotationRows } = await supabase
     .from("sales_quotations")
@@ -59,6 +62,77 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
 
   const { data: allProfiles } = await supabase.from("profiles").select("id, full_name");
   const actorNames = new Map(((allProfiles ?? []) as { id: string; full_name: string }[]).map((p) => [p.id, p.full_name]));
+
+  // --------------------------------------------------------------------
+  // Sales CRM Phase 3 — Won Opportunity -> Training Operations handoff.
+  // Only relevant once the opportunity is won; every other stage skips
+  // these extra queries entirely.
+  // --------------------------------------------------------------------
+  let handoffPanel: ReactNode = null;
+  if (opp.stage === "won") {
+    const acceptedQuotation = (quotationRows as SalesQuotationRow[] | null)?.find((q) => q.status === "accepted") ?? null;
+
+    const { data: existingScheduleRow } = await supabase
+      .from("course_schedules")
+      .select("id, schedule_code")
+      .eq("source_opportunity_id", opp.id)
+      .is("deleted_at", null)
+      .maybeSingle();
+
+    // Participant count / location / preferred month only exist on the
+    // proposal_requests source row — an enquiry-sourced lead genuinely has
+    // none of these, so they stay null rather than being guessed.
+    let participants: number | null = null;
+    let location: string | null = null;
+    let preferredMonth: string | null = null;
+    let objectives: string | null = null;
+    if (leadRow?.lead_source === "proposal_request" && leadRow.source_id) {
+      const { data: pr } = await supabase
+        .from("proposal_requests")
+        .select("participants, location, preferred_month, objectives")
+        .eq("id", leadRow.source_id)
+        .maybeSingle();
+      if (pr) {
+        participants = pr.participants ?? null;
+        location = pr.location ?? null;
+        preferredMonth = pr.preferred_month ?? null;
+        objectives = pr.objectives ?? null;
+      }
+    } else if (leadRow?.lead_source === "enquiry" && leadRow.source_id) {
+      const { data: enq } = await supabase.from("enquiries").select("message").eq("id", leadRow.source_id).maybeSingle();
+      objectives = enq?.message ?? null;
+    }
+
+    const matchedCourseId = acceptedQuotation ? await matchCourseByProgramme(opp.programme) : null;
+
+    const contextLines = [
+      `Sales handoff — Opportunity ${opp.opportunity_no}${acceptedQuotation ? ` / Quotation ${acceptedQuotation.quotation_no}` : ""}`,
+      opp.company_name ? `Company: ${opp.company_name}` : null,
+      opp.contact_person ? `Contact: ${opp.contact_person}${opp.contact_email ? ` (${opp.contact_email})` : ""}${opp.contact_phone ? `, ${opp.contact_phone}` : ""}` : null,
+      acceptedQuotation ? `Quotation total: RM ${Number(acceptedQuotation.total).toLocaleString("en-MY", { minimumFractionDigits: 2 })} (commercial context only — not a fee/pricing input)` : null,
+      preferredMonth ? `Preferred month (staff must confirm actual dates): ${preferredMonth}` : null,
+      objectives ? `Objectives/notes: ${objectives}` : null,
+    ].filter(Boolean);
+
+    const createParams = new URLSearchParams({ opportunityId: opp.id });
+    if (acceptedQuotation) createParams.set("quotationId", acceptedQuotation.id);
+    if (matchedCourseId) createParams.set("courseId", matchedCourseId);
+    if (participants != null) createParams.set("capacity", String(participants));
+    if (location) createParams.set("venue", location);
+    createParams.set("notes", contextLines.join("\n"));
+
+    handoffPanel = (
+      <TrainingHandoffPanel
+        canManage={canManage}
+        quotationNo={acceptedQuotation?.quotation_no ?? null}
+        programme={opp.programme}
+        participants={participants}
+        hasAcceptedQuotation={!!acceptedQuotation}
+        existingSchedule={existingScheduleRow ?? null}
+        createHref={`/admin/schedules/new?${createParams.toString()}`}
+      />
+    );
+  }
 
   return (
     <>
@@ -132,6 +206,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          {handoffPanel}
           <OpportunityActionsPanel
             opportunityId={opp.id}
             stage={opp.stage}
