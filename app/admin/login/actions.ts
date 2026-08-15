@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createSupabaseServerClient } from "../../../lib/supabase/server";
+import { writeAuditEvent } from "../../../lib/audit/server";
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -47,11 +48,7 @@ export async function loginAction(
     }
     // Stamp last login + write an audit event.
     await supabase.from("profiles").update({ last_login_at: new Date().toISOString() }).eq("id", user.id);
-    await supabase.rpc("log_event" as never, {
-      p_action: "login",
-      p_entity_type: "auth",
-      p_summary: "Admin sign-in",
-    } as never);
+    await writeAuditEvent({ action: "login", entityType: "auth", summary: "Admin sign-in" });
 
     // Trainers land in their workspace (Attendance); others on the dashboard.
     if (profile?.role === "trainer") redirect("/admin/attendance");

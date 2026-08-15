@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "../../../../../../lib/supabase/serve
 import { getCurrentProfile } from "../../../../../../lib/auth/session";
 import { isEditor } from "../../../../../../lib/auth/rbac";
 import { resolveReportDateRange, monthKeysInRange, mytMonthKey, monthKeyLabel, REPORT_RANGE_KEYS, type ReportRangeKey } from "../../../../../../lib/sales/reports";
+import { writeAuditEvent } from "../../../../../../lib/audit/server";
 
 /**
  * Exports the Monthly Trend summary for the selected date range as CSV.
@@ -81,11 +82,7 @@ export async function GET(request: NextRequest) {
     wonValue: accepted.filter((q: any) => mytMonthKey(q.accepted_at) === mk).reduce((s: number, q: any) => s + Number(q.total), 0),
   }));
 
-  await supabase.rpc("log_event" as never, {
-    p_action: "export",
-    p_entity_type: "sales_reports",
-    p_summary: `Exported Sales Reports monthly summary (${range.startDateLabel} to ${range.endDateLabel})`,
-  } as never);
+  await writeAuditEvent({ action: "export", entityType: "sales_reports", summary: `Exported Sales Reports monthly summary (${range.startDateLabel} to ${range.endDateLabel})` });
 
   const esc = (v: unknown) => {
     const s = v == null ? "" : String(v);

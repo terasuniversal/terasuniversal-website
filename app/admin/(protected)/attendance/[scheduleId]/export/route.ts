@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
 import { getCurrentProfile } from "../../../../../../lib/auth/session";
 import { canViewAttendance } from "../../../../../../lib/auth/rbac";
+import { writeAuditEvent } from "../../../../../../lib/audit/server";
 
 /**
  * Export a schedule's attendance sheet for one session date.
@@ -66,7 +67,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     ["attendance_status", "Status"], ["check_in_time", "Check-in"], ["check_out_time", "Check-out"], ["remarks", "Remarks"],
   ];
 
-  await supabase.rpc("log_event" as never, { p_action: "export", p_entity_type: "attendance", p_summary: `Exported attendance for ${s?.schedule_code ?? scheduleId} on ${sessionDate} (${format})` } as never);
+  await writeAuditEvent({ action: "export", entityType: "attendance", summary: `Exported attendance for ${s?.schedule_code ?? scheduleId} on ${sessionDate} (${format})` });
 
   const stamp = new Date().toISOString().slice(0, 10);
   const escHtml = (v: unknown) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");

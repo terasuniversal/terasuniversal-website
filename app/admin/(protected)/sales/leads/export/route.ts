@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "../../../../../../lib/supabase/serve
 import { getCurrentProfile } from "../../../../../../lib/auth/session";
 import { isEditor } from "../../../../../../lib/auth/rbac";
 import { SOURCE_LABELS, sanitizeSearchTerm, type SalesLeadInboxRow } from "../../../../../../lib/sales/crm";
+import { writeAuditEvent } from "../../../../../../lib/audit/server";
 
 /**
  * Exports the current filtered Lead Inbox as CSV. Read access = editor and
@@ -48,11 +49,7 @@ export async function GET(request: NextRequest) {
   if (error) return new NextResponse(error.message, { status: 500 });
   const rows = (data ?? []) as SalesLeadInboxRow[];
 
-  await supabase.rpc("log_event" as never, {
-    p_action: "export",
-    p_entity_type: "sales_leads",
-    p_summary: `Exported ${rows.length} sales leads (CSV)`,
-  } as never);
+  await writeAuditEvent({ action: "export", entityType: "sales_leads", summary: `Exported ${rows.length} sales leads (CSV)` });
 
   const esc = (v: unknown) => {
     const s = v == null ? "" : String(v);

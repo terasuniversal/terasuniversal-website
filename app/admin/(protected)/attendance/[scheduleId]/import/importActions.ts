@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
 import { requireAttendance } from "../../../../../../lib/auth/session";
 import { isSessionDateInRange } from "../../actions";
+import { writeAuditEvent } from "../../../../../../lib/audit/server";
 
 export interface RawRow { [key: string]: string }
 export interface AnalyzedRow {
@@ -108,7 +109,7 @@ export async function commitImport(scheduleId: string, sessionDate: string, raw:
     if (!error) updated = upsertRows.length;
   }
 
-  await supabase.rpc("log_event" as never, { p_action: "import", p_entity_type: "attendance", p_summary: `Imported attendance for ${sessionDate}: ${updated} updated, ${analysis.summary.invalid} invalid` } as never);
+  await writeAuditEvent({ action: "import", entityType: "attendance", summary: `Imported attendance for ${sessionDate}: ${updated} updated, ${analysis.summary.invalid} invalid` });
   revalidatePath(`/admin/attendance/${scheduleId}`);
   return { updated, skipped: analysis.summary.invalid };
 }

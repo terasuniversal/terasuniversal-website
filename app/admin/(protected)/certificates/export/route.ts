@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { getCurrentProfile } from "../../../../../lib/auth/session";
 import { canViewCertificate } from "../../../../../lib/auth/rbac";
+import { writeAuditEvent } from "../../../../../lib/audit/server";
 
 /**
  * Certificate Register export.
@@ -45,7 +46,7 @@ export async function GET(request: NextRequest) {
     status: r.status, issue_date: r.issue_date ?? "", expiry_date: r.expiry_date ?? "", verification_token: r.verification_token ?? "",
   }));
 
-  await supabase.rpc("log_event" as never, { p_action: "export", p_entity_type: "certificates", p_summary: `Exported ${rows.length} certificates (${format})` } as never);
+  await writeAuditEvent({ action: "export", entityType: "certificates", summary: `Exported ${rows.length} certificates (${format})` });
 
   const stamp = new Date().toISOString().slice(0, 10);
   const esc = (v: unknown) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");

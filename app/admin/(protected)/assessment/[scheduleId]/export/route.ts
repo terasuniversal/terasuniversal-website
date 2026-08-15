@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
 import { getCurrentProfile } from "../../../../../../lib/auth/session";
 import { canViewAssessment } from "../../../../../../lib/auth/rbac";
+import { writeAuditEvent } from "../../../../../../lib/audit/server";
 
 /**
  * Export a schedule's assessment results (every enrolled participant, not
@@ -63,7 +64,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     ["overall_score", "Overall"], ["result", "Result"], ["competency_status", "Competency"], ["remarks", "Remarks"],
   ];
 
-  await supabase.rpc("log_event" as never, { p_action: "export", p_entity_type: "assessments", p_summary: `Exported assessments for ${s?.schedule_code ?? scheduleId} (${format})` } as never);
+  await writeAuditEvent({ action: "export", entityType: "assessments", summary: `Exported assessments for ${s?.schedule_code ?? scheduleId} (${format})` });
 
   const stamp = new Date().toISOString().slice(0, 10);
   const esc = (v: unknown) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");

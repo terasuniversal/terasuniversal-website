@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { getCurrentProfile } from "../../../../../lib/auth/session";
 import { isEditor } from "../../../../../lib/auth/rbac";
+import { writeAuditEvent } from "../../../../../lib/audit/server";
 
 /**
  * Export training schedules honouring the list filters.
@@ -62,11 +63,11 @@ export async function GET(request: NextRequest) {
     seats_remaining: Math.max((Number(r.capacity) || 0) - (Number(r.seats_taken) || 0), 0),
   }));
 
-  await supabase.rpc("log_event" as never, {
-    p_action: "export",
-    p_entity_type: "course_schedules",
-    p_summary: `Exported ${rows.length} schedules (${format})`,
-  } as never);
+  await writeAuditEvent({
+    action: "export",
+    entityType: "course_schedules",
+    summary: `Exported ${rows.length} schedules (${format})`,
+  });
 
   const stamp = new Date().toISOString().slice(0, 10);
   const escHtml = (v: unknown) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");

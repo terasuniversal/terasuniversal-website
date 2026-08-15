@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { getCurrentProfile } from "../../../../../lib/auth/session";
 import { isEditor } from "../../../../../lib/auth/rbac";
+import { writeAuditEvent } from "../../../../../lib/audit/server";
 
 /**
  * Trainer export.
@@ -58,7 +59,7 @@ export async function GET(request: NextRequest) {
   if (error) return new NextResponse(error.message, { status: 500 });
   const rows = (data ?? []) as any[];
 
-  await supabase.rpc("log_event" as never, { p_action: "export", p_entity_type: "trainers", p_summary: `Exported ${rows.length} trainers (${format})` } as never);
+  await writeAuditEvent({ action: "export", entityType: "trainers", summary: `Exported ${rows.length} trainers (${format})` });
 
   if (format === "excel") {
     const head = COLUMNS.map(([, l]) => `<th>${esc(l)}</th>`).join("");

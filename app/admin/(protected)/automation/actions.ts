@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { requireRole } from "../../../../lib/auth/session";
+import { writeAuditEvent } from "../../../../lib/audit/server";
 
 export type FormState = { errors?: Record<string, string>; message?: string; ok?: boolean };
 
@@ -57,10 +58,10 @@ export async function saveAutomationSettings(_prev: FormState, formData: FormDat
     .upsert({ key: "automation", value: parsed.data, description: "Operational Automation Centre settings.", is_public: false }, { onConflict: "key" });
   if (error) return { message: error.message };
 
-  await supabase.rpc("log_event" as never, {
-    p_action: "update", p_entity_type: "site_settings", p_entity_id: "automation",
-    p_summary: "Updated Automation Centre settings",
-  } as never);
+  await writeAuditEvent({
+    action: "update", entityType: "site_settings", entityId: "automation",
+    summary: "Updated Automation Centre settings",
+  });
 
   revalidatePath("/admin/automation");
   revalidatePath("/admin/automation/settings");

@@ -5,6 +5,7 @@ import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { requireRole } from "../../../../../lib/auth/session";
 import { participantImportRowSchema } from "../../../../../lib/validation/schemas";
 import { normalizeIdentityNumber } from "../../../../../lib/identity";
+import { writeAuditEvent } from "../../../../../lib/audit/server";
 
 export interface RawRow { [key: string]: string }
 export interface AnalyzedRow {
@@ -110,11 +111,7 @@ export async function commitImport(raw: RawRow[]): Promise<{ inserted: number; s
   const skippedDup = analysis.summary.duplicate;
   const skippedInvalid = analysis.summary.invalid;
 
-  await supabase.rpc("log_event" as never, {
-    p_action: "import",
-    p_entity_type: "participants",
-    p_summary: `Imported ${inserted} participants (${skippedInvalid} invalid, ${skippedDup} duplicate skipped)`,
-  } as never);
+  await writeAuditEvent({ action: "import", entityType: "participants", summary: `Imported ${inserted} participants (${skippedInvalid} invalid, ${skippedDup} duplicate skipped)` });
 
   // Record in the Automation Centre (import history).
   await supabase.from("automation_runs").insert({
