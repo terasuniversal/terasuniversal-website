@@ -1,0 +1,318 @@
+{
+    "baseline_version":  "TERAS Database Baseline V1 candidate",
+    "project_ref":  "iagzkrzeuawaxvacqprk",
+    "snapshot_timestamp_utc":  "2026-08-15T04:18:21.761Z",
+    "snapshot_timestamp_myt":  "2026-08-15T12:18:25.725+08:00",
+    "git_commit":  "f4c2387559da1208468251f0d1236b8d930bc363",
+    "git_tag":  null,
+    "supabase_cli_version":  "2.114.0",
+    "postgres_version":  "17.6",
+    "canonical_sql":  {
+                          "encoding":  "UTF-8 without BOM",
+                          "line_endings":  "LF",
+                          "generator":  "supabase db dump --linked --project-ref iagzkrzeuawaxvacqprk --schema public,app --keep-comments; removed only nondeterministic pg_dump restrict/unrestrict comments; appended exact catalog definition for application-owned auth.users profile trigger omitted by schema filtering; added the required citext extension declaration before its first application-schema dependency; restored the reviewed global postgres future-function PUBLIC EXECUTE revoke from Security Remediation Pack 1 Revision A",
+                          "raw_sha256":  "0b73dc50022888b580a222318f634f4c9a5b180bc499b7dd1e857e61e98719ba",
+                          "normalized_sha256_optional":  null
+                      },
+    "baseline_migration":  {
+                               "filename":  "20260815150000_database_baseline_v1.sql",
+                               "version":  "20260815150000",
+                               "raw_sha256":  "0b73dc50022888b580a222318f634f4c9a5b180bc499b7dd1e857e61e98719ba",
+                               "status":  "CREATED_NOT_APPLIED"
+                           },
+    "included_schemas":  [
+                             "public",
+                             "app"
+                         ],
+    "excluded_schemas":  [
+                             "auth",
+                             "storage",
+                             "realtime",
+                             "vault",
+                             "supabase_migrations",
+                             "platform-managed internal schemas"
+                         ],
+    "auth_dependencies":  {
+                              "auth_schema_recreated":  false,
+                              "profiles_id_foreign_key":  "public.profiles.id -\u003e auth.users.id ON DELETE CASCADE",
+                              "auth_users_profile_trigger":  "on_auth_user_created AFTER INSERT ON auth.users EXECUTE FUNCTION app.handle_new_user()"
+                          },
+    "extensions":  {
+                       "inventory":  [
+                                         {
+                                             "name":  "citext",
+                                             "version":  "1.6",
+                                             "schema":  "extensions",
+                                             "owner":  "supabase_admin",
+                                             "classification":  "APPLICATION_REQUIRED"
+                                         },
+                                         {
+                                             "name":  "pgcrypto",
+                                             "version":  "1.3",
+                                             "schema":  "extensions",
+                                             "owner":  "postgres",
+                                             "classification":  "OPTIONAL_UNUSED"
+                                         },
+                                         {
+                                             "name":  "pg_trgm",
+                                             "version":  "1.6",
+                                             "schema":  "public",
+                                             "owner":  "supabase_admin",
+                                             "classification":  "REVIEW_REQUIRED"
+                                         },
+                                         {
+                                             "name":  "uuid-ossp",
+                                             "version":  "1.1",
+                                             "schema":  "extensions",
+                                             "owner":  "postgres",
+                                             "classification":  "OPTIONAL"
+                                         },
+                                         {
+                                             "name":  "pg_stat_statements",
+                                             "version":  "1.11",
+                                             "schema":  "extensions",
+                                             "owner":  "postgres",
+                                             "classification":  "PLATFORM_MANAGED"
+                                         },
+                                         {
+                                             "name":  "supabase_vault",
+                                             "version":  "0.3.1",
+                                             "schema":  "vault",
+                                             "owner":  "supabase_admin",
+                                             "classification":  "PLATFORM_MANAGED"
+                                         },
+                                         {
+                                             "name":  "plpgsql",
+                                             "version":  "1.0",
+                                             "schema":  "pg_catalog",
+                                             "owner":  "supabase_admin",
+                                             "classification":  "PLATFORM_MANAGED"
+                                         }
+                                     ],
+                       "citext_declared_in_schema":  true,
+                       "baseline_declarations_pending":  false
+                   },
+    "migration_history":  {
+                              "remote_entry_count":  64,
+                              "frozen_max_version":  "20260814145109",
+                              "canonical_format":  "one version per LF-terminated line, ascending",
+                              "remote_versions_sha256":  "3c7622bca65bd1c4f64416b2e4c5e4379e533c0821e1dc45b668b1d56715e9bb",
+                              "controlled_remediations_recorded_in_history":  false,
+                              "ordered_versions":  [
+                                                       "20260719110806",
+                                                       "20260719110821",
+                                                       "20260719110838",
+                                                       "20260719111616",
+                                                       "20260720023036",
+                                                       "20260720024127",
+                                                       "20260720024249",
+                                                       "20260720034355",
+                                                       "20260721030423",
+                                                       "20260721030532",
+                                                       "20260721030958",
+                                                       "20260721054131",
+                                                       "20260721054342",
+                                                       "20260805024446",
+                                                       "20260806094646",
+                                                       "20260806095641",
+                                                       "20260806100248",
+                                                       "20260806100326",
+                                                       "20260808005349",
+                                                       "20260808012612",
+                                                       "20260808092720",
+                                                       "20260808100255",
+                                                       "20260809025055",
+                                                       "20260809025108",
+                                                       "20260809025120",
+                                                       "20260809025124",
+                                                       "20260809025128",
+                                                       "20260809025202",
+                                                       "20260809025237",
+                                                       "20260809030048",
+                                                       "20260809030429",
+                                                       "20260809032437",
+                                                       "20260809064947",
+                                                       "20260809064958",
+                                                       "20260809065024",
+                                                       "20260809072601",
+                                                       "20260809072652",
+                                                       "20260810074847",
+                                                       "20260810075027",
+                                                       "20260811040654",
+                                                       "20260811102503",
+                                                       "20260811135939",
+                                                       "20260811140352",
+                                                       "20260811140749",
+                                                       "20260813135706",
+                                                       "20260813160713",
+                                                       "20260813163520",
+                                                       "20260813163603",
+                                                       "20260813172355",
+                                                       "20260813174258",
+                                                       "20260814020219",
+                                                       "20260814023616",
+                                                       "20260814023631",
+                                                       "20260814023816",
+                                                       "20260814040543",
+                                                       "20260814040622",
+                                                       "20260814063213",
+                                                       "20260814063229",
+                                                       "20260814074535",
+                                                       "20260814084338",
+                                                       "20260814085639",
+                                                       "20260814101415",
+                                                       "20260814102138",
+                                                       "20260814145109"
+                                                   ]
+                          },
+    "object_counts":  {
+                          "application_schemas":  2,
+                          "types":  6,
+                          "tables":  47,
+                          "views":  2,
+                          "materialized_views":  0,
+                          "functions":  46,
+                          "procedures":  0,
+                          "triggers":  48,
+                          "event_triggers_observed_global_excluded":  6,
+                          "policies":  109,
+                          "indexes":  171,
+                          "sequences":  8,
+                          "identity_columns":  2,
+                          "rls_enabled_tables":  47,
+                          "force_rls_tables":  8
+                      },
+    "object_count_conventions":  {
+                                     "functions":  "Count application-owned pg_proc identities/signatures in public and app where prokind = \u0027f\u0027, including trigger functions and overloads, excluding extension-owned routines through pg_depend.deptype = \u0027e\u0027. Procedures, aggregates, and window functions are counted separately.",
+                                     "types":  "Count explicit application-owned non-array, non-relation pg_type objects in public and app where typtype is one of b,d,e,r,m and typrelid = 0, excluding extension-owned types through pg_depend.deptype = \u0027e\u0027. Automatic table/view composite row types and automatic array types are excluded.",
+                                     "canonical_count_query_location":  "docs/database-baseline-v1-snapshot-report.md#canonical-object-counting-method"
+                                 },
+    "security":  {
+                     "rls_review_status":  "OBSERVED_PENDING_FINAL_FREEZE_REVIEW",
+                     "force_rls_review_status":  "OBSERVED_PENDING_FINAL_FREEZE_REVIEW",
+                     "grants_review_status":  "PACK1_AND_PROPOSAL_BLOCKER_REMEDIATIONS_VERIFIED",
+                     "default_privileges_review_status":  "POSTGRES_PUBLIC_TABLE_SEQUENCE_FUNCTION_DEFAULTS_RESTRICTED; SUPABASE_ADMIN_UNCHANGED",
+                     "security_definer_review_status":  "BLOCKERS_RESOLVED; REMAINING_ALLOWLIST_HARDENING_BACKLOG",
+                     "function_execute_review_status":  "BLOCKERS_RESOLVED; REMAINING_ALLOWLIST_HARDENING_BACKLOG",
+                     "public_access_review_status":  "BLOCKERS_RESOLVED; REMAINING_ALLOWLIST_HARDENING_BACKLOG",
+                     "view_security_review_status":  "OBSERVED: two security_invoker views; anon SELECT denied",
+                     "summary":  {
+                                     "security_definer_count":  33,
+                                     "security_definer_effective_public_execute_count":  5,
+                                     "security_definer_anon_executable_count":  14,
+                                     "security_definer_authenticated_executable_count":  26,
+                                     "security_definer_without_search_path_count":  0,
+                                     "audit_logs_direct_anon_insert_denied":  true,
+                                     "audit_logs_direct_authenticated_insert_denied":  true,
+                                     "audit_insert_policy_absent":  true,
+                                     "verify_certificate_by_value_anon_authenticated_denied":  true,
+                                     "public_log_event_anon_authenticated_denied":  true,
+                                     "app_log_event_ordinary_clients_denied":  true,
+                                     "log_event_as_service_service_role_only":  true,
+                                     "mark_proposal_delivery_status_anon_authenticated_denied":  true,
+                                     "mark_proposal_delivery_status_service_role_allowed":  true,
+                                     "mark_proposal_delivery_status_search_path":  "pg_catalog, public",
+                                     "postgres_future_public_function_execute_revoked":  true,
+                                     "postgres_future_table_sequence_defaults_restricted":  true,
+                                     "supabase_admin_defaults_unchanged":  true,
+                                     "photo_tables_rls_no_policies":  [
+                                                                          "photo_activity_log",
+                                                                          "photo_ai_analysis",
+                                                                          "photo_categories",
+                                                                          "photo_events",
+                                                                          "photo_id_sequences",
+                                                                          "photo_usage_types",
+                                                                          "photo_usages",
+                                                                          "photos"
+                                                                      ]
+                                 }
+                 },
+    "sequence_identity":  {
+                              "review_status":  "OBSERVED_PENDING_FRESH_ENVIRONMENT_TEST",
+                              "first_insert_test_status":  "NOT_RUN_READ_ONLY_COLLECTION",
+                              "production_counters_exported":  false
+                          },
+    "storage":  {
+                    "configuration_artifact":  null,
+                    "bucket_inventory":  [
+                                             {
+                                                 "id":  "teras-photos",
+                                                 "public":  false,
+                                                 "file_size_limit":  26214400,
+                                                 "allowed_mime_types":  [
+                                                                            "image/jpeg",
+                                                                            "image/png",
+                                                                            "image/webp",
+                                                                            "image/heic",
+                                                                            "image/heif"
+                                                                        ]
+                                             }
+                                         ],
+                    "storage_objects_rows_exported":  false,
+                    "storage_objects_policy_count":  0,
+                    "bucket_review_status":  "PENDING_SEPARATE_STORAGE_CONFIGURATION_TASK",
+                    "fresh_test_status":  "NOT_RUN"
+                },
+    "reference_seed":  {
+                           "file":  null,
+                           "sha256":  null,
+                           "approval_status":  "NOT_STARTED",
+                           "idempotence_test_status":  "NOT_RUN",
+                           "classification_summary":  {
+                                                          "courses":  "OPERATIONAL_DATA",
+                                                          "course_schedules":  "OPERATIONAL_DATA",
+                                                          "certificate_templates":  "UNKNOWN_REQUIRES_PRODUCT_DECISION",
+                                                          "storage_bucket_definitions":  "APPLICATION_CONFIGURATION_SEPARATE_ARTIFACT"
+                                                      }
+                       },
+    "fresh_environment_test":  {
+                                   "status":  "NOT_RUN",
+                                   "evidence_reference":  null
+                               },
+    "production_adoption":  {
+                                "approval_status":  "PENDING_NOT_APPROVED",
+                                "baseline_sql_replayed":  false,
+                                "schema_freeze_confirmed":  false,
+                                "baseline_history_marked_applied_at":  null
+                            },
+    "reviewers":  [
+
+                  ],
+    "approval_status":  "FINAL_CANDIDATE_SNAPSHOT_PENDING_FREEZE_REVIEW",
+    "notes":  [
+                  "Read-only production evidence collection only. No production DDL, DML, migration, history repair, Auth, Storage, grant, policy, or function change was performed.",
+                  "The active Baseline V1 migration has not been created. schema.sql is a candidate archive artifact only.",
+                  "Controlled remediation SQL executions intentionally remain absent from schema_migrations until the approved post-baseline chain is established."
+              ],
+    "active_chain":  {
+                         "architecture":  "64 frozen remote-version comments-only markers -\u003e full Database Baseline V1 -\u003e future forward-only migrations",
+                         "marker_count":  64,
+                         "marker_filename_suffix":  "legacy_production_history_marker.sql",
+                         "marker_versions_sha256":  "3c7622bca65bd1c4f64416b2e4c5e4379e533c0821e1dc45b668b1d56715e9bb",
+                         "fresh_active_chain_reconstruction_status":  "PASS",
+                         "production_baseline_history_adoption":  "NOT_APPROVED"
+                     },
+    "legacy_archive":  {
+                           "path":  "supabase/migrations_legacy",
+                           "manifest":  "supabase/migrations_legacy/manifest.json",
+                           "archived_sql_count":  68,
+                           "status":  "PRESERVED_NOT_ACTIVE"
+                       },
+    "post_baseline_drafts":  [
+                                 {
+                                     "filename":  "20260814165048_staff_user_management_phase1.sql",
+                                     "path":  "supabase/post_baseline_drafts/20260814165048_staff_user_management_phase1.sql",
+                                     "status":  "REQUIRES_NEW_POST_BASELINE_VERSION"
+                                 },
+                                 {
+                                     "filename":  "20260812120000_standard_scaffold_certificate_template.sql",
+                                     "path":  "supabase/post_baseline_drafts/20260812120000_standard_scaffold_certificate_template.sql",
+                                     "status":  "REQUIRES_NEW_POST_BASELINE_VERSION"
+                                 }
+                             ],
+    "git_freeze":  {
+                       "active_chain_reconstruction":  "PASS",
+                       "baseline_v1_git_freeze":  "READY",
+                       "production_migration_history_adoption":  "NOT_APPROVED"
+                   }
+}

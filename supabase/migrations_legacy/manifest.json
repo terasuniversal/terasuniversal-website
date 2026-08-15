@@ -1,0 +1,618 @@
+﻿{
+    "archive_version":  "TERAS Database Baseline V1 Git freeze",
+    "immutable":  true,
+    "entries":  [
+                    {
+                        "filename":  "0001_extensions_and_enums.sql",
+                        "original_path":  "supabase/migrations/0001_extensions_and_enums.sql",
+                        "git_commit":  null,
+                        "sha256":  "736f7525e2dfb92827889b235910336c5898e4d3eb64a935e6c75d85327d4eb3",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "0002_core_auth_rbac.sql",
+                        "original_path":  "supabase/migrations/0002_core_auth_rbac.sql",
+                        "git_commit":  null,
+                        "sha256":  "a3e1bdb29afd958fb432a5074256e3e1d0b4ef2aa104b3e9c5250994a049b1cb",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "0003_content_modules.sql",
+                        "original_path":  "supabase/migrations/0003_content_modules.sql",
+                        "git_commit":  null,
+                        "sha256":  "e35fefad43e3cf02f0858d2a6067ea382d40f91de60429661e15a73c63566755",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "0004_crm_and_media.sql",
+                        "original_path":  "supabase/migrations/0004_crm_and_media.sql",
+                        "git_commit":  null,
+                        "sha256":  "ee09f8e3c8a3143acd77f175d8033f425d630e9967c0ce60d2bbc8a49bc63fee",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "0005_audit_log.sql",
+                        "original_path":  "supabase/migrations/0005_audit_log.sql",
+                        "git_commit":  null,
+                        "sha256":  "cb99acecc7889857e73f77ed1ab1d2f4caa128a23c81eece473b07082c2b32e0",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "0006_functions_triggers.sql",
+                        "original_path":  "supabase/migrations/0006_functions_triggers.sql",
+                        "git_commit":  null,
+                        "sha256":  "61ef5e8e31188738f03533c25e03cf3113020aab0932bd4f74993553aa34cd1a",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "0007_rls_policies.sql",
+                        "original_path":  "supabase/migrations/0007_rls_policies.sql",
+                        "git_commit":  null,
+                        "sha256":  "fc9f000f220228cd1ac02bb2141d6d8b8c85e01f4aa2ad3ea259130c55cc1a5a",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "0008_storage_buckets.sql",
+                        "original_path":  "supabase/migrations/0008_storage_buckets.sql",
+                        "git_commit":  null,
+                        "sha256":  "5abe35c6d8669450568f1329d85b510c0e4d8ecabed8a95105c4cc92ca53cab7",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "0009_grants.sql",
+                        "original_path":  "supabase/migrations/0009_grants.sql",
+                        "git_commit":  null,
+                        "sha256":  "702ddeea31696ae9017040968eb336b1f93cabe3970b36f2f5e48f2626df320a",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "0010_public_rpc.sql",
+                        "original_path":  "supabase/migrations/0010_public_rpc.sql",
+                        "git_commit":  null,
+                        "sha256":  "bc9b67a7be0374b6acdf4c1cb0d44ebb39ff65c7abaeb544f44be277648f4979",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "0011_attendance_assessment_verification.sql",
+                        "original_path":  "supabase/migrations/0011_attendance_assessment_verification.sql",
+                        "git_commit":  null,
+                        "sha256":  "58c4fb6c090eba7f31eec2204bf25d5f26b98c5aaa7c18b116d1500f866211f2",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "0012_participants_management.sql",
+                        "original_path":  "supabase/migrations/0012_participants_management.sql",
+                        "git_commit":  null,
+                        "sha256":  "831f03ab8fcc70b766f6115d17a2c917a878ffb3b9acd23718cbe0379e883883",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "0013_training_schedules.sql",
+                        "original_path":  "supabase/migrations/0013_training_schedules.sql",
+                        "git_commit":  null,
+                        "sha256":  "ec534ed7e9be5ad69f00be5ac8e3d72a5366e96c17e24ceec9fe88e7864efb5f",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "0014_attendance_management.sql",
+                        "original_path":  "supabase/migrations/0014_attendance_management.sql",
+                        "git_commit":  null,
+                        "sha256":  "2d9102e41883d2fc6ed19236c46d3aa29cc3ba3366b079918cbf9881a77a4a84",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "0015_assessment_management.sql",
+                        "original_path":  "supabase/migrations/0015_assessment_management.sql",
+                        "git_commit":  null,
+                        "sha256":  "26a6596ce09c6f51eff729972237d6ef3dab7e6e9a91300222c9408a2a5ef6d3",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "0016_certificate_engine.sql",
+                        "original_path":  "supabase/migrations/0016_certificate_engine.sql",
+                        "git_commit":  null,
+                        "sha256":  "786258f5887b9c885adfec9136f637a07927331445e8f419436ae47e82945b97",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "0017_certificate_verification.sql",
+                        "original_path":  "supabase/migrations/0017_certificate_verification.sql",
+                        "git_commit":  null,
+                        "sha256":  "7109221ede149b902f29fc40ad17f3689ba7ba30d68a4aa3c3fc30f3493eb439",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "0018_trainer_management.sql",
+                        "original_path":  "supabase/migrations/0018_trainer_management.sql",
+                        "git_commit":  null,
+                        "sha256":  "eeafc7922904b4e8389cb6c730e412f045a6520d8071ae4479271ea434274561",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "0019_company_management.sql",
+                        "original_path":  "supabase/migrations/0019_company_management.sql",
+                        "git_commit":  null,
+                        "sha256":  "096b52bebe32601e02fe2578d598142bc4678e856021db2614ab9a6bcd8ad05a",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "0020_reporting_views.sql",
+                        "original_path":  "supabase/migrations/0020_reporting_views.sql",
+                        "git_commit":  null,
+                        "sha256":  "cc2d342793007ce8e0a9427afd23cbf0b265524efff55e1c9941d030d2e56221",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "0021_automation_centre.sql",
+                        "original_path":  "supabase/migrations/0021_automation_centre.sql",
+                        "git_commit":  null,
+                        "sha256":  "ab8e8786bd374f82d211603c65ebe0e89b61f6d07e9410d2b2419135bbe8cf8a",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "20260721030247_cms_compatibility_security.sql",
+                        "original_path":  "supabase/migrations/20260721030247_cms_compatibility_security.sql",
+                        "git_commit":  null,
+                        "sha256":  "e8957291222e8c9328fde402464ad8c90e98d34bc2dba6d52d511c74f27a2459",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "20260721030507_move_citext_out_of_public.sql",
+                        "original_path":  "supabase/migrations/20260721030507_move_citext_out_of_public.sql",
+                        "git_commit":  null,
+                        "sha256":  "e4cc20675c04a009af28b4733fab560ec94b94bcbad403a251336b80858edfa7",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "20260721030829_production_cms_additive_compatibility.sql",
+                        "original_path":  "supabase/migrations/20260721030829_production_cms_additive_compatibility.sql",
+                        "git_commit":  null,
+                        "sha256":  "b3aeb29fc729e45dc830185091adbec32ce9057f7d375ee4f78283cfa3d57db7",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "20260721054100_add_course_delivery_modes.sql",
+                        "original_path":  "supabase/migrations/20260721054100_add_course_delivery_modes.sql",
+                        "git_commit":  null,
+                        "sha256":  "fa32541bef35861309be4bbcd1971bfbc2c57fd7d6ad5a2024b275dfad743165",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "20260721054355_add_course_status_compatibility.sql",
+                        "original_path":  "supabase/migrations/20260721054355_add_course_status_compatibility.sql",
+                        "git_commit":  null,
+                        "sha256":  "560a6178cb43f72359b3e39369d16c7c93480f9165f819107daf8204c552c01e",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "20260724120000_provision_admin_content_modules.sql",
+                        "original_path":  "supabase/migrations/20260724120000_provision_admin_content_modules.sql",
+                        "git_commit":  null,
+                        "sha256":  "ffabb91d34ce2325ebe1c503af2f51bb71edf4d42aff0cf531e19eb8c07d152b",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "20260808150000_add_participants_ic_passport_unique_index.sql",
+                        "original_path":  "supabase/migrations/20260808150000_add_participants_ic_passport_unique_index.sql",
+                        "git_commit":  null,
+                        "sha256":  "0997f9e88c2d4c02a3fede9d119ac00c0e1f78e2f12219bf3b5be5d25e373d7a",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "20260808160000_add_courses_active_slug_unique.sql",
+                        "original_path":  "supabase/migrations/20260808160000_add_courses_active_slug_unique.sql",
+                        "git_commit":  null,
+                        "sha256":  "55aae078d3bb2dc6aaae84cb97ee37e6dd35ceb3cd852fd23e88b5eff8ab6208",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "20260809064947_courses_certificate_eligibility_config.sql",
+                        "original_path":  "supabase/migrations/20260809064947_courses_certificate_eligibility_config.sql",
+                        "git_commit":  null,
+                        "sha256":  "4792f26d384eeda395262767f2115167baeda5eaa0c8c3d20eace02f28e93496",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "20260809064958_certificates_active_schedule_participant_unique.sql",
+                        "original_path":  "supabase/migrations/20260809064958_certificates_active_schedule_participant_unique.sql",
+                        "git_commit":  null,
+                        "sha256":  "655a8b055ddce6d85c27f41c43a4558c0beb026eb12ed92f8bda12be1a91a5a2",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "20260809065024_create_v_certificate_eligibility.sql",
+                        "original_path":  "supabase/migrations/20260809065024_create_v_certificate_eligibility.sql",
+                        "git_commit":  null,
+                        "sha256":  "a81f6fc957ae5b138b6b61bc2dabb485948ca5ad5de02eab252e5e8eec3fd769",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "20260809072601_courses_certificate_generation_binding.sql",
+                        "original_path":  "supabase/migrations/20260809072601_courses_certificate_generation_binding.sql",
+                        "git_commit":  null,
+                        "sha256":  "197ae1d6cf553e576e96e5e337238404942c7cfa09f400038cf6a621e2483c27",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "20260809072652_v_certificate_eligibility_generation_gate.sql",
+                        "original_path":  "supabase/migrations/20260809072652_v_certificate_eligibility_generation_gate.sql",
+                        "git_commit":  null,
+                        "sha256":  "1838b0427bdff6072a39018ca3ffe79b46c6f3aae917ea0462e19e51cd8d012d",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "20260809100000_course_schedules_additive_fields.sql",
+                        "original_path":  "supabase/migrations/20260809100000_course_schedules_additive_fields.sql",
+                        "git_commit":  null,
+                        "sha256":  "40f32f02b9d80b08a34a5705ba905d53045e655ed98a717c7b902018672d79df",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "20260809100100_create_schedule_participants.sql",
+                        "original_path":  "supabase/migrations/20260809100100_create_schedule_participants.sql",
+                        "git_commit":  null,
+                        "sha256":  "2de258df07faa9e9135c3b487c821a625546ff387550911b98436934af3dafe3",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "20260809100200_attendance_additive_fields.sql",
+                        "original_path":  "supabase/migrations/20260809100200_attendance_additive_fields.sql",
+                        "git_commit":  null,
+                        "sha256":  "fd85f6804c39fc1b39b1764806543f48a5faddc1df0ef57a0ce2e8130cba5965",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "20260809100300_assessments_additive_fields.sql",
+                        "original_path":  "supabase/migrations/20260809100300_assessments_additive_fields.sql",
+                        "git_commit":  null,
+                        "sha256":  "89503f99d17e082a9bcded338cee0f380673c836a50f09cbdf6502823880d59f",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "20260809100400_certificates_schedule_fk.sql",
+                        "original_path":  "supabase/migrations/20260809100400_certificates_schedule_fk.sql",
+                        "git_commit":  null,
+                        "sha256":  "288a7fb64d70abd1473ace00b4e3639b0bb82dbaacaa17abffdaed023b109bf4",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "20260809100500_schedules_rls_policies.sql",
+                        "original_path":  "supabase/migrations/20260809100500_schedules_rls_policies.sql",
+                        "git_commit":  null,
+                        "sha256":  "e0beef4b43e18806191dfbceb434a9e839a5cc735a4cb0284ab9d2ac0e675f50",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "20260809100550_schedules_functions_search_path.sql",
+                        "original_path":  "supabase/migrations/20260809100550_schedules_functions_search_path.sql",
+                        "git_commit":  null,
+                        "sha256":  "c026640ad45aea2490bb3640642737c0e017c90d26c8ac9c44db0971b157ab63",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "20260809100600_attendance_delete_trainer_access.sql",
+                        "original_path":  "supabase/migrations/20260809100600_attendance_delete_trainer_access.sql",
+                        "git_commit":  null,
+                        "sha256":  "066521179258f92f1cac1c55891c5a557ac2dfa57ef9c276b88f9e6abe99f497",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "20260809100700_assessments_schedule_participant_unique.sql",
+                        "original_path":  "supabase/migrations/20260809100700_assessments_schedule_participant_unique.sql",
+                        "git_commit":  null,
+                        "sha256":  "abb00a280538c962329c319038c4d420f3fd009b16062742f5766775c08b6d69",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "20260809101000_tighten_schedules_rls.sql",
+                        "original_path":  "supabase/migrations/20260809101000_tighten_schedules_rls.sql",
+                        "git_commit":  null,
+                        "sha256":  "32c8e7eddc4269ad453bf9bf6a374a8601dde4690e9bb0230be8d27dfe6827be",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "20260811090000_create_participant_skill_results.sql",
+                        "original_path":  "supabase/migrations/20260811090000_create_participant_skill_results.sql",
+                        "git_commit":  null,
+                        "sha256":  "bee33d079764b44eb00cac0f55e51c6514e01202c59897b47ab907e5d0454bf6",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "20260811100000_certificate_skill_results_and_issuance_rpc.sql",
+                        "original_path":  "supabase/migrations/20260811100000_certificate_skill_results_and_issuance_rpc.sql",
+                        "git_commit":  null,
+                        "sha256":  "a8cf2382c6bd2c49a18496fff270b0d9f2f8163812b223899c4898d4b0628eb4",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "20260813000000_public_upcoming_schedules_rpc.sql",
+                        "original_path":  "supabase/migrations/20260813000000_public_upcoming_schedules_rpc.sql",
+                        "git_commit":  null,
+                        "sha256":  "4cb001f1baad5d31e10b6154fd83e90ac141893797948cc7a6ac77080d2810cc",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "20260814020000_align_certificates_participants_courses_rls.sql",
+                        "original_path":  "supabase/migrations/20260814020000_align_certificates_participants_courses_rls.sql",
+                        "git_commit":  null,
+                        "sha256":  "ecdcaca5a504d9aaa2fc30bed7cf4bb54a0ea54052d15fae39dbfea13ab9b1a4",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "20260814060000_create_enquiries_and_submit_rpc.sql",
+                        "original_path":  "supabase/migrations/20260814060000_create_enquiries_and_submit_rpc.sql",
+                        "git_commit":  null,
+                        "sha256":  "00c7bf2487e905af08c84dbfc3d23e470168b8ce0dcc5705ccf6c028b3916db4",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "20260814090000_create_proposal_requests_and_submit_rpc.sql",
+                        "original_path":  "supabase/migrations/20260814090000_create_proposal_requests_and_submit_rpc.sql",
+                        "git_commit":  null,
+                        "sha256":  "5b239883611dcdd9512a5e51004f644dbf527a24a019d21c47531a82d5e6def6",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "20260814120000_create_sales_crm_v1.sql",
+                        "original_path":  "supabase/migrations/20260814120000_create_sales_crm_v1.sql",
+                        "git_commit":  null,
+                        "sha256":  "9342a3b1d3865e6502ada0693f10952f7351ba2b0fe3fa14487902345c09a301",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "20260814150000_create_sales_crm_phase2_opportunities_quotations.sql",
+                        "original_path":  "supabase/migrations/20260814150000_create_sales_crm_phase2_opportunities_quotations.sql",
+                        "git_commit":  null,
+                        "sha256":  "da1fa7cca0da4e0e62bfb7a9ae91c463233aeea2fefd066ea2483bbadd1610ef",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "20260814180000_revoke_anon_execute_sales_phase2_rpcs.sql",
+                        "original_path":  "supabase/migrations/20260814180000_revoke_anon_execute_sales_phase2_rpcs.sql",
+                        "git_commit":  null,
+                        "sha256":  "0f224c535368b78bd6916d7a896cbdcc449da205af258a00f4c90909757988e7",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "20260814190000_sales_phase2_state_transition_guards.sql",
+                        "original_path":  "supabase/migrations/20260814190000_sales_phase2_state_transition_guards.sql",
+                        "git_commit":  null,
+                        "sha256":  "0bd4d9b6b61a2b82500af1982f5969873f56bf7113c671585a0585e10e646f82",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "20260814200000_tighten_v_sales_lead_inbox_grants.sql",
+                        "original_path":  "supabase/migrations/20260814200000_tighten_v_sales_lead_inbox_grants.sql",
+                        "git_commit":  null,
+                        "sha256":  "d77d2e97775219aadc1b829ecd72a586a2af414fbda25190ea2241e4ad8f19ab",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "20260814210000_course_schedules_sales_handoff_traceability.sql",
+                        "original_path":  "supabase/migrations/20260814210000_course_schedules_sales_handoff_traceability.sql",
+                        "git_commit":  null,
+                        "sha256":  "1e3df0732468d3e59c044aec8624995ee114b15f9f524aded96e616cef672299",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "20260814220000_sales_activity_training_handoff_type.sql",
+                        "original_path":  "supabase/migrations/20260814220000_sales_activity_training_handoff_type.sql",
+                        "git_commit":  null,
+                        "sha256":  "43b0bac5bf898971a07f23d55a8dda33fea5ad6306009a9fd20e4eae2538f659",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "20260814230000_add_schedule_exam_date.sql",
+                        "original_path":  "supabase/migrations/20260814230000_add_schedule_exam_date.sql",
+                        "git_commit":  null,
+                        "sha256":  "b9df4b685ec31e9bc5adbcc5dd8ea5e63ec45d82e8805e676af9d2f1a3fd35a9",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "20260814231000_seed_training_schedule_aug_dec_2026.sql",
+                        "original_path":  "supabase/migrations/20260814231000_seed_training_schedule_aug_dec_2026.sql",
+                        "git_commit":  null,
+                        "sha256":  "d6c0151bfe278bb92a4bd3a36af7885882cc71c0af301029fde30246ab0579af",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "20260814240000_sales_opportunities_company_link.sql",
+                        "original_path":  "supabase/migrations/20260814240000_sales_opportunities_company_link.sql",
+                        "git_commit":  null,
+                        "sha256":  "c2c8fdd63126d6143a12719df557cc2a93354d855f7738c8e75d2e030ff7fe7f",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "20260814250000_sales_tasks.sql",
+                        "original_path":  "supabase/migrations/20260814250000_sales_tasks.sql",
+                        "git_commit":  null,
+                        "sha256":  "be5d4f40368c9438f61c75bf189f371ef20c4ad8d142a00346fc3ddecc861cec",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "20260814260000_tighten_sales_tasks_grants.sql",
+                        "original_path":  "supabase/migrations/20260814260000_tighten_sales_tasks_grants.sql",
+                        "git_commit":  null,
+                        "sha256":  "fa09b621b3a5b0882644b2aa0b859ec9d771f27e903d1ec81f5baa52614729a1",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "20260814270000_fix_lead_status_on_conversion.sql",
+                        "original_path":  "supabase/migrations/20260814270000_fix_lead_status_on_conversion.sql",
+                        "git_commit":  null,
+                        "sha256":  "d54259882fd0bb4029c9f5de60f223179d780245d9a16ce76d55240d5bf3d2c5",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "20260814280000_backfill_lead_status_on_conversion.sql",
+                        "original_path":  "supabase/migrations/20260814280000_backfill_lead_status_on_conversion.sql",
+                        "git_commit":  null,
+                        "sha256":  "6b5c1893fcb8c5817739ac17b9a32c7896a14a9982a0c1703f7efe465d0c49c5",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "20260815000000_participant_feedback_v1.sql",
+                        "original_path":  "supabase/migrations/20260815000000_participant_feedback_v1.sql",
+                        "git_commit":  null,
+                        "sha256":  "1a6c2fc9ba6ac256417dac6b669d3533104ccb026e2e020f9e646f97a2880f7c",
+                        "classification":  "LEGACY_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "20260815120000_security_remediation_pack1.sql",
+                        "original_path":  "supabase/migrations/20260815120000_security_remediation_pack1.sql",
+                        "git_commit":  null,
+                        "sha256":  "7fc2dab08a73c0a2a6ab20a860490446cc92d068be52f7f9a95b870c93cdf4ad",
+                        "classification":  "CONTROLLED_REMEDIATION_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "20260815130000_security_remediation_pack1_revision_a.sql",
+                        "original_path":  "supabase/migrations/20260815130000_security_remediation_pack1_revision_a.sql",
+                        "git_commit":  null,
+                        "sha256":  "bbdb9fe27f00ca17eba412f2d19187e1a0a45a02a71b6a6e585c0e60296ab368",
+                        "classification":  "CONTROLLED_REMEDIATION_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    },
+                    {
+                        "filename":  "20260815140000_proposal_delivery_status_security.sql",
+                        "original_path":  "supabase/migrations/20260815140000_proposal_delivery_status_security.sql",
+                        "git_commit":  "f4c2387559da1208468251f0d1236b8d930bc363",
+                        "sha256":  "682644796f22a9a84d0a888891d7a922fb82f490f362e136a9934e7a646e94d2",
+                        "classification":  "CONTROLLED_REMEDIATION_PRE_BASELINE",
+                        "known_live_equivalent_effect":  "Represented by reviewed Baseline V1 schema where present",
+                        "provenance_status":  "PRESERVED_HISTORICAL_SQL_NOT_ACTIVE_RECONSTRUCTION_CHAIN"
+                    }
+                ]
+}

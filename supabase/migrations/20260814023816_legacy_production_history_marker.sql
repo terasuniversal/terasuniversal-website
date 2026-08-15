@@ -1,0 +1,6 @@
+﻿-- TERAS Database Baseline V1 legacy production migration-history marker.
+-- Remote migration version: 20260814023816
+-- Original SQL provenance is unavailable in the active chain.
+-- This marker intentionally makes no schema or data change.
+-- Current application schema is represented by Database Baseline V1.
+-- Never add schema or data logic to this marker.

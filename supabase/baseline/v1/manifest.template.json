@@ -1,0 +1,171 @@
+{
+  "baseline_version": "<new_timestamp>_teras_database_baseline_v1",
+  "project_ref": "<supabase_project_ref>",
+  "snapshot_timestamp": "<ISO-8601 UTC timestamp>",
+  "git_commit": "<full_git_commit_sha>",
+  "git_tag": "<immutable_git_tag_or_release_identifier>",
+  "supabase_cli_version": "<supabase_cli_version>",
+  "postgres_version": "<postgres_version>",
+  "canonical_sql": {
+    "source_path": "supabase/baseline/v1/schema.sql",
+    "encoding": "UTF-8",
+    "line_endings": "LF",
+    "generator": "<approved_read_only_dump_and_catalog_process>",
+    "generator_version": "<generator_version>",
+    "raw_sha256": "<sha256_of_canonical_raw_bytes>",
+    "normalized_sha256_optional": "<sha256_or_NOT_RECORDED>",
+    "normalization_rule": "<documented_diagnostic_only_rule_or_NOT_APPLICABLE>"
+  },
+  "baseline_migration": {
+    "filename": "<new_timestamp>_teras_database_baseline_v1.sql",
+    "version": "<new_timestamp>",
+    "raw_sha256": "<sha256_of_active_baseline_migration_raw_bytes>"
+  },
+  "included_schemas": [
+    "public",
+    "app",
+    "<extensions_if_confirmed_by_live_snapshot>"
+  ],
+  "excluded_schemas": [
+    "auth",
+    "realtime",
+    "vault",
+    "storage",
+    "supabase_migrations",
+    "<other_platform_managed_schema_if_applicable>"
+  ],
+  "extensions": {
+    "known_repository_candidates": [
+      "pgcrypto",
+      "citext",
+      "pg_trgm"
+    ],
+    "inventory": [
+      {
+        "name": "<extension_name>",
+        "installed_version": "<installed_version>",
+        "schema": "<extension_schema>",
+        "application_dependency": "<dependency_or_not_required>",
+        "ownership_handling": "<no_unsafe_owner_statement|reviewed_safe_handling>",
+        "extension_owned_objects_excluded": true
+      }
+    ],
+    "review_status": "<not_started|passed|failed>"
+  },
+  "migration_history": {
+    "remote_entry_count": null,
+    "frozen_max_version": "<exact_max_remote_version>",
+    "remote_versions_sha256": "<sha256_of_ordered_remote_versions>",
+    "export_sha256": "<sha256_of_remote_history_export>",
+    "marker_collision_check_status": "<not_started|passed|failed>",
+    "active_marker_count": null
+  },
+  "object_counts": {
+    "schemas": null,
+    "extensions": null,
+    "types": null,
+    "domains": null,
+    "tables": null,
+    "columns": null,
+    "constraints": null,
+    "indexes": null,
+    "sequences": null,
+    "identity_columns": null,
+    "views": null,
+    "materialized_views": null,
+    "functions": null,
+    "procedures": null,
+    "triggers": null,
+    "event_triggers": null,
+    "policies": null,
+    "comments_with_security_or_business_invariants": null
+  },
+  "security": {
+    "rls_review_status": "<not_started|passed|failed>",
+    "force_rls_review_status": "<not_started|passed|failed>",
+    "grants_review_status": "<not_started|passed|failed>",
+    "default_privileges_review_status": "<not_started|passed|failed>",
+    "security_definer_review_status": "<not_started|passed|failed>",
+    "function_execute_review_status": "<not_started|passed|failed>",
+    "public_access_review_status": "<not_started|passed|failed>",
+    "view_security_review_status": "<not_started|passed|failed>",
+    "policy_matrix_evidence": "<repository_path_or_secure_change_record>",
+    "grant_matrix_evidence": "<repository_path_or_secure_change_record>",
+    "function_security_evidence": "<repository_path_or_secure_change_record>",
+    "unexpected_privileged_public_or_anon_execution": "<none|blocked|approved_exception_reference>"
+  },
+  "sequence_identity": {
+    "review_status": "<not_started|passed|failed>",
+    "first_insert_test_status": "<not_started|passed|failed>",
+    "evidence_reference": "<repository_path_or_secure_change_record>"
+  },
+  "storage": {
+    "configuration_artifact": "<future_post_baseline_storage_configuration_path>",
+    "bucket_review_status": "<not_started|passed|failed>",
+    "rls_review_status": "<not_started|passed|failed>",
+    "path_conventions_review_status": "<not_started|passed|failed>",
+    "fresh_test_status": "<not_started|passed|failed>",
+    "evidence_reference": "<repository_path_or_secure_change_record>"
+  },
+  "reference_seed": {
+    "file": "<path_or_NOT_APPLICABLE>",
+    "sha256": "<sha256_or_NOT_APPLICABLE>",
+    "approval_status": "<not_started|approved|rejected|not_applicable>",
+    "idempotence_test_status": "<not_started|passed|failed|not_applicable>",
+    "classification_evidence": "<repository_path_or_secure_change_record>"
+  },
+  "backups": {
+    "schema_backup": "<secure_backup_reference>",
+    "schema_backup_sha256": "<sha256_of_backup>",
+    "restore_test_status": "<not_started|passed|failed>",
+    "migration_history_export": "<secure_export_reference>",
+    "remote_version_export": "<secure_export_reference>"
+  },
+  "fresh_environment_test": {
+    "status": "<not_started|passed|failed>",
+    "environment": "<disposable_environment_identifier>",
+    "test_timestamp": "<ISO-8601 UTC timestamp>",
+    "marker_chain_status": "<not_started|passed|failed>",
+    "baseline_from_zero_status": "<not_started|passed|failed>",
+    "post_baseline_migrations_status": "<not_started|passed|failed>",
+    "extensions_status": "<not_started|passed|failed>",
+    "auth_profile_flow_status": "<not_started|passed|failed>",
+    "structure_inventory_status": "<not_started|passed|failed>",
+    "security_negative_tests_status": "<not_started|passed|failed>",
+    "storage_status": "<not_started|passed|failed>",
+    "reference_seed_status": "<not_started|passed|failed|not_applicable>",
+    "application_status": "<not_started|passed|failed>",
+    "supabase_advisors_status": "<not_started|passed|failed>",
+    "evidence_reference": "<repository_path_or_secure_change_record>"
+  },
+  "production_adoption": {
+    "approval_status": "<not_started|approved|rejected>",
+    "production_schema_changed": false,
+    "production_business_data_changed": false,
+    "baseline_sql_replayed": false,
+    "schema_freeze_confirmed": false,
+    "security_signoff": "<pending|approved|rejected>",
+    "operations_signoff": "<pending|approved|rejected>",
+    "product_signoff": "<pending|approved|rejected>",
+    "maintenance_window": "<scheduled_window_or_pending>",
+    "repair_command_reviewed": false,
+    "post_repair_verification_status": "<not_started|passed|failed>",
+    "baseline_history_marked_applied_at": null,
+    "recovery_procedure_reference": "<repository_path_or_secure_change_record>",
+    "rollout_evidence_reference": "<repository_path_or_secure_change_record>"
+  },
+  "reviewers": [
+    {
+      "name": "<reviewer_name>",
+      "role": "<reviewer_role>",
+      "reviewed_at": "<ISO-8601 UTC timestamp>",
+      "decision": "<approved|rejected|pending>"
+    }
+  ],
+  "approval_status": "DRAFT",
+  "notes": [
+    "Template only. Do not include secrets, credentials, production business data, user records, uploaded objects, or invitation/recovery tokens.",
+    "canonical_sql.raw_sha256 and baseline_migration.raw_sha256 must be identical before approval.",
+    "Raw SHA-256 is authoritative for release equality; normalized hash is diagnostic only."
+  ]
+}
