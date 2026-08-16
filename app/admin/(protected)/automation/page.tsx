@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { requireRole } from "../../../../lib/auth/session";
 import { PageHead, Card, StatCard, Badge, EmptyState } from "../../../../components/admin/ui";
 import { getAutomationSettings } from "./actions";
+import { formatMalaysiaDateTime } from "../../../../lib/date-time";
 
 export const metadata = { title: "Automation Centre — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
@@ -134,7 +135,7 @@ export default async function AutomationCentrePage() {
               <tbody>
                 {runs.map((r) => (
                   <tr key={r.id}>
-                    <td style={{ whiteSpace: "nowrap", color: "var(--ta-muted)" }}>{new Date(r.created_at).toLocaleString("en-MY")}</td>
+                    <td style={{ whiteSpace: "nowrap", color: "var(--ta-muted)" }}>{formatMalaysiaDateTime(r.created_at)}</td>
                     <td style={{ whiteSpace: "nowrap" }}>{RUN_LABELS[r.run_type] ?? r.run_type}</td>
                     <td><Badge status={r.status} /></td>
                     <td>{r.total_count}</td>

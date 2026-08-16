@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "../../../../../../lib/supabase/serve
 import { getCurrentProfile } from "../../../../../../lib/auth/session";
 import { isEditor } from "../../../../../../lib/auth/rbac";
 import { SOURCE_LABELS, sanitizeSearchTerm, type SalesLeadInboxRow } from "../../../../../../lib/sales/crm";
+import { formatMalaysiaDateTime } from "../../../../../../lib/date-time";
 
 /**
  * Exports the current filtered Lead Inbox as CSV. Read access = editor and
@@ -19,8 +20,8 @@ const COLUMNS: [string, (r: SalesLeadInboxRow, staffNames: Map<string, string>) 
   ["Phone", (r) => r.phone ?? ""],
   ["Status", (r) => r.status.replace(/_/g, " ")],
   ["Assigned To", (r, names) => (r.assigned_to ? names.get(r.assigned_to) ?? "" : "Unassigned")],
-  ["Follow-up", (r) => (r.follow_up_at ? new Date(r.follow_up_at).toISOString() : "")],
-  ["Created At", (r) => new Date(r.created_at).toISOString()],
+  ["Follow-up", (r) => (r.follow_up_at ? formatMalaysiaDateTime(r.follow_up_at) : "")],
+  ["Created At", (r) => formatMalaysiaDateTime(r.created_at)],
 ];
 
 export async function GET(request: NextRequest) {

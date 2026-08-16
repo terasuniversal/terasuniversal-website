@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { requireRole } from "../../../../lib/auth/session";
 import { isAdmin } from "../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, EmptyState, Pagination, Avatar } from "../../../../components/admin/ui";
+import { formatMalaysiaDate } from "../../../../lib/date-time";
 
 export const metadata = { title: "Trainers — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
@@ -110,7 +111,7 @@ export default async function TrainersPage({
                     <td><Badge status={t.status} /></td>
                     <td className="ta-nowrap">
                       <span className="ta-cell-sub">
-                        {t.updated_at ? new Date(t.updated_at).toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric" }) : "—"}
+                        {t.updated_at ? formatMalaysiaDate(t.updated_at) : "—"}
                       </span>
                     </td>
                     <td className="ta-row-actions">

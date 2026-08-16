@@ -6,6 +6,7 @@ import { STAFF_DEPARTMENTS, DEPARTMENT_LABELS } from "../../../../lib/auth/rbac"
 import type { Profile, UserRole, StaffDepartment } from "../../../../lib/supabase/database.types";
 import { setStaffActive } from "./actions";
 import { ToggleStaffActiveForm } from "./ToggleStaffActiveForm";
+import { formatMalaysiaDateTime } from "../../../../lib/date-time";
 
 export const metadata = { title: "Staff Users — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
@@ -120,7 +121,7 @@ export default async function UsersPage({
                         <span style={{ color: "var(--ta-muted)" }}>Role defaults</span>
                       )}
                     </td>
-                    <td>{user.updated_at ? new Date(user.updated_at).toLocaleString("en-MY") : <span style={{ color: "var(--ta-muted)" }}>Never</span>}</td>
+                    <td>{user.updated_at ? formatMalaysiaDateTime(user.updated_at) : <span style={{ color: "var(--ta-muted)" }}>Never</span>}</td>
                     <td>
                       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                         <Link href={`/admin/users/${user.id}`} className="ta-btn ta-btn-outline ta-btn-sm">View / Edit</Link>

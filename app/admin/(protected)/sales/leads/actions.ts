@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { requireRole, requireModuleAccess } from "../../../../../lib/auth/session";
 import { redirect } from "next/navigation";
+import { formatMalaysiaDateTime } from "../../../../../lib/date-time";
 import {
   salesLeadStatusSchema,
   salesLeadAssignSchema,
@@ -124,7 +125,7 @@ export async function setLeadFollowUp(
       supabase,
       leadMetadataId,
       "followup_scheduled",
-      `Follow-up set for ${new Date(followUpAt).toLocaleString("en-MY", { dateStyle: "medium", timeStyle: "short" })}`,
+      `Follow-up set for ${formatMalaysiaDateTime(followUpAt)}`,
       profile.id
     );
   }

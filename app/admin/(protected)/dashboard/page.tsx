@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { requireStaff } from "../../../../lib/auth/session";
 import { StatCard, Card, PageHead, Badge, EmptyState } from "../../../../components/admin/ui";
+import { formatMalaysiaLongDate } from "../../../../lib/date-time";
 
 export const metadata = { title: "Dashboard — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
@@ -13,12 +14,7 @@ export default async function DashboardPage() {
   if (profile.role === "trainer") redirect("/admin/attendance");
   const supabase = await createSupabaseServerClient();
   const today = new Date().toISOString().slice(0, 10);
-  const dateLabel = new Date().toLocaleDateString("en-MY", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
+  const dateLabel = formatMalaysiaLongDate(new Date());
 
   const [
     coursesCount,

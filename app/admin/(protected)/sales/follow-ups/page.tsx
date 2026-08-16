@@ -4,6 +4,7 @@ import { requireRole } from "../../../../../lib/auth/session";
 import { PageHead, Card, Badge, EmptyState } from "../../../../../components/admin/ui";
 import { mytEndOfTodayUtc, type SalesLeadInboxRow } from "../../../../../lib/sales/crm";
 import { setLeadFollowUp } from "../leads/actions";
+import { formatMalaysiaDate } from "../../../../../lib/date-time";
 
 /** Plain-form wrapper — the inline table row uses fire-and-revalidate semantics (no field errors to surface here; the full Lead/Opportunity detail page's own follow-up form already handles that case with useActionState). */
 async function saveFollowUp(leadMetadataId: string, formData: FormData): Promise<void> {
@@ -168,7 +169,7 @@ export default async function FollowUpsPage({
                         <Badge status={l.status} />
                       </td>
                       <td style={{ color: "var(--ta-muted)", fontSize: 12 }}>
-                        {lastActivity ? `${lastActivity.type.replace(/_/g, " ")} — ${new Date(lastActivity.created_at).toLocaleDateString("en-MY")}` : "—"}
+                        {lastActivity ? `${lastActivity.type.replace(/_/g, " ")} — ${formatMalaysiaDate(lastActivity.created_at)}` : "—"}
                       </td>
                       <td style={{ textAlign: "right" }}>
                         <Link href={href} className="ta-btn ta-btn-outline ta-btn-sm">

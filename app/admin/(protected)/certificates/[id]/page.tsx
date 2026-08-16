@@ -8,6 +8,7 @@ import { CertificateFront, CertificateBack } from "../../../../../components/adm
 import { loadCertificateRender } from "../certData";
 import { revokeCertificate, reissueCertificate, duplicateCertificate, updateCertificateMeta, softDeleteCertificate, regenerateVerificationToken, setVerificationEnabled } from "../actions";
 import { EmptyState } from "../../../../../components/admin/ui";
+import { formatMalaysiaDateTime } from "../../../../../lib/date-time";
 
 export const metadata = { title: "Certificate — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
@@ -131,7 +132,7 @@ await requireModuleAccess("certificates");
               <tbody>
                 {history.map((h: any, i: number) => (
                   <tr key={i}>
-                    <td style={{ whiteSpace: "nowrap" }}>{new Date(h.verified_at).toLocaleString("en-MY")}</td>
+                    <td style={{ whiteSpace: "nowrap" }}>{formatMalaysiaDateTime(h.verified_at)}</td>
                     <td style={{ textTransform: "capitalize" }}>{h.method}</td>
                     <td><Badge status={h.status_returned === "valid" ? "issued" : h.status_returned} /></td>
                     <td style={{ color: "var(--ta-muted)" }}>{h.ip_address ?? "—"}</td>

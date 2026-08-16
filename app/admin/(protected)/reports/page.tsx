@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { requireRole } from "../../../../lib/auth/session";
 import { PageHead, Card, StatCard, Badge, EmptyState } from "../../../../components/admin/ui";
 import { BarChart, LineChart, DonutChart, type Point } from "../../../../components/admin/Charts";
+import { formatMalaysiaDateTime } from "../../../../lib/date-time";
 
 export const metadata = { title: "Reports & Analytics — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
@@ -120,7 +121,7 @@ export default async function ReportsPage() {
         {latestAudit.data && latestAudit.data.length > 0 ? (
           <div className="ta-table-wrap"><table className="ta-table"><tbody>
             {latestAudit.data.map((l: any, i: number) => (
-              <tr key={i}><td style={{ whiteSpace: "nowrap", color: "var(--ta-muted)" }}>{new Date(l.created_at).toLocaleString("en-MY")}</td><td>{l.actor_email ?? "system"}</td><td><Badge status={l.action} /></td><td style={{ color: "var(--ta-muted)" }}>{l.summary}</td></tr>
+              <tr key={i}><td style={{ whiteSpace: "nowrap", color: "var(--ta-muted)" }}>{formatMalaysiaDateTime(l.created_at)}</td><td>{l.actor_email ?? "system"}</td><td><Badge status={l.action} /></td><td style={{ color: "var(--ta-muted)" }}>{l.summary}</td></tr>
             ))}
           </tbody></table></div>
         ) : <EmptyState icon="📋" message="No activity yet." />}

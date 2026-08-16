@@ -4,6 +4,7 @@ import { requireRole } from "../../../../../lib/auth/session";
 import { PageHead, Card, Badge, EmptyState } from "../../../../../components/admin/ui";
 import { dueDateState, mytEndOfTodayUtc, sanitizeSearchTerm, type SalesTaskRow } from "../../../../../lib/sales/crm";
 import { loadStaffOptions } from "./options";
+import { formatMalaysiaDateTime } from "../../../../../lib/date-time";
 
 export const metadata = { title: "Sales Tasks — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
@@ -134,7 +135,7 @@ export default async function SalesTasksPage({
                         <Badge status={t.priority} />
                       </td>
                       <td style={{ fontSize: 12.5 }}>
-                        {t.due_at ? new Date(t.due_at).toLocaleString("en-MY", { dateStyle: "medium", timeStyle: "short" }) : "—"}
+                        {t.due_at ? formatMalaysiaDateTime(t.due_at) : "—"}
                         {state === "overdue" && <span style={{ color: "var(--ta-danger)", marginLeft: 6, fontWeight: 700 }}>Overdue</span>}
                         {state === "today" && <span style={{ color: "var(--ta-info)", marginLeft: 6, fontWeight: 700 }}>Today</span>}
                       </td>

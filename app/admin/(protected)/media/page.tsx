@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { requireRole } from "../../../../lib/auth/session";
 import { Badge, Card, EmptyState, PageHead } from "../../../../components/admin/ui";
+import { formatMalaysiaDate } from "../../../../lib/date-time";
 
 export const metadata = { title: "Media Library — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
@@ -37,7 +38,7 @@ export default async function MediaPage({ searchParams }: { searchParams: Promis
     <Card title="Files" action={<span style={{ color: "var(--ta-muted)", fontSize: 12 }}>Version history is recorded when file replacement infrastructure is enabled.</span>}>
       {files.length ? <div className="ta-table-wrap"><table className="ta-table"><thead><tr><th>Preview</th><th>File</th><th>Type</th><th>Folder</th><th>Size</th><th>Added</th><th></th></tr></thead><tbody>{files.map((file) => {
         const folder = folders.find((item) => item.id === file.folder_id);
-        return <tr key={file.id}><td>{file.kind === "image" && file.public_url ? <img src={file.public_url} alt={file.alt_text || ""} width={48} height={36} style={{ objectFit: "cover", borderRadius: 4 }} /> : <span aria-hidden="true">{file.kind === "pdf" ? "📄" : "📎"}</span>}</td><td><strong>{file.file_name}</strong><div style={{ color: "var(--ta-muted)", fontSize: 12 }}>{file.title || file.alt_text || "No description"}</div></td><td><Badge status={file.kind} /></td><td>{folder?.name ?? "Unfiled"}</td><td>{file.file_size ? `${Math.ceil(file.file_size / 1024)} KB` : "—"}</td><td>{new Date(file.created_at).toLocaleDateString("en-MY")}</td><td style={{ textAlign: "right" }}>{file.public_url ? <a className="ta-btn ta-btn-outline ta-btn-sm" href={file.public_url} target="_blank" rel="noreferrer">Preview</a> : <span style={{ color: "var(--ta-muted)" }}>Private</span>}</td></tr>;
+        return <tr key={file.id}><td>{file.kind === "image" && file.public_url ? <img src={file.public_url} alt={file.alt_text || ""} width={48} height={36} style={{ objectFit: "cover", borderRadius: 4 }} /> : <span aria-hidden="true">{file.kind === "pdf" ? "📄" : "📎"}</span>}</td><td><strong>{file.file_name}</strong><div style={{ color: "var(--ta-muted)", fontSize: 12 }}>{file.title || file.alt_text || "No description"}</div></td><td><Badge status={file.kind} /></td><td>{folder?.name ?? "Unfiled"}</td><td>{file.file_size ? `${Math.ceil(file.file_size / 1024)} KB` : "—"}</td><td>{formatMalaysiaDate(file.created_at)}</td><td style={{ textAlign: "right" }}>{file.public_url ? <a className="ta-btn ta-btn-outline ta-btn-sm" href={file.public_url} target="_blank" rel="noreferrer">Preview</a> : <span style={{ color: "var(--ta-muted)" }}>Private</span>}</td></tr>;
       })}</tbody></table></div> : <EmptyState icon="🗂️" message="No files match these filters." />}
     </Card>
   </>;

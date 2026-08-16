@@ -6,6 +6,7 @@ import { requireRole } from "../../../../../../lib/auth/session";
 import { isAdmin } from "../../../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, EmptyState } from "../../../../../../components/admin/ui";
 import { LeadActivityTimeline } from "../../leads/[id]/LeadActivityTimeline";
+import { formatMalaysiaDateTime } from "../../../../../../lib/date-time";
 import {
   SOURCE_LABELS,
   QUOTATION_STATUS_LABELS,
@@ -222,7 +223,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
         <Badge status={opp.stage} />
         {leadRow && <span style={{ color: "var(--ta-muted)", fontSize: 13 }}>Source: {SOURCE_LABELS[leadRow.lead_source as "enquiry" | "proposal_request"]}</span>}
         <span style={{ color: "var(--ta-muted)", fontSize: 13 }}>
-          Created {new Date(opp.created_at).toLocaleString("en-MY", { dateStyle: "medium", timeStyle: "short" })}
+          Created {formatMalaysiaDateTime(opp.created_at)}
         </span>
         {opp.lost_reason && <span style={{ color: "var(--ta-muted)", fontSize: 13 }}>Lost reason: {opp.lost_reason.replace(/_/g, " ")}</span>}
       </div>
