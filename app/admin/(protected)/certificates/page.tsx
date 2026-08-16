@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { requireCertificate } from "../../../../lib/auth/session";
+import { requireModuleAccess, requireCertificate } from "../../../../lib/auth/session";
 import { canManageCertificate } from "../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, EmptyState, Pagination, StatCard } from "../../../../components/admin/ui";
 import { restoreCertificate } from "./actions";
@@ -18,6 +18,7 @@ export default async function CertificatesPage({
   searchParams: Promise<{ page?: string; q?: string; status?: string; course?: string; deleted?: string }>;
 }) {
   const profile = await requireCertificate(false);
+  await requireModuleAccess("certificates");
   const canManage = canManageCertificate(profile.role);
   const sp = await searchParams;
   const page = Math.max(1, Number(sp.page ?? 1));

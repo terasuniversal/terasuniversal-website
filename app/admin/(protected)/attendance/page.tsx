@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { requireAttendance } from "../../../../lib/auth/session";
+import { requireModuleAccess, requireAttendance } from "../../../../lib/auth/session";
 import { PageHead, Card, Badge, EmptyState, Pagination } from "../../../../components/admin/ui";
 
 export const metadata = { title: "Attendance — TERAS UNIVERSAL Admin" };
@@ -15,6 +15,7 @@ export default async function AttendanceListPage({
   searchParams: Promise<{ page?: string; q?: string; status?: string; trainer?: string; month?: string; year?: string }>;
 }) {
   await requireAttendance(false); // editor+ or trainer may view
+  await requireModuleAccess("attendance");
   const sp = await searchParams;
   const page = Math.max(1, Number(sp.page ?? 1));
   const supabase = await createSupabaseServerClient();

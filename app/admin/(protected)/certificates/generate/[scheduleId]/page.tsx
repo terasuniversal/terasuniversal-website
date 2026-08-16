@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
-import { requireCertificate } from "../../../../../../lib/auth/session";
+import { requireModuleAccess, requireCertificate } from "../../../../../../lib/auth/session";
 import { PageHead, Card, Badge, EmptyState } from "../../../../../../components/admin/ui";
 import { generateCertificate, bulkGenerate } from "../../actions";
 
@@ -40,6 +40,7 @@ function reasonText(r: EligibilityRow): string {
 }
 
 export default async function GenerateForSchedulePage({ params }: { params: Promise<{ scheduleId: string }> }) {
+await requireModuleAccess("certificates");
   await requireCertificate(true);
   const { scheduleId } = await params;
   const supabase = await createSupabaseServerClient();

@@ -1,4 +1,4 @@
-import { requireCertificate } from "../../../../../../lib/auth/session";
+import { requireModuleAccess, requireCertificate } from "../../../../../../lib/auth/session";
 import { PageHead } from "../../../../../../components/admin/ui";
 import { TemplateForm } from "../TemplateForm";
 import { createTemplate } from "../actions";
@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 
 export default async function NewTemplatePage() {
   await requireCertificate(true);
+  await requireModuleAccess("certificates");
   return (
     <>
       <PageHead title="New Certificate Template" subtitle="Design a reusable certificate." />

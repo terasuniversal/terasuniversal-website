@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { requireAssessment } from "../../../../../lib/auth/session";
+import { requireModuleAccess, requireAssessment } from "../../../../../lib/auth/session";
 import { canManageAssessment, isSuperAdmin } from "../../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, EmptyState, StatCard } from "../../../../../components/admin/ui";
 import { AssessmentTable, type AsmRow } from "../AssessmentTable";
@@ -15,6 +15,7 @@ export default async function AssessSchedulePage({
 }: {
   params: Promise<{ scheduleId: string }>;
 }) {
+  await requireModuleAccess("assessment");
   const profile = await requireAssessment(false);
   const canManage = canManageAssessment(profile.role);
   const superAdmin = isSuperAdmin(profile.role);

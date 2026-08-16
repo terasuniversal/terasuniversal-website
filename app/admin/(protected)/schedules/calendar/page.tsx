@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { requireRole } from "../../../../../lib/auth/session";
+import { requireModuleAccess, requireRole } from "../../../../../lib/auth/session";
 import { PageHead, Card, Badge, EmptyState } from "../../../../../components/admin/ui";
 
 export const metadata = { title: "Schedule Calendar — TERAS UNIVERSAL Admin" };
@@ -24,6 +24,7 @@ export default async function CalendarPage({
   searchParams: Promise<{ view?: string; date?: string }>;
 }) {
   await requireRole("editor");
+  await requireModuleAccess("schedules");
   const sp = await searchParams;
   const view = (sp.view as "month" | "week" | "list") ?? "month";
   const anchor = sp.date ? new Date(sp.date + "T00:00:00") : new Date();

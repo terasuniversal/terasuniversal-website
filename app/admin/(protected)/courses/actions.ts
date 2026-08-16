@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { requireRole } from "../../../../lib/auth/session";
+import { requireModuleAccess, requireRole } from "../../../../lib/auth/session";
 import { courseSchema, fieldErrors } from "../../../../lib/validation/schemas";
 
 export type CourseFormState = {
@@ -53,6 +53,7 @@ export async function createCourse(
   formData: FormData
 ): Promise<CourseFormState> {
   await requireRole("editor");
+  await requireModuleAccess("courses");
   const parsed = courseSchema.safeParse(readForm(formData));
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
@@ -89,6 +90,7 @@ export async function updateCourse(
   formData: FormData
 ): Promise<CourseFormState> {
   await requireRole("editor");
+  await requireModuleAccess("courses");
   const parsed = courseSchema.safeParse(readForm(formData));
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
@@ -132,6 +134,7 @@ export async function updateCourse(
 /** Soft delete (sets deleted_at). Public site immediately stops showing it. */
 export async function archiveCourse(id: string) {
   await requireRole("editor");
+  await requireModuleAccess("courses");
   const supabase = await createSupabaseServerClient();
   await supabase.from("courses").update({ status: "archived" }).eq("id", id);
   revalidatePath("/admin/courses");
@@ -139,6 +142,7 @@ export async function archiveCourse(id: string) {
 
 export async function softDeleteCourse(id: string) {
   await requireRole("admin");
+  await requireModuleAccess("courses");
   const supabase = await createSupabaseServerClient();
   await supabase.from("courses").update({ deleted_at: new Date().toISOString() }).eq("id", id);
   revalidatePath("/admin/courses");
@@ -146,6 +150,7 @@ export async function softDeleteCourse(id: string) {
 
 export async function restoreCourse(id: string) {
   await requireRole("admin");
+  await requireModuleAccess("courses");
   const supabase = await createSupabaseServerClient();
   await supabase.from("courses").update({ deleted_at: null }).eq("id", id);
   revalidatePath("/admin/courses");

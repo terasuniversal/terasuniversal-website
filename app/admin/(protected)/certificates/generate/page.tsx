@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { requireCertificate } from "../../../../../lib/auth/session";
+import { requireModuleAccess, requireCertificate } from "../../../../../lib/auth/session";
 import { PageHead, Card, Badge, EmptyState } from "../../../../../components/admin/ui";
 
 export const metadata = { title: "Generate Certificates — TERAS UNIVERSAL Admin" };
@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 
 export default async function GeneratePickerPage() {
   await requireCertificate(true);
+  await requireModuleAccess("certificates");
   const supabase = await createSupabaseServerClient();
   const { data: schedulesRaw } = await supabase
     .from("course_schedules")

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { requireRole } from "../../../../lib/auth/session";
+import { requireModuleAccess, requireRole } from "../../../../lib/auth/session";
 import { isAdmin } from "../../../../lib/auth/rbac";
 import { PageHead, Card, EmptyState, Pagination } from "../../../../components/admin/ui";
 import { ParticipantTable, type Row } from "./ParticipantTable";
@@ -25,6 +25,7 @@ export default async function ParticipantsPage({
   }>;
 }) {
   const profile = await requireRole("editor"); // read allowed for all staff
+  await requireModuleAccess("participants");
   const canWrite = isAdmin(profile.role);
   const sp = await searchParams;
   const page = Math.max(1, Number(sp.page ?? 1));

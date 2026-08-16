@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { requireRole } from "../../../../../lib/auth/session";
+import { requireModuleAccess, requireRole } from "../../../../../lib/auth/session";
 import { isAdmin } from "../../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, EmptyState } from "../../../../../components/admin/ui";
 import { softDeleteParticipant, restoreParticipant } from "../actions";
@@ -23,6 +23,7 @@ export default async function ViewParticipantPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireModuleAccess("participants");
   const profile = await requireRole("editor");
   const canWrite = isAdmin(profile.role);
   const { id } = await params;

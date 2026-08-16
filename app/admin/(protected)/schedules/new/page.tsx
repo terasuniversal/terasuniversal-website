@@ -1,4 +1,4 @@
-import { requireRole } from "../../../../../lib/auth/session";
+import { requireModuleAccess, requireRole } from "../../../../../lib/auth/session";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { PageHead } from "../../../../../components/admin/ui";
 import { ScheduleForm } from "../ScheduleForm";
@@ -31,6 +31,7 @@ export default async function NewSchedulePage({
   }>;
 }) {
   await requireRole("admin");
+  await requireModuleAccess("schedules");
   const sp = await searchParams;
   const [courses, settings] = await Promise.all([loadCourseOptions(), getAutomationSettings()]);
 

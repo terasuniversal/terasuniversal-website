@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { requireAssessment } from "../../../../lib/auth/session";
+import { requireModuleAccess, requireAssessment } from "../../../../lib/auth/session";
 import { getCurrentProfile } from "../../../../lib/auth/session";
 import { isSuperAdmin } from "../../../../lib/auth/rbac";
 import { participantSkillResultSchema } from "../../../../lib/validation/schemas";
@@ -25,6 +25,7 @@ const score = z
  */
 export async function updateAssessment(scheduleId: string, formData: FormData) {
   const profile = await requireAssessment(true);
+  await requireModuleAccess("assessment");
   const participantId = String(formData.get("participant_id") ?? "");
   if (!participantId) return;
 
@@ -87,6 +88,7 @@ export async function updateAssessment(scheduleId: string, formData: FormData) {
  * check doesn't run on this path. */
 export async function bulkUpdateResult(scheduleId: string, formData: FormData) {
   await requireAssessment(true);
+  await requireModuleAccess("assessment");
   const ids = formData.getAll("ids").map(String).filter(Boolean);
   const result = RESULT.safeParse(formData.get("result"));
   if (ids.length === 0 || !result.success) return;
@@ -105,6 +107,7 @@ export async function bulkUpdateResult(scheduleId: string, formData: FormData) {
 /** Lock rows (selected or all) — prevents further edits until unlocked. */
 export async function lockAssessments(scheduleId: string, formData: FormData) {
   await requireAssessment(true);
+  await requireModuleAccess("assessment");
   const ids = formData.getAll("ids").map(String).filter(Boolean);
   const profile = await getCurrentProfile();
   const supabase = await createSupabaseServerClient();
@@ -167,6 +170,7 @@ export async function updateParticipantSkillResults(
   formData: FormData
 ): Promise<SkillsFormState> {
   const profile = await requireAssessment(true); // same guard as updateAssessment: admin+trainer
+  await requireModuleAccess("assessment");
   const participantId = String(formData.get("participant_id") ?? "");
   if (!participantId) return { error: "Missing participant." };
 

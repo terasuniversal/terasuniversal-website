@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
-import { requireCertificate } from "../../../../../../lib/auth/session";
+import { requireModuleAccess, requireCertificate } from "../../../../../../lib/auth/session";
 import { PageHead } from "../../../../../../components/admin/ui";
 import { TemplateForm } from "../TemplateForm";
 import { updateTemplate } from "../actions";
@@ -9,6 +9,7 @@ export const metadata = { title: "Edit Template — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
 
 export default async function EditTemplatePage({ params }: { params: Promise<{ id: string }> }) {
+await requireModuleAccess("certificates");
   await requireCertificate(true);
   const { id } = await params;
   const supabase = await createSupabaseServerClient();

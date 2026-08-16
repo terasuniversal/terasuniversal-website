@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
-import { requireAttendance } from "../../../../../../lib/auth/session";
+import { requireModuleAccess, requireAttendance } from "../../../../../../lib/auth/session";
 import { PrintButton } from "./PrintButton";
 
 export const metadata = {
@@ -41,6 +41,7 @@ export default async function AttendancePrintPage({
 }: {
   params: Promise<{ scheduleId: string }>;
 }) {
+  await requireModuleAccess("attendance");
   await requireAttendance(false); // editor+ or trainer — same gate as Take Attendance
   const { scheduleId } = await params;
   const supabase = await createSupabaseServerClient();

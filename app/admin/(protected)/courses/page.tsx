@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { requireRole } from "../../../../lib/auth/session";
+import { requireModuleAccess, requireRole } from "../../../../lib/auth/session";
 import { isAdmin } from "../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, EmptyState, Pagination, StatCard, SvgIcon } from "../../../../components/admin/ui";
 import { restoreCourse } from "./actions";
@@ -17,6 +17,7 @@ export default async function CoursesPage({
   searchParams: Promise<{ page?: string; q?: string; status?: string; deleted?: string }>;
 }) {
   const profile = await requireRole("editor");
+  await requireModuleAccess("courses");
   const canRestore = isAdmin(profile.role);
   const sp = await searchParams;
   const page = Math.max(1, Number(sp.page ?? 1));

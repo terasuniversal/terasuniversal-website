@@ -329,6 +329,25 @@ function main() {
   const profileAfter = scalar(psql(`select count(*) from public.profiles where id = '${CLEAN}';`));
   expectBool("CL3. Cleanup removed the profile (no orphan)", profileAfter, "0");
 
+  console.log("-- Sales-only least-privilege (dashboard direct-URL basis) --");
+  // WITH_SALES = editor, explicit access, sales_leads=view only.
+  expectBool("LP1. Sales staff denied Dashboard module",
+    scalar(psqlAs(WITH_SALES, "select public.has_module_access('dashboard');")), false);
+  expectBool("LP2. Sales staff denied Courses module",
+    scalar(psqlAs(WITH_SALES, "select public.has_module_access('courses');")), false);
+  expectBool("LP3. Sales staff denied Schedules module",
+    scalar(psqlAs(WITH_SALES, "select public.has_module_access('schedules');")), false);
+  expectBool("LP4. Sales staff denied Participants module",
+    scalar(psqlAs(WITH_SALES, "select public.has_module_access('participants');")), false);
+  expectBool("LP5. Sales staff denied Certificates module",
+    scalar(psqlAs(WITH_SALES, "select public.has_module_access('certificates');")), false);
+  expectBool("LP6. Sales staff denied Attendance module",
+    scalar(psqlAs(WITH_SALES, "select public.has_module_access('attendance');")), false);
+  expectBool("LP7. Sales staff denied Assessment module",
+    scalar(psqlAs(WITH_SALES, "select public.has_module_access('assessment');")), false);
+  expectBool("LP8. Sales staff retains Sales Leads access",
+    scalar(psqlAs(WITH_SALES, "select public.has_module_access_level('sales_leads','view');")), true);
+
   console.log("\nResult: " + passed + " passed, " + failures + " failed.");
   process.exit(failures === 0 ? 0 : 1);
 }

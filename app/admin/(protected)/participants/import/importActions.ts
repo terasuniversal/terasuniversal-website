@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { requireRole } from "../../../../../lib/auth/session";
+import { requireModuleAccess, requireRole } from "../../../../../lib/auth/session";
 import { participantImportRowSchema } from "../../../../../lib/validation/schemas";
 import { normalizeIdentityNumber } from "../../../../../lib/identity";
 
@@ -41,6 +41,7 @@ function normaliseDate(d?: string) {
  */
 export async function analyzeImport(raw: RawRow[]): Promise<ImportAnalysis> {
   await requireRole("admin");
+  await requireModuleAccess("participants");
   const supabase = await createSupabaseServerClient();
 
   // Existing ICs (live rows) for duplicate detection.

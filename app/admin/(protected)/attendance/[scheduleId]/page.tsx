@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { requireAttendance } from "../../../../../lib/auth/session";
+import { requireModuleAccess, requireAttendance } from "../../../../../lib/auth/session";
 import { canManageAttendance } from "../../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, EmptyState, StatCard } from "../../../../../components/admin/ui";
 import { AttendanceTable, type AttRow } from "../AttendanceTable";
@@ -17,6 +17,7 @@ export default async function TakeAttendancePage({
   params: Promise<{ scheduleId: string }>;
   searchParams: Promise<{ date?: string }>;
 }) {
+  await requireModuleAccess("attendance");
   const profile = await requireAttendance(false);
   const canManage = canManageAttendance(profile.role);
   const { scheduleId } = await params;

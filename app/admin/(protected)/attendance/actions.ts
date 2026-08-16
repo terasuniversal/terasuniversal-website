@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { requireAttendance } from "../../../../lib/auth/session";
+import { requireModuleAccess, requireAttendance } from "../../../../lib/auth/session";
 
 const STATUS = z.enum(["present", "absent", "late", "excused"]);
 
@@ -28,6 +28,7 @@ export async function isSessionDateInRange(supabase: Awaited<ReturnType<typeof c
  */
 export async function markAttendance(scheduleId: string, sessionDate: string, formData: FormData) {
   await requireAttendance(true); // trainer or admin
+  await requireModuleAccess("attendance");
   const participantId = String(formData.get("participant_id") ?? "");
   const status = STATUS.safeParse(formData.get("attendance_status"));
   if (!participantId || !status.success) return;
@@ -57,6 +58,7 @@ export async function markAttendance(scheduleId: string, sessionDate: string, fo
 /** Mark every selected (enrolled) participant Present for a session date. */
 export async function markAllPresent(scheduleId: string, sessionDate: string, formData: FormData) {
   await requireAttendance(true);
+  await requireModuleAccess("attendance");
   const ids = formData.getAll("participant_ids").map(String).filter(Boolean);
   if (ids.length === 0) return;
   const supabase = await createSupabaseServerClient();
@@ -76,6 +78,7 @@ export async function markAllPresent(scheduleId: string, sessionDate: string, fo
 /** Bulk-set a status for the selected participants on a session date. */
 export async function bulkUpdateAttendance(scheduleId: string, sessionDate: string, formData: FormData) {
   await requireAttendance(true);
+  await requireModuleAccess("attendance");
   const ids = formData.getAll("participant_ids").map(String).filter(Boolean);
   const status = STATUS.safeParse(formData.get("status"));
   if (ids.length === 0 || !status.success) return;
@@ -92,6 +95,7 @@ export async function bulkUpdateAttendance(scheduleId: string, sessionDate: stri
  * status value in the live enum -- see SCHEDULES_ARCHITECTURE_DECISION.md §G). */
 export async function resetAttendance(scheduleId: string, sessionDate: string, formData: FormData) {
   await requireAttendance(true);
+  await requireModuleAccess("attendance");
   const ids = formData.getAll("participant_ids").map(String).filter(Boolean);
   if (ids.length === 0) return;
   const supabase = await createSupabaseServerClient();
