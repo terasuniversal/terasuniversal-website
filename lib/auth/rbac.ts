@@ -60,6 +60,7 @@ export const MODULE_ACCESS: Record<string, UserRole> = {
   attendance: "trainer",
   assessment: "trainer",
   certificates: "editor",
+  feedback: "editor",
   news: "editor",
   gallery: "editor",
   faq: "editor",

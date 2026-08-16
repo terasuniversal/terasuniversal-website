@@ -30,11 +30,13 @@ export default async function ScheduleDetailsPage({
   // Active enrollments (join) + available (active participants not currently enrolled).
   const { data: enrolled } = await supabase
     .from("schedule_participants")
-    .select("id, enrolled_at, registration_status, participants(id, participant_id, full_name, company, phone, status)")
+    .select("id, enrolled_at, registration_status, participants(id, participant_id, full_name, company, phone, status, deleted_at)")
     .eq("schedule_id", id)
     .is("deleted_at", null)
     .order("enrolled_at", { ascending: true });
-  const active = (enrolled ?? []).filter((a: any) => a.registration_status !== "cancelled");
+  const active = (enrolled ?? []).filter(
+    (a: any) => a.registration_status !== "cancelled" && a.participants && !a.participants.deleted_at
+  );
   const activeIds = new Set(active.map((a: any) => a.participants?.id).filter(Boolean));
 
   const { data: allActive } = await supabase
@@ -44,6 +46,11 @@ export default async function ScheduleDetailsPage({
     .order("full_name")
     .limit(500);
   const available = (allActive ?? []).filter((p: any) => !activeIds.has(p.id));
+
+  const { data: fbRows } = await supabase.from("participant_feedback").select("id, status").eq("schedule_id", id);
+  const fbSubmitted = (fbRows ?? []).filter((f: any) => f.status === "submitted").length;
+  const fbEligible = active.length;
+  const fbRate = fbEligible > 0 ? Math.round((fbSubmitted / fbEligible) * 100) : 0;
 
   const dl = { display: "grid", gridTemplateColumns: "150px 1fr", gap: 4, margin: 0 } as const;
 
@@ -101,6 +108,18 @@ export default async function ScheduleDetailsPage({
             </div>
           </Card>
           <Card title="Certificate Generation"><div className="ta-card-pad"><EmptyState icon="🏅" message="Certificate generation for this schedule is a later follow-up (see SCHEDULES_ARCHITECTURE_DECISION.md §J)." /></div></Card>
+          <Card title="Participant Feedback">
+            <div className="ta-card-pad">
+              <div style={{ fontSize: 28, fontWeight: 800, color: "var(--ta-navy)", marginBottom: 4 }}>
+                {fbSubmitted} / {fbEligible} <span style={{ fontSize: 16, fontWeight: 600, color: "var(--ta-muted)" }}>responses</span>
+              </div>
+              <div className="ta-bar" style={{ marginBottom: 12 }}><span style={{ width: `${fbRate}%` }} /></div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <Link href={`/admin/feedback?schedule=${id}`} className="ta-btn ta-btn-outline">Open Feedback Dashboard</Link>
+                <Link href={`/admin/feedback/${id}`} className="ta-btn ta-btn-outline">Show QR / Links</Link>
+              </div>
+            </div>
+          </Card>
         </div>
 
         <div style={{ display: "grid", gap: 18 }}>
