@@ -56,6 +56,9 @@ export function Topbar({ profile }: { profile: Profile }) {
       <a className="ta-topbar-link" href="/admin/automation">
         Activity centre
       </a>
+      <a className="ta-topbar-link" href="/admin/account/change-password">
+        Change Password
+      </a>
       <div className="ta-user">
         <div className="ta-avatar" aria-hidden="true">
           {initials}

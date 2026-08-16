@@ -308,6 +308,15 @@ export const createStaffSchema = z.object({
 
 export type CreateStaffInput = z.infer<typeof createStaffSchema>;
 
+/** First-login / voluntary password change. Min 10 chars; current required. */
+export const changePasswordSchema = z.object({
+  current_password: z.string().min(1, "Current password is required."),
+  new_password: z.string().min(10, "New password must be at least 10 characters."),
+  confirm_password: z.string().min(1, "Please confirm your new password."),
+});
+
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
+
 /**
  * Bounds on the free-text certificate-template config fields that render
  * directly onto the fixed-height, overflow:hidden A4 certificate pages

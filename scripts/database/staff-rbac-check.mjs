@@ -348,6 +348,36 @@ function main() {
   expectBool("LP8. Sales staff retains Sales Leads access",
     scalar(psqlAs(WITH_SALES, "select public.has_module_access_level('sales_leads','view');")), true);
 
+  console.log("-- First-login password change (Phase 2A.1) --");
+  // PC1: existing users default must_change_password=false.
+  const defaultFlag = scalar(psql(`select must_change_password from public.profiles where id = '${SUPER}';`));
+  expectBool("PC1. Existing profiles default must_change_password=false", defaultFlag, false);
+  // PC2: set_must_change_password is admin-gated.
+  expectError("PC2a. Editor cannot set must_change_password",
+    psqlAs(EDITOR, `select public.set_must_change_password('${NEW_STAFF}', true);`), "forbidden");
+  const setFlag = psqlAs(SUPER, `select public.set_must_change_password('${NEW_STAFF}', true);`);
+  expectOk("PC2b. Super Admin sets must_change_password=true for new staff", setFlag);
+  const afterSet = scalar(psql(`select must_change_password from public.profiles where id = '${NEW_STAFF}';`));
+  expectBool("PC2c. Flag is now true", afterSet, true);
+  // PC3: clear is self-only (no arbitrary userId target).
+  const setOther = psqlAs(SUPER, `select public.set_must_change_password('${NO_SALES}', true);`);
+  expectOk("PC3a. (setup) Super sets another user's flag", setOther);
+  const otherBefore = scalar(psql(`select must_change_password from public.profiles where id = '${NO_SALES}';`));
+  const selfClear = psqlAs(NEW_STAFF, "select public.clear_password_change_flag();");
+  expectOk("PC3b. User clears own flag", selfClear);
+  const ownAfter = scalar(psql(`select must_change_password from public.profiles where id = '${NEW_STAFF}';`));
+  expectBool("PC3c. Own flag cleared", ownAfter, false);
+  const otherAfter = scalar(psql(`select must_change_password from public.profiles where id = '${NO_SALES}';`));
+  expectBool("PC3d. Other user's flag unaffected (self-only)", otherAfter, otherBefore === "t" ? true : false);
+  // reset other user's flag for downstream tests
+  psqlAs(SUPER, `select public.set_must_change_password('${NO_SALES}', false);`);
+  // PC4: safe password_changed audit row (no password fields).
+  const pcAudit = scalar(psql(`select count(*) from public.audit_logs where action = 'password_changed' and entity_id = '${NEW_STAFF}';`));
+  expectBool("PC4. password_changed audit row recorded (safe metadata only)", pcAudit !== "0", true);
+  // PC5: no password values stored in the audit row.
+  const leak = scalar(psql(`select count(*) from public.audit_logs where action = 'password_changed' and (metadata::text ~* 'current_password|new_password|temporary|secret' or summary ~* 'temp|secret|pass[a-z]*=')`));
+  expectBool("PC5. No password values stored in audit", leak, "0");
+
   console.log("\nResult: " + passed + " passed, " + failures + " failed.");
   process.exit(failures === 0 ? 0 : 1);
 }
