@@ -39,9 +39,10 @@ begin
 end$$;
 
 -- Self-only clear of the first-login password-change flag. No userId is
--- accepted; the actor is always the current session user. Records a safe
--- `password_changed` audit event (actor + timestamp only — never passwords).
-create or replace function public.clear_password_change_flag()
+-- accepted; the actor is always the current session user. `p_forced` is a
+-- safe metadata flag (true = first-login forced change, false = voluntary
+-- My Account change) recorded in the audit event — never any password.
+create or replace function public.clear_password_change_flag(p_forced boolean default true)
 returns void
 language plpgsql
 security definer
@@ -62,14 +63,14 @@ begin
 
   insert into public.audit_logs (actor_id, actor_email, action, entity_type, entity_id, summary, metadata)
   select v_uid, email, 'password_changed', 'profiles', v_uid::text, 'password_changed',
-         jsonb_build_object('forced', true)
+         jsonb_build_object('forced', coalesce(p_forced, true))
   from public.profiles
   where id = v_uid;
 end;
 $$;
 
-revoke all on function public.clear_password_change_flag() from public;
-grant execute on function public.clear_password_change_flag() to authenticated;
+revoke all on function public.clear_password_change_flag(boolean) from public;
+grant execute on function public.clear_password_change_flag(boolean) to authenticated;
 
 -- Admin-gated setter used by Add Staff. The caller must be a staff manager
 -- (app.can_manage_staff: super_admin always, or admin with users=admin level).

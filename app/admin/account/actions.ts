@@ -57,8 +57,12 @@ export async function changePassword(
     return { message: "Your password could not be updated. Please try again." };
   }
 
-  // Flag cleared only on confirmed success (self-only RPC).
-  const { error: clearError } = await supabase.rpc("clear_password_change_flag");
+  // Flag cleared only on confirmed success (self-only RPC). Metadata records
+  // whether this was a forced first-login change (flag was true before) or a
+  // voluntary My Account change (flag was already false).
+  const { error: clearError } = await supabase.rpc("clear_password_change_flag", {
+    p_forced: profile.must_change_password,
+  });
   if (clearError) {
     console.error("changePassword: clear first-login flag failed", { message: clearError.message });
     return { message: "Password updated, but your account setup could not be finalized. Please try once more." };

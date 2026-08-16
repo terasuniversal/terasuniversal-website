@@ -106,8 +106,22 @@ async function main2(service, user, cleanup) {
   // 9. Audit row recorded with safe metadata (no password values).
   const audit = psql(`select count(*) from public.audit_logs where action = 'password_changed' and entity_id = '${uid}';`);
   expect("A11. password_changed audit row recorded", /^[1-9]/.test(audit.stdout.trim()), audit.stdout);
+  const forcedMeta = psql(`select metadata->>'forced' from public.audit_logs where action = 'password_changed' and entity_id = '${uid}' order by created_at desc limit 1;`);
+  expect("A11b. Forced first-login change recorded forced=true", /^true$/.test(forcedMeta.stdout.trim()), forcedMeta.stdout);
   const leak = psql(`select count(*) from public.audit_logs where action = 'password_changed' and entity_id = '${uid}' and (metadata::text ~* 'password|secret|temporary' and metadata::text !~* 'password_changed')`);
   expect("A12. No password values in audit", /^0$/.test(leak.stdout.trim()), leak.stdout);
+
+  // 10. Voluntary change (flag false) records forced=false.
+  const NEWPASS2 = "NextPass789!";
+  const reauth2 = await user.auth.signInWithPassword({ email: EMAIL, password: NEWPASS });
+  const upd2 = await user.auth.updateUser({ password: NEWPASS2 });
+  const clear2 = await user.rpc("clear_password_change_flag", { p_forced: false });
+  expect("A13. Voluntary change succeeds", !reauth2.error && !upd2.error && !clear2.error, `${reauth2.error?.message || ""} ${upd2.error?.message || ""} ${clear2.error?.message || ""}`);
+  const volMeta = psql(`select metadata->>'forced' from public.audit_logs where action = 'password_changed' and entity_id = '${uid}' order by created_at desc limit 1;`);
+  expect("A14. Voluntary change recorded forced=false", /^false$/.test(volMeta.stdout.trim()), volMeta.stdout);
+  await user.auth.signOut();
+  const new2Login = await user.auth.signInWithPassword({ email: EMAIL, password: NEWPASS2 });
+  expect("A15. Latest password works", !new2Login.error, new2Login.error?.message);
 
   await cleanup();
   console.log(`\nResult: ${passed} passed, ${failures} failed.`);
