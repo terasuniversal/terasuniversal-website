@@ -38,7 +38,7 @@ export async function loginAction(
   if (user) {
     const { data: profile } = await supabase
       .from("profiles")
-      .select("is_active, role")
+      .select("is_active, role, must_change_password")
       .eq("id", user.id)
       .single();
     if (!profile?.is_active) {
@@ -52,6 +52,12 @@ export async function loginAction(
       p_entity_type: "auth",
       p_summary: "Admin sign-in",
     } as never);
+
+    // First-login password change takes priority over every other landing
+    // decision. The (protected) layout enforces the same gate on all other
+    // admin routes, so a new staff member cannot reach their modules until
+    // the temporary password is changed.
+    if (profile.must_change_password) redirect("/admin/account/change-password");
 
     // Trainers land in their workspace (Attendance); others on the dashboard.
     if (profile?.role === "trainer") redirect("/admin/attendance");

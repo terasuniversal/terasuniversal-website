@@ -178,6 +178,14 @@ export async function createStaff(
   });
   if (moduleError) return rollbackCreatedUser(service, userId, "module access configuration");
 
+  // 5. Mark the account so it must change its one-time temporary password on
+  //    first login. Treated as onboarding failure like the other steps.
+  const { error: flagError } = await supabase.rpc("set_must_change_password", {
+    p_user_id: userId,
+    p_value: true,
+  });
+  if (flagError) return rollbackCreatedUser(service, userId, "first-login password setup");
+
   revalidateStaff();
   return {
     message: "Staff account created.",

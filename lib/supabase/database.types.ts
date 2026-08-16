@@ -93,6 +93,8 @@ export interface Profile {
   department: StaffDepartment | null;
   access_control_enabled: boolean;
   updated_by: string | null;
+  /** True until the staff member changes their one-time temporary password (first login). */
+  must_change_password: boolean;
   created_at: string;
   updated_at: string;
 }
