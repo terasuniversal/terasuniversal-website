@@ -1,4 +1,4 @@
-import type { UserRole } from "../supabase/database.types";
+import type { UserRole, StaffDepartment } from "../supabase/database.types";
 
 /**
  * Role hierarchy — smaller index = more privileged. Mirrors the Postgres
@@ -12,6 +12,27 @@ export const ROLE_ORDER: UserRole[] = [
   "client",
   "participant",
 ];
+
+/** Staff departments (matches public.staff_department enum). */
+export const STAFF_DEPARTMENTS: StaffDepartment[] = [
+  "management",
+  "sales",
+  "marketing",
+  "training_operations",
+  "administration",
+  "finance",
+  "hr",
+];
+
+export const DEPARTMENT_LABELS: Record<StaffDepartment, string> = {
+  management: "Management",
+  sales: "Sales",
+  marketing: "Marketing",
+  training_operations: "Training Operations",
+  administration: "Administration",
+  finance: "Finance",
+  hr: "HR",
+};
 
 export function rank(role: UserRole): number {
   const i = ROLE_ORDER.indexOf(role);
@@ -68,7 +89,7 @@ export const MODULE_ACCESS: Record<string, UserRole> = {
   media: "editor",
   automation: "admin",
   audit: "admin",
-  users: "super_admin",
+  users: "admin",
 };
 
 export function canAccessModule(role: UserRole | null | undefined, moduleKey: string) {

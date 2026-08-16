@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { requireRole } from "../../../../../lib/auth/session";
+import { requireRole, requireModuleAccess } from "../../../../../lib/auth/session";
 import { redirect } from "next/navigation";
 import {
   salesLeadStatusSchema,
@@ -39,6 +39,7 @@ export async function updateLeadStatus(
   formData: FormData
 ): Promise<SalesActionState> {
   const profile = await requireRole("admin");
+  await requireModuleAccess("sales_leads");
   const parsed = salesLeadStatusSchema.safeParse({
     status: formData.get("status"),
     lost_reason: formData.get("lost_reason") ?? "",
@@ -74,6 +75,7 @@ export async function assignLead(
   formData: FormData
 ): Promise<SalesActionState> {
   const profile = await requireRole("admin");
+  await requireModuleAccess("sales_leads");
   const parsed = salesLeadAssignSchema.safeParse({ assigned_to: formData.get("assigned_to") ?? "" });
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
   const assignedTo = parsed.data.assigned_to || null;
@@ -103,6 +105,7 @@ export async function setLeadFollowUp(
   formData: FormData
 ): Promise<SalesActionState> {
   const profile = await requireRole("admin");
+  await requireModuleAccess("sales_leads");
   const parsed = salesLeadFollowUpSchema.safeParse({
     follow_up_at: formData.get("follow_up_at") ?? "",
     priority: formData.get("priority") || undefined,
@@ -141,6 +144,7 @@ export async function addLeadNote(
   formData: FormData
 ): Promise<SalesActionState> {
   const profile = await requireRole("editor");
+  await requireModuleAccess("sales_leads");
   const parsed = salesLeadNoteSchema.safeParse({ note: formData.get("note") });
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
@@ -168,6 +172,7 @@ export async function convertLeadToOpportunity(
   formData: FormData
 ): Promise<SalesActionState> {
   await requireRole("admin");
+  await requireModuleAccess("sales_leads");
   const parsed = convertLeadToOpportunitySchema.safeParse({
     title: formData.get("title"),
     expected_close_date: formData.get("expected_close_date") ?? "",

@@ -15,7 +15,7 @@ export default async function ProtectedLayout({ children }: { children: ReactNod
   const supabase = await createSupabaseServerClient();
 
   // Sidebar badges: operational counts. Cheap head-only queries.
-  const [{ count: pendingCerts }, { count: activeParticipants }] = await Promise.all([
+  const [{ count: pendingCerts }, { count: activeParticipants }, { data: moduleAccess }] = await Promise.all([
     supabase
       .from("certificates")
       .select("*", { count: "exact", head: true })
@@ -26,13 +26,18 @@ export default async function ProtectedLayout({ children }: { children: ReactNod
       .select("*", { count: "exact", head: true })
       .eq("status", "registered")
       .is("deleted_at", null),
+    supabase.rpc("get_my_module_access"),
   ]);
+  const modules = Array.isArray(moduleAccess)
+    ? moduleAccess.map((m: { module_key: string }) => m.module_key)
+    : undefined;
 
   return (
     <div className="ta-shell">
       <NavScrim />
       <Sidebar
         role={profile.role}
+        modules={modules}
         badges={{
           certificates: pendingCerts ?? 0,
           participants: activeParticipants ?? 0,

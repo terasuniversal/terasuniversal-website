@@ -253,6 +253,44 @@ export const newUserSchema = z.object({
   role: z.enum(["super_admin", "admin", "editor", "trainer", "client", "participant"]),
 });
 
+export const staffDepartmentEnum = z.enum([
+  "management",
+  "sales",
+  "marketing",
+  "training_operations",
+  "administration",
+  "finance",
+  "hr",
+]);
+
+export const staffRoleEnum = z.enum(["super_admin", "admin", "editor", "trainer", "client", "participant"]);
+
+export const moduleAccessLevelEnum = z.enum(["view", "edit", "admin"]);
+
+/** Staff profile edit (name / department / role / active / access-control mode). */
+export const staffProfileSchema = z.object({
+  full_name: z.string().trim().min(2).max(120),
+  department: staffDepartmentEnum.nullable().optional(),
+  role: staffRoleEnum,
+  is_active: z.coerce.boolean(),
+  access_control_enabled: z.coerce.boolean().default(false),
+});
+
+/** One row of the module-access matrix. */
+export const moduleAccessItemSchema = z.object({
+  module_key: z.string().trim().min(1).max(80),
+  access_level: moduleAccessLevelEnum,
+});
+
+/** Bulk replace of a profile's explicit module grants. */
+export const setStaffModuleAccessSchema = z.object({
+  user_id: z.string().uuid(),
+  modules: z.array(moduleAccessItemSchema).max(60).default([]),
+});
+
+export type StaffProfileInput = z.infer<typeof staffProfileSchema>;
+export type StaffModuleAccessInput = z.infer<typeof setStaffModuleAccessSchema>;
+
 /**
  * Bounds on the free-text certificate-template config fields that render
  * directly onto the fixed-height, overflow:hidden A4 certificate pages

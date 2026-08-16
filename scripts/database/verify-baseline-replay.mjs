@@ -92,22 +92,9 @@ function main() {
   }
   console.log(`     marker: ${marker.stdout.trim()}`);
 
-  // 4. Post-baseline migrations
-  const postFiles = existsSync(migrationsDir)
-    ? readdirSorted(migrationsDir).filter(isPostBaseline)
-    : [];
-  console.log(`[4/5] Applying ${postFiles.length} post-baseline migration(s)...`);
-  for (const f of postFiles) {
-    const sql = readFileSync(join(migrationsDir, f), "utf8");
-    const r = psql(sql);
-    if (r.code !== 0) {
-      console.error(`FAIL: post-baseline migration ${f} errored:\n` + (r.stderr || r.stdout).slice(0, 2000));
-      process.exit(1);
-    }
-  }
-
-  // 5. Count comparison vs manifest
-  console.log("[5/5] Comparing object counts against manifest.json...");
+  // 4. Count comparison vs frozen manifest (BEFORE post-baseline migrations,
+  //    which legitimately add objects on top of the frozen snapshot).
+  console.log("[4/5] Comparing object counts against manifest.json (baseline only)...");
   const counts = psql(
     `select
        (select count(*) from information_schema.tables where table_schema in ('public','app') and table_type='BASE TABLE' and table_name <> 'app_schema_baseline'),
@@ -126,13 +113,29 @@ function main() {
     ok = ok && match;
     console.log(`     ${labels[i]}: got ${got[i]} / expected ${expect[i]} ${match ? "OK" : "MISMATCH"}`);
   }
-
-  if (ok) {
-    console.log("\nPASS: Baseline V1 bootstrap reconstructs the canonical production schema counts.");
-    process.exit(0);
+  if (!ok) {
+    console.error("\nFAIL: counts differ from the frozen production snapshot (see manifest.json).");
+    process.exit(1);
   }
-  console.error("\nFAIL: counts differ from the frozen production snapshot (see manifest.json).");
-  process.exit(1);
+
+  // 5. Post-baseline migrations (>= first post-baseline version). Verified by
+  //    clean, idempotent application on top of the baseline.
+  const postFiles = existsSync(migrationsDir)
+    ? readdirSorted(migrationsDir).filter(isPostBaseline)
+    : [];
+  console.log(`[5/5] Applying ${postFiles.length} post-baseline migration(s)...`);
+  for (const f of postFiles) {
+    const sql = readFileSync(join(migrationsDir, f), "utf8");
+    const r = psql(sql);
+    if (r.code !== 0) {
+      console.error(`FAIL: post-baseline migration ${f} errored:\n` + (r.stderr || r.stdout).slice(0, 2000));
+      process.exit(1);
+    }
+    console.log(`     applied ${f}`);
+  }
+
+  console.log("\nPASS: Baseline V1 bootstrap matches the frozen snapshot; post-baseline migrations applied cleanly.");
+  process.exit(0);
 }
 
 function readdirSorted(dir) {
