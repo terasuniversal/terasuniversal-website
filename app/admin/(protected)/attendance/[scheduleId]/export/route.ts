@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
 import { getCurrentProfile } from "../../../../../../lib/auth/session";
 import { canViewAttendance } from "../../../../../../lib/auth/rbac";
+import { formatMalaysiaDateTime } from "../../../../../../lib/date-time";
 
 /**
  * Export a schedule's attendance sheet for one session date.
@@ -56,8 +57,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       full_name: r.participants?.full_name ?? "",
       company: r.participants?.company ?? "",
       attendance_status: a?.attendance_status ?? "not_recorded",
-      check_in_time: a?.check_in_time ? new Date(a.check_in_time).toLocaleString("en-MY") : "",
-      check_out_time: a?.check_out_time ? new Date(a.check_out_time).toLocaleString("en-MY") : "",
+      check_in_time: a?.check_in_time ? formatMalaysiaDateTime(a.check_in_time) : "",
+      check_out_time: a?.check_out_time ? formatMalaysiaDateTime(a.check_out_time) : "",
       remarks: a?.remarks ?? "",
     };
   });

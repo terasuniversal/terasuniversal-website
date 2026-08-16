@@ -8,6 +8,7 @@ import { FollowUpBadge } from "../../../../../../components/admin/sales/FollowUp
 import { SOURCE_LABELS, followUpState, type SalesLeadInboxRow, type SalesActivityRow } from "../../../../../../lib/sales/crm";
 import { LeadActionsPanel } from "./LeadActionsPanel";
 import { LeadActivityTimeline } from "./LeadActivityTimeline";
+import { formatMalaysiaDateTime } from "../../../../../../lib/date-time";
 
 export const metadata = { title: "Lead Detail — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
@@ -75,7 +76,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         <Badge status={row.status} />
         <FollowUpBadge state={followUpState(row.follow_up_at, row.status)} />
         <span className="ta-lead-meta-time">
-          Created {new Date(row.created_at).toLocaleString("en-MY", { dateStyle: "medium", timeStyle: "short" })}
+          Created {formatMalaysiaDateTime(row.created_at)}
         </span>
         {row.lost_reason && <span className="ta-lead-meta-time">Lost reason: {row.lost_reason.replace(/_/g, " ")}</span>}
       </div>

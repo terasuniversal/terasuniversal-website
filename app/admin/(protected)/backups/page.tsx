@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { requireRole } from "../../../../lib/auth/session";
 import { Badge, Card, EmptyState, PageHead, StatCard } from "../../../../components/admin/ui";
+import { formatMalaysiaDateTime } from "../../../../lib/date-time";
 
 export const metadata = { title: "Backup Manager — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
@@ -36,8 +37,8 @@ export default async function BackupManagerPage() {
       <Card title="Recovery checklist"><div className="ta-card-pad"><ol className="ta-checklist"><li>Confirm the incident and the required recovery point.</li><li>Notify the system owner before any restore begins.</li><li>Use the provider console with an approved recovery procedure.</li><li>Record the outcome in the activity log after validation.</li></ol></div></Card>
     </div>
     <Card title="Restore history">
-      {history.length ? <div className="ta-table-wrap"><table className="ta-table"><thead><tr><th>When</th><th>Action</th><th>Summary</th><th>Actor</th></tr></thead><tbody>{history.map((item, index) => <tr key={index}><td>{new Date(item.created_at).toLocaleString("en-MY")}</td><td><Badge status={item.action} /></td><td>{item.summary ?? "—"}</td><td>{item.actor_email ?? "System"}</td></tr>)}</tbody></table></div> : <EmptyState icon="🛡️" message="No backup or restore events have been recorded by the application." />}
+      {history.length ? <div className="ta-table-wrap"><table className="ta-table"><thead><tr><th>When</th><th>Action</th><th>Summary</th><th>Actor</th></tr></thead><tbody>{history.map((item, index) => <tr key={index}><td>{formatMalaysiaDateTime(item.created_at)}</td><td><Badge status={item.action} /></td><td>{item.summary ?? "—"}</td><td>{item.actor_email ?? "System"}</td></tr>)}</tbody></table></div> : <EmptyState icon="🛡️" message="No backup or restore events have been recorded by the application." />}
     </Card>
-    <p className="ta-page-note">Last backup record in the CMS: <strong>{latestBackup ? new Date(latestBackup.created_at).toLocaleString("en-MY") : "No record recorded yet"}</strong>. Provider backup availability must be confirmed in the provider console.</p>
+    <p className="ta-page-note">Last backup record in the CMS: <strong>{latestBackup ? formatMalaysiaDateTime(latestBackup.created_at) : "No record recorded yet"}</strong>. Provider backup availability must be confirmed in the provider console.</p>
   </>;
 }

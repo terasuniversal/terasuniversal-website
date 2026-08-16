@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Badge } from "../../../../../components/admin/ui";
 import { FollowUpBadge } from "../../../../../components/admin/sales/FollowUpBadge";
 import { SOURCE_LABELS, followUpState, type SalesLeadInboxRow } from "../../../../../lib/sales/crm";
+import { formatMalaysiaDate } from "../../../../../lib/date-time";
 
 /** Server component — the Lead Inbox has no bulk actions in V1, so no client state is needed. */
 export function LeadInboxTable({
@@ -44,10 +45,10 @@ export function LeadInboxTable({
               <td>{r.assigned_to ? staffNames.get(r.assigned_to) ?? "—" : <span className="ta-lead-sub">Unassigned</span>}</td>
               <td>
                 <FollowUpBadge state={followUpState(r.follow_up_at, r.status)} />
-                {r.follow_up_at && <div className="ta-lead-sub">{new Date(r.follow_up_at).toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric" })}</div>}
+                {r.follow_up_at && <div className="ta-lead-sub">{formatMalaysiaDate(r.follow_up_at)}</div>}
               </td>
               <td className="ta-lead-sub" style={{ whiteSpace: "nowrap" }}>
-                {new Date(r.created_at).toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric" })}
+                {formatMalaysiaDate(r.created_at)}
               </td>
               <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                 <Link href={`/admin/sales/leads/${r.lead_metadata_id}`} className="ta-btn ta-btn-outline ta-btn-sm">View</Link>

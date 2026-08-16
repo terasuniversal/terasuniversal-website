@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Badge } from "../../../../components/admin/ui";
 import { markAttendance, bulkUpdateAttendance, resetAttendance } from "./actions";
+import { formatMalaysiaDateTime } from "../../../../lib/date-time";
 
 export interface AttRow {
   participant_id: string;
@@ -116,8 +117,8 @@ export function AttendanceTable({
                 ) : (
                   <>
                     <td>{r.attendance_status ? <Badge status={r.attendance_status} /> : <span style={{ color: "var(--ta-muted)" }}>Not recorded</span>}</td>
-                    <td style={{ whiteSpace: "nowrap", color: "var(--ta-muted)" }}>{r.check_in_time ? new Date(r.check_in_time).toLocaleString("en-MY") : "—"}</td>
-                    <td style={{ whiteSpace: "nowrap", color: "var(--ta-muted)" }}>{r.check_out_time ? new Date(r.check_out_time).toLocaleString("en-MY") : "—"}</td>
+                    <td style={{ whiteSpace: "nowrap", color: "var(--ta-muted)" }}>{r.check_in_time ? formatMalaysiaDateTime(r.check_in_time) : "—"}</td>
+                    <td style={{ whiteSpace: "nowrap", color: "var(--ta-muted)" }}>{r.check_out_time ? formatMalaysiaDateTime(r.check_out_time) : "—"}</td>
                     <td>{r.remarks ?? "—"}</td>
                   </>
                 )}

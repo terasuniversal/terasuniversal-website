@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { requireRole } from "../../../../lib/auth/session";
 import { PageHead, Card, Badge, EmptyState, Pagination, StatCard } from "../../../../components/admin/ui";
+import { formatMalaysiaDate, formatMalaysiaDateTime } from "../../../../lib/date-time";
 
 export const metadata = { title: "Audit Log — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
@@ -44,7 +45,7 @@ export default async function AuditPage({
     <div className="ta-grid cols-3" style={{ marginBottom: 18 }}>
       <StatCard icon="📋" label="All recorded events" value={totalCount ?? 0} />
       <StatCard icon="🔎" label="Matching events" value={count ?? 0} />
-      <StatCard icon="◷" label="Latest activity" value={recent?.created_at ? new Date(recent.created_at).toLocaleDateString("en-MY") : "None"} />
+      <StatCard icon="◷" label="Latest activity" value={recent?.created_at ? formatMalaysiaDate(recent.created_at) : "None"} />
     </div>
     <form className="ta-toolbar" role="search" style={{ alignItems: "flex-end" }}>
       <div className="ta-search" style={{ maxWidth: 290 }}><span className="ta-search-ico" aria-hidden="true">⌕</span><input name="q" defaultValue={sp.q ?? ""} placeholder="Actor, summary or record ID…" aria-label="Search audit log" /></div>
@@ -54,7 +55,7 @@ export default async function AuditPage({
       {filtersApplied && <Link className="ta-btn ta-btn-outline ta-btn-sm" href="/admin/audit">Reset filters</Link>}
     </form>
     <Card title="Activity records">
-      {logs && logs.length > 0 ? <div className="ta-table-wrap"><table className="ta-table"><thead><tr><th>When</th><th>Actor</th><th>Action</th><th>Entity</th><th>Summary</th></tr></thead><tbody>{logs.map((item: any) => <tr key={item.id}><td style={{ color: "var(--ta-muted)", whiteSpace: "nowrap" }}>{new Date(item.created_at).toLocaleString("en-MY")}</td><td>{item.actor_email ?? "System"}</td><td><Badge status={item.action} /></td><td>{item.entity_type ?? "—"}</td><td style={{ color: "var(--ta-muted)" }}>{item.summary ?? "—"}</td></tr>)}</tbody></table></div> : <EmptyState icon="📋" message={filtersApplied ? "No activity matches these filters." : "No activity recorded yet."} />}
+      {logs && logs.length > 0 ? <div className="ta-table-wrap"><table className="ta-table"><thead><tr><th>When</th><th>Actor</th><th>Action</th><th>Entity</th><th>Summary</th></tr></thead><tbody>{logs.map((item: any) => <tr key={item.id}><td style={{ color: "var(--ta-muted)", whiteSpace: "nowrap" }}>{formatMalaysiaDateTime(item.created_at)}</td><td>{item.actor_email ?? "System"}</td><td><Badge status={item.action} /></td><td>{item.entity_type ?? "—"}</td><td style={{ color: "var(--ta-muted)" }}>{item.summary ?? "—"}</td></tr>)}</tbody></table></div> : <EmptyState icon="📋" message={filtersApplied ? "No activity matches these filters." : "No activity recorded yet."} />}
     </Card>
     <Pagination page={page} pageCount={pageCount} basePath="/admin/audit" query={qsBase} />
   </>;

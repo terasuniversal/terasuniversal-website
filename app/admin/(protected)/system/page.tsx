@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { requireRole } from "../../../../lib/auth/session";
 import { Badge, Card, PageHead, StatCard } from "../../../../components/admin/ui";
+import { formatMalaysiaDate } from "../../../../lib/date-time";
 
 export const metadata = { title: "System Health — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
@@ -37,7 +38,7 @@ export default async function SystemHealthPage() {
       <StatCard icon="🗄️" label="Database" value={dbOk ? "Connected" : "Check"} />
       <StatCard icon="🗂️" label="Registered storage" value={storage} href="/admin/media" />
       <StatCard icon="⛔" label="Failed jobs" value={failedJobs.count ?? 0} href="/admin/automation" />
-      <StatCard icon="🔄" label="Latest run" value={latest?.created_at ? new Date(latest.created_at).toLocaleDateString("en-MY") : "None"} href="/admin/automation" />
+      <StatCard icon="🔄" label="Latest run" value={latest?.created_at ? formatMalaysiaDate(latest.created_at) : "None"} href="/admin/automation" />
     </div>
     <Card title="Health checks">
       <div className="ta-table-wrap"><table className="ta-table"><thead><tr><th>Check</th><th>Status</th><th>Current value</th><th>Notes</th></tr></thead><tbody>

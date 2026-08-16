@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Badge } from "../../../../components/admin/ui";
 import { bulkDeleteParticipants, bulkRestoreParticipants } from "./actions";
+import { formatMalaysiaDate } from "../../../../lib/date-time";
 
 export interface Row {
   id: string;
@@ -119,7 +120,7 @@ export function ParticipantTable({
                 <td>{r.phone ?? "—"}</td>
                 <td><Badge status={r.status} /></td>
                 <td style={{ color: "var(--ta-muted)", whiteSpace: "nowrap" }}>
-                  {new Date(r.created_at).toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric" })}
+                  {formatMalaysiaDate(r.created_at)}
                 </td>
                 <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                   <Link href={`/admin/participants/${r.id}`} className="ta-btn ta-btn-outline ta-btn-sm">View</Link>

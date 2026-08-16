@@ -1,5 +1,6 @@
 import { Card } from "../../../../../../components/admin/ui";
 import { CRM_ACTIVITY_LABELS, type SalesActivityRow } from "../../../../../../lib/sales/crm";
+import { formatMalaysiaDateTime } from "../../../../../../lib/date-time";
 
 /**
  * Reusable activity timeline for the Sales CRM (real data). Oldest G�� newest.
@@ -34,7 +35,7 @@ export function LeadActivityTimeline({
                 <div className="ta-timeline-meta">
                   <span className="ta-timeline-title">{CRM_ACTIVITY_LABELS[activity.type]}</span>
                   <time className="ta-timeline-when" dateTime={activity.created_at}>
-                    {new Date(activity.created_at).toLocaleString("en-MY", { dateStyle: "medium", timeStyle: "short" })}
+                    {formatMalaysiaDateTime(activity.created_at)}
                   </time>
                 </div>
                 {activity.note && <div className="ta-timeline-note">{activity.note}</div>}

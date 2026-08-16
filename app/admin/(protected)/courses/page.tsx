@@ -5,6 +5,7 @@ import { requireModuleAccess, requireRole } from "../../../../lib/auth/session";
 import { isAdmin } from "../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, EmptyState, Pagination, StatCard, SvgIcon } from "../../../../components/admin/ui";
 import { restoreCourse } from "./actions";
+import { formatMalaysiaDate } from "../../../../lib/date-time";
 
 export const metadata = { title: "Courses — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
@@ -137,7 +138,7 @@ export default async function CoursesPage({
                     <td>{c.featured ? <span className="ta-badge-pill featured">Featured</span> : <span className="ta-cell-sub">—</span>}</td>
                     <td className="ta-nowrap">
                       <span className="ta-cell-sub">
-                        {new Date(c.updated_at).toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric" })}
+                        {formatMalaysiaDate(c.updated_at)}
                       </span>
                     </td>
                     <td className="ta-row-actions">

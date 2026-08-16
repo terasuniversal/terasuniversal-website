@@ -4,6 +4,7 @@ import { requireRole } from "../../../../lib/auth/session";
 import { PageHead, Card, StatCard, EmptyState } from "../../../../components/admin/ui";
 import { FollowUpBadge } from "../../../../components/admin/sales/FollowUpBadge";
 import { OPEN_OPPORTUNITY_STATUSES, SOURCE_LABELS, followUpState, mytEndOfTodayUtc, type SalesLeadInboxRow } from "../../../../lib/sales/crm";
+import { formatMalaysiaDateTime } from "../../../../lib/date-time";
 
 export const metadata = { title: "Sales Dashboard — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
@@ -153,7 +154,7 @@ export default async function SalesDashboardPage() {
                     <td>
                       <FollowUpBadge state={followUpState(r.follow_up_at, r.status)} />{" "}
                       <span className="ta-lead-sub">
-                        {r.follow_up_at && new Date(r.follow_up_at).toLocaleString("en-MY", { dateStyle: "medium", timeStyle: "short" })}
+                        {r.follow_up_at && formatMalaysiaDateTime(r.follow_up_at)}
                       </span>
                     </td>
                     <td style={{ textAlign: "right" }}>
