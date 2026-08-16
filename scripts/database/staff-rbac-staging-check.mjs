@@ -19,6 +19,12 @@ const ADMIN2 = "00000000-0000-0000-0000-0000000000a6";
 const EDITOR = "00000000-0000-0000-0000-0000000000a3";
 const NO_SALES = "00000000-0000-0000-0000-0000000000a4";
 const WITH_SALES = "00000000-0000-0000-0000-0000000000a5";
+// Direct-RPC authorization matrix (PR #25 security fix)
+const ADM_EXPL_ADMIN = "00000000-0000-0000-0000-0000000000b1";
+const ADM_EXPL_EDIT = "00000000-0000-0000-0000-0000000000b2";
+const ADM_EXPL_VIEW = "00000000-0000-0000-0000-0000000000b3";
+const ADM_EXPL_NONE = "00000000-0000-0000-0000-0000000000b4";
+const EDITOR_USERS_ADMIN = "00000000-0000-0000-0000-0000000000b5";
 
 let passed = 0;
 let failures = 0;
@@ -80,7 +86,12 @@ function main() {
       ('${ADMIN2}','00000000-0000-0000-0000-000000000000','authenticated','authenticated','staging.admin2@teras.test','',now(),'{"provider":"email","providers":["email"]}','{"full_name":"Staging Admin 2"}',now(),now()),
       ('${EDITOR}','00000000-0000-0000-0000-000000000000','authenticated','authenticated','staging.editor@teras.test','',now(),'{"provider":"email","providers":["email"]}','{"full_name":"Staging Editor"}',now(),now()),
       ('${NO_SALES}','00000000-0000-0000-0000-000000000000','authenticated','authenticated','staging.nosales@teras.test','',now(),'{"provider":"email","providers":["email"]}','{"full_name":"Staging NoSales"}',now(),now()),
-      ('${WITH_SALES}','00000000-0000-0000-0000-000000000000','authenticated','authenticated','staging.sales@teras.test','',now(),'{"provider":"email","providers":["email"]}','{"full_name":"Staging Sales"}',now(),now())
+      ('${WITH_SALES}','00000000-0000-0000-0000-000000000000','authenticated','authenticated','staging.sales@teras.test','',now(),'{"provider":"email","providers":["email"]}','{"full_name":"Staging Sales"}',now(),now()),
+      ('${ADM_EXPL_ADMIN}','00000000-0000-0000-0000-000000000000','authenticated','authenticated','staging.adm-expl-admin@teras.test','',now(),'{"provider":"email","providers":["email"]}','{"full_name":"Staging Adm Expl Admin"}',now(),now()),
+      ('${ADM_EXPL_EDIT}','00000000-0000-0000-0000-000000000000','authenticated','authenticated','staging.adm-expl-edit@teras.test','',now(),'{"provider":"email","providers":["email"]}','{"full_name":"Staging Adm Expl Edit"}',now(),now()),
+      ('${ADM_EXPL_VIEW}','00000000-0000-0000-0000-000000000000','authenticated','authenticated','staging.adm-expl-view@teras.test','',now(),'{"provider":"email","providers":["email"]}','{"full_name":"Staging Adm Expl View"}',now(),now()),
+      ('${ADM_EXPL_NONE}','00000000-0000-0000-0000-000000000000','authenticated','authenticated','staging.adm-expl-none@teras.test','',now(),'{"provider":"email","providers":["email"]}','{"full_name":"Staging Adm Expl None"}',now(),now()),
+      ('${EDITOR_USERS_ADMIN}','00000000-0000-0000-0000-000000000000','authenticated','authenticated','staging.editor-users-admin@teras.test','',now(),'{"provider":"email","providers":["email"]}','{"full_name":"Staging Editor Users Admin"}',now(),now())
     on conflict (id) do nothing;
     insert into public.profiles (id, email, full_name, role, is_active) values
       ('${SUPER}','staging.super@teras.test','Staging Super','super_admin',true),
@@ -88,12 +99,21 @@ function main() {
       ('${ADMIN2}','staging.admin2@teras.test','Staging Admin 2','admin',true),
       ('${EDITOR}','staging.editor@teras.test','Staging Editor','editor',true),
       ('${NO_SALES}','staging.nosales@teras.test','Staging NoSales','editor',true),
-      ('${WITH_SALES}','staging.sales@teras.test','Staging Sales','editor',true)
+      ('${WITH_SALES}','staging.sales@teras.test','Staging Sales','editor',true),
+      ('${ADM_EXPL_ADMIN}','staging.adm-expl-admin@teras.test','Staging Adm Expl Admin','admin',true),
+      ('${ADM_EXPL_EDIT}','staging.adm-expl-edit@teras.test','Staging Adm Expl Edit','admin',true),
+      ('${ADM_EXPL_VIEW}','staging.adm-expl-view@teras.test','Staging Adm Expl View','admin',true),
+      ('${ADM_EXPL_NONE}','staging.adm-expl-none@teras.test','Staging Adm Expl None','admin',true),
+      ('${EDITOR_USERS_ADMIN}','staging.editor-users-admin@teras.test','Staging Editor Users Admin','editor',true)
     on conflict (id) do update set role = excluded.role, is_active = excluded.is_active, full_name = excluded.full_name, email = excluded.email;
-    delete from public.staff_module_access where user_id in ('${NO_SALES}','${WITH_SALES}');
-    update public.profiles set access_control_enabled = true where id in ('${NO_SALES}','${WITH_SALES}');
+    delete from public.staff_module_access where user_id in ('${NO_SALES}','${WITH_SALES}','${ADM_EXPL_ADMIN}','${ADM_EXPL_EDIT}','${ADM_EXPL_VIEW}','${ADM_EXPL_NONE}','${EDITOR_USERS_ADMIN}');
+    update public.profiles set access_control_enabled = true where id in ('${NO_SALES}','${WITH_SALES}','${ADM_EXPL_ADMIN}','${ADM_EXPL_EDIT}','${ADM_EXPL_VIEW}','${ADM_EXPL_NONE}','${EDITOR_USERS_ADMIN}');
     insert into public.staff_module_access (user_id, module_key, access_level) values
-      ('${WITH_SALES}','sales_leads','view')
+      ('${WITH_SALES}','sales_leads','view'),
+      ('${ADM_EXPL_ADMIN}','users','admin'),
+      ('${ADM_EXPL_EDIT}','users','edit'),
+      ('${ADM_EXPL_VIEW}','users','view'),
+      ('${EDITOR_USERS_ADMIN}','users','admin')
     on conflict (user_id, module_key) do update set access_level = excluded.access_level;
   `;
   const s = cli(seed);
@@ -115,6 +135,19 @@ function main() {
   expectError("8b. Admin cannot modify another admin", asUser(ADMIN, `select public.update_staff_profile('${ADMIN2}', p_role => 'editor');`), "forbidden_admin_target");
   expectError("8c. Admin cannot promote to super_admin", asUser(ADMIN, `select public.update_staff_profile('${EDITOR}', p_role => 'super_admin');`), "forbidden_promotion");
   expectError("8d. Admin cannot modify own profile", asUser(ADMIN, `select public.update_staff_profile('${ADMIN}', p_is_active => false);`), "cannot_modify_self");
+
+  console.log("-- Direct-RPC authorization (PR #25 security fix) --");
+  const aOk = asUser(ADMIN, `select public.update_staff_profile('${EDITOR}', p_department => 'hr');`);
+  if (aOk.code === 0) { passed++; console.log("  PASS A. Legacy admin + users fallback -> allowed"); } else { failures++; console.error("  FAIL A: " + (aOk.stderr || aOk.stdout).slice(0, 160)); }
+  const bOk = asUser(ADM_EXPL_ADMIN, `select public.update_staff_profile('${EDITOR}', p_department => 'hr');`);
+  if (bOk.code === 0) { passed++; console.log("  PASS B. Explicit admin + users=admin -> allowed"); } else { failures++; console.error("  FAIL B: " + (bOk.stderr || bOk.stdout).slice(0, 160)); }
+  expectError("C. Explicit admin + users=edit -> denied (42501)", asUser(ADM_EXPL_EDIT, `select public.update_staff_profile('${EDITOR}', p_department => 'hr');`), "forbidden");
+  expectError("D. Explicit admin + users=view -> denied (42501)", asUser(ADM_EXPL_VIEW, `select public.update_staff_profile('${EDITOR}', p_department => 'hr');`), "forbidden");
+  expectError("E. Explicit admin + no users grant -> denied (42501)", asUser(ADM_EXPL_NONE, `select public.update_staff_profile('${EDITOR}', p_department => 'hr');`), "forbidden");
+  expectError("F. Direct set_staff_module_access denied for explicit admin w/o users=admin", asUser(ADM_EXPL_VIEW, `select public.set_staff_module_access('${EDITOR}', '[]'::jsonb);`), "forbidden");
+  const gOk = asUser(SUPER, `select public.update_staff_profile('${EDITOR}', p_department => 'hr');`);
+  if (gOk.code === 0) { passed++; console.log("  PASS G. super_admin still allowed"); } else { failures++; console.error("  FAIL G: " + (gOk.stderr || gOk.stdout).slice(0, 160)); }
+  expectError("H. Editor with users=admin explicit grant -> denied (role floor)", asUser(EDITOR_USERS_ADMIN, `select public.update_staff_profile('${EDITOR}', p_department => 'hr');`), "forbidden");
   expectError("10. Cannot deactivate the last active super admin",
     asUser(SUPER, `select public.update_staff_profile('${SUPER}', p_is_active => false);`), "cannot remove the last active super admin");
 

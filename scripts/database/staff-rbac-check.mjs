@@ -35,6 +35,12 @@ const WITH_SALES = "00000000-0000-0000-0000-000000000006";
 const WITH_USERS = "00000000-0000-0000-0000-000000000007";
 const ADMIN2 = "00000000-0000-0000-0000-000000000008";
 const TRAINER = "00000000-0000-0000-0000-000000000009";
+// Direct-RPC authorization matrix (PR #25 security fix)
+const ADM_EXPL_ADMIN = "00000000-0000-0000-0000-0000000000b1"; // admin, explicit, users=admin
+const ADM_EXPL_EDIT = "00000000-0000-0000-0000-0000000000b2";  // admin, explicit, users=edit
+const ADM_EXPL_VIEW = "00000000-0000-0000-0000-0000000000b3";  // admin, explicit, users=view
+const ADM_EXPL_NONE = "00000000-0000-0000-0000-0000000000b4";  // admin, explicit, no users grant
+const EDITOR_USERS_ADMIN = "00000000-0000-0000-0000-0000000000b5"; // editor, explicit, users=admin
 
 let failures = 0;
 let passed = 0;
@@ -116,9 +122,14 @@ function main() {
       ('${INACTIVE}','00000000-0000-0000-0000-000000000000','authenticated','authenticated','inactive@teras.test','',now(),'{"provider":"email","providers":["email"]}','{}',now(),now()),
       ('${NO_SALES}','00000000-0000-0000-0000-000000000000','authenticated','authenticated','nosales@teras.test','',now(),'{"provider":"email","providers":["email"]}','{}',now(),now()),
       ('${WITH_SALES}','00000000-0000-0000-0000-000000000000','authenticated','authenticated','sales@teras.test','',now(),'{"provider":"email","providers":["email"]}','{}',now(),now()),
-      ('${WITH_USERS}','00000000-0000-0000-0000-000000000000','authenticated','authenticated','users@teras.test','',now(),'{"provider":"email","providers":["email"]}','{}',now(),now()),
-      ('${ADMIN2}','00000000-0000-0000-0000-000000000000','authenticated','authenticated','admin2@teras.test','',now(),'{"provider":"email","providers":["email"]}','{}',now(),now()),
-      ('${TRAINER}','00000000-0000-0000-0000-000000000000','authenticated','authenticated','trainer@teras.test','',now(),'{"provider":"email","providers":["email"]}','{}',now(),now())
+('${WITH_USERS}','00000000-0000-0000-0000-000000000000','authenticated','authenticated','users@teras.test','',now(),'{"provider":"email","providers":["email"]}','{}',now(),now()),
+('${ADMIN2}','00000000-0000-0000-0000-000000000000','authenticated','authenticated','admin2@teras.test','',now(),'{"provider":"email","providers":["email"]}','{}',now(),now()),
+('${TRAINER}','00000000-0000-0000-0000-000000000000','authenticated','authenticated','trainer@teras.test','',now(),'{"provider":"email","providers":["email"]}','{}',now(),now()),
+      ('${ADM_EXPL_ADMIN}','00000000-0000-0000-0000-000000000000','authenticated','authenticated','adm-expl-admin@teras.test','',now(),'{"provider":"email","providers":["email"]}','{}',now(),now()),
+      ('${ADM_EXPL_EDIT}','00000000-0000-0000-0000-000000000000','authenticated','authenticated','adm-expl-edit@teras.test','',now(),'{"provider":"email","providers":["email"]}','{}',now(),now()),
+      ('${ADM_EXPL_VIEW}','00000000-0000-0000-0000-000000000000','authenticated','authenticated','adm-expl-view@teras.test','',now(),'{"provider":"email","providers":["email"]}','{}',now(),now()),
+      ('${ADM_EXPL_NONE}','00000000-0000-0000-0000-000000000000','authenticated','authenticated','adm-expl-none@teras.test','',now(),'{"provider":"email","providers":["email"]}','{}',now(),now()),
+      ('${EDITOR_USERS_ADMIN}','00000000-0000-0000-0000-000000000000','authenticated','authenticated','editor-users-admin@teras.test','',now(),'{"provider":"email","providers":["email"]}','{}',now(),now())
     on conflict (id) do nothing;
     insert into public.profiles (id, email, full_name, role, is_active) values
       ('${SUPER}','super@teras.test','Super Admin','super_admin',true),
@@ -129,18 +140,28 @@ function main() {
       ('${WITH_SALES}','sales@teras.test','With Sales','editor',true),
       ('${WITH_USERS}','users@teras.test','With Users','editor',true),
       ('${ADMIN2}','admin2@teras.test','Admin Two','admin',true),
-      ('${TRAINER}','trainer@teras.test','Trainer User','trainer',true)
+      ('${TRAINER}','trainer@teras.test','Trainer User','trainer',true),
+      ('${ADM_EXPL_ADMIN}','adm-expl-admin@teras.test','Adm Expl Admin','admin',true),
+      ('${ADM_EXPL_EDIT}','adm-expl-edit@teras.test','Adm Expl Edit','admin',true),
+      ('${ADM_EXPL_VIEW}','adm-expl-view@teras.test','Adm Expl View','admin',true),
+      ('${ADM_EXPL_NONE}','adm-expl-none@teras.test','Adm Expl None','admin',true),
+      ('${EDITOR_USERS_ADMIN}','editor-users-admin@teras.test','Editor Users Admin','editor',true)
     on conflict (id) do update set
       email = excluded.email,
       full_name = excluded.full_name,
       role = excluded.role,
       is_active = excluded.is_active;
+    delete from public.staff_module_access where user_id in ('${NO_SALES}','${WITH_SALES}','${WITH_USERS}','${ADM_EXPL_ADMIN}','${ADM_EXPL_EDIT}','${ADM_EXPL_VIEW}','${ADM_EXPL_NONE}','${EDITOR_USERS_ADMIN}');
     update public.profiles set access_control_enabled = true
-      where id in ('${NO_SALES}','${WITH_SALES}','${WITH_USERS}');
+      where id in ('${NO_SALES}','${WITH_SALES}','${WITH_USERS}','${ADM_EXPL_ADMIN}','${ADM_EXPL_EDIT}','${ADM_EXPL_VIEW}','${ADM_EXPL_NONE}','${EDITOR_USERS_ADMIN}');
     insert into public.staff_module_access (user_id, module_key, access_level) values
       ('${WITH_SALES}','sales_leads','view'),
-      ('${WITH_USERS}','users','view')
-    on conflict (user_id, module_key) do nothing;
+      ('${WITH_USERS}','users','view'),
+      ('${ADM_EXPL_ADMIN}','users','admin'),
+      ('${ADM_EXPL_EDIT}','users','edit'),
+      ('${ADM_EXPL_VIEW}','users','view'),
+      ('${EDITOR_USERS_ADMIN}','users','admin')
+    on conflict (user_id, module_key) do update set access_level = excluded.access_level;
   `;
   const s = psql(seed);
   if (s.code !== 0) { console.error("FAIL: seeding errored.\n" + s.stderr.slice(0, 1500)); process.exit(1); }
@@ -174,6 +195,24 @@ function main() {
     psqlAs(ADMIN, `select public.update_staff_profile('${EDITOR}', p_role => 'super_admin');`), "forbidden_promotion");
   expectError("8d. Admin cannot modify own profile",
     psqlAs(ADMIN, `select public.update_staff_profile('${ADMIN}', p_is_active => false);`), "cannot_modify_self");
+
+  console.log("-- Direct-RPC authorization (PR #25 security fix) --");
+  expectOk("A. Legacy admin + users fallback -> allowed",
+    psqlAs(ADMIN, `select public.update_staff_profile('${EDITOR}', p_department => 'hr');`));
+  expectOk("B. Explicit admin + users=admin -> allowed",
+    psqlAs(ADM_EXPL_ADMIN, `select public.update_staff_profile('${EDITOR}', p_department => 'hr');`));
+  expectError("C. Explicit admin + users=edit -> denied (42501)",
+    psqlAs(ADM_EXPL_EDIT, `select public.update_staff_profile('${EDITOR}', p_department => 'hr');`), "forbidden");
+  expectError("D. Explicit admin + users=view -> denied (42501)",
+    psqlAs(ADM_EXPL_VIEW, `select public.update_staff_profile('${EDITOR}', p_department => 'hr');`), "forbidden");
+  expectError("E. Explicit admin + no users grant -> denied (42501)",
+    psqlAs(ADM_EXPL_NONE, `select public.update_staff_profile('${EDITOR}', p_department => 'hr');`), "forbidden");
+  expectError("F. Direct set_staff_module_access denied for explicit admin w/o users=admin",
+    psqlAs(ADM_EXPL_VIEW, `select public.set_staff_module_access('${EDITOR}', '[]'::jsonb);`), "forbidden");
+  expectOk("G. super_admin still allowed",
+    psqlAs(SUPER, `select public.update_staff_profile('${EDITOR}', p_department => 'hr');`));
+  expectError("H. Editor with users=admin explicit grant -> denied (role floor)",
+    psqlAs(EDITOR_USERS_ADMIN, `select public.update_staff_profile('${EDITOR}', p_department => 'hr');`), "forbidden");
 
   console.log("-- RLS still protects --");
   // Non-granted column (is_active) is not updatable by authenticated at all

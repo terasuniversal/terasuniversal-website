@@ -287,11 +287,39 @@ grant select on public.staff_module_access to authenticated;
 -- Staff management RPCs
 -- ---------------------------------------------------------------------------
 
+-- Staff-management authorization gate (used by both management RPCs).
+-- Closes the direct-RPC bypass: the management RPCs are SECURITY DEFINER and
+-- EXECUTE-granted to authenticated, so the app-level requireModuleAccess
+-- guard alone cannot protect them. This helper enforces, for the CURRENT
+-- caller:
+--   * super_admin            -> always allowed
+--   * admin (role floor)     -> allowed IF the module gate passes
+--                               (legacy fallback when access_control_enabled
+--                                is false, else explicit `users` = admin level)
+--   * editor/trainer/etc     -> denied regardless of any explicit grants
+-- It lives in the `app` schema (not exposed to PostgREST) so it cannot be
+-- invoked directly through the REST API.
+create or replace function app.can_manage_staff()
+returns boolean
+language sql
+stable
+security definer
+set search_path = 'public'
+as $$
+  select
+    app.current_role() = 'super_admin'
+    or (
+      app.current_role() = 'admin'
+      and public.has_module_access_level('users', 'admin')
+    );
+$$;
+
 -- Update a staff profile (name / department / role / active). Authorization:
--- active caller; super_admin full; admin may only manage non-admin profiles
--- (cannot touch admin/super_admin profiles, cannot promote to admin/super_admin,
--- cannot modify self). The profiles RLS update path (self or super_admin) is
--- narrowed to safe columns; this RPC is the trusted path for staff management.
+-- active caller + app.can_manage_staff() (see above). super_admin full; admin
+-- may only manage non-admin profiles (cannot touch admin/super_admin profiles,
+-- cannot promote to admin/super_admin, cannot modify self). The profiles RLS
+-- update path (self or super_admin) is narrowed to safe columns; this RPC is
+-- the trusted path for staff management.
 create or replace function public.update_staff_profile(
   p_user_id uuid,
   p_full_name text default null,
@@ -311,6 +339,9 @@ begin
   if not app.is_active() then
     raise exception 'forbidden' using errcode = '42501';
   end if;
+  if not app.can_manage_staff() then
+    raise exception 'forbidden' using errcode = '42501';
+  end if;
   v_actor_role := app.current_role();
 
   if p_user_id is null then
@@ -323,9 +354,6 @@ begin
   end if;
 
   if v_actor_role <> 'super_admin' then
-    if v_actor_role <> 'admin' then
-      raise exception 'forbidden' using errcode = '42501';
-    end if;
     if p_user_id = auth.uid() then
       raise exception 'cannot_modify_self' using errcode = '42501';
     end if;
@@ -372,10 +400,10 @@ begin
   if not app.is_active() then
     raise exception 'forbidden' using errcode = '42501';
   end if;
-  v_actor_role := app.current_role();
-  if v_actor_role not in ('admin', 'super_admin') then
+  if not app.can_manage_staff() then
     raise exception 'forbidden' using errcode = '42501';
   end if;
+  v_actor_role := app.current_role();
 
   if p_user_id is null then
     raise exception 'invalid_user' using errcode = 'P0001';

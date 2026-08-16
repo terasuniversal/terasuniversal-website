@@ -1,4 +1,4 @@
-"use server";
+﻿"use server";
 
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
@@ -46,7 +46,7 @@ export async function updateStaffProfile(
   _prev: StaffActionState,
   formData: FormData
 ): Promise<StaffActionState> {
-  await requireModuleAccess("users");
+  await requireModuleAccess("users", "admin");
   const parsed = staffProfileSchema.safeParse({
     full_name: formData.get("full_name"),
     department: formData.get("department") || null,
@@ -75,7 +75,7 @@ export async function setStaffActive(
   _prev: StaffActionState,
   formData: FormData
 ): Promise<StaffActionState> {
-  await requireModuleAccess("users");
+  await requireModuleAccess("users", "admin");
   const userId = String(formData.get("user_id") ?? "");
   const active = formData.get("active") === "true";
   if (!userId) return { message: "Missing user." };
@@ -100,7 +100,7 @@ export async function saveStaffModuleAccess(
   _prev: StaffActionState,
   formData: FormData
 ): Promise<StaffActionState> {
-  await requireModuleAccess("users");
+  await requireModuleAccess("users", "admin");
 
   let modules: unknown;
   try {
