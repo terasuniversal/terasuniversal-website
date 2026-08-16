@@ -1,0 +1,111 @@
+{
+  "baseline_version": "v1",
+  "baseline_status": "candidate_verified",
+  "production_project_ref": "iagzkrzeuawaxvacqprk",
+  "baseline_date": "2026-08-16",
+  "postgres_version": "17.6",
+  "supabase_cli_version": "2.114.0",
+  "git_commit_at_snapshot": "d2a1e7a290d98e6c364c181e68f7cb613393fb19",
+  "included_schemas": ["public", "app"],
+  "excluded_schemas": ["auth", "storage", "realtime", "vault", "supabase_migrations"],
+
+  "object_counts": {
+    "table_count": 49,
+    "view_count": 2,
+    "function_count": 78,
+    "trigger_count": 48,
+    "rls_policy_count": 109,
+    "rls_forced_tables": 8,
+    "extensions": 7,
+    "enum_types": 6,
+    "sequences_non_system": 8,
+    "app_owned_functions_in_dump": 45,
+    "extension_functions_not_in_dump": 31,
+    "triggers_in_snapshot_incl_appended": 49
+  },
+
+  "snapshot_sha256": "D6E90DD4CB4E8F6E4B98EAC2AACAA49BA662E16929C4D21DD9282B6326C8B497",
+  "snapshot_bytes": 293915,
+  "bootstrap_sha256": "6DCC54E662EEE17C1D4EF652814B1213A9C8B9A6A3A1103FCC0B58C11C549BD7",
+  "bootstrap_bytes": 297965,
+  "previous_snapshot_sha256": "0B73DC50022888B580A222318F634F4C9A5B180BC499B7DD1E857E61E98719BA",
+  "previous_snapshot_date": "2026-08-15",
+
+  "snapshot_generation": {
+    "command": "supabase db dump --linked --project-ref iagzkrzeuawaxvacqprk --schema public --schema app --keep-comments",
+    "post_processing": [
+      "removed nondeterministic pg_dump restrict/unrestrict comment lines",
+      "added CREATE SCHEMA IF NOT EXISTS extensions + CREATE EXTENSION IF NOT EXISTS citext WITH SCHEMA extensions",
+      "restored global default-privilege revoke: ALTER DEFAULT PRIVILEGES FOR ROLE postgres REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC",
+      "appended application-owned auth.users trigger on_auth_user_created -> app.handle_new_user()"
+    ],
+    "data_included": false,
+    "production_modified": false
+  },
+
+  "snapshot_diff_vs_previous": [
+    { "kind": "table", "name": "feedback_schedule_links", "source_migration": "20260816072507 feedback_schedule_qr" },
+    { "kind": "table", "name": "feedback_schedule_lookup_attempts", "source_migration": "20260816072507 feedback_schedule_qr" },
+    { "kind": "function", "name": "resolve_schedule_feedback_participant", "source_migration": "20260816072507 feedback_schedule_qr" },
+    { "kind": "index", "name": "feedback_schedule_lookup_attempts_retention_idx", "source_migration": "20260816072507 feedback_schedule_qr" },
+    { "kind": "function_modified", "name": "public.accept_quotation", "source_migration": "20260816100000 sales_won_follow_up_completion" }
+  ],
+
+  "legacy_migration_track": "numbered track 0001-0021 is LEGACY/HISTORICAL/NON-CANONICAL for fresh replay; production history is immutable; see supabase/migrations/LEGACY_MIGRATIONS.md",
+  "future_migration_policy": "forward-only",
+  "post_baseline_first_version": "20260817000000",
+
+  "known_production_only_objects": [
+    "admin_users", "certificate_import_logs",
+    "photos", "photo_categories", "photo_events", "photo_usages", "photo_usage_types",
+    "photo_activity_log", "photo_id_sequences", "photo_ai_analysis",
+    "feedback_schedule_links", "feedback_schedule_lookup_attempts",
+    "functions: verify_certificate_by_value, verify_and_log, log_event, log_event_as_service, teras_photo_next_id, resolve_schedule_feedback_participant, certificates_before_insert, sync_participant_last4"
+  ],
+  "known_repo_only_objects": [
+    "tables: venues, schedules, training_schedules, trainers, companies(numbered), user_permissions, site_settings, testimonials, automation_runs, automation_templates, enquiry_notes, proposal_notes, staff_module_access, staff_module_catalog",
+    "views: v_participants_per_month, v_schedules_per_month, v_certificates_per_month, v_attendance_breakdown, v_attendance_trend, v_assessment_passfail, v_top_companies, v_top_courses, v_trainer_workload",
+    "functions: gen_*, can_*, has_*, verify_certificate_by_token, automation_setting, global_search, slugify, stamp_automation_actor, time"
+  ],
+  "known_intentional_exceptions": [
+    "numbered track 0001-0021 archived non-executable",
+    "database_baseline_v1 (20260815150000) applied out-of-band to production; no repo migration file; NOT to be re-applied",
+    "security remediation pack 1/1a and proposal-delivery-status applied out-of-band with no schema_migrations entries",
+    "remote-only migrations (photo bot, feedback QR, fix_courses_cms_fields, etc.) have no local files; recorded in REPOSITORY_MIGRATION_INVENTORY.md",
+    "pg_trgm installed in public schema (extension-owned functions not emitted by dump)",
+    "auth.users trigger on_auth_user_created appended manually (requires native Supabase Auth)"
+  ],
+  "unresolved_replay_gaps": {
+    "count": 24,
+    "description": "24 of 49 dated migrations fail on a clean replay base (historical legacy evidence, NOT to be solved in baseline preparation)",
+    "first_failure": "20260721030247_cms_compatibility_security.sql: relation public.admin_users does not exist",
+    "report_reference": "docs/database-baseline-audit/FRESH_REPLAY_REPORT.md"
+  },
+
+  "security": {
+    "findings_reference": "docs/database-baseline-audit/SECURITY_FINDINGS.md",
+    "critical": 0,
+    "high": 3,
+    "high_findings_fixed": false,
+    "high_findings": [
+      "authenticated-executable admin SECURITY DEFINER RPC pattern (in-body is_admin guard; not fixed in this phase)",
+      "PUBLIC-executable public.teras_photo_next_id (not fixed in this phase)",
+      "photo/feedback schema missing local migration (not fixed in this phase)"
+    ],
+    "security_definer_functions": 34,
+    "sd_without_explicit_search_path": 0
+  },
+
+  "migration_history_notes": {
+    "remote_schema_migrations_count": 67,
+    "version_drift_count": 37,
+    "remote_only_count": 23,
+    "local_only_count": 6,
+    "matched_count": 6,
+    "frozen_max_remote_version": "20260816100000"
+  },
+
+  "reviewers": [],
+  "approval_status": "pending_review",
+  "notes": "Prepared by database baseline preparation phase. No production modification. No commit created. Bootstrap mechanism: supabase/baseline/v1/bootstrap.sql (new-environment-only, guarded by app_schema_baseline marker)."
+}
