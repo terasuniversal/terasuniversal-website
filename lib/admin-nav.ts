@@ -80,7 +80,7 @@ export const NAV: NavGroup[] = [
       { key: "system", label: "System Health", href: "/admin/system", icon: "system", minRole: "admin" },
       { key: "backups", label: "Backup Manager", href: "/admin/backups", icon: "backups", minRole: "admin" },
       { key: "audit", label: "Audit Log", href: "/admin/audit", icon: "audit", minRole: "admin" },
-      { key: "users", label: "Users & Roles", href: "/admin/users", icon: "users", minRole: "super_admin" },
+      { key: "users", label: "Users & Roles", href: "/admin/users", icon: "users", minRole: "admin" },
     ],
   },
 ];

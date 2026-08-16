@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { cache } from "react";
 import { createSupabaseServerClient } from "../supabase/server";
-import type { Profile, UserRole } from "../supabase/database.types";
+import type { Profile, UserRole, ModuleAccessLevel } from "../supabase/database.types";
 import { hasMinRole, canViewAttendance, canManageAttendance, canViewAssessment, canManageAssessment, canViewCertificate, canManageCertificate } from "./rbac";
 
 /**
@@ -85,5 +85,35 @@ export async function requireCertificate(manage = false): Promise<Profile> {
   if (!profile.is_active) redirect("/admin/login?error=inactive");
   const ok = manage ? canManageCertificate(profile.role) : canViewCertificate(profile.role);
   if (!ok) redirect("/admin/no-access");
+  return profile;
+}
+
+/**
+ * Module-access guard (Staff User Management Phase 1).
+ *
+ * Enforces `public.has_module_access_level(moduleKey, level)` server-side.
+ * Behavior is backward-compatible: profiles without explicit access control
+ * fall back to the module catalog's role threshold (`staff_module_catalog.min_role`),
+ * so existing admin/editor staff keep their current access. Profiles with
+ * `access_control_enabled=true` must hold an explicit `staff_module_access` row.
+ * Super admins always pass.
+ *
+ * Callers should ALSO keep their existing `requireRole(...)` guard where one
+ * exists — this guard is additive, not a replacement, during incremental
+ * integration.
+ */
+export async function requireModuleAccess(
+  moduleKey: string,
+  level: ModuleAccessLevel = "view"
+): Promise<Profile> {
+  const profile = await getCurrentProfile();
+  if (!profile) redirect("/admin/login");
+  if (!profile.is_active) redirect("/admin/login?error=inactive");
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("has_module_access_level", {
+    p_module_key: moduleKey,
+    p_level: level,
+  });
+  if (error || data !== true) redirect("/admin/no-access");
   return profile;
 }

@@ -20,6 +20,23 @@ export type UserRole =
   | "trainer"
   | "client"
   | "participant";
+export type StaffDepartment =
+  | "management"
+  | "sales"
+  | "marketing"
+  | "training_operations"
+  | "administration"
+  | "finance"
+  | "hr";
+export type ModuleAccessLevel = "view" | "edit" | "admin";
+export type StaffAuditAction =
+  | "staff_created"
+  | "staff_updated"
+  | "staff_activated"
+  | "staff_deactivated"
+  | "staff_role_changed"
+  | "staff_department_changed"
+  | "staff_module_access_changed";
 export type EnquiryStatus =
   | "new"
   | "in_review"
@@ -73,8 +90,30 @@ export interface Profile {
   role: UserRole;
   is_active: boolean;
   last_login_at: string | null;
+  department: StaffDepartment | null;
+  access_control_enabled: boolean;
+  updated_by: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface StaffModuleCatalog {
+  module_key: string;
+  label: string;
+  group_key: string;
+  min_role: UserRole;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface StaffModuleAccess {
+  user_id: string;
+  module_key: string;
+  access_level: ModuleAccessLevel;
+  created_at: string;
+  created_by: string | null;
+  updated_at: string;
+  updated_by: string | null;
 }
 
 export interface Course {
@@ -191,6 +230,18 @@ export interface Database {
   public: {
     Tables: {
       profiles: { Row: Profile; Insert: Partial<Profile>; Update: Partial<Profile>; Relationships: [] };
+      staff_module_catalog: {
+        Row: StaffModuleCatalog;
+        Insert: Partial<StaffModuleCatalog>;
+        Update: Partial<StaffModuleCatalog>;
+        Relationships: [];
+      };
+      staff_module_access: {
+        Row: StaffModuleAccess;
+        Insert: Partial<StaffModuleAccess>;
+        Update: Partial<StaffModuleAccess>;
+        Relationships: [];
+      };
       courses: { Row: Course; Insert: Partial<Course>; Update: Partial<Course>; Relationships: [] };
       enquiries: { Row: Enquiry; Insert: Partial<Enquiry>; Update: Partial<Enquiry>; Relationships: [] };
       proposal_requests: {
@@ -224,6 +275,8 @@ export interface Database {
       proposal_status: ProposalStatus;
       schedule_status: ScheduleStatus;
       course_delivery_mode: CourseDeliveryMode;
+      staff_department: StaffDepartment;
+      module_access_level: ModuleAccessLevel;
     };
   };
 }

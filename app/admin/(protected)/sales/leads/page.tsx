@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { requireRole } from "../../../../../lib/auth/session";
+import { requireRole, requireModuleAccess } from "../../../../../lib/auth/session";
 import { PageHead, Card, EmptyState, Pagination } from "../../../../../components/admin/ui";
 import { CRM_STATUS_ORDER, CRM_STATUS_LABELS, SOURCE_LABELS, sanitizeSearchTerm, type SalesLeadInboxRow } from "../../../../../lib/sales/crm";
 import { LeadInboxTable } from "./LeadInboxTable";
@@ -18,6 +18,7 @@ export default async function SalesLeadsPage({
   }>;
 }) {
   await requireRole("editor"); // read allowed for all sales-CRM staff; mutations are admin-gated in actions.ts
+  await requireModuleAccess("sales_leads");
   const sp = await searchParams;
   const page = Math.max(1, Number(sp.page ?? 1));
   const supabase = await createSupabaseServerClient();

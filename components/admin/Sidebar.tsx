@@ -14,12 +14,21 @@ import { NavIcon } from "./icons";
  */
 export function Sidebar({
   role,
+  modules,
   badges = {},
 }: {
   role: UserRole;
+  /** Module keys the current staff member may access (empty/undefined = all role-permitted). */
+  modules?: string[];
   badges?: Record<string, number>;
 }) {
   const pathname = usePathname();
+
+  const hasModule = (key: string) => {
+    if (role === "super_admin") return true;
+    if (!modules) return true;
+    return modules.includes(key);
+  };
 
   return (
     <aside className="ta-sidebar" aria-label="Admin navigation">
@@ -32,7 +41,7 @@ export function Sidebar({
       </div>
       <nav className="ta-nav">
         {NAV.map((group) => {
-          const items = group.items.filter((i) => hasMinRole(role, i.minRole));
+          const items = group.items.filter((i) => hasMinRole(role, i.minRole) && hasModule(i.key));
           if (items.length === 0) return null;
           return (
             <div key={group.label}>
