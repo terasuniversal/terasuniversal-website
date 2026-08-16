@@ -16,10 +16,12 @@ export type StaffActionState = {
   errors?: Record<string, string>;
   /** Set when a staff account was successfully created (Add Staff flow). */
   created?: boolean;
-  /** One-time initial password for the new account (returned to the creating admin only). */
+  /** One-time initial password for the new account (returned to the creating admin only, and only on complete success). */
   password?: string;
   email?: string;
   userId?: string;
+  /** Set when compensating cleanup could not remove a partially-created account (Super Admin manual recovery). */
+  recoveryUserId?: string;
 };
 
 /** Map known RPC guard errors to safe, user-facing messages. */
@@ -48,6 +50,36 @@ function revalidateStaff() {
 }
 
 /**
+ * Compensating rollback for a partially-created staff account.
+ *
+ * If profile/module configuration fails after auth.createUser succeeded, the
+ * auth user (and the profile auto-created by handle_new_user) must be removed
+ * so Add Staff behaves as all-or-nothing. Deleting the auth user cascades to
+ * profiles (profiles.id -> auth.users.id ON DELETE CASCADE), so deleteUser is
+ * the single compensating action.
+ *
+ * Returns true when the account was fully removed. The generated password is
+ * NEVER returned on any failure path — only after COMPLETE success.
+ */
+async function rollbackCreatedUser(
+  service: ReturnType<typeof createSupabaseServiceClient>,
+  userId: string,
+  stage: string
+): Promise<StaffActionState> {
+  const { error } = await service.auth.admin.deleteUser(userId);
+  if (error) {
+    console.error("createStaff: compensating deleteUser failed", { message: error.message });
+    return {
+      message: `Account creation failed during ${stage} and the created account could NOT be automatically removed. Contact a Super Admin to remove the recovery id below before retrying.`,
+      recoveryUserId: userId,
+    };
+  }
+  return {
+    message: `Account creation failed during ${stage} and was rolled back. No account was created.`,
+  };
+}
+
+/**
  * Create a new staff account (Add Staff flow).
  *
  * Authorization: requireModuleAccess("users", "admin") — the same gate the
@@ -56,8 +88,8 @@ function revalidateStaff() {
  * by update_staff_profile (no promotion to admin/super_admin, no admin targets
  * for non-super admins).
  *
- * Flow (no direct table writes from this action; all DB changes go through
- * the existing SECURITY DEFINER RPCs):
+ * All-or-nothing flow (no direct table writes from this action; all DB changes
+ * go through the existing SECURITY DEFINER RPCs):
  *   1. Duplicate-email pre-check (profiles, citext).
  *   2. auth.admin.createUser via the SERVER-ONLY service client (GoTrue
  *      handles password hashing + email confirmation; the service key never
@@ -65,14 +97,18 @@ function revalidateStaff() {
  *      the profiles row.
  *   3. update_staff_profile(userId, name/department/role/is_active) as the
  *      acting admin/super-admin.
- *   4. set_staff_module_access(userId, modules) -> enables explicit access.
+ *   4. set_staff_module_access(userId, modules) -> explicit access (Add Staff
+ *      always creates explicit-mode accounts; there is no role-default choice
+ *      on this form).
  *   Audit: the profiles INSERT triggers staff_created; the profile update and
  *   module changes are audited by the staff audit triggers.
  *
- * The one-time initial password is generated here and returned to the creating
- * admin once (never logged). If GoTrue SMTP were configured, an invite email
- * could be sent instead; this project's SMTP is not assumed, so we use the
- * server-side creation path and recommend a password change on first login.
+ * If step 3 or 4 fails, step 2 is compensated with auth.admin.deleteUser
+ * (cascade removes the profile) and NO password/created flag is returned. The
+ * one-time initial password is returned ONLY on complete success, once, and is
+ * never logged. If GoTrue SMTP were configured, an invite email could be sent
+ * instead; this project's SMTP is not assumed, so we use the server-side
+ * creation path and recommend a password change on first login.
  */
 export async function createStaff(
   _prev: StaffActionState,
@@ -93,7 +129,6 @@ export async function createStaff(
     department: formData.get("department") || null,
     role: formData.get("role"),
     is_active: formData.get("is_active") === "on" || formData.get("is_active") === "true",
-    access_control_enabled: formData.get("access_control_enabled") === "on" || formData.get("access_control_enabled") === "true",
     modules,
   });
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
@@ -134,30 +169,14 @@ export async function createStaff(
     p_role: role,
     p_is_active: is_active,
   });
-  if (profileError) {
-    return {
-      message: `Account created, but profile configuration failed: ${mapRpcError(profileError.message)}.`,
-      created: true,
-      userId,
-      email,
-      password,
-    };
-  }
+  if (profileError) return rollbackCreatedUser(service, userId, "profile configuration");
 
-  // 4. Apply explicit module access (enables access_control_enabled).
+  // 4. Apply explicit module access (always on for Add Staff).
   const { error: moduleError } = await supabase.rpc("set_staff_module_access", {
     p_user_id: userId,
     p_modules: grants as unknown as Record<string, unknown>,
   });
-  if (moduleError) {
-    return {
-      message: `Account created, but module access failed: ${mapRpcError(moduleError.message)}.`,
-      created: true,
-      userId,
-      email,
-      password,
-    };
-  }
+  if (moduleError) return rollbackCreatedUser(service, userId, "module access configuration");
 
   revalidateStaff();
   return {

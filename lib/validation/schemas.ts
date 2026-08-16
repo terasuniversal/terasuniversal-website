@@ -303,7 +303,6 @@ export const createStaffSchema = z.object({
   department: staffDepartmentEnum.nullable().optional(),
   role: staffRoleEnum,
   is_active: z.coerce.boolean(),
-  access_control_enabled: z.coerce.boolean().default(true),
   modules: z.array(moduleAccessItemSchema).max(60).default([]),
 });
 

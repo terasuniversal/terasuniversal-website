@@ -312,6 +312,23 @@ function main() {
   expectBool("AS9. Super Admin still has users module",
     scalar(psqlAs(SUPER, "select public.has_module_access('users');")), true);
 
+  console.log("-- Add Staff compensating cleanup (PR #27 security review) --");
+  // Cleanup mechanism: auth.admin.deleteUser() removes the auth user, and
+  // profiles.id -> auth.users.id ON DELETE CASCADE removes the profile. This
+  // is the compensating rollback used when profile/module config fails.
+  const CLEAN = "00000000-0000-0000-0000-0000000000c3";
+  psql(`
+    insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
+    values ('${CLEAN}','00000000-0000-0000-0000-000000000000','authenticated','authenticated','cleanup.test@teras.test','',now(),'{"provider":"email","providers":["email"]}','{"full_name":"Cleanup"}',now(),now())
+    on conflict (id) do nothing;
+  `);
+  const profileBefore = scalar(psql(`select count(*) from public.profiles where id = '${CLEAN}';`));
+  expectBool("CL1. Profile auto-created for cleanup test user", profileBefore !== "0", true);
+  const del = psql(`delete from auth.users where id = '${CLEAN}';`);
+  expectOk("CL2. Auth user deletion succeeds", del);
+  const profileAfter = scalar(psql(`select count(*) from public.profiles where id = '${CLEAN}';`));
+  expectBool("CL3. Cleanup removed the profile (no orphan)", profileAfter, "0");
+
   console.log("\nResult: " + passed + " passed, " + failures + " failed.");
   process.exit(failures === 0 ? 0 : 1);
 }
