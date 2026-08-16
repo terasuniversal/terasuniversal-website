@@ -532,3 +532,18 @@
 @media (max-width: 620px) {
   .ta-fb-fields-3, .ta-fb-fields-4 { grid-template-columns: 1fr; }
 }
+
+.ta-class-feedback-card h2 { margin: 4px 0 6px; color: var(--ta-navy); font-size: 18px; }
+.ta-class-feedback-dialog { width: min(460px, calc(100vw - 28px)); max-height: calc(100vh - 28px); overflow: auto; }
+.ta-class-feedback-print h4 { margin: 4px 0 12px; color: var(--ta-navy); font-size: 20px; }
+.ta-class-feedback-print p { margin: 7px 0; line-height: 1.45; }
+.ta-class-feedback-print img { display: block; width: min(320px, 100%); height: auto; margin: 18px auto; }
+
+@media print {
+  body > * { visibility: hidden !important; }
+  .ta-dialog-overlay, .ta-dialog-overlay * { visibility: visible !important; }
+  .ta-dialog-overlay { position: static !important; display: block !important; background: #fff !important; }
+  .ta-class-feedback-dialog { width: 100% !important; max-width: none !important; max-height: none !important; box-shadow: none !important; border: 0 !important; }
+  .ta-dialog-head, .ta-dialog-foot { display: none !important; }
+  .ta-class-feedback-print { padding: 18mm !important; }
+}

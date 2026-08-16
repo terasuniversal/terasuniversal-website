@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
+import { createSupabaseServerClient, createSupabaseServiceClient } from "../../../../../lib/supabase/server";
 import { requireRole } from "../../../../../lib/auth/session";
 import { PageHead, Card, StatCard, EmptyState } from "../../../../../components/admin/ui";
 import { FeedbackLinkCard, type FeedbackLinkRow } from "./FeedbackLinkCard";
 import { GenerateLinksForm } from "./GenerateLinksForm";
+import { ClassFeedbackQrCard } from "./ClassFeedbackQrCard";
 import { siteOrigin } from "../../../../../lib/site-origin";
 
 export const metadata = { title: "Schedule Feedback — TERAS UNIVERSAL Admin" };
@@ -24,13 +25,19 @@ export default async function ScheduleFeedbackPage({ params }: { params: Promise
   if (!schedule) notFound();
   const courseName = (schedule as any).courses?.title ?? (schedule as any).courses?.course_name ?? "—";
 
-  const [{ data: stats, error: statsError }, { data: feedbackRows, error: feedbackError }] = await Promise.all([
+  const service = createSupabaseServiceClient();
+  const [{ data: stats, error: statsError }, { data: feedbackRows, error: feedbackError }, { data: classLink }] = await Promise.all([
     supabase.rpc("feedback_anonymous_stats", { p_schedule_id: scheduleId }),
     supabase
       .from("participant_feedback")
       .select("id, status, token, participants(id, full_name, participant_id, company)")
       .eq("schedule_id", scheduleId)
       .order("created_at", { ascending: true }),
+    service
+      .from("feedback_schedule_links")
+      .select("public_token, is_active")
+      .eq("schedule_id", scheduleId)
+      .maybeSingle(),
   ]);
 
   if (statsError) {
@@ -90,6 +97,14 @@ export default async function ScheduleFeedbackPage({ params }: { params: Promise
       <div style={{ maxWidth: 320, marginBottom: 22 }}>
         <GenerateLinksForm scheduleId={scheduleId} />
       </div>
+
+      <ClassFeedbackQrCard
+        scheduleId={scheduleId}
+        courseName={courseName}
+        scheduleCode={(schedule as any).schedule_code ?? ""}
+        baseUrl={`${origin}/feedback/s/`}
+        initialPublicToken={classLink?.is_active ? classLink.public_token : null}
+      />
 
       <Card title={`Participant Feedback Links (${links.length})`}>
         <div className="ta-card-pad">

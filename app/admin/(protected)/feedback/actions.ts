@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { createSupabaseServerClient } from "../../../../lib/supabase/server";
+import { randomBytes } from "crypto";
+import { createSupabaseServerClient, createSupabaseServiceClient } from "../../../../lib/supabase/server";
 import { requireRole } from "../../../../lib/auth/session";
 import {
   feedbackGenerateLinksSchema,
@@ -23,6 +24,12 @@ export interface FeedbackLinkActionState {
   ok: boolean;
   message?: string;
   createdCount?: number;
+}
+
+export interface ClassFeedbackLinkActionState {
+  ok: boolean;
+  message?: string;
+  publicToken?: string;
 }
 
 /** Allowed improvement-action transitions — mirrored by the DB trigger. */
@@ -78,6 +85,58 @@ export async function generateFeedbackLinks(
     ? `${created} feedback link${created === 1 ? "" : "s"} generated successfully.`
     : "All eligible participants already have a feedback link.";
   return { ok: true, createdCount: created, message };
+}
+
+/** Create a single opaque, revocable class-feedback entry link. The row is
+ * only ever read/written by this editor-guarded server action via service
+ * role; it is never exposed to the public browser as a database record. */
+export async function getOrCreateClassFeedbackLink(
+  scheduleId: string
+): Promise<ClassFeedbackLinkActionState> {
+  const profile = await requireRole("editor");
+  const parsed = feedbackGenerateLinksSchema.safeParse({ schedule_id: scheduleId });
+  if (!parsed.success) return { ok: false, message: "Invalid schedule." };
+
+  const service = createSupabaseServiceClient();
+  const { data: existing, error: existingError } = await service
+    .from("feedback_schedule_links")
+    .select("public_token, is_active")
+    .eq("schedule_id", parsed.data.schedule_id)
+    .maybeSingle();
+
+  if (existingError) {
+    console.error("getOrCreateClassFeedbackLink: existing-link lookup failed", { scheduleId, code: existingError.code });
+    return { ok: false, message: "Unable to prepare the class feedback link." };
+  }
+  if (existing?.is_active) return { ok: true, publicToken: existing.public_token };
+  if (existing && !existing.is_active) {
+    return { ok: false, message: "This class feedback link is disabled. Contact an administrator to re-enable it." };
+  }
+
+  const publicToken = randomBytes(32).toString("base64url");
+  const { data: created, error: createError } = await service
+    .from("feedback_schedule_links")
+    .insert({ schedule_id: parsed.data.schedule_id, public_token: publicToken, created_by: profile.id })
+    .select("public_token")
+    .single();
+
+  if (createError) {
+    // The unique schedule constraint is the concurrency backstop. A parallel
+    // trusted request may have created the row first, in which case return it.
+    if (createError.code === "23505") {
+      const { data: concurrent } = await service
+        .from("feedback_schedule_links")
+        .select("public_token, is_active")
+        .eq("schedule_id", parsed.data.schedule_id)
+        .maybeSingle();
+      if (concurrent?.is_active) return { ok: true, publicToken: concurrent.public_token };
+    }
+    console.error("getOrCreateClassFeedbackLink: link creation failed", { scheduleId, code: createError.code });
+    return { ok: false, message: "Unable to create the class feedback link." };
+  }
+
+  revalidatePath(`/admin/feedback/${scheduleId}`);
+  return { ok: true, publicToken: created.public_token };
 }
 
 /** Reopen a submitted feedback so the participant may resubmit (audited). */
