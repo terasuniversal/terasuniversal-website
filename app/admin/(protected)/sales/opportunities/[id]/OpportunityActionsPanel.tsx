@@ -7,6 +7,7 @@ import {
   updateOpportunityStage,
   assignOpportunity,
   setOpportunityExpectedClose,
+  updateOpportunityDetails,
   markOpportunityLost,
   addOpportunityNote,
   type SalesActionState,
@@ -22,6 +23,9 @@ export function OpportunityActionsPanel({
   assignedTo,
   expectedCloseDate,
   probability,
+  title,
+  programme,
+  estimatedValue,
   staff,
   canManage,
 }: {
@@ -30,12 +34,16 @@ export function OpportunityActionsPanel({
   assignedTo: string | null;
   expectedCloseDate: string | null;
   probability: number | null;
+  title: string;
+  programme: string | null;
+  estimatedValue: number | null;
   staff: { id: string; full_name: string }[];
   canManage: boolean;
 }) {
   const [stageState, stageAction, stagePending] = useActionState(updateOpportunityStage.bind(null, opportunityId), INITIAL);
   const [assignState, assignAction, assignPending] = useActionState(assignOpportunity.bind(null, opportunityId), INITIAL);
   const [closeState, closeAction, closePending] = useActionState(setOpportunityExpectedClose.bind(null, opportunityId), INITIAL);
+  const [editState, editAction, editPending] = useActionState(updateOpportunityDetails.bind(null, opportunityId), INITIAL);
   const [lostState, lostAction, lostPending] = useActionState(markOpportunityLost.bind(null, opportunityId), INITIAL);
   const [noteState, noteAction, notePending] = useActionState(addOpportunityNote.bind(null, opportunityId), INITIAL);
 
@@ -54,6 +62,40 @@ export function OpportunityActionsPanel({
             </Field>
             <button type="submit" className="ta-btn ta-btn-primary ta-btn-sm" disabled={stagePending}>
               {stagePending ? "Saving…" : "Update Stage"}
+            </button>
+          </form>
+        </Card>
+      )}
+
+      {canManage && (
+        <Card title="Edit Opportunity">
+          <form action={editAction} className="ta-card-pad" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {editState.message && <div className="ta-alert ta-alert-error">{editState.message}</div>}
+            <Field label="Opportunity title" name="title" error={editState.errors?.title}>
+              <input id="title" name="title" defaultValue={title} />
+            </Field>
+            {stage === "won" ? (
+              <div style={{ color: "var(--ta-muted)", fontSize: 13 }}>
+                Programme, expected close date, probability and estimated value are locked after quotation acceptance. Assignment remains available below for handoff.
+              </div>
+            ) : (
+              <>
+                <Field label="Programme" name="programme" error={editState.errors?.programme}>
+                  <input id="programme" name="programme" defaultValue={programme ?? ""} />
+                </Field>
+                <Field label="Expected close date" name="expected_close_date" error={editState.errors?.expected_close_date}>
+                  <input id="edit_expected_close_date" name="expected_close_date" type="date" defaultValue={expectedCloseDate ?? ""} />
+                </Field>
+                <Field label="Probability (%)" name="probability" error={editState.errors?.probability}>
+                  <input id="edit_probability" name="probability" type="number" min={0} max={100} defaultValue={probability ?? ""} />
+                </Field>
+                <Field label="Estimated value (RM)" name="estimated_value" error={editState.errors?.estimated_value}>
+                  <input id="estimated_value" name="estimated_value" type="number" min={0} step="0.01" defaultValue={estimatedValue ?? ""} />
+                </Field>
+              </>
+            )}
+            <button type="submit" className="ta-btn ta-btn-primary ta-btn-sm" disabled={editPending}>
+              {editPending ? "Savingâ€¦" : "Save Opportunity"}
             </button>
           </form>
         </Card>

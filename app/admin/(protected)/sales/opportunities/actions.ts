@@ -2,12 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { requireRole } from "../../../../../lib/auth/session";
+import { requireModuleAccess, requireRole } from "../../../../../lib/auth/session";
 import {
   opportunityStageSchema,
   opportunityAssignSchema,
   opportunityExpectedCloseSchema,
   opportunityLostSchema,
+  opportunityEditSchema,
   salesLeadNoteSchema,
   fieldErrors,
 } from "../../../../../lib/validation/schemas";
@@ -37,6 +38,7 @@ export async function updateOpportunityStage(
   formData: FormData
 ): Promise<SalesActionState> {
   const profile = await requireRole("admin");
+  await requireModuleAccess("sales_opportunities");
   const parsed = opportunityStageSchema.safeParse({ stage: formData.get("stage") });
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
   if (parsed.data.stage === "won" || parsed.data.stage === "lost") {
@@ -69,6 +71,7 @@ export async function assignOpportunity(
   formData: FormData
 ): Promise<SalesActionState> {
   const profile = await requireRole("admin");
+  await requireModuleAccess("sales_opportunities");
   const parsed = opportunityAssignSchema.safeParse({ assigned_to: formData.get("assigned_to") ?? "" });
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
   const assignedTo = parsed.data.assigned_to || null;
@@ -99,6 +102,7 @@ export async function setOpportunityExpectedClose(
   formData: FormData
 ): Promise<SalesActionState> {
   await requireRole("admin");
+  await requireModuleAccess("sales_opportunities");
   const parsed = opportunityExpectedCloseSchema.safeParse({
     expected_close_date: formData.get("expected_close_date") ?? "",
     probability: formData.get("probability") || null,
@@ -120,6 +124,60 @@ export async function setOpportunityExpectedClose(
   return {};
 }
 
+/**
+ * Edits operational Opportunity fields. Once Won, only its display title may
+ * change; programme and forecast/value fields remain locked to preserve the
+ * accepted commercial context. Assignment has its own safe handoff action.
+ */
+export async function updateOpportunityDetails(
+  opportunityId: string,
+  _prev: SalesActionState,
+  formData: FormData
+): Promise<SalesActionState> {
+  const profile = await requireRole("admin");
+  await requireModuleAccess("sales_opportunities");
+  const parsed = opportunityEditSchema.safeParse({
+    title: formData.get("title"),
+    programme: formData.get("programme") ?? "",
+    expected_close_date: formData.get("expected_close_date") ?? "",
+    probability: formData.get("probability") || null,
+    estimated_value: formData.get("estimated_value") || null,
+  });
+  if (!parsed.success) return { errors: fieldErrors(parsed.error) };
+
+  const supabase = await createSupabaseServerClient();
+  const { data: current } = await supabase
+    .from("sales_opportunities")
+    .select("stage, lead_metadata_id")
+    .eq("id", opportunityId)
+    .maybeSingle();
+  if (!current) return { message: "Opportunity not found." };
+
+  const d = parsed.data;
+  const patch: Record<string, unknown> = { title: d.title, updated_at: new Date().toISOString() };
+  if (current.stage !== "won") {
+    patch.programme = d.programme || null;
+    patch.expected_close_date = d.expected_close_date || null;
+    patch.probability = d.probability ?? null;
+    patch.estimated_value = d.estimated_value ?? null;
+  }
+  const { error } = await supabase.from("sales_opportunities").update(patch).eq("id", opportunityId);
+  if (error) return { message: error.message };
+
+  await logActivity(
+    supabase,
+    current.lead_metadata_id,
+    opportunityId,
+    "note_added",
+    current.stage === "won"
+      ? "Opportunity title updated after win; commercial fields remain locked."
+      : "Opportunity details updated.",
+    profile.id
+  );
+  revalidateOpportunity(opportunityId);
+  return {};
+}
+
 /** Task 12: lost flow — delegates to the mark_opportunity_lost() cascade RPC (requires a reason, cascades the lead too). */
 export async function markOpportunityLost(
   opportunityId: string,
@@ -127,6 +185,7 @@ export async function markOpportunityLost(
   formData: FormData
 ): Promise<SalesActionState> {
   await requireRole("admin");
+  await requireModuleAccess("sales_opportunities");
   const parsed = opportunityLostSchema.safeParse({ lost_reason: formData.get("lost_reason") });
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
@@ -149,6 +208,7 @@ export async function addOpportunityNote(
   formData: FormData
 ): Promise<SalesActionState> {
   const profile = await requireRole("editor");
+  await requireModuleAccess("sales_opportunities");
   const parsed = salesLeadNoteSchema.safeParse({ note: formData.get("note") });
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
@@ -184,6 +244,7 @@ export interface CompanyCandidate {
  */
 export async function searchCompaniesForLink(_prev: CompanyCandidate[], formData: FormData): Promise<CompanyCandidate[]> {
   await requireRole("editor");
+  await requireModuleAccess("sales_opportunities");
   const term = sanitizeSearchTerm(String(formData.get("q") ?? ""));
   if (!term) return [];
   const supabase = await createSupabaseServerClient();
@@ -208,6 +269,7 @@ export async function searchCompaniesForLink(_prev: CompanyCandidate[], formData
  */
 export async function linkCompany(opportunityId: string, formData: FormData): Promise<void> {
   const profile = await requireRole("admin");
+  await requireModuleAccess("sales_opportunities");
   const companyId = String(formData.get("company_id") ?? "").trim();
   if (!companyId) return;
 

@@ -349,6 +349,16 @@ export const opportunityExpectedCloseSchema = z.object({
 });
 export type OpportunityExpectedCloseInput = z.infer<typeof opportunityExpectedCloseSchema>;
 
+/** Server-side stage guards decide which fields remain editable once Won. */
+export const opportunityEditSchema = z.object({
+  title: z.string().trim().min(2, "Title is required").max(200),
+  programme: z.string().trim().max(300).optional().or(z.literal("")),
+  expected_close_date: z.string().trim().optional().or(z.literal("")),
+  probability: z.coerce.number().min(0).max(100).optional().nullable(),
+  estimated_value: z.coerce.number().min(0, "Estimated value cannot be negative").optional().nullable(),
+});
+export type OpportunityEditInput = z.infer<typeof opportunityEditSchema>;
+
 const quotationItemInputSchema = z.object({
   description: z.string().trim().min(1, "Description is required").max(500),
   quantity: z.coerce.number().positive("Quantity must be greater than 0"),

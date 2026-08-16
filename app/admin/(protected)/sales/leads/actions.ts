@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { requireRole } from "../../../../../lib/auth/session";
+import { requireModuleAccess, requireRole } from "../../../../../lib/auth/session";
 import { redirect } from "next/navigation";
 import {
   salesLeadStatusSchema,
@@ -39,6 +39,7 @@ export async function updateLeadStatus(
   formData: FormData
 ): Promise<SalesActionState> {
   const profile = await requireRole("admin");
+  await requireModuleAccess("sales_leads");
   const parsed = salesLeadStatusSchema.safeParse({
     status: formData.get("status"),
     lost_reason: formData.get("lost_reason") ?? "",
@@ -47,12 +48,17 @@ export async function updateLeadStatus(
   const { status, lost_reason } = parsed.data;
 
   const supabase = await createSupabaseServerClient();
+  const becameWon = status === "won";
   const patch: Record<string, unknown> = {
     status,
     updated_at: new Date().toISOString(),
     lost_reason: status === "lost" ? lost_reason : null,
     won_at: status === "won" ? new Date().toISOString() : null,
   };
+  // A resolved sale has no actionable sales follow-up. Its scheduling
+  // history remains in sales_activity; only the current operational date is
+  // cleared.
+  if (becameWon) patch.follow_up_at = null;
   const { error } = await supabase.from("sales_lead_metadata").update(patch).eq("id", leadMetadataId);
   if (error) return { message: error.message };
 
@@ -60,10 +66,13 @@ export async function updateLeadStatus(
   const note =
     status === "lost" && lost_reason
       ? `Marked lost — reason: ${LOST_REASON_LABELS[lost_reason as SalesCrmLostReason]}`
-      : `Status changed to ${status.replace(/_/g, " ")}`;
+      : becameWon
+        ? "Lead marked won; pending sales follow-up cleared"
+        : `Status changed to ${status.replace(/_/g, " ")}`;
   await logActivity(supabase, leadMetadataId, activityType, note, profile.id);
 
   revalidateLead(leadMetadataId);
+  if (becameWon) revalidatePath("/admin/sales/follow-ups");
   return {};
 }
 
@@ -74,6 +83,7 @@ export async function assignLead(
   formData: FormData
 ): Promise<SalesActionState> {
   const profile = await requireRole("admin");
+  await requireModuleAccess("sales_leads");
   const parsed = salesLeadAssignSchema.safeParse({ assigned_to: formData.get("assigned_to") ?? "" });
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
   const assignedTo = parsed.data.assigned_to || null;
@@ -103,6 +113,7 @@ export async function setLeadFollowUp(
   formData: FormData
 ): Promise<SalesActionState> {
   const profile = await requireRole("admin");
+  await requireModuleAccess("sales_leads");
   const parsed = salesLeadFollowUpSchema.safeParse({
     follow_up_at: formData.get("follow_up_at") ?? "",
     priority: formData.get("priority") || undefined,
@@ -141,6 +152,7 @@ export async function addLeadNote(
   formData: FormData
 ): Promise<SalesActionState> {
   const profile = await requireRole("editor");
+  await requireModuleAccess("sales_leads");
   const parsed = salesLeadNoteSchema.safeParse({ note: formData.get("note") });
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
@@ -168,6 +180,8 @@ export async function convertLeadToOpportunity(
   formData: FormData
 ): Promise<SalesActionState> {
   await requireRole("admin");
+  await requireModuleAccess("sales_leads");
+  await requireModuleAccess("sales_opportunities");
   const parsed = convertLeadToOpportunitySchema.safeParse({
     title: formData.get("title"),
     expected_close_date: formData.get("expected_close_date") ?? "",

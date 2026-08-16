@@ -290,6 +290,9 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
             assignedTo={opp.assigned_to}
             expectedCloseDate={opp.expected_close_date}
             probability={opp.probability}
+            title={opp.title}
+            programme={opp.programme}
+            estimatedValue={opp.estimated_value}
             staff={staff}
             canManage={canManage}
           />
