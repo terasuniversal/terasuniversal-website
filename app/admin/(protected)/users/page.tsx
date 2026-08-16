@@ -37,10 +37,11 @@ export default async function UsersPage({
   if (sp.status === "active") query = query.eq("is_active", true);
   if (sp.status === "inactive") query = query.eq("is_active", false);
 
-  const [{ data, count }, { count: activeCount }, { count: adminCount }, { data: accessRows }] = await Promise.all([
+  const [{ data, count }, { count: activeCount }, { count: adminCount }, { count: activeSuperAdminCount }, { data: accessRows }] = await Promise.all([
     query,
     supabase.from("profiles").select("id", { count: "exact", head: true }).eq("is_active", true),
     supabase.from("profiles").select("id", { count: "exact", head: true }).in("role", ["super_admin", "admin"]),
+    supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "super_admin").eq("is_active", true),
     supabase.from("staff_module_access").select("user_id"),
   ]);
 
@@ -118,7 +119,12 @@ export default async function UsersPage({
                     <td>
                       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                         <Link href={`/admin/users/${user.id}`} className="ta-btn ta-btn-outline ta-btn-sm">View / Edit</Link>
-                        <ToggleStaffActiveForm userId={user.id} isActive={user.is_active} action={setStaffActive} />
+                        <ToggleStaffActiveForm
+                          userId={user.id}
+                          isActive={user.is_active}
+                          isLastActiveSuperAdmin={user.role === "super_admin" && user.is_active && (activeSuperAdminCount ?? 0) === 1}
+                          action={setStaffActive}
+                        />
                       </div>
                     </td>
                   </tr>
