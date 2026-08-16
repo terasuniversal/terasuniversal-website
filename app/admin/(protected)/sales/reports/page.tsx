@@ -14,10 +14,10 @@ import {
 } from "../../../../../lib/sales/crm";
 import {
   resolveReportDateRange,
-  monthKeysInRange,
-  mytMonthKey,
-  monthKeyLabel,
   conversionRate,
+  resolveReportArchiveState,
+  quotationInArchivedChain,
+  buildMonthlyTrend,
   REPORT_RANGE_KEYS,
   REPORT_RANGE_LABELS,
   type ReportRangeKey,
@@ -74,6 +74,15 @@ export const dynamic = "force-dynamic";
  *                        'archived' is excluded (an administratively
  *                        hidden/dead record, not a live pipeline stage).
  *
+ * Archive exclusion (Tasks 5/6/7): every metric above resolves through
+ * resolveReportArchiveState() in lib/sales/reports.ts — the same helper the
+ * CSV export uses. If a lead or opportunity is archived (sales_lead_metadata.
+ * status = 'archived' or sales_opportunities.stage = 'archived'), its whole
+ * Sales chain (lead -> opportunity -> quotations -> won/lost -> tasks) is
+ * excluded from operational totals. This is not a soft-delete column: rows
+ * stay in the database untouched for audit/history, only the reporting rule
+ * hides them, matching the Lead inbox's "archived is hidden" convention.
+ *
  * Deduplication (Task 2): sales_lead_metadata has a real
  * unique(lead_source, source_id) constraint (one row per source lead) and
  * sales_opportunities has unique(lead_metadata_id) (at most one
@@ -81,8 +90,9 @@ export const dynamic = "force-dynamic";
  * already-deduplicated rows, not a join that could multiply them.
  *
  * Soft-deletes: sales_lead_metadata/sales_opportunities/sales_quotations
- * have no deleted_at column (none exists live) — nothing to filter.
- * sales_tasks does; every task query below filters deleted_at is null.
+ * have no deleted_at column (none exists live) — archiving is expressed as
+ * the 'archived' status/stage value, filtered by the shared archive rule
+ * above. sales_tasks does; every task query below filters deleted_at is null.
  */
 
 const LEAD_SOURCES: SalesLeadSourceKind[] = ["enquiry", "proposal_request"];
@@ -194,6 +204,43 @@ export default async function SalesReportsPage({
   const tasksDue = tasksDueRaw ?? [];
   const staff = (staffRaw ?? []) as { id: string; full_name: string }[];
 
+  // ---- Archive exclusion (audit Tasks 5/6/7) — ONE shared rule applied to
+  // every metric below, resolved through resolveReportArchiveState() (same
+  // helper as the CSV export, so they can never disagree). The date-unfiltered
+  // lookups are required because won/lost/accepted rows are event-dated
+  // (won_at/lost_at/accepted_at) inside the range while their lead/opportunity
+  // may have been created long before it. An archived lead/opportunity hides
+  // its whole Sales chain from operational totals; rows are never deleted. ----
+  const allOppIds = new Set<string>([
+    ...opps.map((o: any) => o.id),
+    ...quotationsCreated.map((q: any) => q.opportunity_id),
+    ...quotationsSent.map((q: any) => q.opportunity_id),
+    ...accepted.map((q: any) => q.opportunity_id),
+    ...won.map((o: any) => o.id),
+    ...lost.map((o: any) => o.id),
+    ...tasksDue.map((t: any) => t.opportunity_id).filter(Boolean),
+  ].filter(Boolean));
+  const { data: allOppRowsRaw } = allOppIds.size
+    ? await supabase.from("sales_opportunities").select("id, stage, lead_metadata_id").in("id", Array.from(allOppIds))
+    : { data: [] as any[] };
+  const allLeadIds = new Set<string>([
+    ...leads.map((l: any) => l.id),
+    ...(allOppRowsRaw ?? []).map((o: any) => o.lead_metadata_id).filter(Boolean),
+    ...tasksDue.map((t: any) => t.lead_metadata_id).filter(Boolean),
+  ]);
+  const { data: allLeadRowsRaw } = allLeadIds.size
+    ? await supabase.from("sales_lead_metadata").select("id, status").in("id", Array.from(allLeadIds))
+    : { data: [] as any[] };
+
+  // Tasks may be linked through a quotation without an opportunity_id on the
+  // row itself — resolve quotation -> opportunity so the same chain rule
+  // applies to owner-summary task counts.
+  const taskQuotationIds = tasksDue.filter((t: any) => t.quotation_id && !t.opportunity_id).map((t: any) => t.quotation_id);
+  const { data: taskQuotationRowsRaw } = taskQuotationIds.length
+    ? await supabase.from("sales_quotations").select("id, opportunity_id").in("id", taskQuotationIds)
+    : { data: [] as any[] };
+  const taskQuotationToOpp = new Map<string, string>((taskQuotationRowsRaw ?? []).map((q: any) => [q.id, q.opportunity_id]));
+
   // ---- Qualified, corrected for a real data-model gap found during
   // verification: convert_lead_to_opportunity() does not update the source
   // lead's own sales_lead_metadata.status -- a lead that has already become
@@ -202,16 +249,38 @@ export default async function SalesReportsPage({
   // A lead counts as qualified if its status says so OR it has an
   // Opportunity at all (checked without the date-range filter that `opps`
   // carries, since the lead's qualification is a fact regardless of which
-  // period its opportunity row happens to have been created in). ----
+  // period its opportunity row happens to have been created in). The same
+  // query doubles as the lead->opportunity map archive propagation needs. ----
   const leadIds = leads.map((l: any) => l.id);
   const { data: leadsWithOppRaw } = leadIds.length
-    ? await supabase.from("sales_opportunities").select("lead_metadata_id").in("lead_metadata_id", leadIds)
+    ? await supabase.from("sales_opportunities").select("id, stage, lead_metadata_id").in("lead_metadata_id", leadIds)
     : { data: [] as any[] };
-  const leadIdsWithOpportunity = new Set((leadsWithOppRaw ?? []).map((o: any) => o.lead_metadata_id));
+
+  const { excludedLeadIds, excludedOppIds } = resolveReportArchiveState(
+    leads,
+    opps,
+    allLeadRowsRaw ?? [],
+    [...(allOppRowsRaw ?? []), ...(leadsWithOppRaw ?? [])]
+  );
+
+  const activeLeads = leads.filter((l: any) => !excludedLeadIds.has(l.id));
+  const activeOpps = opps.filter((o: any) => !excludedOppIds.has(o.id));
+  const activeQuotationsCreated = quotationsCreated.filter((q: any) => !quotationInArchivedChain(q, excludedOppIds));
+  const activeQuotationsSent = quotationsSent.filter((q: any) => !quotationInArchivedChain(q, excludedOppIds));
+  const activeAccepted = accepted.filter((q: any) => !quotationInArchivedChain(q, excludedOppIds));
+  const activeWon = won.filter((o: any) => !excludedOppIds.has(o.id));
+  const activeLost = lost.filter((o: any) => !excludedOppIds.has(o.id));
+  const activeTasksDue = tasksDue.filter(
+    (t: any) => !excludedLeadIds.has(t.lead_metadata_id) && !excludedOppIds.has(t.opportunity_id ?? taskQuotationToOpp.get(t.quotation_id))
+  );
+
+  // An archived opportunity must not certify its lead as qualified.
+  const leadIdsWithOpportunity = new Set<string>((leadsWithOppRaw ?? []).filter((o: any) => !excludedOppIds.has(o.id)).map((o: any) => o.lead_metadata_id));
   const isQualified = (l: any) => QUALIFIED_OR_LATER.has(l.status) || leadIdsWithOpportunity.has(l.id);
+  const qualifiedLeadIds = new Set<string>(activeLeads.filter(isQualified).map((l: any) => l.id));
 
   // ---- Top Programmes: participant counts, only where a real handoff exists (Phase 3 traceability). ----
-  const wonOppIds = won.map((o: any) => o.id);
+  const wonOppIds = activeWon.map((o: any) => o.id);
   const { data: schedulesForWon } = wonOppIds.length
     ? await supabase.from("course_schedules").select("id, source_opportunity_id").in("source_opportunity_id", wonOppIds)
     : { data: [] as any[] };
@@ -229,11 +298,11 @@ export default async function SalesReportsPage({
   // ==================================================================
   // Task 2/3 — Funnel + conversion rates
   // ==================================================================
-  const leadCount = leads.length;
-  const qualifiedCount = leads.filter(isQualified).length;
-  const opportunityCount = opps.length;
-  const quotationSentOppCount = new Set(quotationsSent.map((q: any) => q.opportunity_id)).size;
-  const wonCount = won.length;
+  const leadCount = activeLeads.length;
+  const qualifiedCount = activeLeads.filter(isQualified).length;
+  const opportunityCount = activeOpps.length;
+  const quotationSentOppCount = new Set(activeQuotationsSent.map((q: any) => q.opportunity_id)).size;
+  const wonCount = activeWon.length;
 
   const funnel = [
     { label: "Lead", value: leadCount },
@@ -256,11 +325,11 @@ export default async function SalesReportsPage({
   // Task 4 — Lead source
   // ==================================================================
   const leadSourceRows = LEAD_SOURCES.map((source) => {
-    const sourceLeads = leads.filter((l: any) => l.lead_source === source);
+    const sourceLeads = activeLeads.filter((l: any) => l.lead_source === source);
     const sourceLeadIds = new Set(sourceLeads.map((l: any) => l.id));
     const sourceQualified = sourceLeads.filter(isQualified).length;
-    const sourceOpps = opps.filter((o: any) => sourceLeadIds.has(o.lead_metadata_id)).length;
-    const sourceWon = won.filter((o: any) => sourceLeadIds.has(o.lead_metadata_id)).length;
+    const sourceOpps = activeOpps.filter((o: any) => sourceLeadIds.has(o.lead_metadata_id)).length;
+    const sourceWon = activeWon.filter((o: any) => sourceLeadIds.has(o.lead_metadata_id)).length;
     return { source, label: SOURCE_LABELS[source], total: sourceLeads.length, qualified: sourceQualified, opportunities: sourceOpps, won: sourceWon };
   });
 
@@ -270,45 +339,45 @@ export default async function SalesReportsPage({
   const stageRows = REPORTABLE_STAGES.map((stage) => ({
     stage,
     label: OPPORTUNITY_STAGE_LABELS[stage],
-    count: opps.filter((o: any) => o.stage === stage).length,
+    count: activeOpps.filter((o: any) => o.stage === stage).length,
   }));
   const stageMax = Math.max(1, ...stageRows.map((r) => r.count));
 
   // ==================================================================
   // Task 6 — Quotation performance
   // ==================================================================
-  const sentCount = quotationsSent.length;
-  const acceptedAmongSent = quotationsSent.filter((q: any) => q.status === "accepted").length;
-  const rejectedAmongSent = quotationsSent.filter((q: any) => q.status === "rejected").length;
-  const avgAcceptedValue = accepted.length > 0 ? accepted.reduce((sum: number, q: any) => sum + Number(q.total), 0) / accepted.length : null;
+  const sentCount = activeQuotationsSent.length;
+  const acceptedAmongSent = activeQuotationsSent.filter((q: any) => q.status === "accepted").length;
+  const rejectedAmongSent = activeQuotationsSent.filter((q: any) => q.status === "rejected").length;
+  const avgAcceptedValue = activeAccepted.length > 0 ? activeAccepted.reduce((sum: number, q: any) => sum + Number(q.total), 0) / activeAccepted.length : null;
   const quotationStatusRows = ["draft", "sent", "accepted", "rejected", "expired", "superseded"].map((status) => ({
     status,
-    count: quotationsCreated.filter((q: any) => q.status === status).length,
+    count: activeQuotationsCreated.filter((q: any) => q.status === status).length,
   }));
 
   // ==================================================================
   // Task 7 — Won / Lost
   // ==================================================================
-  const winRate = conversionRate(wonCount, wonCount + lost.length);
+  const winRate = conversionRate(wonCount, wonCount + activeLost.length);
   const lostReasonRows: { reason: SalesCrmLostReason; label: string; count: number }[] = LOST_REASONS.map((reason) => ({
     reason,
     label: LOST_REASON_LABELS[reason],
-    count: lost.filter((o: any) => o.lost_reason === reason).length,
+    count: activeLost.filter((o: any) => o.lost_reason === reason).length,
   })).filter((r) => r.count > 0);
 
   // ==================================================================
   // Task 8 — Sales value
   // ==================================================================
-  const acceptedValue = accepted.reduce((sum: number, q: any) => sum + Number(q.total), 0);
+  const acceptedValue = activeAccepted.reduce((sum: number, q: any) => sum + Number(q.total), 0);
   const avgWonDeal = wonCount > 0 ? acceptedValue / wonCount : null;
 
   // ==================================================================
   // Task 9 — Top programmes (won opportunities only, exact programme text)
   // ==================================================================
   const acceptedByOpp = new Map<string, number>();
-  for (const q of accepted) acceptedByOpp.set((q as any).opportunity_id, ((acceptedByOpp.get((q as any).opportunity_id) ?? 0)) + Number((q as any).total));
+  for (const q of activeAccepted) acceptedByOpp.set((q as any).opportunity_id, ((acceptedByOpp.get((q as any).opportunity_id) ?? 0)) + Number((q as any).total));
   const programmeMap = new Map<string, { count: number; value: number; participants: number }>();
-  for (const o of won as any[]) {
+  for (const o of activeWon as any[]) {
     const key = o.programme?.trim() || "(No programme recorded)";
     const entry = programmeMap.get(key) ?? { count: 0, value: 0, participants: 0 };
     entry.count += 1;
@@ -322,31 +391,29 @@ export default async function SalesReportsPage({
     .slice(0, 10);
 
   // ==================================================================
-  // Task 10 — Monthly trend
+  // Task 10 — Monthly trend (shared builder, identical to CSV export)
   // ==================================================================
-  const monthKeys = monthKeysInRange(range.startUtc, range.endUtc);
-  const monthlyTrend = monthKeys.map((mk) => ({
-    month: mk,
-    label: monthKeyLabel(mk),
-    leads: leads.filter((l: any) => mytMonthKey(l.created_at) === mk).length,
-    qualified: leads.filter((l: any) => mytMonthKey(l.created_at) === mk && isQualified(l)).length,
-    opportunities: opps.filter((o: any) => mytMonthKey(o.created_at) === mk).length,
-    quotationsSent: new Set(quotationsSent.filter((q: any) => mytMonthKey(q.sent_at) === mk).map((q: any) => q.opportunity_id)).size,
-    won: won.filter((o: any) => mytMonthKey(o.won_at) === mk).length,
-    lost: lost.filter((o: any) => mytMonthKey(o.lost_at) === mk).length,
-    wonValue: accepted.filter((q: any) => mytMonthKey(q.accepted_at) === mk).reduce((s: number, q: any) => s + Number(q.total), 0),
-  }));
+  const monthlyTrend = buildMonthlyTrend({
+    range,
+    leads: activeLeads,
+    qualifiedLeadIds,
+    opps: activeOpps,
+    quotationsSent: activeQuotationsSent,
+    won: activeWon,
+    lost: activeLost,
+    accepted: activeAccepted,
+  });
 
   // ==================================================================
   // Task 11 — Owner summary (operational visibility, not a scoring/ranking)
   // ==================================================================
   const ownerRows = staff
     .map((s) => {
-      const ownerLeads = leads.filter((l: any) => l.assigned_to === s.id).length;
-      const ownerOpps = opps.filter((o: any) => o.assigned_to === s.id).length;
-      const ownerFollowUps = leads.filter((l: any) => l.assigned_to === s.id && l.follow_up_at && !["won", "lost", "archived"].includes(l.status)).length;
-      const ownerTasksDue = tasksDue.filter((t: any) => t.assigned_to === s.id).length;
-      const ownerWonOpps = won.filter((o: any) => o.assigned_to === s.id);
+      const ownerLeads = activeLeads.filter((l: any) => l.assigned_to === s.id).length;
+      const ownerOpps = activeOpps.filter((o: any) => o.assigned_to === s.id).length;
+      const ownerFollowUps = activeLeads.filter((l: any) => l.assigned_to === s.id && l.follow_up_at && !["won", "lost", "archived"].includes(l.status)).length;
+      const ownerTasksDue = activeTasksDue.filter((t: any) => t.assigned_to === s.id).length;
+      const ownerWonOpps = activeWon.filter((o: any) => o.assigned_to === s.id);
       const ownerWonValue = ownerWonOpps.reduce((sum: number, o: any) => sum + (acceptedByOpp.get(o.id) ?? 0), 0);
       return { name: s.full_name, leads: ownerLeads, opportunities: ownerOpps, followUps: ownerFollowUps, tasksDue: ownerTasksDue, won: ownerWonOpps.length, wonValue: ownerWonValue };
     })
@@ -432,7 +499,7 @@ export default async function SalesReportsPage({
               </div>
               <div style={{ display: "contents" }}>
                 <dt style={{ color: "var(--ta-muted)", fontSize: 13 }}>Lost</dt>
-                <dd style={{ margin: 0, fontWeight: 700, fontSize: 13 }}>{lost.length}</dd>
+                <dd style={{ margin: 0, fontWeight: 700, fontSize: 13 }}>{activeLost.length}</dd>
               </div>
               <div style={{ display: "contents" }}>
                 <dt style={{ color: "var(--ta-muted)", fontSize: 13 }}>Win Rate</dt>
@@ -497,7 +564,7 @@ export default async function SalesReportsPage({
       <Card title="Quotation Performance">
         <div className="ta-card-pad">
           <div className="ta-grid cols-4" style={{ marginBottom: 14 }}>
-            <StatCard label="Created" value={quotationsCreated.length} icon="📄" />
+            <StatCard label="Created" value={activeQuotationsCreated.length} icon="📄" />
             <StatCard label="Sent" value={sentCount} icon="📨" />
             <StatCard label="Acceptance Rate" value={conversionRate(acceptedAmongSent, sentCount)} icon="✅" />
             <StatCard label="Rejection Rate" value={conversionRate(rejectedAmongSent, sentCount)} icon="🚫" />

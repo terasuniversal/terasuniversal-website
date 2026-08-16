@@ -133,3 +133,122 @@ export function conversionRate(numerator: number, denominator: number): string {
   if (denominator <= 0) return "N/A";
   return `${((numerator / denominator) * 100).toFixed(1)}%`;
 }
+
+/* ------------------------------------------------------------------ */
+/* Archive exclusion — ONE shared rule for every operational metric.   */
+/* Page and CSV export both call these so filtering can never drift.   */
+/* ------------------------------------------------------------------ */
+
+export interface ReportArchiveState {
+  /** Lead ids whose whole Sales chain is archived (the lead itself, or its only opportunity, is archived). */
+  excludedLeadIds: Set<string>;
+  /** Opportunity ids whose whole Sales chain is archived (itself, or its source lead, is archived). */
+  excludedOppIds: Set<string>;
+}
+
+/**
+ * Computes the shared archive-exclusion state for operational Sales Reports
+ * (audit Tasks 5/6/7). `leads`/`opportunities` are the report's own
+ * date-filtered rows; `allLeadStatus`/`allOpportunityStage` are date-
+ * unfiltered lookups covering every referenced id, because won/lost/accepted
+ * records are event-dated (won_at/lost_at/accepted_at) inside the range while
+ * their lead/opportunity may have been created long before it.
+ *
+ * Chain rule — matches the Lead inbox's "archived is hidden, not historical"
+ * convention and the Opportunity Stage card's existing exclusion:
+ *   - an archived lead hides the lead and everything downstream (its
+ *     opportunity, quotations, won/lost, tasks);
+ *   - an archived opportunity hides the opportunity and everything downstream
+ *     (its quotations, won/lost, tasks) as well as the lead it came from, so
+ *     an archived test chain contributes 0 to every operational total.
+ */
+export function resolveReportArchiveState(
+  leads: { id: string; status?: string | null }[],
+  opportunities: { id: string; stage?: string | null; lead_metadata_id?: string | null }[],
+  allLeadStatus: { id: string; status?: string | null }[],
+  allOpportunityStage: { id: string; stage?: string | null; lead_metadata_id?: string | null }[]
+): ReportArchiveState {
+  const leadStatus = new Map<string, string>();
+  for (const l of leads) if (l.status) leadStatus.set(l.id, l.status);
+  for (const l of allLeadStatus) if (l.status) leadStatus.set(l.id, l.status);
+
+  const oppStage = new Map<string, string>();
+  const oppLead = new Map<string, string>();
+  const addOpp = (o: { id: string; stage?: string | null; lead_metadata_id?: string | null }) => {
+    if (o.stage) oppStage.set(o.id, o.stage);
+    if (o.lead_metadata_id) oppLead.set(o.id, o.lead_metadata_id);
+  };
+  for (const o of opportunities) addOpp(o);
+  for (const o of allOpportunityStage) addOpp(o);
+
+  // 1. Leads archived by their own status, and opportunities by their own stage.
+  const archivedLeadIds = new Set<string>();
+  for (const [id, status] of leadStatus) if (status === "archived") archivedLeadIds.add(id);
+  const archivedOppIds = new Set<string>();
+  for (const [id, stage] of oppStage) if (stage === "archived") archivedOppIds.add(id);
+
+  // 2. A lead is excluded when it — or its only opportunity (unique
+  //    lead_metadata_id) — is archived.
+  const excludedLeadIds = new Set<string>(archivedLeadIds);
+  for (const [oppId, leadId] of oppLead) if (archivedOppIds.has(oppId) && leadId) excludedLeadIds.add(leadId);
+
+  // 3. An opportunity is excluded when it — or its source lead — is archived.
+  const excludedOppIds = new Set<string>(archivedOppIds);
+  for (const [oppId, stage] of oppStage) {
+    if (stage === "archived") continue;
+    const leadId = oppLead.get(oppId);
+    if (leadId && excludedLeadIds.has(leadId)) excludedOppIds.add(oppId);
+  }
+
+  return { excludedLeadIds, excludedOppIds };
+}
+
+/** True when a quotation belongs to an archived opportunity chain. */
+export function quotationInArchivedChain(quotation: { opportunity_id: string | null }, excludedOppIds: Set<string>): boolean {
+  return quotation.opportunity_id != null && excludedOppIds.has(quotation.opportunity_id);
+}
+
+/* ------------------------------------------------------------------ */
+/* Shared Monthly Trend builder — the report page and the CSV export   */
+/* aggregate through this one function so UI totals and the CSV can    */
+/* never disagree (audit Task 7).                                      */
+/* ------------------------------------------------------------------ */
+
+export interface MonthlyTrendRow {
+  month: string;
+  label: string;
+  leads: number;
+  qualified: number;
+  opportunities: number;
+  quotationsSent: number;
+  won: number;
+  lost: number;
+  wonValue: number;
+}
+
+export interface MonthlyTrendInput {
+  range: Pick<ReportDateRange, "startUtc" | "endUtc">;
+  leads: { id: string; created_at: string }[];
+  qualifiedLeadIds: Set<string>;
+  opps: { id: string; created_at: string }[];
+  quotationsSent: { opportunity_id: string; sent_at: string }[];
+  won: { id: string; won_at: string }[];
+  lost: { id: string; lost_at: string }[];
+  accepted: { opportunity_id: string; total: number; accepted_at: string }[];
+}
+
+/** Buckets the given (already archive-excluded) rows into MYT calendar months. */
+export function buildMonthlyTrend(input: MonthlyTrendInput): MonthlyTrendRow[] {
+  const monthKeys = monthKeysInRange(input.range.startUtc, input.range.endUtc);
+  return monthKeys.map((mk) => ({
+    month: mk,
+    label: monthKeyLabel(mk),
+    leads: input.leads.filter((l) => mytMonthKey(l.created_at) === mk).length,
+    qualified: input.leads.filter((l) => mytMonthKey(l.created_at) === mk && input.qualifiedLeadIds.has(l.id)).length,
+    opportunities: input.opps.filter((o) => mytMonthKey(o.created_at) === mk).length,
+    quotationsSent: new Set(input.quotationsSent.filter((q) => mytMonthKey(q.sent_at) === mk).map((q) => q.opportunity_id)).size,
+    won: input.won.filter((o) => mytMonthKey(o.won_at) === mk).length,
+    lost: input.lost.filter((o) => mytMonthKey(o.lost_at) === mk).length,
+    wonValue: input.accepted.filter((q) => mytMonthKey(q.accepted_at) === mk).reduce((s, q) => s + Number(q.total), 0),
+  }));
+}
