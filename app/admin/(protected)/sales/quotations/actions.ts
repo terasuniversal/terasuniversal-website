@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { requireModuleAccess, requireRole } from "../../../../../lib/auth/session";
+import { requireRole } from "../../../../../lib/auth/session";
 import { quotationHeaderSchema, quotationRejectSchema, fieldErrors } from "../../../../../lib/validation/schemas";
 import { computeQuotationTotals } from "../../../../../lib/sales/crm";
 
@@ -42,7 +42,6 @@ export async function createQuotation(
   formData: FormData
 ): Promise<SalesActionState> {
   const profile = await requireRole("admin");
-  await requireModuleAccess("sales_quotations");
   const parsed = quotationHeaderSchema.safeParse({
     valid_until: formData.get("valid_until") ?? "",
     currency: formData.get("currency") || "MYR",
@@ -121,7 +120,6 @@ export async function updateQuotationDraft(
   formData: FormData
 ): Promise<SalesActionState> {
   await requireRole("admin");
-  await requireModuleAccess("sales_quotations");
   const parsed = quotationHeaderSchema.safeParse({
     valid_until: formData.get("valid_until") ?? "",
     currency: formData.get("currency") || "MYR",
@@ -194,7 +192,6 @@ export async function updateQuotationDraft(
  */
 export async function markQuotationSent(quotationId: string, _prev: SalesActionState, _formData: FormData): Promise<SalesActionState> {
   const profile = await requireRole("admin");
-  await requireModuleAccess("sales_quotations");
   const supabase = await createSupabaseServerClient();
   const { data: existing } = await supabase.from("sales_quotations").select("status, opportunity_id, quotation_no").eq("id", quotationId).maybeSingle();
   if (!existing) return { message: "Quotation not found." };
@@ -216,7 +213,6 @@ export async function markQuotationSent(quotationId: string, _prev: SalesActionS
 /** Task 11: accepted flow — delegates the whole won cascade to accept_quotation(). */
 export async function acceptQuotationAction(quotationId: string, _prev: SalesActionState, _formData: FormData): Promise<SalesActionState> {
   await requireRole("admin");
-  await requireModuleAccess("sales_quotations");
   const supabase = await createSupabaseServerClient();
   const { data: existing } = await supabase.from("sales_quotations").select("opportunity_id").eq("id", quotationId).maybeSingle();
   const { error } = await supabase.rpc("accept_quotation", { p_quotation_id: quotationId });
@@ -231,7 +227,6 @@ export async function acceptQuotationAction(quotationId: string, _prev: SalesAct
 /** Task 9: rejection — does not auto-cascade the opportunity/lead (see migration comments). */
 export async function rejectQuotationAction(quotationId: string, _prev: SalesActionState, formData: FormData): Promise<SalesActionState> {
   await requireRole("admin");
-  await requireModuleAccess("sales_quotations");
   const parsed = quotationRejectSchema.safeParse({ reason: formData.get("reason") });
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
@@ -253,7 +248,6 @@ export async function rejectQuotationAction(quotationId: string, _prev: SalesAct
  */
 export async function createRevision(quotationId: string, _prev: SalesActionState, _formData: FormData): Promise<SalesActionState> {
   const profile = await requireRole("admin");
-  await requireModuleAccess("sales_quotations");
   const supabase = await createSupabaseServerClient();
 
   const { data: source } = await supabase.from("sales_quotations").select("*").eq("id", quotationId).maybeSingle();
