@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { requireAssessment } from "../../../../lib/auth/session";
+import { requireModuleAccess, requireAssessment } from "../../../../lib/auth/session";
 import { PageHead, Card, Badge, EmptyState, Pagination } from "../../../../components/admin/ui";
 
 export const metadata = { title: "Assessment — TERAS UNIVERSAL Admin" };
@@ -14,6 +14,7 @@ export default async function AssessmentListPage({
   searchParams: Promise<{ page?: string; q?: string; result?: string; competency?: string; trainer?: string }>;
 }) {
   await requireAssessment(false);
+  await requireModuleAccess("assessment");
   const sp = await searchParams;
   const page = Math.max(1, Number(sp.page ?? 1));
   const supabase = await createSupabaseServerClient();

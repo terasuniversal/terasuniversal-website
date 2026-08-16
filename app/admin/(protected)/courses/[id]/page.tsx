@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { requireRole } from "../../../../../lib/auth/session";
+import { requireModuleAccess, requireRole } from "../../../../../lib/auth/session";
 import { PageHead } from "../../../../../components/admin/ui";
 import { CourseForm } from "../CourseForm";
 import { updateCourse, softDeleteCourse } from "../actions";
@@ -14,6 +14,7 @@ export default async function EditCoursePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireModuleAccess("courses");
   const profile = await requireRole("editor");
   const { id } = await params;
   const supabase = await createSupabaseServerClient();

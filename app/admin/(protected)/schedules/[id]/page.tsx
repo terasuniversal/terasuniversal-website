@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { requireRole } from "../../../../../lib/auth/session";
+import { requireModuleAccess, requireRole } from "../../../../../lib/auth/session";
 import { isAdmin } from "../../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, EmptyState } from "../../../../../components/admin/ui";
 import { AssignParticipants } from "../AssignParticipants";
@@ -15,6 +15,7 @@ export default async function ScheduleDetailsPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireModuleAccess("schedules");
   const profile = await requireRole("editor");
   const canWrite = isAdmin(profile.role);
   const { id } = await params;

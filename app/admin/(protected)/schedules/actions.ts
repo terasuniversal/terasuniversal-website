@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { requireRole } from "../../../../lib/auth/session";
+import { requireModuleAccess, requireRole } from "../../../../lib/auth/session";
 import { scheduleSchema, fieldErrors } from "../../../../lib/validation/schemas";
 
 export type ScheduleFormState = { errors?: Record<string, string>; message?: string };
@@ -52,6 +52,7 @@ function clean(data: any) {
 
 export async function createSchedule(_prev: ScheduleFormState, formData: FormData): Promise<ScheduleFormState> {
   const profile = await requireRole("admin"); // Editors are read-only.
+  await requireModuleAccess("schedules");
   const parsed = scheduleSchema.safeParse(readForm(formData));
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
@@ -100,6 +101,7 @@ export async function createSchedule(_prev: ScheduleFormState, formData: FormDat
 
 export async function updateSchedule(id: string, _prev: ScheduleFormState, formData: FormData): Promise<ScheduleFormState> {
   await requireRole("admin");
+  await requireModuleAccess("schedules");
   const parsed = scheduleSchema.safeParse(readForm(formData));
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
@@ -114,6 +116,7 @@ export async function updateSchedule(id: string, _prev: ScheduleFormState, formD
 /** Duplicate — clone core fields; reset status to open, no enrollments. */
 export async function duplicateSchedule(id: string) {
   await requireRole("admin");
+  await requireModuleAccess("schedules");
   const supabase = await createSupabaseServerClient();
   const { data: src } = await supabase.from("course_schedules").select("*").eq("id", id).single();
   if (!src) return;
@@ -134,6 +137,7 @@ export async function duplicateSchedule(id: string) {
 
 export async function softDeleteSchedule(id: string) {
   await requireRole("admin");
+  await requireModuleAccess("schedules");
   const supabase = await createSupabaseServerClient();
   await supabase.from("course_schedules").update({ deleted_at: new Date().toISOString() }).eq("id", id);
   revalidatePath("/admin/schedules");
@@ -141,6 +145,7 @@ export async function softDeleteSchedule(id: string) {
 
 export async function restoreSchedule(id: string) {
   await requireRole("admin");
+  await requireModuleAccess("schedules");
   const supabase = await createSupabaseServerClient();
   await supabase.from("course_schedules").update({ deleted_at: null }).eq("id", id);
   revalidatePath("/admin/schedules");
@@ -161,6 +166,7 @@ export async function restoreSchedule(id: string) {
  */
 export async function assignParticipants(scheduleId: string, _prev: ScheduleFormState, formData: FormData): Promise<ScheduleFormState> {
   await requireRole("admin");
+  await requireModuleAccess("schedules");
   const ids = formData.getAll("participant_ids").map(String).filter(Boolean);
   if (ids.length === 0) return {};
   const supabase = await createSupabaseServerClient();
@@ -206,6 +212,7 @@ export async function assignParticipants(scheduleId: string, _prev: ScheduleForm
  * history survives and the participant can be re-enrolled later. */
 export async function removeParticipant(scheduleId: string, assignmentId: string) {
   await requireRole("admin");
+  await requireModuleAccess("schedules");
   const supabase = await createSupabaseServerClient();
   await supabase.from("schedule_participants").update({ registration_status: "cancelled" }).eq("id", assignmentId);
   revalidatePath(`/admin/schedules/${scheduleId}`);

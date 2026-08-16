@@ -55,6 +55,24 @@ export async function loginAction(
 
     // Trainers land in their workspace (Attendance); others on the dashboard.
     if (profile?.role === "trainer") redirect("/admin/attendance");
+
+    // Explicit-access staff without the Dashboard module must not land on the
+    // training-operations dashboard. Send them to a module they actually have
+    // (Sales staff -> Sales Dashboard). Legacy (role-default) staff keep the
+    // existing dashboard landing because they pass the role-based fallback.
+    const { data: moduleAccess } = await supabase.rpc("get_my_module_access");
+    const allowed = Array.isArray(moduleAccess)
+      ? moduleAccess.map((m: { module_key: string }) => m.module_key)
+      : [];
+    if (allowed.length > 0 && !allowed.includes("dashboard")) {
+      const landing =
+        allowed.includes("sales") ? "/admin/sales"
+        : allowed.includes("sales_leads") ? "/admin/sales/leads"
+        : allowed.includes("reports") ? "/admin/reports"
+        : allowed.includes("news") ? "/admin/news"
+        : "/admin/no-access";
+      redirect(landing);
+    }
   }
 
   const dest =

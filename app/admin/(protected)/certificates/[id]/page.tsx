@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { requireCertificate } from "../../../../../lib/auth/session";
+import { requireModuleAccess, requireCertificate } from "../../../../../lib/auth/session";
 import { canManageCertificate } from "../../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, Field } from "../../../../../components/admin/ui";
 import { CertificateFront, CertificateBack } from "../../../../../components/admin/CertificateRenderer";
@@ -13,6 +13,7 @@ export const metadata = { title: "Certificate — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
 
 export default async function CertificateDetailPage({ params }: { params: Promise<{ id: string }> }) {
+await requireModuleAccess("certificates");
   const profile = await requireCertificate(false);
   const canManage = canManageCertificate(profile.role);
   const { id } = await params;

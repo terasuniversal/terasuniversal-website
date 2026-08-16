@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
-import { requireRole } from "../../../../../../lib/auth/session";
+import { requireModuleAccess, requireRole } from "../../../../../../lib/auth/session";
 import { PageHead } from "../../../../../../components/admin/ui";
 import { ScheduleForm } from "../../ScheduleForm";
 import { updateSchedule } from "../../actions";
@@ -10,6 +10,7 @@ export const metadata = { title: "Edit Schedule — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
 
 export default async function EditSchedulePage({ params }: { params: Promise<{ id: string }> }) {
+await requireModuleAccess("schedules");
   await requireRole("admin");
   const { id } = await params;
   const supabase = await createSupabaseServerClient();

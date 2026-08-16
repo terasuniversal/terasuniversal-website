@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
-import { requireRole } from "../../../../../../lib/auth/session";
+import { requireModuleAccess, requireRole } from "../../../../../../lib/auth/session";
 import type { Course } from "../../../../../../lib/supabase/database.types";
 
 export const metadata = { title: "Preview Course — TERAS UNIVERSAL Admin" };
@@ -17,6 +17,7 @@ export default async function CoursePreviewPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireModuleAccess("courses");
   await requireRole("editor");
   const { id } = await params;
   const supabase = await createSupabaseServerClient();

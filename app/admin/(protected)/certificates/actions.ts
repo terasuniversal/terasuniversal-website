@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { requireCertificate } from "../../../../lib/auth/session";
+import { requireModuleAccess, requireCertificate } from "../../../../lib/auth/session";
 import { siteOrigin } from "../../../../lib/site-origin";
 
 /**
@@ -119,6 +119,7 @@ async function insertEligibleCertificate(
  */
 export async function generateCertificate(scheduleId: string, participantId: string): Promise<string> {
   await requireCertificate(true); // admin+
+  await requireModuleAccess("certificates");
   const supabase = await createSupabaseServerClient();
 
   const { data: elig } = await supabase
@@ -147,6 +148,7 @@ export async function generateCertificate(scheduleId: string, participantId: str
  */
 export async function bulkGenerate(scheduleId: string): Promise<{ generated: number; skipped: number }> {
   await requireCertificate(true);
+  await requireModuleAccess("certificates");
   const supabase = await createSupabaseServerClient();
 
   const { data: rows } = await supabase.from("v_certificate_eligibility").select("*").eq("schedule_id", scheduleId);
@@ -164,6 +166,7 @@ export async function bulkGenerate(scheduleId: string): Promise<{ generated: num
 
 export async function revokeCertificate(id: string, formData?: FormData) {
   await requireCertificate(true);
+  await requireModuleAccess("certificates");
   const remarks = formData ? String(formData.get("remarks") ?? "").trim() : "";
   const supabase = await createSupabaseServerClient();
   await supabase.from("certificates").update({ status: "revoked", remarks: remarks || null }).eq("id", id);
@@ -173,6 +176,7 @@ export async function revokeCertificate(id: string, formData?: FormData) {
 
 export async function reissueCertificate(id: string) {
   await requireCertificate(true);
+  await requireModuleAccess("certificates");
   const supabase = await createSupabaseServerClient();
   await supabase.from("certificates").update({ status: "valid", issue_date: new Date().toISOString().slice(0, 10) }).eq("id", id);
   revalidatePath("/admin/certificates");
@@ -191,6 +195,7 @@ export async function reissueCertificate(id: string) {
  */
 export async function duplicateCertificate(id: string) {
   await requireCertificate(true);
+  await requireModuleAccess("certificates");
   const supabase = await createSupabaseServerClient();
 
   const { data, error } = await supabase.rpc("duplicate_certificate_with_skill_snapshot" as never, {
@@ -212,6 +217,7 @@ export async function duplicateCertificate(id: string) {
 
 export async function updateCertificateMeta(id: string, formData: FormData) {
   await requireCertificate(true);
+  await requireModuleAccess("certificates");
   const expiry = String(formData.get("expiry_date") ?? "").trim();
   const remarks = String(formData.get("remarks") ?? "").trim();
   const supabase = await createSupabaseServerClient();
@@ -221,6 +227,7 @@ export async function updateCertificateMeta(id: string, formData: FormData) {
 
 export async function softDeleteCertificate(id: string) {
   await requireCertificate(true);
+  await requireModuleAccess("certificates");
   const supabase = await createSupabaseServerClient();
   await supabase.from("certificates").update({ deleted_at: new Date().toISOString() }).eq("id", id);
   revalidatePath("/admin/certificates");
@@ -228,6 +235,7 @@ export async function softDeleteCertificate(id: string) {
 
 export async function restoreCertificate(id: string) {
   await requireCertificate(true);
+  await requireModuleAccess("certificates");
   const supabase = await createSupabaseServerClient();
   await supabase.from("certificates").update({ deleted_at: null }).eq("id", id);
   revalidatePath("/admin/certificates");
@@ -236,6 +244,7 @@ export async function restoreCertificate(id: string) {
 /** Regenerate the verification token (invalidates old QR/links). */
 export async function regenerateVerificationToken(id: string) {
   await requireCertificate(true);
+  await requireModuleAccess("certificates");
   const { randomBytes } = await import("crypto");
   const token = randomBytes(16).toString("hex");
   const origin = await siteOrigin();
@@ -247,6 +256,7 @@ export async function regenerateVerificationToken(id: string) {
 /** Enable / disable public verification for this certificate. */
 export async function setVerificationEnabled(id: string, enabled: boolean) {
   await requireCertificate(true);
+  await requireModuleAccess("certificates");
   const supabase = await createSupabaseServerClient();
   await supabase.from("certificates").update({ verification_enabled: enabled }).eq("id", id);
   revalidatePath(`/admin/certificates/${id}`);

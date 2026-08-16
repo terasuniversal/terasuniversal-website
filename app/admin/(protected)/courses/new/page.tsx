@@ -1,4 +1,4 @@
-import { requireRole } from "../../../../../lib/auth/session";
+import { requireModuleAccess, requireRole } from "../../../../../lib/auth/session";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { PageHead } from "../../../../../components/admin/ui";
 import { CourseForm } from "../CourseForm";
@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 
 export default async function NewCoursePage() {
   await requireRole("editor");
+  await requireModuleAccess("courses");
   const supabase = await createSupabaseServerClient();
   const { data: templates } = await supabase
     .from("certificate_templates")

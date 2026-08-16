@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
-import { requireAttendance } from "../../../../../../lib/auth/session";
+import { requireModuleAccess, requireAttendance } from "../../../../../../lib/auth/session";
 import { PageHead } from "../../../../../../components/admin/ui";
 import { ImportClient } from "./ImportClient";
 
@@ -14,6 +14,7 @@ export default async function ImportAttendancePage({
   params: Promise<{ scheduleId: string }>;
   searchParams: Promise<{ date?: string }>;
 }) {
+  await requireModuleAccess("attendance");
   await requireAttendance(true); // trainer or admin
   const { scheduleId } = await params;
   const { date } = await searchParams;

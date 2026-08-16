@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { requireCertificate } from "../../../../../lib/auth/session";
+import { requireModuleAccess, requireCertificate } from "../../../../../lib/auth/session";
 import { canManageCertificate } from "../../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, EmptyState } from "../../../../../components/admin/ui";
 import { duplicateTemplate, toggleTemplateActive } from "./actions";
@@ -10,6 +10,7 @@ export const dynamic = "force-dynamic";
 
 export default async function TemplatesPage() {
   const profile = await requireCertificate(false);
+  await requireModuleAccess("certificates");
   const canManage = canManageCertificate(profile.role);
   const supabase = await createSupabaseServerClient();
   const { data: templates } = await supabase.from("certificate_templates").select("*").is("deleted_at", null).order("is_default", { ascending: false }).order("name");

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { requireCertificate } from "../../../../../lib/auth/session";
+import { requireModuleAccess, requireCertificate } from "../../../../../lib/auth/session";
 import { certificateTemplateConfigSchema, fieldErrors } from "../../../../../lib/validation/schemas";
 
 export type TemplateFormState = { errors?: Record<string, string>; message?: string };
@@ -83,6 +83,7 @@ async function ensureSingleDefault(supabase: any, isDefault: boolean, exceptId?:
 
 export async function createTemplate(_prev: TemplateFormState, formData: FormData): Promise<TemplateFormState> {
   await requireCertificate(true);
+  await requireModuleAccess("certificates");
   const parsed = schema.safeParse(read(formData));
   if (!parsed.success) return { errors: { name: parsed.error.issues[0]?.message ?? "Invalid" } };
   const configParsed = certificateTemplateConfigSchema.safeParse(buildConfig(formData));
@@ -97,6 +98,7 @@ export async function createTemplate(_prev: TemplateFormState, formData: FormDat
 
 export async function updateTemplate(id: string, _prev: TemplateFormState, formData: FormData): Promise<TemplateFormState> {
   await requireCertificate(true);
+  await requireModuleAccess("certificates");
   const parsed = schema.safeParse(read(formData));
   if (!parsed.success) return { errors: { name: parsed.error.issues[0]?.message ?? "Invalid" } };
   const configParsed = certificateTemplateConfigSchema.safeParse(buildConfig(formData));
@@ -116,6 +118,7 @@ export async function updateTemplate(id: string, _prev: TemplateFormState, formD
 
 export async function duplicateTemplate(id: string) {
   await requireCertificate(true);
+  await requireModuleAccess("certificates");
   const supabase = await createSupabaseServerClient();
   const { data: src } = await supabase.from("certificate_templates").select("*").eq("id", id).single();
   if (!src) return;
@@ -126,6 +129,7 @@ export async function duplicateTemplate(id: string) {
 
 export async function toggleTemplateActive(id: string, active: boolean) {
   await requireCertificate(true);
+  await requireModuleAccess("certificates");
   const supabase = await createSupabaseServerClient();
   await supabase.from("certificate_templates").update({ is_active: active }).eq("id", id);
   revalidatePath("/admin/certificates/templates");
@@ -133,6 +137,7 @@ export async function toggleTemplateActive(id: string, active: boolean) {
 
 export async function deleteTemplate(id: string) {
   await requireCertificate(true);
+  await requireModuleAccess("certificates");
   const supabase = await createSupabaseServerClient();
   await supabase.from("certificate_templates").update({ deleted_at: new Date().toISOString() }).eq("id", id);
   revalidatePath("/admin/certificates/templates");
