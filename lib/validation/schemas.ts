@@ -291,6 +291,24 @@ export const setStaffModuleAccessSchema = z.object({
 export type StaffProfileInput = z.infer<typeof staffProfileSchema>;
 export type StaffModuleAccessInput = z.infer<typeof setStaffModuleAccessSchema>;
 
+/** Create a new staff account (Add Staff flow). Email lowercased; modules optional. */
+export const createStaffSchema = z.object({
+  full_name: z.string().trim().min(2).max(120),
+  email: z
+    .string()
+    .trim()
+    .email()
+    .max(254)
+    .transform((value) => value.toLowerCase()),
+  department: staffDepartmentEnum.nullable().optional(),
+  role: staffRoleEnum,
+  is_active: z.coerce.boolean(),
+  access_control_enabled: z.coerce.boolean().default(true),
+  modules: z.array(moduleAccessItemSchema).max(60).default([]),
+});
+
+export type CreateStaffInput = z.infer<typeof createStaffSchema>;
+
 /**
  * Bounds on the free-text certificate-template config fields that render
  * directly onto the fixed-height, overflow:hidden A4 certificate pages

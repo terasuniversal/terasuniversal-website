@@ -261,6 +261,57 @@ function main() {
   const modRows = scalar(psql(`select count(*) from public.audit_logs where action = 'staff_module_access_changed' and entity_id = '${NO_SALES}';`));
   expectBool("11d. staff_module_access_changed audit row recorded", modRows !== "0", true);
 
+  console.log("-- Add Staff (Phase 2A) --");
+  const NEW_STAFF = "00000000-0000-0000-0000-0000000000c1";
+  // 1. Create auth user -> on_auth_user_created -> handle_new_user() creates profile (editor/active).
+  const createUser = psql(`
+    insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
+    values ('${NEW_STAFF}','00000000-0000-0000-0000-000000000000','authenticated','authenticated','sales.new@teras.test','',now(),'{"provider":"email","providers":["email"]}','{"full_name":"Sales New"}',now(),now())
+    on conflict (id) do nothing;
+  `);
+  expectOk("AS1. auth user created (profile auto-created by handle_new_user)", createUser);
+  // 2. Configure profile via guarded RPC (super admin) - Sales editor.
+  const cfgProfile = psqlAs(SUPER, `select public.update_staff_profile('${NEW_STAFF}', p_full_name => 'Sales New', p_department => 'sales', p_role => 'editor', p_is_active => true);`);
+  expectOk("AS2. Profile configured (department=sales, role=editor, active)", cfgProfile);
+  // 3. Apply Sales module grants via guarded RPC.
+  const salesModules = [
+    ["sales", "edit"], ["sales_leads", "edit"], ["sales_opportunities", "edit"],
+    ["sales_quotations", "edit"], ["sales_followups", "edit"], ["sales_tasks", "edit"],
+    ["sales_reports", "view"],
+  ].map(([k, v]) => `{"module_key":"${k}","access_level":"${v}"}`);
+  const cfgModules = psqlAs(SUPER, `select public.set_staff_module_access('${NEW_STAFF}', '[${salesModules.join(",")}]'::jsonb);`);
+  expectOk("AS3. Sales module grants applied", cfgModules);
+  // 4. Verify profile fields.
+  const profile = scalar(psql(`select department || '|' || role || '|' || is_active || '|' || access_control_enabled from public.profiles where id = '${NEW_STAFF}';`));
+  expectBool("AS4. New profile = sales/editor/active/explicit", profile, "sales|editor|true|true");
+  // 5. Sales modules accessible; privileged modules denied.
+  expectBool("AS5a. Sales Leads accessible (edit)",
+    scalar(psqlAs(NEW_STAFF, "select public.has_module_access_level('sales_leads','edit');")), true);
+  expectBool("AS5b. Sales Dashboard accessible (edit)",
+    scalar(psqlAs(NEW_STAFF, "select public.has_module_access_level('sales','edit');")), true);
+  expectBool("AS5c. Users module denied",
+    scalar(psqlAs(NEW_STAFF, "select public.has_module_access('users');")), false);
+  expectBool("AS5d. System module denied",
+    scalar(psqlAs(NEW_STAFF, "select public.has_module_access('system');")), false);
+  // 6. New staff cannot manage staff (editor role floor).
+  expectError("AS6. New Sales staff cannot manage staff",
+    psqlAs(NEW_STAFF, `select public.update_staff_profile('${EDITOR}', p_department => 'hr');`), "forbidden");
+  // 7. Duplicate email rejected (auth.users unique; the action also pre-checks profiles).
+  const dup = psql(`
+    insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
+    values ('00000000-0000-0000-0000-0000000000c2','00000000-0000-0000-0000-000000000000','authenticated','authenticated','SALES.NEW@TERAS.TEST','',now(),'{"provider":"email","providers":["email"]}','{}',now(),now());
+  `);
+  expectBool("AS7. Duplicate email rejected (case-insensitive unique)",
+    dup.code !== 0 ? "rejected" : "allowed", "rejected");
+  // 8. Audit records creation + module changes.
+  const createdAudit = scalar(psql(`select count(*) from public.audit_logs where action = 'staff_created' and entity_id = '${NEW_STAFF}';`));
+  expectBool("AS8. staff_created audit row recorded", createdAudit !== "0", true);
+  const createdModAudit = scalar(psql(`select count(*) from public.audit_logs where action = 'staff_module_access_changed' and entity_id = '${NEW_STAFF}';`));
+  expectBool("AS8b. module-access audit rows recorded", createdModAudit !== "0", true);
+  // 9. Existing Super Admin unaffected.
+  expectBool("AS9. Super Admin still has users module",
+    scalar(psqlAs(SUPER, "select public.has_module_access('users');")), true);
+
   console.log("\nResult: " + passed + " passed, " + failures + " failed.");
   process.exit(failures === 0 ? 0 : 1);
 }

@@ -1,15 +1,26 @@
 ﻿"use server";
 
 import { revalidatePath } from "next/cache";
-import { createSupabaseServerClient } from "../../../../lib/supabase/server";
+import { randomBytes } from "node:crypto";
+import { createSupabaseServerClient, createSupabaseServiceClient } from "../../../../lib/supabase/server";
 import { requireModuleAccess } from "../../../../lib/auth/session";
 import {
   staffProfileSchema,
   setStaffModuleAccessSchema,
+  createStaffSchema,
   fieldErrors,
 } from "../../../../lib/validation/schemas";
 
-export type StaffActionState = { message?: string; errors?: Record<string, string> };
+export type StaffActionState = {
+  message?: string;
+  errors?: Record<string, string>;
+  /** Set when a staff account was successfully created (Add Staff flow). */
+  created?: boolean;
+  /** One-time initial password for the new account (returned to the creating admin only). */
+  password?: string;
+  email?: string;
+  userId?: string;
+};
 
 /** Map known RPC guard errors to safe, user-facing messages. */
 function mapRpcError(raw: string | undefined): string {
@@ -34,6 +45,128 @@ function revalidateStaff() {
   revalidatePath("/admin/users");
   revalidatePath("/admin/users/[id]");
   revalidatePath("/admin/users/new");
+}
+
+/**
+ * Create a new staff account (Add Staff flow).
+ *
+ * Authorization: requireModuleAccess("users", "admin") — the same gate the
+ * DB management RPCs enforce (app.can_manage_staff: super_admin always;
+ * admin only with users=admin level). The admin role-floor rules are enforced
+ * by update_staff_profile (no promotion to admin/super_admin, no admin targets
+ * for non-super admins).
+ *
+ * Flow (no direct table writes from this action; all DB changes go through
+ * the existing SECURITY DEFINER RPCs):
+ *   1. Duplicate-email pre-check (profiles, citext).
+ *   2. auth.admin.createUser via the SERVER-ONLY service client (GoTrue
+ *      handles password hashing + email confirmation; the service key never
+ *      reaches the browser). on_auth_user_created -> handle_new_user() creates
+ *      the profiles row.
+ *   3. update_staff_profile(userId, name/department/role/is_active) as the
+ *      acting admin/super-admin.
+ *   4. set_staff_module_access(userId, modules) -> enables explicit access.
+ *   Audit: the profiles INSERT triggers staff_created; the profile update and
+ *   module changes are audited by the staff audit triggers.
+ *
+ * The one-time initial password is generated here and returned to the creating
+ * admin once (never logged). If GoTrue SMTP were configured, an invite email
+ * could be sent instead; this project's SMTP is not assumed, so we use the
+ * server-side creation path and recommend a password change on first login.
+ */
+export async function createStaff(
+  _prev: StaffActionState,
+  formData: FormData
+): Promise<StaffActionState> {
+  await requireModuleAccess("users", "admin");
+
+  let modules: unknown;
+  try {
+    modules = JSON.parse(String(formData.get("modules") ?? "[]"));
+  } catch {
+    return { message: "Invalid module access payload." };
+  }
+
+  const parsed = createStaffSchema.safeParse({
+    full_name: formData.get("full_name"),
+    email: formData.get("email"),
+    department: formData.get("department") || null,
+    role: formData.get("role"),
+    is_active: formData.get("is_active") === "on" || formData.get("is_active") === "true",
+    access_control_enabled: formData.get("access_control_enabled") === "on" || formData.get("access_control_enabled") === "true",
+    modules,
+  });
+  if (!parsed.success) return { errors: fieldErrors(parsed.error) };
+  const { full_name, email, department, role, is_active, modules: grants } = parsed.data;
+
+  // 1. Duplicate email guard (profiles.email is citext -> case-insensitive).
+  const supabase = await createSupabaseServerClient();
+  const { data: existing } = await supabase.from("profiles").select("id").eq("email", email).maybeSingle();
+  if (existing) return { message: "A staff account with this email already exists." };
+
+  // 2. Create the auth account (server-only service client; password hashed by GoTrue).
+  const service = createSupabaseServiceClient();
+  const password = randomBytes(15).toString("base64url");
+  const { data: created, error: createError } = await service.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+    user_metadata: { full_name },
+  });
+  if (createError) {
+    if (/already registered|already been registered|already exists|duplicate/i.test(createError.message)) {
+      return { message: "A staff account with this email already exists." };
+    }
+    console.error("createStaff: auth.createUser failed", { message: createError.message });
+    return { message: "The account could not be created. Please try again." };
+  }
+  const userId = created?.user?.id;
+  if (!userId) {
+    console.error("createStaff: auth.createUser returned no user id");
+    return { message: "The account could not be created. Please try again." };
+  }
+
+  // 3. Configure profile via the guarded RPC (actor = the creating admin/super-admin).
+  const { error: profileError } = await supabase.rpc("update_staff_profile", {
+    p_user_id: userId,
+    p_full_name: full_name,
+    p_department: department ?? null,
+    p_role: role,
+    p_is_active: is_active,
+  });
+  if (profileError) {
+    return {
+      message: `Account created, but profile configuration failed: ${mapRpcError(profileError.message)}.`,
+      created: true,
+      userId,
+      email,
+      password,
+    };
+  }
+
+  // 4. Apply explicit module access (enables access_control_enabled).
+  const { error: moduleError } = await supabase.rpc("set_staff_module_access", {
+    p_user_id: userId,
+    p_modules: grants as unknown as Record<string, unknown>,
+  });
+  if (moduleError) {
+    return {
+      message: `Account created, but module access failed: ${mapRpcError(moduleError.message)}.`,
+      created: true,
+      userId,
+      email,
+      password,
+    };
+  }
+
+  revalidateStaff();
+  return {
+    message: "Staff account created.",
+    created: true,
+    userId,
+    email,
+    password,
+  };
 }
 
 /**

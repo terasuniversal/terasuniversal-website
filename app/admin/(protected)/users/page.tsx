@@ -62,7 +62,12 @@ export default async function UsersPage({
       <PageHead
         title="Staff Users"
         subtitle="Staff directory — department, role, status and module access. Server-side authorization is enforced on every action."
-        action={<Link href="/admin/audit" className="ta-btn ta-btn-outline">View audit log</Link>}
+        action={
+          <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <Link href="/admin/users/new" className="ta-btn ta-btn-gold">+ Add Staff</Link>
+            <Link href="/admin/audit" className="ta-btn ta-btn-outline">View audit log</Link>
+          </span>
+        }
       />
       <div className="ta-grid cols-3" style={{ marginBottom: 18 }}>
         <StatCard icon="👥" label="Matching staff" value={count ?? 0} />
