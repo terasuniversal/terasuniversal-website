@@ -267,6 +267,36 @@
 .ta-checklist li::marker { color: var(--ta-gold); font-weight: 800; }
 .ta-page-note { margin: 16px 2px 0; color: var(--ta-muted); font-size: 12px; }
 
+/* Shared admin dialogs, including the schedule Feedback QR viewer. */
+.ta-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(7, 24, 45, .56);
+}
+.ta-dialog {
+  width: min(100%, 520px);
+  max-height: calc(100vh - 40px);
+  overflow: auto;
+  background: var(--ta-white);
+  border: 1px solid var(--ta-line);
+  border-radius: var(--ta-radius);
+  box-shadow: 0 24px 64px rgba(7, 24, 45, .28);
+}
+.ta-dialog-head,
+.ta-dialog-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; }
+.ta-dialog-head { border-bottom: 1px solid var(--ta-line); }
+.ta-dialog-body { padding: 18px; }
+.ta-dialog-foot { justify-content: flex-end; border-top: 1px solid var(--ta-line); }
+.ta-dialog-close { border: 0; background: transparent; color: var(--ta-muted); font-size: 24px; line-height: 1; cursor: pointer; }
+@media (max-width: 520px) {
+  .ta-dialog-overlay { padding: 12px; }
+  .ta-dialog { max-height: calc(100vh - 24px); }
+}
+
 .teras-admin :is(a, button, input, select, textarea):focus-visible { outline: 3px solid rgba(212,175,55,.6); outline-offset: 2px; }
 
 @media print {
