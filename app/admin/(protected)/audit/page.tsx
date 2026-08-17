@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { requireRole } from "../../../../lib/auth/session";
+import { requireRole, requireModuleAccess } from "../../../../lib/auth/session";
 import { PageHead, Card, Badge, EmptyState, Pagination, StatCard } from "../../../../components/admin/ui";
 import { formatMalaysiaDate, formatMalaysiaDateTime } from "../../../../lib/date-time";
 
@@ -15,6 +15,7 @@ export default async function AuditPage({
   searchParams: Promise<{ page?: string; q?: string; action?: string; entity?: string }>;
 }) {
   await requireRole("admin");
+  await requireModuleAccess("audit");
   const sp = await searchParams;
   const page = Math.max(1, Number(sp.page ?? 1));
   const searchTerm = sp.q?.trim().slice(0, 80).replace(/[%_,()]/g, " ") ?? "";

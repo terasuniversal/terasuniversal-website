@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
-import { requireRole } from "../../../../../../lib/auth/session";
+import { requireRole, requireModuleAccess } from "../../../../../../lib/auth/session";
 import { isAdmin } from "../../../../../../lib/auth/rbac";
 import { PageHead, Card, Badge } from "../../../../../../components/admin/ui";
 import { TaskForm } from "../TaskForm";
@@ -15,6 +15,7 @@ export const dynamic = "force-dynamic";
 
 export default async function TaskDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const profile = await requireRole("editor");
+  await requireModuleAccess("sales_tasks");
   const { id } = await params;
   const supabase = await createSupabaseServerClient();
 

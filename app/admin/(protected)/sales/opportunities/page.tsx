@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { requireRole } from "../../../../../lib/auth/session";
+import { requireRole, requireModuleAccess } from "../../../../../lib/auth/session";
 import { PageHead, Card, EmptyState, Pagination } from "../../../../../components/admin/ui";
 import { OPPORTUNITY_STAGE_ORDER, OPPORTUNITY_STAGE_LABELS, sanitizeSearchTerm, type SalesOpportunityRow } from "../../../../../lib/sales/crm";
 import { OpportunityTable } from "./OpportunityTable";
@@ -21,6 +21,7 @@ export default async function OpportunitiesPage({
   searchParams: Promise<{ page?: string; q?: string; stage?: string; assigned?: string; from?: string; to?: string }>;
 }) {
   await requireRole("editor");
+  await requireModuleAccess("sales_opportunities");
   const sp = await searchParams;
   const page = Math.max(1, Number(sp.page ?? 1));
   const supabase = await createSupabaseServerClient();

@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { requireRole } from "../../../../../../lib/auth/session";
+import { requireRole, requireModuleAccess } from "../../../../../../lib/auth/session";
 
 /**
  * Production rule: opportunities originate exclusively from Lead → Convert
@@ -19,5 +19,6 @@ import { requireRole } from "../../../../../../lib/auth/session";
  */
 export default async function SalesNewOpportunityPage() {
   await requireRole("editor");
+  await requireModuleAccess("sales_opportunities");
   redirect("/admin/sales/leads");
 }

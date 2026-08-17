@@ -2,10 +2,11 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { requireRole } from "../../../../lib/auth/session";
+import { requireRole, requireModuleAccess } from "../../../../lib/auth/session";
 
 export async function createDownload(_: { message?: string }, form: FormData): Promise<{ message?: string }> {
   await requireRole("editor");
+  await requireModuleAccess("downloads");
   const title = String(form.get("title") ?? "").trim();
   const slug = String(form.get("slug") ?? "").trim();
   const file_url = String(form.get("file_url") ?? "").trim();
@@ -18,6 +19,7 @@ export async function createDownload(_: { message?: string }, form: FormData): P
 
 export async function updateDownload(id: string, _: { message?: string }, form: FormData): Promise<{ message?: string }> {
   await requireRole("editor");
+  await requireModuleAccess("downloads");
   const title = String(form.get("title") ?? "").trim();
   const file_url = String(form.get("file_url") ?? "").trim();
   if (title.length < 2 || !/^https?:\/\//.test(file_url)) return { message: "A title and valid file URL are required." };
@@ -29,6 +31,7 @@ export async function updateDownload(id: string, _: { message?: string }, form: 
 
 export async function archiveDownload(id: string) {
   await requireRole("admin");
+  await requireModuleAccess("downloads");
   const supabase = await createSupabaseServerClient();
   const { error } = await (supabase.from("downloads") as any).update({ deleted_at: new Date().toISOString() }).eq("id", id);
   if (error) throw new Error("Unable to archive document.");

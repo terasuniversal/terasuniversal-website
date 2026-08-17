@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
-import { requireRole } from "../../../../../../lib/auth/session";
+import { requireRole, requireModuleAccess } from "../../../../../../lib/auth/session";
 import { PageHead, Card } from "../../../../../../components/admin/ui";
 import { QuotationItemsEditor } from "../QuotationItemsEditor";
 import { createQuotation } from "../actions";
@@ -21,6 +21,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function NewQuotationPage({ searchParams }: { searchParams: Promise<{ opportunityId?: string }> }) {
   await requireRole("admin");
+  await requireModuleAccess("sales_quotations");
   const sp = await searchParams;
   if (!sp.opportunityId) notFound();
 

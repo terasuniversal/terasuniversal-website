@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { requireRole } from "../../../../lib/auth/session";
+import { requireRole, requireModuleAccess } from "../../../../lib/auth/session";
 import { Badge, Card, EmptyState, PageHead } from "../../../../components/admin/ui";
 import { formatMalaysiaDate } from "../../../../lib/date-time";
 
@@ -12,6 +12,7 @@ type Folder = { id: string; name: string; path: string };
 
 export default async function MediaPage({ searchParams }: { searchParams: Promise<{ q?: string; folder?: string; kind?: string }> }) {
   await requireRole("editor");
+  await requireModuleAccess("media");
   const filters = await searchParams;
   const supabase = await createSupabaseServerClient();
   const mediaTable = supabase.from("media") as any;
