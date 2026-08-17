@@ -234,6 +234,32 @@ const ICONS: Record<string, ReactNode> = {
       <path d="M16.5 5a2.8 2.8 0 1 1 0 5.6" />
     </>
   ),
+  feedback: (
+    <>
+      <path d="M4 5.5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9l-5 4v-4H4a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1Z" />
+      <path d="M8 10h8M8 13.5h5" />
+    </>
+  ),
+  "feedback-responses": (
+    <>
+      <path d="M8 6.5 5.5 9 3.5 7" />
+      <path d="M9 5.5h11M9 11h11M9 16.5h11" />
+      <path d="M8 15 5.5 17.5 3.5 15.5" />
+    </>
+  ),
+  "feedback-issues": (
+    <>
+      <path d="M5 3.5h9l5 5v12H5a1 1 0 0 1-1-1v-15a1 1 0 0 1 1-1Z" />
+      <path d="M14 3.5V9h5" />
+      <path d="M9 12v.01M12 12v.01" />
+    </>
+  ),
+  "feedback-actions": (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="m8.5 12.2 2.3 2.3 4.8-4.8" />
+    </>
+  ),
 };
 
 export function NavIcon({ name }: { name: string }) {

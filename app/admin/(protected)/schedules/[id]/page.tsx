@@ -51,6 +51,11 @@ export default async function ScheduleDetailsPage({
     .limit(500);
   const available = (allActive ?? []).filter((p: any) => !activeIds.has(p.id));
 
+  const { data: fbRows } = await supabase.from("participant_feedback").select("id, status").eq("schedule_id", id);
+  const fbSubmitted = (fbRows ?? []).filter((f: any) => f.status === "submitted").length;
+  const fbEligible = active.length;
+  const fbRate = fbEligible > 0 ? Math.round((fbSubmitted / fbEligible) * 100) : 0;
+
   // Primary assessor assignment (Assessor Management Phase 1).
   const { data: assessorAssignment } = await supabase
     .from("schedule_assessors")
@@ -126,6 +131,18 @@ export default async function ScheduleDetailsPage({
             </div>
           </Card>
           <Card title="Certificate Generation"><div className="ta-card-pad"><EmptyState icon="🏅" message="Certificate generation for this schedule is a later follow-up (see SCHEDULES_ARCHITECTURE_DECISION.md §J)." /></div></Card>
+          <Card title="Participant Feedback">
+            <div className="ta-card-pad">
+              <div style={{ fontSize: 28, fontWeight: 800, color: "var(--ta-navy)", marginBottom: 4 }}>
+                {fbSubmitted} / {fbEligible} <span style={{ fontSize: 16, fontWeight: 600, color: "var(--ta-muted)" }}>responses</span>
+              </div>
+              <div className="ta-bar" style={{ marginBottom: 12 }}><span style={{ width: `${fbRate}%` }} /></div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <Link href={`/admin/feedback?schedule=${id}`} className="ta-btn ta-btn-outline">Open Feedback Dashboard</Link>
+                <Link href={`/admin/feedback/${id}`} className="ta-btn ta-btn-outline">Show QR / Links</Link>
+              </div>
+            </div>
+          </Card>
         </div>
 
         <div style={{ display: "grid", gap: 18 }}>
