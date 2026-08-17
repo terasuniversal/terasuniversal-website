@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { requireRole } from "../../../../lib/auth/session";
+import { requireRole, requireModuleAccess } from "../../../../lib/auth/session";
 import { trainerSchema, fieldErrors } from "../../../../lib/validation/schemas";
 
 export type TrainerFormState = { errors?: Record<string, string>; message?: string };
@@ -52,6 +52,7 @@ function mapErr(error: { code?: string; message: string }): TrainerFormState {
 
 export async function createTrainer(_prev: TrainerFormState, formData: FormData): Promise<TrainerFormState> {
   await requireRole("admin"); // Editors are read-only.
+  await requireModuleAccess("trainers");
   const parsed = trainerSchema.safeParse(readForm(formData));
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
   const supabase = await createSupabaseServerClient();
@@ -63,6 +64,7 @@ export async function createTrainer(_prev: TrainerFormState, formData: FormData)
 
 export async function updateTrainer(id: string, _prev: TrainerFormState, formData: FormData): Promise<TrainerFormState> {
   await requireRole("admin");
+  await requireModuleAccess("trainers");
   const parsed = trainerSchema.safeParse(readForm(formData));
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
   const supabase = await createSupabaseServerClient();
@@ -75,6 +77,7 @@ export async function updateTrainer(id: string, _prev: TrainerFormState, formDat
 
 export async function softDeleteTrainer(id: string) {
   await requireRole("admin");
+  await requireModuleAccess("trainers");
   const supabase = await createSupabaseServerClient();
   await supabase.from("trainers").update({ deleted_at: new Date().toISOString() }).eq("id", id);
   revalidatePath("/admin/trainers");
@@ -82,6 +85,7 @@ export async function softDeleteTrainer(id: string) {
 
 export async function restoreTrainer(id: string) {
   await requireRole("admin");
+  await requireModuleAccess("trainers");
   const supabase = await createSupabaseServerClient();
   await supabase.from("trainers").update({ deleted_at: null }).eq("id", id);
   revalidatePath("/admin/trainers");

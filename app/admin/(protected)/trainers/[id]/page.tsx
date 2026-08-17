@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { requireRole } from "../../../../../lib/auth/session";
+import { requireRole, requireModuleAccess } from "../../../../../lib/auth/session";
 import { isAdmin } from "../../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, EmptyState, StatCard } from "../../../../../components/admin/ui";
 import { softDeleteTrainer, restoreTrainer } from "../actions";
@@ -15,6 +15,7 @@ function Detail({ label, value }: { label: string; value: any }) {
 
 export default async function TrainerProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const profile = await requireRole("editor");
+  await requireModuleAccess("trainers");
   const canWrite = isAdmin(profile.role);
   const { id } = await params;
   const supabase = await createSupabaseServerClient();

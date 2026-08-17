@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { requireRole } from "../../../../lib/auth/session";
+import { requireRole, requireModuleAccess } from "../../../../lib/auth/session";
 import { companySchema, fieldErrors } from "../../../../lib/validation/schemas";
 
 export type CompanyFormState = { errors?: Record<string, string>; message?: string };
@@ -36,6 +36,11 @@ function mapErr(e: { code?: string; message: string }): CompanyFormState {
 
 export async function createCompany(_prev: CompanyFormState, formData: FormData): Promise<CompanyFormState> {
   const profile = await requireRole("admin");
+  // Unconditional, same as every other companies route and matching
+  // schedules/actions.ts's identical Sales-handoff precedent — see
+  // new/page.tsx's comment for why the earlier presence-only exemption on
+  // source_opportunity_id was removed rather than hardened.
+  await requireModuleAccess("companies");
   const parsed = companySchema.safeParse(readForm(formData));
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
   const supabase = await createSupabaseServerClient();
@@ -96,6 +101,7 @@ export async function createCompany(_prev: CompanyFormState, formData: FormData)
 
 export async function updateCompany(id: string, _prev: CompanyFormState, formData: FormData): Promise<CompanyFormState> {
   await requireRole("admin");
+  await requireModuleAccess("companies");
   const parsed = companySchema.safeParse(readForm(formData));
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
   const supabase = await createSupabaseServerClient();
@@ -108,6 +114,7 @@ export async function updateCompany(id: string, _prev: CompanyFormState, formDat
 
 export async function softDeleteCompany(id: string) {
   await requireRole("admin");
+  await requireModuleAccess("companies");
   const supabase = await createSupabaseServerClient();
   await supabase.from("companies").update({ deleted_at: new Date().toISOString() }).eq("id", id);
   revalidatePath("/admin/companies");
@@ -115,6 +122,7 @@ export async function softDeleteCompany(id: string) {
 
 export async function restoreCompany(id: string) {
   await requireRole("admin");
+  await requireModuleAccess("companies");
   const supabase = await createSupabaseServerClient();
   await supabase.from("companies").update({ deleted_at: null }).eq("id", id);
   revalidatePath("/admin/companies");

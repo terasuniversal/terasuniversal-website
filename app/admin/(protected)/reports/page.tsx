@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { requireRole } from "../../../../lib/auth/session";
+import { requireRole, requireModuleAccess } from "../../../../lib/auth/session";
 import { PageHead, Card, StatCard, Badge, EmptyState } from "../../../../components/admin/ui";
 import { BarChart, LineChart, DonutChart, type Point } from "../../../../components/admin/Charts";
 import { formatMalaysiaDateTime } from "../../../../lib/date-time";
@@ -13,6 +13,7 @@ const headCount = (supabase: any, table: string, filters: (q: any) => any = (q) 
 
 export default async function ReportsPage() {
   await requireRole("editor");
+  await requireModuleAccess("reports");
   const supabase = await createSupabaseServerClient();
   const today = new Date().toISOString().slice(0, 10);
 

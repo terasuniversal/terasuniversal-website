@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { requireRole } from "../../../../../lib/auth/session";
+import { requireRole, requireModuleAccess } from "../../../../../lib/auth/session";
 import { PageHead, Card, StatCard, EmptyState } from "../../../../../components/admin/ui";
 import {
   SOURCE_LABELS,
@@ -115,6 +115,7 @@ export default async function SalesReportsPage({
   searchParams: Promise<{ range?: string; from?: string; to?: string }>;
 }) {
   await requireRole("editor");
+  await requireModuleAccess("sales_reports");
   const sp = await searchParams;
   const rangeKey: ReportRangeKey = (REPORT_RANGE_KEYS as readonly string[]).includes(sp.range ?? "") ? (sp.range as ReportRangeKey) : "this_month";
   const range = resolveReportDateRange(rangeKey, { from: sp.from, to: sp.to });
