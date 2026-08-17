@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { getCurrentProfile } from "../../../../../lib/auth/session";
+import { getCurrentProfile, hasModuleAccess } from "../../../../../lib/auth/session";
 import { isEditor } from "../../../../../lib/auth/rbac";
 
 /**
@@ -30,7 +30,8 @@ const REPORTS: Record<string, ReportDef> = {
 
 export async function GET(request: NextRequest) {
   const profile = await getCurrentProfile();
-  if (!profile || !isEditor(profile.role)) return new NextResponse("Forbidden", { status: 403 });
+  if (!profile || !profile.is_active || !isEditor(profile.role)) return new NextResponse("Forbidden", { status: 403 });
+  if (!(await hasModuleAccess("reports"))) return new NextResponse("Forbidden", { status: 403 });
   const p = request.nextUrl.searchParams;
   const report = p.get("report") ?? "participants";
   const format = p.get("format") ?? "csv";

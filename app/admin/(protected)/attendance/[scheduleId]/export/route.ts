@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
-import { getCurrentProfile } from "../../../../../../lib/auth/session";
+import { getCurrentProfile, hasModuleAccess } from "../../../../../../lib/auth/session";
 import { canViewAttendance } from "../../../../../../lib/auth/rbac";
 import { formatMalaysiaDateTime } from "../../../../../../lib/date-time";
 
@@ -12,7 +12,8 @@ import { formatMalaysiaDateTime } from "../../../../../../lib/date-time";
  */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ scheduleId: string }> }) {
   const profile = await getCurrentProfile();
-  if (!profile || !canViewAttendance(profile.role)) return new NextResponse("Forbidden", { status: 403 });
+  if (!profile || !profile.is_active || !canViewAttendance(profile.role)) return new NextResponse("Forbidden", { status: 403 });
+  if (!(await hasModuleAccess("attendance"))) return new NextResponse("Forbidden", { status: 403 });
   const { scheduleId } = await params;
   const sp = request.nextUrl.searchParams;
   const format = sp.get("format") ?? "csv";

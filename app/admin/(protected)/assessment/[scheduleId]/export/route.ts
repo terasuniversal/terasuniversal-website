@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
-import { getCurrentProfile } from "../../../../../../lib/auth/session";
+import { getCurrentProfile, hasModuleAccess } from "../../../../../../lib/auth/session";
 import { canViewAssessment } from "../../../../../../lib/auth/rbac";
 
 /**
@@ -13,7 +13,8 @@ import { canViewAssessment } from "../../../../../../lib/auth/rbac";
  */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ scheduleId: string }> }) {
   const profile = await getCurrentProfile();
-  if (!profile || !canViewAssessment(profile.role)) return new NextResponse("Forbidden", { status: 403 });
+  if (!profile || !profile.is_active || !canViewAssessment(profile.role)) return new NextResponse("Forbidden", { status: 403 });
+  if (!(await hasModuleAccess("assessment"))) return new NextResponse("Forbidden", { status: 403 });
   const { scheduleId } = await params;
   const format = request.nextUrl.searchParams.get("format") ?? "csv";
   const supabase = await createSupabaseServerClient();

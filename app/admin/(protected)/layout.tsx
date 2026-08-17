@@ -52,7 +52,7 @@ export default async function ProtectedLayout({ children }: { children: ReactNod
         }}
       />
       <div className="ta-main">
-        <Topbar profile={profile} />
+        <Topbar profile={profile} modules={modules} />
         <main className="ta-content">{children}</main>
       </div>
     </div>

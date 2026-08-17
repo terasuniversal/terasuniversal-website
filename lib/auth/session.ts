@@ -117,3 +117,24 @@ export async function requireModuleAccess(
   if (error || data !== true) redirect("/admin/no-access");
   return profile;
 }
+
+/**
+ * Module-access check for Route Handlers (export/download endpoints), which
+ * return a 403 response rather than redirecting like `requireModuleAccess`
+ * does for pages. Same enforcement, same `has_module_access_level` RPC —
+ * this is not a second authorization model, just a non-redirecting caller
+ * for the one that already exists. Callers must still check `profile` /
+ * `profile.is_active` / the existing role-based guard themselves first, the
+ * same way every export route already does.
+ */
+export async function hasModuleAccess(
+  moduleKey: string,
+  level: ModuleAccessLevel = "view"
+): Promise<boolean> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("has_module_access_level", {
+    p_module_key: moduleKey,
+    p_level: level,
+  });
+  return !error && data === true;
+}

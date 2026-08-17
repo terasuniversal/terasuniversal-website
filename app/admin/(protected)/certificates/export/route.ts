@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { getCurrentProfile } from "../../../../../lib/auth/session";
+import { getCurrentProfile, hasModuleAccess } from "../../../../../lib/auth/session";
 import { canViewCertificate } from "../../../../../lib/auth/rbac";
 
 /**
@@ -21,7 +21,8 @@ const COLUMNS: [string, string][] = [
 
 export async function GET(request: NextRequest) {
   const profile = await getCurrentProfile();
-  if (!profile || !canViewCertificate(profile.role)) return new NextResponse("Forbidden", { status: 403 });
+  if (!profile || !profile.is_active || !canViewCertificate(profile.role)) return new NextResponse("Forbidden", { status: 403 });
+  if (!(await hasModuleAccess("certificates"))) return new NextResponse("Forbidden", { status: 403 });
 
   const p = request.nextUrl.searchParams;
   const format = p.get("format") ?? "csv";
