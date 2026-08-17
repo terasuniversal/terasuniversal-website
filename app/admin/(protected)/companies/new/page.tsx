@@ -1,4 +1,5 @@
-import { requireRole } from "../../../../../lib/auth/session";
+import { redirect } from "next/navigation";
+import { requireRole, hasModuleAccess } from "../../../../../lib/auth/session";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { PageHead } from "../../../../../components/admin/ui";
 import { CompanyForm } from "../CompanyForm";
@@ -14,6 +15,13 @@ export const dynamic = "force-dynamic";
  * contact_phone). sales_opportunities has no address/registration/tax
  * fields, so none of those are ever prefilled — matches the task's "never
  * invent" instruction by construction, not by an extra check.
+ *
+ * Module-access note: bare "add a company" access requires the companies
+ * module grant, same as every other companies route. The handoff path
+ * (arriving with a real opportunityId from the Sales workflow) is exempt
+ * from that specific check so a Sales-only-access staff member can still
+ * complete "Won opportunity -> Create Company" — the same least-privilege
+ * carve-out already implicit in createCompany's own handoff branch.
  */
 export default async function NewCompanyPage({
   searchParams,
@@ -22,6 +30,7 @@ export default async function NewCompanyPage({
 }) {
   await requireRole("admin");
   const sp = await searchParams;
+  if (!sp.opportunityId && !(await hasModuleAccess("companies"))) redirect("/admin/no-access");
 
   let handoff: { opportunityId: string; opportunityNo?: string } | undefined;
   let prefill: any = undefined;
