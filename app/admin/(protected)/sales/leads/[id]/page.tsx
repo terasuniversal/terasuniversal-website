@@ -9,6 +9,7 @@ import { SOURCE_LABELS, followUpState, type SalesLeadInboxRow, type SalesActivit
 import { LeadActionsPanel } from "./LeadActionsPanel";
 import { LeadActivityTimeline } from "./LeadActivityTimeline";
 import { formatMalaysiaDateTime } from "../../../../../../lib/date-time";
+import { checkLeadRegistrationEligibility } from "../registration-schedules";
 
 export const metadata = { title: "Lead Detail — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
@@ -85,6 +86,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
   const { data: moduleAccess } = await supabase.rpc("get_my_module_access");
   const modules = Array.isArray(moduleAccess) ? moduleAccess.map((m: { module_key: string }) => m.module_key) : [];
   const canRegister = modules.includes("sales_leads") && modules.includes("participants") && modules.includes("schedules");
+  const registrationEligibility = checkLeadRegistrationEligibility({ status: row.status, is_test: row.is_test });
 
   return (
     <>
@@ -144,14 +146,20 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
                 ) : (
                   <p style={{ margin: 0, fontSize: 13, color: "var(--ta-muted)" }}>Not registered to a schedule yet.</p>
                 )}
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  <Link href={`/admin/sales/leads/${id}/personal-registration`} className="ta-btn ta-btn-outline ta-btn-sm">
-                    Personal Registration
-                  </Link>
-                  <Link href={`/admin/sales/leads/${id}/company-registration`} className="ta-btn ta-btn-outline ta-btn-sm">
-                    Company Registration
-                  </Link>
-                </div>
+                {registrationEligibility.eligible ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <Link href={`/admin/sales/leads/${id}/personal-registration`} className="ta-btn ta-btn-outline ta-btn-sm">
+                      Personal Registration
+                    </Link>
+                    <Link href={`/admin/sales/leads/${id}/company-registration`} className="ta-btn ta-btn-outline ta-btn-sm">
+                      Company Registration
+                    </Link>
+                  </div>
+                ) : (
+                  <p className="ta-alert ta-alert-error" style={{ margin: 0, fontSize: 13 }} role="alert">
+                    {registrationEligibility.reason}
+                  </p>
+                )}
               </div>
             </Card>
           )}

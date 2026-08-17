@@ -25,6 +25,15 @@
 --   5. register_company_enrollment(...) — atomic multi-participant company
 --                                registration with batch capacity enforcement.
 --
+-- Registration protection (official rule): a Test/Demo lead (is_test = true,
+-- see sales_lead_metadata.is_test / mark_lead_test) or an Archived lead
+-- (status = 'archived') may never produce a real operational registration.
+-- Both RPCs reject with 'lead_is_test' / 'lead_archived' before touching
+-- course_schedules, participants, schedule_participants, or sales_activity.
+-- This blocks NEW registration writes only -- archived Won/Lost historical
+-- reporting is untouched, and a lead becomes eligible again the normal way
+-- (mark_lead_test back to real / restore status out of 'archived').
+--
 -- Capacity: course_schedules.capacity + seats_taken already exist, and the
 -- sync_schedule_seats trigger recomputes seats_taken from active
 -- schedule_participants rows on every write; the seats_taken <= capacity CHECK
@@ -142,6 +151,17 @@ begin
   select * into v_lead from public.v_sales_lead_inbox where lead_metadata_id = p_lead_metadata_id;
   if v_lead is null then
     raise exception 'lead_not_found' using errcode = 'P0001';
+  end if;
+
+  -- Registration protection: a Test/Demo or Archived lead may never produce
+  -- a real operational registration write. Checked before the schedule is
+  -- even locked, so a blocked request never touches course_schedules,
+  -- participants, schedule_participants, or sales_activity.
+  if v_lead.is_test then
+    raise exception 'lead_is_test' using errcode = 'P0001';
+  end if;
+  if v_lead.status = 'archived' then
+    raise exception 'lead_archived' using errcode = 'P0001';
   end if;
 
   -- Schedule must exist, be non-deleted, be active/open, and is locked for the
@@ -331,6 +351,15 @@ begin
   select * into v_lead from public.v_sales_lead_inbox where lead_metadata_id = p_lead_metadata_id;
   if v_lead is null then
     raise exception 'lead_not_found' using errcode = 'P0001';
+  end if;
+
+  -- Registration protection: same gate as register_personal_lead, checked
+  -- before the schedule lock and before any company/participant write.
+  if v_lead.is_test then
+    raise exception 'lead_is_test' using errcode = 'P0001';
+  end if;
+  if v_lead.status = 'archived' then
+    raise exception 'lead_archived' using errcode = 'P0001';
   end if;
 
   select * into v_sched from public.course_schedules

@@ -2,8 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../../../lib/supabase/server";
 import { requireRegistrationAccess } from "./actions";
-import { loadEligibleRegistrationSchedules } from "../../registration-schedules";
-import { PageHead, Card } from "../../../../../../../components/admin/ui";
+import { loadEligibleRegistrationSchedules, checkLeadRegistrationEligibility } from "../../registration-schedules";
+import { PageHead, Card, EmptyState } from "../../../../../../../components/admin/ui";
 import { PersonalRegistrationForm } from "./PersonalRegistrationForm";
 
 export const metadata = { title: "Personal Registration — TERAS UNIVERSAL Admin" };
@@ -21,7 +21,7 @@ export default async function PersonalRegistrationPage({
   const { data: lead } = await supabase.from("v_sales_lead_inbox").select("*").eq("lead_metadata_id", id).maybeSingle();
   if (!lead) notFound();
 
-  const schedules = await loadEligibleRegistrationSchedules();
+  const eligibility = checkLeadRegistrationEligibility({ status: lead.status, is_test: lead.is_test });
 
   return (
     <>
@@ -33,11 +33,15 @@ export default async function PersonalRegistrationPage({
       <div style={{ maxWidth: 820 }}>
         <Card title="Registration from Lead">
           <div className="ta-card-pad">
-            <PersonalRegistrationForm
-              leadMetadataId={id}
-              lead={{ name: lead.contact_name ?? "", email: lead.email ?? "", phone: lead.phone ?? "", company: lead.company ?? "" }}
-              schedules={schedules}
-            />
+            {!eligibility.eligible ? (
+              <EmptyState icon="⚠" message={eligibility.reason!} />
+            ) : (
+              <PersonalRegistrationForm
+                leadMetadataId={id}
+                lead={{ name: lead.contact_name ?? "", email: lead.email ?? "", phone: lead.phone ?? "", company: lead.company ?? "" }}
+                schedules={await loadEligibleRegistrationSchedules()}
+              />
+            )}
           </div>
         </Card>
       </div>

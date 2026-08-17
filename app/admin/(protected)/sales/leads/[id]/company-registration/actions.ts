@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "../../../../../../../lib/supabase/server";
 import { companyRegistrationSchema, fieldErrors } from "../../../../../../../lib/validation/schemas";
 import { requireRegistrationAccess } from "../personal-registration/actions";
+import { checkLeadRegistrationEligibility, loadLeadEligibilityState } from "../../registration-schedules";
 
 export type CompanyRegState = {
   message?: string;
@@ -41,6 +42,8 @@ function readForm(formData: FormData) {
 function mapRegError(error: { code?: string; message: string }): string {
   if (error.code === "42501" || /forbidden/i.test(error.message)) return "You don't have permission to register this lead.";
   if (/lead_not_found/i.test(error.message)) return "Lead not found.";
+  if (/lead_is_test/i.test(error.message)) return "Mark this lead as Real before registering participants.";
+  if (/lead_archived/i.test(error.message)) return "Restore this lead before registering participants.";
   if (/schedule_not_found/i.test(error.message)) return "The selected schedule no longer exists.";
   if (/schedule_not_eligible/i.test(error.message)) return "The selected schedule is not open for registration.";
   if (/capacity_exceeded/i.test(error.message)) {
@@ -60,6 +63,13 @@ export async function registerCompanyFromLead(
   await requireRegistrationAccess();
   const parsed = companyRegistrationSchema.safeParse(readForm(formData));
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
+
+  // Revalidate lead state fresh, right before mutating -- never rely on the
+  // eligibility already rendered in the form the request came from.
+  const currentLead = await loadLeadEligibilityState(leadMetadataId);
+  if (!currentLead) return { message: "Lead not found." };
+  const eligibility = checkLeadRegistrationEligibility(currentLead);
+  if (!eligibility.eligible) return { message: eligibility.reason };
 
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.rpc("register_company_enrollment", {

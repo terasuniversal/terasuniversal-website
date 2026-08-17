@@ -1,5 +1,38 @@
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 
+/**
+ * Registration eligibility gate (business rule, not module access): a lead
+ * may only be operationally registered while it is REAL and not archived.
+ * Archived Won/Lost history stays fully intact and reportable — this only
+ * blocks NEW registration writes, mirrored by identical checks in the
+ * register_personal_lead / register_company_enrollment RPCs (the actual
+ * enforcement boundary; this copy exists so the UI and the action layer
+ * fail with the same message before ever reaching the database).
+ */
+export function checkLeadRegistrationEligibility(lead: { status: string; is_test: boolean }): { eligible: boolean; reason?: string } {
+  if (lead.is_test) {
+    return { eligible: false, reason: "Mark this lead as Real before registering participants." };
+  }
+  if (lead.status === "archived") {
+    return { eligible: false, reason: "Restore this lead before registering participants." };
+  }
+  return { eligible: true };
+}
+
+/** Fresh, minimal read of the two eligibility fields — used by Server
+ *  Actions to revalidate lead state immediately before calling a
+ *  registration RPC. Never trust the eligibility already rendered in the
+ *  form the request came from. */
+export async function loadLeadEligibilityState(leadMetadataId: string): Promise<{ status: string; is_test: boolean } | null> {
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase
+    .from("sales_lead_metadata")
+    .select("status, is_test")
+    .eq("id", leadMetadataId)
+    .maybeSingle();
+  return data as { status: string; is_test: boolean } | null;
+}
+
 export interface EligibleScheduleOption {
   id: string;
   label: string;
