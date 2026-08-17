@@ -133,3 +133,75 @@ export function conversionRate(numerator: number, denominator: number): string {
   if (denominator <= 0) return "N/A";
   return `${((numerator / denominator) * 100).toFixed(1)}%`;
 }
+
+/* ------------------------------------------------------------------ */
+/* Archive exclusion — ACTIVE-pipeline surfaces only.                  */
+/* ------------------------------------------------------------------ */
+
+export interface ReportArchiveState {
+  /** Lead ids whose chain is archived (the lead itself, or its only opportunity, is archived). */
+  excludedLeadIds: Set<string>;
+  /** Opportunity ids whose chain is archived (itself, or its source lead, is archived). */
+  excludedOppIds: Set<string>;
+}
+
+/**
+ * Computes the archive-exclusion state for the ACTIVE-pipeline surfaces of
+ * Sales Reports (owner-summary workload and stage distribution). This is
+ * deliberately NOT applied to historical performance metrics (funnel,
+ * won/lost, won value, conversions, monthly trend, top programmes, CSV):
+ * official rule — archived is separate from is_test (test/demo); an archived
+ * REAL chain keeps its legitimate historical Sales standing, while a
+ * test/demo chain is always excluded from operational reporting.
+ *
+ * `leads`/`opportunities` are the report's own date-filtered rows;
+ * `allLeadStatus`/`allOpportunityStage` are date-unfiltered lookups covering
+ * every referenced id, because a report row (won/lost/task) is event-dated
+ * inside the range while its lead/opportunity may have been created long
+ * before it.
+ *
+ * Chain rule — matches the Lead inbox's "archived is hidden, not historical"
+ * convention:
+ *   - an archived lead hides the lead and its opportunity;
+ *   - an archived opportunity hides the opportunity and its source lead.
+ */
+export function resolveReportArchiveState(
+  leads: { id: string; status?: string | null }[],
+  opportunities: { id: string; stage?: string | null; lead_metadata_id?: string | null }[],
+  allLeadStatus: { id: string; status?: string | null }[],
+  allOpportunityStage: { id: string; stage?: string | null; lead_metadata_id?: string | null }[]
+): ReportArchiveState {
+  const leadStatus = new Map<string, string>();
+  for (const l of leads) if (l.status) leadStatus.set(l.id, l.status);
+  for (const l of allLeadStatus) if (l.status) leadStatus.set(l.id, l.status);
+
+  const oppStage = new Map<string, string>();
+  const oppLead = new Map<string, string>();
+  const addOpp = (o: { id: string; stage?: string | null; lead_metadata_id?: string | null }) => {
+    if (o.stage) oppStage.set(o.id, o.stage);
+    if (o.lead_metadata_id) oppLead.set(o.id, o.lead_metadata_id);
+  };
+  for (const o of opportunities) addOpp(o);
+  for (const o of allOpportunityStage) addOpp(o);
+
+  // 1. Leads archived by their own status, and opportunities by their own stage.
+  const archivedLeadIds = new Set<string>();
+  for (const [id, status] of leadStatus) if (status === "archived") archivedLeadIds.add(id);
+  const archivedOppIds = new Set<string>();
+  for (const [id, stage] of oppStage) if (stage === "archived") archivedOppIds.add(id);
+
+  // 2. A lead is excluded when it — or its only opportunity (unique
+  //    lead_metadata_id) — is archived.
+  const excludedLeadIds = new Set<string>(archivedLeadIds);
+  for (const [oppId, leadId] of oppLead) if (archivedOppIds.has(oppId) && leadId) excludedLeadIds.add(leadId);
+
+  // 3. An opportunity is excluded when it — or its source lead — is archived.
+  const excludedOppIds = new Set<string>(archivedOppIds);
+  for (const [oppId, stage] of oppStage) {
+    if (stage === "archived") continue;
+    const leadId = oppLead.get(oppId);
+    if (leadId && excludedLeadIds.has(leadId)) excludedOppIds.add(oppId);
+  }
+
+  return { excludedLeadIds, excludedOppIds };
+}
