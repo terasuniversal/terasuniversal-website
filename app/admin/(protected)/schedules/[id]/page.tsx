@@ -14,13 +14,16 @@ export const dynamic = "force-dynamic";
 
 export default async function ScheduleDetailsPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ assessor_error?: string }>;
 }) {
   await requireModuleAccess("schedules");
   const profile = await requireRole("editor");
   const canWrite = isAdmin(profile.role);
   const { id } = await params;
+  const { assessor_error } = await searchParams;
   const supabase = await createSupabaseServerClient();
 
   const { data: s } = await supabase.from("course_schedules").select("*, courses(course_name)").eq("id", id).single();
@@ -87,6 +90,13 @@ export default async function ScheduleDetailsPage({
           {seatsTaken}/{capacity} enrolled · <strong>{seatsRemaining}</strong> seat(s) remaining
         </span>
       </div>
+
+      {assessor_error && (
+        <div className="ta-alert ta-alert-error" style={{ marginBottom: 16 }}>
+          <strong>Assessor assignment incomplete:</strong> the schedule was created/updated, but the primary
+          assessor could not be assigned ({assessor_error}). Reassign it using the Primary Assessor control below.
+        </div>
+      )}
 
       <div className="ta-grid cols-2">
         <div style={{ display: "grid", gap: 18 }}>

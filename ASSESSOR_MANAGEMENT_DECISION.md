@@ -51,10 +51,32 @@ this repo's actual live state (verified this session, 2026-08-17).
 - Reads (`SELECT`): any active staff (`app.is_active()`) — required so the
   trainer/editor-facing Attendance print, Assessment and Schedule detail pages
   can display the assigned assessor.
-- Writes: `app.is_admin()` only, matching the app guards
-  (`requireRole("admin")` + `requireModuleAccess("assessors"/"schedules")`).
-  RLS is the enforcement boundary; app guards are defense in depth.
+- Writes: **module-aware** (PR #33 security review fix). RLS write policies are
+  gated by app-schema SECURITY DEFINER helpers that are not PostgREST-exposed:
+  - `app.can_manage_assessors()` = `has_module_access_level('assessors','admin')`
+  - `app.can_manage_schedule_assessors()` =
+    `has_module_access_level('schedules','admin') AND has_module_access('assessors')`
+  - super_admin always passes; legacy admin (access_control_enabled=false)
+    passes via the module catalog role floor; an explicit-access admin must
+    hold the matching module permission; editor/trainer/sales are denied. This
+    closes the direct-DB bypass where an explicit admin with no Assessors
+    module could previously write through the authenticated Supabase client.
+- **No hard delete** on `assessors`: the DELETE policy is dropped and DELETE is
+  revoked from authenticated; deactivate (`is_active=false`) is the only
+  lifecycle change. `schedule_assessors` DELETE remains (unassignment) and is
+  module-gated.
 - No anon exposure; grants to `authenticated` only.
+
+## 4. Atomic assignment
+
+Assign / replace / remove run inside the single `public.set_schedule_assessor`
+RPC (SECURITY DEFINER, one DB transaction): the old primary assignment is
+preserved if the new one fails, and the audit row commits with the change. The
+RPC raises on authorization/schedule/assessor validation failures instead of
+swallowing them; server actions map those to visible messages and never report
+silent success. Schedule creation/update stays committed on assignment failure
+and the error is surfaced (create → recovery banner on the schedule detail
+page; update → error message on the edit form).
 
 ## 4. Audit trail
 

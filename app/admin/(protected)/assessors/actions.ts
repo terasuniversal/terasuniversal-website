@@ -51,7 +51,10 @@ function mapErr(error: { code?: string; message: string }): AssessorFormState {
 
 async function guard() {
   const profile = await requireRole("admin");
-  await requireModuleAccess("assessors");
+  // Write-level module gate: legacy admin passes via catalog fallback;
+  // explicit-access admins need the assessors module at 'admin' level. Mirrors
+  // the RLS write policies (app.can_manage_assessors).
+  await requireModuleAccess("assessors", "admin");
   return profile;
 }
 
