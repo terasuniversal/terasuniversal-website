@@ -1,10 +1,11 @@
-import { requireRole } from "../../../../lib/auth/session";
+import { requireRole, requireModuleAccess } from "../../../../lib/auth/session";
 import { ScaffoldPage } from "../../../../components/admin/ScaffoldPage";
 
 export const metadata = { title: "Gallery — TERAS UNIVERSAL Admin" };
 
 export default async function Page() {
   await requireRole("editor");
+  await requireModuleAccess("gallery");
   return (
     <ScaffoldPage
       title="Gallery"

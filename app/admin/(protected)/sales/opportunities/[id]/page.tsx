@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
-import { requireRole } from "../../../../../../lib/auth/session";
+import { requireRole, requireModuleAccess } from "../../../../../../lib/auth/session";
 import { isAdmin } from "../../../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, EmptyState } from "../../../../../../components/admin/ui";
 import { LeadActivityTimeline } from "../../leads/[id]/LeadActivityTimeline";
@@ -38,6 +38,7 @@ function Detail({ label, value }: { label: string; value: any }) {
 
 export default async function OpportunityDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const profile = await requireRole("editor");
+  await requireModuleAccess("sales_opportunities");
   const canManage = isAdmin(profile.role);
   const { id } = await params;
   const supabase = await createSupabaseServerClient();

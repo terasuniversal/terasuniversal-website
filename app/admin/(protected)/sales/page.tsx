@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { requireRole } from "../../../../lib/auth/session";
+import { requireRole, requireModuleAccess } from "../../../../lib/auth/session";
 import { PageHead, Card, StatCard, EmptyState } from "../../../../components/admin/ui";
 import { FollowUpBadge } from "../../../../components/admin/sales/FollowUpBadge";
 import { OPEN_OPPORTUNITY_STATUSES, SOURCE_LABELS, followUpState, mytEndOfTodayUtc, type SalesLeadInboxRow } from "../../../../lib/sales/crm";
@@ -18,6 +18,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function SalesDashboardPage() {
   await requireRole("editor");
+  await requireModuleAccess("sales");
   const supabase = await createSupabaseServerClient();
 
   const now = new Date();

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { requireRole } from "../../../../lib/auth/session";
+import { requireRole, requireModuleAccess } from "../../../../lib/auth/session";
 import { Badge, Card, EmptyState, PageHead, StatCard } from "../../../../components/admin/ui";
 import { formatMalaysiaDateTime } from "../../../../lib/date-time";
 
@@ -11,6 +11,7 @@ type AuditItem = { created_at: string; summary: string | null; action: string; a
 
 export default async function BackupManagerPage() {
   await requireRole("admin");
+  await requireModuleAccess("backups");
   const supabase = await createSupabaseServerClient();
   const { data } = await (supabase.from("audit_logs") as any)
     .select("created_at, summary, action, actor_email")

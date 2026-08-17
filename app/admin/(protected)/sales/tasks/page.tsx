@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { requireRole } from "../../../../../lib/auth/session";
+import { requireRole, requireModuleAccess } from "../../../../../lib/auth/session";
 import { PageHead, Card, Badge, EmptyState } from "../../../../../components/admin/ui";
 import { dueDateState, mytEndOfTodayUtc, sanitizeSearchTerm, type SalesTaskRow } from "../../../../../lib/sales/crm";
 import { loadStaffOptions } from "./options";
@@ -19,6 +19,7 @@ export default async function SalesTasksPage({
   searchParams: Promise<{ view?: string; owner?: string; q?: string }>;
 }) {
   const profile = await requireRole("editor");
+  await requireModuleAccess("sales_tasks");
   const sp = await searchParams;
   const view: View = (VIEWS as readonly string[]).includes(sp.view ?? "") ? (sp.view as View) : "all";
   const owner = sp.owner ?? "mine";

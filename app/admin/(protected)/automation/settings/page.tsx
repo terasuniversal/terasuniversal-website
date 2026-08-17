@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireRole } from "../../../../../lib/auth/session";
+import { requireRole, requireModuleAccess } from "../../../../../lib/auth/session";
 import { PageHead } from "../../../../../components/admin/ui";
 import { getAutomationSettings } from "../actions";
 import { SettingsForm } from "./SettingsForm";
@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 
 export default async function AutomationSettingsPage() {
   await requireRole("admin");
+  await requireModuleAccess("automation");
   const values = await getAutomationSettings();
 
   return (

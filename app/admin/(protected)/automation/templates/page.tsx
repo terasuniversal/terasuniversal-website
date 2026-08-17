@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { requireRole } from "../../../../../lib/auth/session";
+import { requireRole, requireModuleAccess } from "../../../../../lib/auth/session";
 import { PageHead, Card, Badge, EmptyState } from "../../../../../components/admin/ui";
 import { toggleAutomationTemplate, deleteAutomationTemplate } from "../actions";
 
@@ -13,6 +13,7 @@ const TYPE_LABELS: Record<string, string> = {
 
 export default async function AutomationTemplatesPage() {
   await requireRole("admin");
+  await requireModuleAccess("automation");
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase
     .from("automation_templates")

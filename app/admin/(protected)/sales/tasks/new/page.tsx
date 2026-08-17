@@ -1,4 +1,4 @@
-import { requireRole } from "../../../../../../lib/auth/session";
+import { requireRole, requireModuleAccess } from "../../../../../../lib/auth/session";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
 import { PageHead } from "../../../../../../components/admin/ui";
 import { TaskForm } from "../TaskForm";
@@ -21,6 +21,7 @@ export default async function NewTaskPage({
   searchParams: Promise<{ leadId?: string; opportunityId?: string; quotationId?: string }>;
 }) {
   await requireRole("editor");
+  await requireModuleAccess("sales_tasks");
   const sp = await searchParams;
   const staff = await loadStaffOptions();
 

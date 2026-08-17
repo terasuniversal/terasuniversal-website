@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { requireRole } from "../../../../../lib/auth/session";
+import { requireRole, requireModuleAccess } from "../../../../../lib/auth/session";
 import { PageHead, Card, Badge, EmptyState } from "../../../../../components/admin/ui";
 import { mytEndOfTodayUtc, type SalesLeadInboxRow } from "../../../../../lib/sales/crm";
 import { setLeadFollowUp } from "../leads/actions";
@@ -33,6 +33,7 @@ export default async function FollowUpsPage({
   searchParams: Promise<{ view?: string; owner?: string }>;
 }) {
   const profile = await requireRole("editor");
+  await requireModuleAccess("sales_followups");
   const sp = await searchParams;
   const view: View = (VIEWS as readonly string[]).includes(sp.view ?? "") ? (sp.view as View) : "overdue";
   const owner = sp.owner ?? "mine";

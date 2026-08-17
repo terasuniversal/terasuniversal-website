@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { requireRole } from "../../../../../lib/auth/session";
+import { requireRole, requireModuleAccess } from "../../../../../lib/auth/session";
 import { PageHead, Card, Badge, EmptyState, Pagination } from "../../../../../components/admin/ui";
 import { QUOTATION_STATUS_ORDER, QUOTATION_STATUS_LABELS, revisionLabel, sanitizeSearchTerm, type SalesQuotationRow } from "../../../../../lib/sales/crm";
 
@@ -22,6 +22,7 @@ export default async function QuotationsPage({
   searchParams: Promise<{ page?: string; q?: string; status?: string }>;
 }) {
   await requireRole("editor");
+  await requireModuleAccess("sales_quotations");
   const sp = await searchParams;
   const page = Math.max(1, Number(sp.page ?? 1));
   const supabase = await createSupabaseServerClient();

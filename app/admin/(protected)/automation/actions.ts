@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { requireRole } from "../../../../lib/auth/session";
+import { requireRole, requireModuleAccess } from "../../../../lib/auth/session";
 
 export type FormState = { errors?: Record<string, string>; message?: string; ok?: boolean };
 
@@ -38,6 +38,7 @@ export async function getAutomationSettings(): Promise<typeof AUTOMATION_DEFAULT
 
 export async function saveAutomationSettings(_prev: FormState, formData: FormData): Promise<FormState> {
   await requireRole("admin");
+  await requireModuleAccess("automation");
   const parsed = settingsSchema.safeParse({
     participant_prefix: String(formData.get("participant_prefix") ?? ""),
     certificate_prefix: String(formData.get("certificate_prefix") ?? ""),
@@ -113,6 +114,7 @@ async function ensureSingleDefault(supabase: any, type: string, isDefault: boole
 
 export async function createAutomationTemplate(_prev: FormState, formData: FormData): Promise<FormState> {
   await requireRole("admin");
+  await requireModuleAccess("automation");
   const parsed = templateSchema.safeParse(readTemplate(formData));
   if (!parsed.success) return { errors: { name: parsed.error.issues[0]?.message ?? "Invalid" } };
   const supabase = await createSupabaseServerClient();
@@ -132,6 +134,7 @@ export async function createAutomationTemplate(_prev: FormState, formData: FormD
 
 export async function updateAutomationTemplate(id: string, _prev: FormState, formData: FormData): Promise<FormState> {
   await requireRole("admin");
+  await requireModuleAccess("automation");
   const parsed = templateSchema.safeParse(readTemplate(formData));
   if (!parsed.success) return { errors: { name: parsed.error.issues[0]?.message ?? "Invalid" } };
   const supabase = await createSupabaseServerClient();
@@ -151,6 +154,7 @@ export async function updateAutomationTemplate(id: string, _prev: FormState, for
 
 export async function toggleAutomationTemplate(id: string, active: boolean) {
   await requireRole("admin");
+  await requireModuleAccess("automation");
   const supabase = await createSupabaseServerClient();
   await supabase.from("automation_templates").update({ is_active: active }).eq("id", id);
   revalidatePath("/admin/automation/templates");
@@ -158,6 +162,7 @@ export async function toggleAutomationTemplate(id: string, active: boolean) {
 
 export async function deleteAutomationTemplate(id: string) {
   await requireRole("admin");
+  await requireModuleAccess("automation");
   const supabase = await createSupabaseServerClient();
   await supabase.from("automation_templates").update({ deleted_at: new Date().toISOString() }).eq("id", id);
   revalidatePath("/admin/automation/templates");

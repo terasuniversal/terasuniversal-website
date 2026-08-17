@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { requireRole } from "../../../../../lib/auth/session";
+import { requireRole, requireModuleAccess } from "../../../../../lib/auth/session";
 import { isAdmin } from "../../../../../lib/auth/rbac";
 import { salesTaskSchema, fieldErrors } from "../../../../../lib/validation/schemas";
 
@@ -75,6 +75,7 @@ async function logTaskActivity(supabase: any, taskId: string, leadMetadataId: st
 
 export async function createTask(_prev: TaskFormState, formData: FormData): Promise<TaskFormState> {
   const profile = await requireRole("editor");
+  await requireModuleAccess("sales_tasks");
   const raw = readForm(formData);
   const parsed = salesTaskSchema.safeParse(raw);
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
@@ -113,6 +114,7 @@ export async function createTask(_prev: TaskFormState, formData: FormData): Prom
 
 export async function updateTask(taskId: string, _prev: TaskFormState, formData: FormData): Promise<TaskFormState> {
   const profile = await requireRole("editor");
+  await requireModuleAccess("sales_tasks");
   const parsed = salesTaskSchema.safeParse(readForm(formData));
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
@@ -155,6 +157,7 @@ export async function updateTask(taskId: string, _prev: TaskFormState, formData:
  */
 export async function setTaskStatus(taskId: string, newStatus: "in_progress" | "completed" | "cancelled" | "open"): Promise<void> {
   const profile = await requireRole("editor");
+  await requireModuleAccess("sales_tasks");
   const supabase = await createSupabaseServerClient();
 
   const { data: task } = await supabase
@@ -189,6 +192,7 @@ export async function setTaskStatus(taskId: string, newStatus: "in_progress" | "
 /** Soft-delete — admin+ only, matches sales_tasks_delete RLS. Prefer cancelling a task over deleting it; this exists for genuine mistakes. */
 export async function deleteTask(taskId: string): Promise<void> {
   await requireRole("admin");
+  await requireModuleAccess("sales_tasks");
   const supabase = await createSupabaseServerClient();
   await supabase.from("sales_tasks").update({ deleted_at: new Date().toISOString() }).eq("id", taskId);
   revalidateTasks();

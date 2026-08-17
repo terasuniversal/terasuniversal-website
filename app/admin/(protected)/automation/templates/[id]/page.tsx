@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
-import { requireRole } from "../../../../../../lib/auth/session";
+import { requireRole, requireModuleAccess } from "../../../../../../lib/auth/session";
 import { PageHead } from "../../../../../../components/admin/ui";
 import { TemplateForm } from "../TemplateForm";
 
@@ -10,6 +10,7 @@ export const dynamic = "force-dynamic";
 
 export default async function EditAutomationTemplatePage({ params }: { params: Promise<{ id: string }> }) {
   await requireRole("admin");
+  await requireModuleAccess("automation");
   const { id } = await params;
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase.from("automation_templates").select("*").eq("id", id).is("deleted_at", null).maybeSingle();

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { requireRole } from "../../../../lib/auth/session";
+import { requireRole, requireModuleAccess } from "../../../../lib/auth/session";
 import { PageHead, Card, StatCard, Badge, EmptyState } from "../../../../components/admin/ui";
 import { getAutomationSettings } from "./actions";
 import { formatMalaysiaDateTime } from "../../../../lib/date-time";
@@ -31,6 +31,7 @@ function timeAgo(iso: string): string {
 
 export default async function AutomationCentrePage() {
   await requireRole("admin");
+  await requireModuleAccess("automation");
   const supabase = await createSupabaseServerClient();
   const today = new Date().toISOString().slice(0, 10);
   const in14 = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);

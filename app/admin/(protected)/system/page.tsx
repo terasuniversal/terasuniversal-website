@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { requireRole } from "../../../../lib/auth/session";
+import { requireRole, requireModuleAccess } from "../../../../lib/auth/session";
 import { Badge, Card, PageHead, StatCard } from "../../../../components/admin/ui";
 import { formatMalaysiaDate } from "../../../../lib/date-time";
 
@@ -11,6 +11,7 @@ type Check = { label: string; value: string; status: "healthy" | "attention" | "
 
 export default async function SystemHealthPage() {
   await requireRole("admin");
+  await requireModuleAccess("system");
   const supabase = await createSupabaseServerClient();
   const [connection, mediaUsage, latestRun, failedJobs] = await Promise.all([
     supabase.from("profiles").select("id", { count: "exact", head: true }),
