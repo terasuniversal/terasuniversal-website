@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { requireRole, requireModuleAccess, hasModuleAccess } from "../../../../lib/auth/session";
+import { requireRole, requireModuleAccess } from "../../../../lib/auth/session";
 import { companySchema, fieldErrors } from "../../../../lib/validation/schemas";
 
 export type CompanyFormState = { errors?: Record<string, string>; message?: string };
@@ -36,14 +36,11 @@ function mapErr(e: { code?: string; message: string }): CompanyFormState {
 
 export async function createCompany(_prev: CompanyFormState, formData: FormData): Promise<CompanyFormState> {
   const profile = await requireRole("admin");
-  // Module-access note: mirrors new/page.tsx's carve-out — bare company
-  // creation requires the companies grant; the Sales Won-opportunity
-  // handoff (source_opportunity_id present) does not, so a Sales-only
-  // staff member can still complete that workflow. Redirects on failure,
-  // same as the requireRole("admin") check just above.
-  if (!String(formData.get(HANDOFF_FIELD) ?? "").trim() && !(await hasModuleAccess("companies"))) {
-    redirect("/admin/no-access");
-  }
+  // Unconditional, same as every other companies route and matching
+  // schedules/actions.ts's identical Sales-handoff precedent — see
+  // new/page.tsx's comment for why the earlier presence-only exemption on
+  // source_opportunity_id was removed rather than hardened.
+  await requireModuleAccess("companies");
   const parsed = companySchema.safeParse(readForm(formData));
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
   const supabase = await createSupabaseServerClient();

@@ -1,5 +1,4 @@
-import { redirect } from "next/navigation";
-import { requireRole, hasModuleAccess } from "../../../../../lib/auth/session";
+import { requireRole, requireModuleAccess } from "../../../../../lib/auth/session";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { PageHead } from "../../../../../components/admin/ui";
 import { CompanyForm } from "../CompanyForm";
@@ -16,12 +15,15 @@ export const dynamic = "force-dynamic";
  * fields, so none of those are ever prefilled — matches the task's "never
  * invent" instruction by construction, not by an extra check.
  *
- * Module-access note: bare "add a company" access requires the companies
- * module grant, same as every other companies route. The handoff path
- * (arriving with a real opportunityId from the Sales workflow) is exempt
- * from that specific check so a Sales-only-access staff member can still
- * complete "Won opportunity -> Create Company" — the same least-privilege
- * carve-out already implicit in createCompany's own handoff branch.
+ * Module-access note: the companies module grant is required unconditionally,
+ * matching schedules/new/page.tsx's identical Sales-handoff precedent (the
+ * Won Opportunity -> Create Training Schedule button requires the schedules
+ * grant with no exemption for arriving via opportunityId). An earlier
+ * revision of this page exempted the handoff path by checking only for the
+ * *presence* of ?opportunityId — that's forgeable by anyone who can type a
+ * URL, and diverged from schedules/new's own established, no-exemption
+ * pattern; removed rather than hardened, since the simplest fix that
+ * matches existing precedent beats a more complex validated exemption.
  */
 export default async function NewCompanyPage({
   searchParams,
@@ -29,8 +31,8 @@ export default async function NewCompanyPage({
   searchParams: Promise<{ opportunityId?: string }>;
 }) {
   await requireRole("admin");
+  await requireModuleAccess("companies");
   const sp = await searchParams;
-  if (!sp.opportunityId && !(await hasModuleAccess("companies"))) redirect("/admin/no-access");
 
   let handoff: { opportunityId: string; opportunityNo?: string } | undefined;
   let prefill: any = undefined;
