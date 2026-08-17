@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
   const { data: staffRows } = await supabase.from("profiles").select("id, full_name");
   const staffNames = new Map(((staffRows ?? []) as { id: string; full_name: string }[]).map((s) => [s.id, s.full_name]));
 
-  let query = supabase.from("v_sales_lead_inbox").select("*").order("created_at", { ascending: false }).limit(5000);
+  let query = supabase.from("v_sales_lead_inbox").select("*").eq("is_test", false).order("created_at", { ascending: false }).limit(5000);
   if (p.get("q")) {
     const term = sanitizeSearchTerm(p.get("q")!);
     if (term) query = query.or(`contact_name.ilike.%${term}%,company.ilike.%${term}%,email.ilike.%${term}%,subject.ilike.%${term}%`);

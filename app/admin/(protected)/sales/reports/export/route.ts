@@ -20,20 +20,23 @@ export async function GET(request: NextRequest) {
 
   // Same source table + timestamp per metric as the report page itself
   // (Task 19) — never a different, inconsistent shortcut for the export.
+  // Test/demo chains (is_test=true) are excluded.
   const supabase = await createSupabaseServerClient();
-  const leadsQuery = supabase.from("sales_lead_metadata").select("id, created_at, status").gte("created_at", range.startUtc).lt("created_at", range.endUtc);
-  const opportunitiesQuery = supabase.from("sales_opportunities").select("id, created_at").gte("created_at", range.startUtc).lt("created_at", range.endUtc);
+  const leadsQuery = supabase.from("sales_lead_metadata").select("id, created_at, status").eq("is_test", false).gte("created_at", range.startUtc).lt("created_at", range.endUtc);
+  const opportunitiesQuery = supabase.from("sales_opportunities").select("id, created_at").eq("is_test", false).gte("created_at", range.startUtc).lt("created_at", range.endUtc);
   const quotationsSentQuery = supabase
     .from("sales_quotations")
     .select("opportunity_id, sent_at")
+    .eq("is_test", false)
     .not("sent_at", "is", null)
     .gte("sent_at", range.startUtc)
     .lt("sent_at", range.endUtc);
-  const wonQuery = supabase.from("sales_opportunities").select("id, won_at").eq("stage", "won").not("won_at", "is", null).gte("won_at", range.startUtc).lt("won_at", range.endUtc);
-  const lostQuery = supabase.from("sales_opportunities").select("id, lost_at").eq("stage", "lost").not("lost_at", "is", null).gte("lost_at", range.startUtc).lt("lost_at", range.endUtc);
+  const wonQuery = supabase.from("sales_opportunities").select("id, won_at").eq("is_test", false).eq("stage", "won").not("won_at", "is", null).gte("won_at", range.startUtc).lt("won_at", range.endUtc);
+  const lostQuery = supabase.from("sales_opportunities").select("id, lost_at").eq("is_test", false).eq("stage", "lost").not("lost_at", "is", null).gte("lost_at", range.startUtc).lt("lost_at", range.endUtc);
   const acceptedQuery = supabase
     .from("sales_quotations")
     .select("opportunity_id, total, accepted_at")
+    .eq("is_test", false)
     .eq("status", "accepted")
     .not("accepted_at", "is", null)
     .gte("accepted_at", range.startUtc)
@@ -64,7 +67,7 @@ export async function GET(request: NextRequest) {
   // its own (possibly stale) status column.
   const leadIds = leads.map((l: any) => l.id);
   const { data: leadsWithOppRaw } = leadIds.length
-    ? await supabase.from("sales_opportunities").select("lead_metadata_id").in("lead_metadata_id", leadIds)
+    ? await supabase.from("sales_opportunities").select("lead_metadata_id").eq("is_test", false).in("lead_metadata_id", leadIds)
     : { data: [] as any[] };
   const leadIdsWithOpportunity = new Set((leadsWithOppRaw ?? []).map((o: any) => o.lead_metadata_id));
   const isQualified = (l: any) => qualifiedStatuses.has(l.status) || leadIdsWithOpportunity.has(l.id);

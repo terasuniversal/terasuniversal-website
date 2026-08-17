@@ -41,7 +41,10 @@ export function LeadInboxTable({
                 {r.phone && <div className="ta-lead-sub">{r.phone}</div>}
               </td>
               <td>{r.subject ?? "—"}</td>
-              <td><Badge status={r.status} /></td>
+              <td>
+                <Badge status={r.status} />
+                {r.is_test && <span className="ta-badge-pill" style={{ background: "#f4f5f7", color: "#667085", marginLeft: 4 }}>Test</span>}
+              </td>
               <td>{r.assigned_to ? staffNames.get(r.assigned_to) ?? "—" : <span className="ta-lead-sub">Unassigned</span>}</td>
               <td>
                 <FollowUpBadge state={followUpState(r.follow_up_at, r.status)} />

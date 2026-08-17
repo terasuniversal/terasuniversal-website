@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
 import { requireRole, requireModuleAccess } from "../../../../../../lib/auth/session";
-import { isAdmin } from "../../../../../../lib/auth/rbac";
+import { isAdmin, isSuperAdmin } from "../../../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, EmptyState } from "../../../../../../components/admin/ui";
 import { FollowUpBadge } from "../../../../../../components/admin/sales/FollowUpBadge";
 import { SOURCE_LABELS, followUpState, type SalesLeadInboxRow, type SalesActivityRow } from "../../../../../../lib/sales/crm";
@@ -33,9 +33,10 @@ function Detail({ label, value }: { label: string; value: any }) {
 }
 
 export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const profile = await requireRole("editor");
+  const profile =   await requireRole("editor");
   await requireModuleAccess("sales_leads");
   const canManage = isAdmin(profile.role);
+  const superAdmin = isSuperAdmin(profile.role);
   const { id } = await params;
   const supabase = await createSupabaseServerClient();
 
@@ -74,6 +75,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
 
       <div className="ta-lead-meta">
         <Badge status={row.status} />
+        {row.is_test && <span className="ta-badge-pill" style={{ background: "#f4f5f7", color: "#667085" }}>Test/Demo</span>}
         <FollowUpBadge state={followUpState(row.follow_up_at, row.status)} />
         <span className="ta-lead-meta-time">
           Created {formatMalaysiaDateTime(row.created_at)}
@@ -118,6 +120,8 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
             canManage={canManage}
             existingOpportunity={existingOpportunity ?? null}
             defaultOpportunityTitle={row.subject ?? undefined}
+            isSuperAdmin={superAdmin}
+            isTest={row.is_test}
           />
         </div>
       </div>

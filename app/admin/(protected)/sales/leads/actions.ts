@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { requireRole, requireModuleAccess } from "../../../../../lib/auth/session";
+import { isSuperAdmin } from "../../../../../lib/auth/rbac";
 import { redirect } from "next/navigation";
 import { formatMalaysiaDateTime } from "../../../../../lib/date-time";
 import {
@@ -199,4 +200,26 @@ export async function convertLeadToOpportunity(
   revalidateLead(leadMetadataId);
   revalidatePath("/admin/sales/opportunities");
   redirect(`/admin/sales/opportunities/${opportunityId}`);
+}
+
+/**
+ * Super-Admin-only Test/Demo classification. Excludes a lead (and its whole
+ * opportunity/quotation chain via DB propagation) from every operational
+ * Sales KPI/report/export. Ordinary Sales staff and admins cannot mark real
+ * revenue as test — the DB RPC enforces current_role() = 'super_admin' as the
+ * real boundary; this app guard is defense in depth.
+ */
+export async function markLeadTest(leadMetadataId: string, isTest: boolean): Promise<SalesActionState> {
+  const profile = await requireRole("admin");
+  await requireModuleAccess("sales_leads");
+  if (!isSuperAdmin(profile.role)) return { message: "Only Super Admin can change test/demo classification." };
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("mark_lead_test", { p_lead_metadata_id: leadMetadataId, p_is_test: isTest });
+  if (error) {
+    if (/forbidden/i.test(error.message)) return { message: "Only Super Admin can change test/demo classification." };
+    if (/lead_not_found/i.test(error.message)) return { message: "Lead not found." };
+    return { message: error.message };
+  }
+  revalidateLead(leadMetadataId);
+  return {};
 }

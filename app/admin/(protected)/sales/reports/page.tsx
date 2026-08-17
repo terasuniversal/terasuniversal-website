@@ -122,18 +122,21 @@ export default async function SalesReportsPage({
   const supabase = await createSupabaseServerClient();
 
   // ---- One fixed batch of independent queries — no await inside the array literal (CLAUDE.md §5/§13). ----
-  const leadsQuery = supabase.from("sales_lead_metadata").select("*").gte("created_at", range.startUtc).lt("created_at", range.endUtc);
-  const opportunitiesQuery = supabase.from("sales_opportunities").select("*").gte("created_at", range.startUtc).lt("created_at", range.endUtc);
-  const quotationsCreatedQuery = supabase.from("sales_quotations").select("*").gte("created_at", range.startUtc).lt("created_at", range.endUtc);
+  // Test/demo chains (is_test=true) are excluded from every report metric.
+  const leadsQuery = supabase.from("sales_lead_metadata").select("*").eq("is_test", false).gte("created_at", range.startUtc).lt("created_at", range.endUtc);
+  const opportunitiesQuery = supabase.from("sales_opportunities").select("*").eq("is_test", false).gte("created_at", range.startUtc).lt("created_at", range.endUtc);
+  const quotationsCreatedQuery = supabase.from("sales_quotations").select("*").eq("is_test", false).gte("created_at", range.startUtc).lt("created_at", range.endUtc);
   const quotationsSentQuery = supabase
     .from("sales_quotations")
     .select("*")
+    .eq("is_test", false)
     .not("sent_at", "is", null)
     .gte("sent_at", range.startUtc)
     .lt("sent_at", range.endUtc);
   const acceptedQuotationsQuery = supabase
     .from("sales_quotations")
     .select("*")
+    .eq("is_test", false)
     .eq("status", "accepted")
     .not("accepted_at", "is", null)
     .gte("accepted_at", range.startUtc)
@@ -141,6 +144,7 @@ export default async function SalesReportsPage({
   const wonOpportunitiesQuery = supabase
     .from("sales_opportunities")
     .select("*")
+    .eq("is_test", false)
     .eq("stage", "won")
     .not("won_at", "is", null)
     .gte("won_at", range.startUtc)
@@ -148,6 +152,7 @@ export default async function SalesReportsPage({
   const lostOpportunitiesQuery = supabase
     .from("sales_opportunities")
     .select("*")
+    .eq("is_test", false)
     .eq("stage", "lost")
     .not("lost_at", "is", null)
     .gte("lost_at", range.startUtc)
@@ -205,7 +210,7 @@ export default async function SalesReportsPage({
   // period its opportunity row happens to have been created in). ----
   const leadIds = leads.map((l: any) => l.id);
   const { data: leadsWithOppRaw } = leadIds.length
-    ? await supabase.from("sales_opportunities").select("lead_metadata_id").in("lead_metadata_id", leadIds)
+    ? await supabase.from("sales_opportunities").select("lead_metadata_id").eq("is_test", false).in("lead_metadata_id", leadIds)
     : { data: [] as any[] };
   const leadIdsWithOpportunity = new Set((leadsWithOppRaw ?? []).map((o: any) => o.lead_metadata_id));
   const isQualified = (l: any) => QUALIFIED_OR_LATER.has(l.status) || leadIdsWithOpportunity.has(l.id);
