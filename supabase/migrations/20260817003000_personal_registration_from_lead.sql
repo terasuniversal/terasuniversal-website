@@ -13,9 +13,9 @@
 -- in-house, different venue/trainer, or a new batch when one is full).
 --
 -- What this changes:
---   1. sales_activity          : new 'personal_registration_completed' type +
+--   1. sales_activity          : new 'registration_completed' type +
 --                                nullable participant_id/schedule_id (audit).
---   2. sales_lead_metadata     : nullable personal_registration_schedule_id
+--   2. sales_lead_metadata     : nullable registration_schedule_id
 --                                outcome field (lead pipeline status is NOT
 --                                changed; B2B reporting is untouched).
 --   3. participants            : nullable registration_source + source_lead_id
@@ -57,14 +57,14 @@ alter table public.sales_activity add constraint sales_activity_type_check check
   'quotation_accepted', 'quotation_rejected', 'opportunity_won', 'opportunity_lost',
   'training_handoff_created', 'company_linked', 'company_created',
   'task_created', 'task_completed', 'task_reopened', 'task_cancelled',
-  'personal_registration_completed'
+  'registration_completed'
 ));
 
 -- ---------------------------------------------------------------------------
 -- 2. sales_lead_metadata: personal-registration outcome field
 -- ---------------------------------------------------------------------------
 alter table public.sales_lead_metadata
-  add column if not exists personal_registration_schedule_id uuid references public.course_schedules(id);
+  add column if not exists registration_schedule_id uuid references public.course_schedules(id);
 
 -- ---------------------------------------------------------------------------
 -- 3. participants: source attribution (nulls preserve the original source)
@@ -96,7 +96,7 @@ create index if not exists participants_source_lead_idx
 -- by locking the schedule row and counting ACTIVE enrollments inside this
 -- transaction; the seats_taken <= capacity CHECK remains the race safety net.
 --
--- Lead outcome: sets only personal_registration_schedule_id; the pipeline
+-- Lead outcome: sets only registration_schedule_id; the pipeline
 -- status enum and the B2B flow are untouched.
 create or replace function public.register_personal_lead(
   p_lead_metadata_id uuid,
@@ -232,7 +232,7 @@ begin
 
   -- Lead outcome (pipeline status untouched).
   update public.sales_lead_metadata
-  set personal_registration_schedule_id = p_schedule_id,
+  set registration_schedule_id = p_schedule_id,
       updated_at = now()
   where id = p_lead_metadata_id;
 
@@ -241,7 +241,7 @@ begin
   from public.courses c where c.id = v_sched.course_id;
   insert into public.sales_activity (lead_metadata_id, participant_id, schedule_id, type, note, actor_id)
   values (
-    p_lead_metadata_id, v_participant_id, p_schedule_id, 'personal_registration_completed',
+    p_lead_metadata_id, v_participant_id, p_schedule_id, 'registration_completed',
     'Registered ' || trim(p_full_name) || ' to ' || coalesce(v_sched.schedule_code, '') ||
     ' (' || coalesce(v_course_name, '') || ')',
     auth.uid()
@@ -444,14 +444,14 @@ begin
   end loop;
 
   update public.sales_lead_metadata
-  set personal_registration_schedule_id = p_schedule_id,
+  set registration_schedule_id = p_schedule_id,
       updated_at = now()
   where id = p_lead_metadata_id;
 
   select c.title into v_course_name from public.courses c where c.id = v_sched.course_id;
   insert into public.sales_activity (lead_metadata_id, schedule_id, type, note, actor_id)
   values (
-    p_lead_metadata_id, p_schedule_id, 'personal_registration_completed',
+    p_lead_metadata_id, p_schedule_id, 'registration_completed',
     'Registered ' || v_enrolled_count || ' participant(s) to ' || coalesce(v_sched.schedule_code, '') ||
     ' (' || coalesce(v_course_name, '') || ')' || case when v_already_count > 0 then ' — ' || v_already_count || ' already enrolled' else '' end,
     auth.uid()

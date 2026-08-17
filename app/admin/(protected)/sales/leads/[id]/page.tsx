@@ -70,15 +70,15 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
   // schedules + sales_leads module access; the page already enforces editor+).
   const { data: regMeta } = await supabase
     .from("sales_lead_metadata")
-    .select("personal_registration_schedule_id")
+    .select("registration_schedule_id")
     .eq("id", id)
     .maybeSingle();
   let registeredSchedule: { id: string; schedule_code: string; course_name: string } | null = null;
-  if (regMeta?.personal_registration_schedule_id) {
+  if (regMeta?.registration_schedule_id) {
     const { data: rs } = await supabase
       .from("course_schedules")
       .select("id, schedule_code, courses(course_name)")
-      .eq("id", regMeta.personal_registration_schedule_id)
+      .eq("id", regMeta.registration_schedule_id)
       .maybeSingle();
     registeredSchedule = rs as any ?? null;
   }
