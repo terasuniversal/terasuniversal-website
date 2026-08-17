@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
-import { createSupabaseServerClient } from "../../../lib/supabase/server";
+import { createSupabaseServerClient, createSupabaseServiceClient } from "../../../lib/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -152,7 +152,13 @@ export async function POST(request) {
   const emailSent = await sendNotificationEmails(data);
   const sheetsSynced = await syncToGoogleSheets(data, requestedAt);
 
-  const { error: statusError } = await supabase.rpc("mark_proposal_delivery_status", {
+  // mark_proposal_delivery_status is service_role-only (see
+  // supabase/migrations/20260815140000_proposal_delivery_status_security.sql)
+  // -- the anon/authenticated grant it originally shipped with was revoked
+  // as a security remediation, so the regular RLS-bound client can no
+  // longer call it.
+  const serviceSupabase = createSupabaseServiceClient();
+  const { error: statusError } = await serviceSupabase.rpc("mark_proposal_delivery_status", {
     p_id: proposalId,
     p_email_sent: emailSent,
     p_sheets_synced: sheetsSynced,
