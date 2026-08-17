@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { getCurrentProfile } from "../../../../../lib/auth/session";
+import { getCurrentProfile, hasModuleAccess } from "../../../../../lib/auth/session";
 import { isAdmin } from "../../../../../lib/auth/rbac";
 import { loadCertificateRender } from "../certData";
 import { renderCertificateDocument } from "../../../../../lib/certificate-html";
@@ -22,7 +22,8 @@ const MAX_CERTS = 500; // safety cap; larger batches should be split.
 
 export async function GET(request: NextRequest) {
   const profile = await getCurrentProfile();
-  if (!profile || !isAdmin(profile.role)) return new NextResponse("Forbidden", { status: 403 });
+  if (!profile || !profile.is_active || !isAdmin(profile.role)) return new NextResponse("Forbidden", { status: 403 });
+  if (!(await hasModuleAccess("certificates"))) return new NextResponse("Forbidden", { status: 403 });
 
   const p = request.nextUrl.searchParams;
   const scheduleId = p.get("scheduleId");

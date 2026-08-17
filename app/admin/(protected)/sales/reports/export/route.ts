@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
-import { getCurrentProfile } from "../../../../../../lib/auth/session";
+import { getCurrentProfile, hasModuleAccess } from "../../../../../../lib/auth/session";
 import { isEditor } from "../../../../../../lib/auth/rbac";
 import { resolveReportDateRange, monthKeysInRange, mytMonthKey, monthKeyLabel, REPORT_RANGE_KEYS, type ReportRangeKey } from "../../../../../../lib/sales/reports";
 
@@ -12,7 +12,8 @@ import { resolveReportDateRange, monthKeysInRange, mytMonthKey, monthKeyLabel, R
  */
 export async function GET(request: NextRequest) {
   const profile = await getCurrentProfile();
-  if (!profile || !isEditor(profile.role)) return new NextResponse("Forbidden", { status: 403 });
+  if (!profile || !profile.is_active || !isEditor(profile.role)) return new NextResponse("Forbidden", { status: 403 });
+  if (!(await hasModuleAccess("sales_reports"))) return new NextResponse("Forbidden", { status: 403 });
 
   const p = request.nextUrl.searchParams;
   const rangeKey: ReportRangeKey = (REPORT_RANGE_KEYS as readonly string[]).includes(p.get("range") ?? "") ? (p.get("range") as ReportRangeKey) : "this_month";

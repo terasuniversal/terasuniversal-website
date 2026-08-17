@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
-import { getCurrentProfile } from "../../../../../../lib/auth/session";
+import { getCurrentProfile, hasModuleAccess } from "../../../../../../lib/auth/session";
 import { isEditor } from "../../../../../../lib/auth/rbac";
 import { SOURCE_LABELS, sanitizeSearchTerm, type SalesLeadInboxRow } from "../../../../../../lib/sales/crm";
 import { formatMalaysiaDateTime } from "../../../../../../lib/date-time";
@@ -26,7 +26,8 @@ const COLUMNS: [string, (r: SalesLeadInboxRow, staffNames: Map<string, string>) 
 
 export async function GET(request: NextRequest) {
   const profile = await getCurrentProfile();
-  if (!profile || !isEditor(profile.role)) return new NextResponse("Forbidden", { status: 403 });
+  if (!profile || !profile.is_active || !isEditor(profile.role)) return new NextResponse("Forbidden", { status: 403 });
+  if (!(await hasModuleAccess("sales_leads"))) return new NextResponse("Forbidden", { status: 403 });
 
   const p = request.nextUrl.searchParams;
   const supabase = await createSupabaseServerClient();
