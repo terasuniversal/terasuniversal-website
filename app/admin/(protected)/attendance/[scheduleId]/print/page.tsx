@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
-import { requireModuleAccess, requireAttendance } from "../../../../../../lib/auth/session";
+import { requireAttendance } from "../../../../../../lib/auth/session";
 import { PrintButton } from "./PrintButton";
 
 export const metadata = {
@@ -9,39 +9,39 @@ export const metadata = {
 };
 export const dynamic = "force-dynamic";
 
-/** Exact live values of `attendance.attendance_status` (20260809100200). */
-const STATUS_LABEL: Record<string, string> = {
-  present: "Present",
-  absent: "Absent",
-  late: "Late",
-  excused: "Excused",
+/** Compact per-session status codes for print display only. The live
+ *  attendance_status values are present/absent/late/excused (20260809100200);
+ *  mc/replacement are mapped too so any value that reaches the sheet renders
+ *  as its short code. Unknown/absent-row values stay blank — the source-of-
+ *  truth rule (an unrecorded day is never silently Absent) is preserved. */
+const STATUS_CODE: Record<string, string> = {
+  present: "P",
+  absent: "A",
+  late: "L",
+  excused: "E",
+  mc: "MC",
+  replacement: "R",
 };
-/** Statuses in this fixed order; display order for the summary string. */
-const STATUS_ORDER = ["present", "absent", "late", "excused"] as const;
 
 /**
- * Printable OVERALL TRAINING ATTENDANCE SHEET — ONE roster for the entire
- * schedule, with each participant's attendance summarized across the whole
- * training period. Not one section per date.
+ * Printable TRAINING ATTENDANCE SHEET — one landscape A4 roster for the
+ * entire schedule. One column per real recorded session date (D1…Dn), built
+ * from the distinct `attendance.session_date` values; a participant's cell on
+ * day Di shows the short status code for that (participant, session) row, and
+ * stays blank when no row exists.
  *
  * Read-only. Reads the same live rows as the Take Attendance page
  * (course_schedules → courses, schedule_participants → participants,
- * attendance) plus participants.ic_passport_no (RLS is row-level, so the
- * roster read already grants the columns). Three queries total — schedule,
- * roster, whole-schedule attendance — aggregated per participant in memory;
- * no N+1, no attendance-writing logic.
- *
- * The status cell is a factual count over the schedule's real recorded
- * session dates (the distinct `attendance.session_date` values). No
- * eligibility/classification is invented. Missing rows follow the existing
- * business rule: an unrecorded day is "Not recorded", never silently Absent.
+ * attendance incl. per-session remarks) plus participants.ic_passport_no.
+ * Three queries total — schedule, roster, whole-schedule attendance —
+ * aggregated per participant in memory; no N+1, no attendance-writing logic,
+ * no eligibility/classification (no 80% rule is introduced or applied here).
  */
 export default async function AttendancePrintPage({
   params,
 }: {
   params: Promise<{ scheduleId: string }>;
 }) {
-  await requireModuleAccess("attendance");
   await requireAttendance(false); // editor+ or trainer — same gate as Take Attendance
   const { scheduleId } = await params;
   const supabase = await createSupabaseServerClient();
@@ -70,45 +70,50 @@ export default async function AttendancePrintPage({
     ic: String(r.participants?.ic_passport_no ?? "").trim() || "—",
   }));
 
-  // ALL attendance rows for the schedule, once. Aggregate per participant.
+  // ALL attendance rows for the schedule, once. Per (participant, session).
   const { data: attAll } = await supabase
     .from("attendance")
-    .select("participant_id, session_date, attendance_status")
+    .select("participant_id, session_date, attendance_status, remarks")
     .eq("schedule_id", scheduleId);
-  const sessionDates = new Set<string>();
-  const countsByParticipant = new Map<string, Record<string, number>>();
+
+  // D1…Dn columns come only from REAL distinct session_date values, ascending.
+  const sessionDates = Array.from(new Set((attAll ?? []).map((a: any) => a.session_date))).sort() as string[];
+
+  const byParticipant = new Map<string, Map<string, { status: string | null; remarks: string | null }>>();
   for (const a of attAll ?? []) {
-    sessionDates.add(a.session_date);
-    const m = (countsByParticipant.get(a.participant_id) ?? {}) as Record<string, number>;
-    m[a.attendance_status] = (m[a.attendance_status] ?? 0) + 1;
-    countsByParticipant.set(a.participant_id, m);
-  }
-  const totalDays = sessionDates.size;
-
-  const summary = (counts: Record<string, number> | undefined): string => {
-    if (!counts || totalDays === 0) return "Not recorded";
-    const parts: string[] = [];
-    for (const st of STATUS_ORDER) {
-      const c = counts[st] ?? 0;
-      if (c > 0) parts.push(`${STATUS_LABEL[st]} ${c}/${totalDays}`);
+    let m = byParticipant.get(a.participant_id);
+    if (!m) {
+      m = new Map();
+      byParticipant.set(a.participant_id, m);
     }
-    const recorded = STATUS_ORDER.reduce((n, st) => n + (counts[st] ?? 0), 0);
-    const notRecorded = totalDays - recorded;
-    if (notRecorded > 0) parts.push(`Not recorded ${notRecorded}/${totalDays}`);
-    return parts.length > 0 ? parts.join(" · ") : "Not recorded";
-  };
+    m.set(a.session_date, { status: a.attendance_status ?? null, remarks: a.remarks ?? null });
+  }
 
-  const rows = roster.map((p, i) => ({
-    no: i + 1,
-    name: p.name,
-    ic: p.ic,
-    status: summary(countsByParticipant.get(p.participant_id)),
-  }));
+  const rows = roster.map((p, i) => {
+    const m = byParticipant.get(p.participant_id);
+    const remarkSet = new Set<string>();
+    for (const r of m?.values() ?? []) {
+      const t = String(r.remarks ?? "").trim();
+      if (t) remarkSet.add(t);
+    }
+    return {
+      no: i + 1,
+      name: p.name,
+      ic: p.ic,
+      cells: sessionDates.map((d) => m?.get(d)?.status ?? null),
+      remarks: Array.from(remarkSet).join("; "),
+    };
+  });
 
   const fmt = (d: string) =>
     new Date(d + "T00:00:00").toLocaleDateString("en-MY", { day: "numeric", month: "long", year: "numeric" });
   const trainingPeriod =
     s.start_date === s.end_date ? fmt(s.start_date) : `${fmt(s.start_date)} – ${fmt(s.end_date)}`;
+  // dd/MM/yyyy, parsed from the ISO parts so no timezone shift can alter the day.
+  const fmtDay = (d: string) => {
+    const [y, m, day] = d.split("-");
+    return `${day}/${m}/${y}`;
+  };
 
   return (
     <div className="att-print-sheet">
@@ -131,7 +136,7 @@ export default async function AttendancePrintPage({
         </header>
 
         <dl className="att-meta">
-          <div>
+          <div className="att-meta-wide">
             <dt>Programme / Course Name</dt>
             <dd>{courseName || "—"}</dd>
           </div>
@@ -163,44 +168,81 @@ export default async function AttendancePrintPage({
           </div>
         </dl>
 
-        {rows.length > 0 && totalDays > 0 ? (
+        {rows.length > 0 && sessionDates.length > 0 ? (
           <>
+            <p className="att-legend">
+              {sessionDates.map((d, i) => (
+                <span key={d} className="att-legend-item">
+                  D{i + 1} — {fmtDay(d)}
+                </span>
+              ))}
+            </p>
+
             <table className="att-table">
               <thead>
                 <tr>
                   <th className="att-col-no">No.</th>
                   <th className="att-col-name">Participant Name</th>
                   <th className="att-col-ic">IC / Passport No.</th>
-                  <th className="att-col-status">Attendance Status</th>
+                  {sessionDates.map((d, i) => (
+                    <th key={d} className="att-col-day">
+                      D{i + 1}
+                    </th>
+                  ))}
                   <th className="att-col-sig">Participant Signature</th>
+                  <th className="att-col-rem">Remarks</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((r) => (
                   <tr key={r.no}>
                     <td className="att-col-no">{r.no}</td>
-                    <td>{r.name}</td>
-                    <td>{r.ic}</td>
-                    <td>{r.status}</td>
+                    <td className="att-col-name">{r.name}</td>
+                    <td className="att-col-ic">{r.ic}</td>
+                    {r.cells.map((st, j) => (
+                      <td key={sessionDates[j]} className="att-day-cell">
+                        {st ? (STATUS_CODE[st] ?? "") : ""}
+                      </td>
+                    ))}
                     <td className="att-sig-cell" />
+                    <td className="att-col-rem">{r.remarks}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
 
             <section className="att-confirm">
-              <h2>TRAINER CONFIRMATION</h2>
-              <div className="att-confirm-line">
-                <span>Trainer Name:</span>
-                <span className="att-line" />
-              </div>
-              <div className="att-confirm-line">
-                <span>Signature:</span>
-                <span className="att-line" />
-              </div>
-              <div className="att-confirm-line">
-                <span>Date:</span>
-                <span className="att-line" />
+              <div className="att-confirm-grid">
+                <div className="att-confirm-col">
+                  <h2>TRAINER VERIFICATION</h2>
+                  <div className="att-confirm-line">
+                    <span>Trainer Name:</span>
+                    <span className="att-line">{s.trainer_name ?? ""}</span>
+                  </div>
+                  <div className="att-confirm-line">
+                    <span>Signature:</span>
+                    <span className="att-line" />
+                  </div>
+                  <div className="att-confirm-line">
+                    <span>Date:</span>
+                    <span className="att-line" />
+                  </div>
+                </div>
+                <div className="att-confirm-col">
+                  <h2>ASSESSOR VERIFICATION</h2>
+                  <div className="att-confirm-line">
+                    <span>Assessor Name:</span>
+                    <span className="att-line" />
+                  </div>
+                  <div className="att-confirm-line">
+                    <span>Signature:</span>
+                    <span className="att-line" />
+                  </div>
+                  <div className="att-confirm-line">
+                    <span>Date:</span>
+                    <span className="att-line" />
+                  </div>
+                </div>
               </div>
             </section>
           </>
@@ -226,98 +268,121 @@ const PRINT_STYLE = `
 .att-print-doc {
   background: #fff; color: #1a1a1a;
   border: 1px solid #d8dde5; border-radius: 8px;
-  padding: 24px 28px; max-width: 820px; margin: 0 auto;
+  padding: 18px 22px; max-width: 1100px; margin: 0 auto;
   font-family: var(--font-poppins), Arial, Helvetica, sans-serif;
-  font-size: 13.5px; line-height: 1.45;
+  font-size: 12.5px; line-height: 1.4;
 }
 .att-head {
   display: flex; align-items: center; gap: 12px;
   background: var(--att-navy); color: #fff;
-  padding: 10px 18px;
+  padding: 6px 16px;
   border-bottom: 3px solid var(--att-gold);
   border-radius: 6px 6px 0 0;
 }
 .att-head-logo {
-  height: 44px; width: auto; max-width: 120px;
+  height: 40px; width: auto; max-width: 120px;
   object-fit: contain; flex-shrink: 0;
   background: #fff; border-radius: 6px; padding: 4px;
 }
 .att-head-text { flex: 1; text-align: center; min-width: 0; }
 .att-head-brand {
-  display: block; font-size: 11px; font-weight: 700;
+  display: block; font-size: 10.5px; font-weight: 700;
   letter-spacing: .18em; text-transform: uppercase; color: var(--att-gold);
 }
 /* Higher specificity than admin.css's .teras-admin h1 so the title stays
    white on the navy band (a bare class loses that rule's color). */
 .att-print-sheet .att-head-title {
   font-family: var(--font-montserrat), var(--font-poppins), Arial, sans-serif;
-  color: #fff; font-size: 20px; font-weight: 800; letter-spacing: .05em;
+  color: #fff; font-size: 19px; font-weight: 800; letter-spacing: .05em;
   margin: 2px 0 0; line-height: 1.1;
 }
+/* Landscape identity block: 4 compact columns so the course/schedule
+   metadata takes two short rows instead of the portrait block's height. */
 .att-meta {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 5px 22px;
-  margin: 10px 0 14px; font-size: 12.5px;
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px 18px;
+  margin: 5px 0 7px; font-size: 11.5px;
 }
-/* globals.css styles the public site's contact-detail lists with
-   dl div{padding:12px 0;border-bottom:1px solid var(--line)}, which bleeds in
-   here and costs 25px per metadata row — ~100px over the four rows, and the
-   single largest reason this sheet used to spill onto a second page. Keep the
-   hairline rule (it is part of the approved look) but state it explicitly and
-   drop the 24px of inherited padding it was carrying. */
+.att-meta-wide { grid-column: span 2; }
 .att-meta > div {
-  display: flex; gap: 8px; min-width: 0;
+  display: flex; flex-direction: column; gap: 1px; min-width: 0;
   padding: 0 0 3px; border-bottom: 1px solid #e1e6ee;
 }
-.att-meta dt { color: var(--att-navy); font-weight: 700; font-size: 11.5px; min-width: 112px; flex-shrink: 0; }
+.att-meta dt { color: var(--att-navy); font-weight: 700; font-size: 10.5px; }
 .att-meta dd { margin: 0; color: #1a1a1a; font-weight: 600; overflow-wrap: anywhere; }
 .att-empty { color: var(--att-navy); font-weight: 600; margin: 8px 0; }
 
-.att-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 12.5px; }
+.att-legend {
+  display: flex; flex-wrap: wrap; gap: 2px 16px;
+  margin: 0 0 4px; font-size: 10px; font-weight: 600; color: var(--att-navy);
+}
+.att-legend-item { white-space: nowrap; }
+
+.att-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 11px; }
+/* Repeat the navy header row when the roster continues onto a second page. */
 .att-table thead { display: table-header-group; }
-.att-table th { background: var(--att-navy); color: #fff; text-align: left; padding: 7px 10px; font-size: 11.5px; text-transform: uppercase; letter-spacing: .03em; }
-.att-table td { border: 1px solid #c9cfd9; padding: 6px 8px; vertical-align: top; }
+.att-table th { background: var(--att-navy); color: #fff; text-align: left; padding: 4px 5px; font-size: 10px; text-transform: uppercase; letter-spacing: .03em; }
+.att-table td { border: 1px solid #c9cfd9; padding: 2px 4px; vertical-align: middle; }
 .att-table tbody tr { break-inside: avoid; page-break-inside: avoid; }
-/* Column proportions: No 5% · Name 24% · IC 19% · Status 22% · Signature 30%. */
-.att-col-no { width: 5%; text-align: center; }
-.att-col-name { width: 24%; }
-.att-col-ic { width: 19%; }
-.att-col-status { width: 22%; }
-.att-col-sig { width: 30%; }
-.att-table th.att-col-no, .att-table td.att-col-no { text-align: center; }
-/* 40px keeps a practical signature band while fitting 11 rows + confirmation
-   + footer on one A4 portrait page at 100% scale (see one-page budget below). */
-.att-sig-cell { height: 40px; }
-/* padding-bottom kills globals.css's section{padding:86px 0}, which otherwise
-   leaves a ~76px dead band under the signature lines. */
+/* Column proportions (100% total): No 3 · Name 15 · IC 12 · D* 4 each ·
+   Signature 14 · Remarks 16. */
+.att-col-no { width: 3%; text-align: center; }
+.att-col-name { width: 15%; }
+.att-col-ic { width: 12%; }
+.att-col-day { width: 4%; text-align: center; padding: 5px 2px; }
+.att-col-sig { width: 14%; }
+.att-col-rem { width: 16%; font-size: 10px; overflow-wrap: anywhere; }
+.att-table th.att-col-no, .att-table td.att-col-no,
+.att-table th.att-col-day, .att-table td.att-day-cell { text-align: center; }
+.att-day-cell { font-weight: 700; font-size: 10.5px; }
+/* 26px keeps a practical signature band while fitting 11 rows + legend +
+   confirmation + footer on one A4 landscape page (see one-page budget below). */
+.att-sig-cell { height: 26px; }
+
 .att-confirm {
-  margin-top: 18px; border-top: 2px solid var(--att-navy); padding-top: 10px; padding-bottom: 0;
+  margin-top: 8px; border-top: 2px solid var(--att-navy); padding-top: 6px; padding-bottom: 0;
   break-inside: avoid; page-break-inside: avoid;
+}
+.att-confirm-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 28px;
+  break-inside: avoid; page-break-inside: avoid;
+}
+.att-confirm-col { min-width: 0; break-inside: avoid; page-break-inside: avoid; }
+@media (max-width: 640px) {
+  /* Screen preview only — print A4 landscape keeps the side-by-side columns. */
+  .att-confirm-grid { grid-template-columns: 1fr; gap: 16px; }
 }
 .att-print-sheet .att-confirm h2 {
   font-family: var(--font-montserrat), var(--font-poppins), Arial, sans-serif;
-  font-size: 12px; color: var(--att-navy); letter-spacing: .08em; margin: 0 0 9px;
+  font-size: 11px; color: var(--att-navy); letter-spacing: .08em; margin: 0 0 4px;
 }
-.att-confirm-line { display: flex; gap: 10px; align-items: flex-end; margin-bottom: 8px; font-size: 12.5px; }
+.att-confirm-line { display: flex; gap: 10px; align-items: flex-end; margin-bottom: 5px; font-size: 11.5px; }
 .att-confirm-line > span:first-child { min-width: 105px; font-weight: 700; color: var(--att-navy); }
-.att-line { flex: 1; border-bottom: 1.2px solid #1a1a1a; height: 14px; }
+/* Filled when text is present (e.g. trainer name from course_schedules),
+   otherwise just the blank handwriting rule. */
+.att-line {
+  flex: 1; border-bottom: 1.2px solid #1a1a1a; min-height: 13px; line-height: 13px;
+  font-weight: 600; color: #1a1a1a; padding: 0 2px;
+}
 /* globals.css ships a bare footer{background:var(--navy);padding:56px 0 22px}
    that paints every <footer> navy — kill it here and use a clean gold rule. */
 .att-foot {
-  margin-top: 16px; border-top: 2px solid var(--att-gold); padding-top: 6px;
+  margin-top: 8px; border-top: 2px solid var(--att-gold); padding-top: 4px;
   background: transparent; padding-bottom: 0; margin-bottom: 0; border-bottom: 0;
-  text-align: center; font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase;
+  text-align: center; font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
   color: var(--att-navy);
 }
 .att-foot strong { font-weight: 800; }
 
-/* One-page budget @100% scale, Headers/Footers OFF (A4 = 297mm ≈ 1122.5px):
-   @page margins 12mm each = 273mm ≈ 1031.8px printable height. Measured in
-   Chrome print media for an 11-participant sheet: header 67 · metadata 178
-   (incl. margins) · table 546 (thead 31 + 11 rows, most names wrapping to two
-   lines) · confirmation 127 · footer 40 = 982px, ~50px spare. The spare is
-   thin: a roster whose names all wrap to three lines will legitimately roll to
-   a second page, which is correct behaviour, not a regression. */
-@page { size: A4 portrait; margin: 12mm 12mm; }
+/* One-page budget @100% scale, Headers/Footers OFF (A4 landscape =
+   297mm wide ≈ 1122px, 210mm tall ≈ 794px; @page margins 12mm LR + 10mm TB
+   leave ≈ 1032px × 718px printable). Measured via headless-Chrome print media
+   for an 11-participant, 10-session sheet: header 52 · metadata 60 (two
+   rows) · legend 18 · thead 20 · 11 rows ≈ 374 (26–40px each, names wrapping
+   to two lines) · confirmation 85 · footer 24 ≈ 633px, ~85px spare — fits a
+   single A4 landscape page. A roster whose names all wrap to three lines can
+   still legitimately roll to a second page, with the header row repeating —
+   correct behaviour, not a regression. */
+@page { size: A4 landscape; margin: 10mm 12mm; }
 
 @media print {
   * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
@@ -326,8 +391,8 @@ const PRINT_STYLE = `
      is the visible "Skip to main content" text above the doc, and
      .teras-admin's/.ta-shell's min-height:100vh (admin.css) pushes the sheet
      past the page box — both must be killed here. Verified load-bearing:
-     removing this block alone puts the 11-participant sheet back onto two
-     pages, even though the sheet's own height fits. */
+     removing this block alone puts the sheet back onto two pages, even though
+     the sheet's own height fits. */
   body:has(.att-print-sheet) .skip-link,
   body:has(.att-print-sheet) .sticky-cta { display: none !important; }
   body:has(.att-print-sheet) .teras-admin { background: #fff !important; min-height: 0 !important; height: auto !important; }
