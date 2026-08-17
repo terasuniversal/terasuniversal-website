@@ -26,6 +26,7 @@ function readForm(formData: FormData) {
     status: (v("status") || "open") as any,
     is_published: formData.get("is_published") === "on",
     notes: v("notes"),
+    assessor_id: v("assessor_id"),
     source_opportunity_id: v("source_opportunity_id"),
     source_quotation_id: v("source_quotation_id"),
   };
@@ -36,6 +37,9 @@ function clean(data: any) {
   for (const k of ["trainer_name", "venue", "training_mode", "start_time", "end_time", "notes", "source_opportunity_id", "source_quotation_id"]) {
     if (!out[k]) out[k] = null;
   }
+  // assessor_id is not a course_schedules column — it is stored relationally
+  // in schedule_assessors (see applyAssessorAssignment below).
+  delete out.assessor_id;
   return out;
 }
 
@@ -57,7 +61,8 @@ export async function createSchedule(_prev: ScheduleFormState, formData: FormDat
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
   const supabase = await createSupabaseServerClient();
-  const payload = clean(parsed.data);
+  const { assessor_id, ...scheduleData } = parsed.data;
+  const payload = clean(scheduleData);
   const { data: created, error } = await supabase
     .from("course_schedules")
     .insert(payload)
@@ -73,6 +78,9 @@ export async function createSchedule(_prev: ScheduleFormState, formData: FormDat
     }
     return { message: error.message };
   }
+  if (!created) return { message: "Schedule could not be created." };
+
+  if (assessor_id) await applyAssessorAssignment(supabase, profile.id, created.id, assessor_id);
 
   if (payload.source_opportunity_id) {
     const { data: opp } = await supabase
@@ -100,14 +108,16 @@ export async function createSchedule(_prev: ScheduleFormState, formData: FormDat
 }
 
 export async function updateSchedule(id: string, _prev: ScheduleFormState, formData: FormData): Promise<ScheduleFormState> {
-  await requireRole("admin");
+  const profile = await requireRole("admin");
   await requireModuleAccess("schedules");
   const parsed = scheduleSchema.safeParse(readForm(formData));
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.from("course_schedules").update(clean(parsed.data)).eq("id", id);
+  const { assessor_id, ...scheduleData } = parsed.data;
+  const { error } = await supabase.from("course_schedules").update(clean(scheduleData)).eq("id", id);
   if (error) return { message: error.message };
+  await applyAssessorAssignment(supabase, profile.id, id, assessor_id ?? "");
   revalidatePath("/admin/schedules");
   revalidatePath(`/admin/schedules/${id}`);
   redirect(`/admin/schedules/${id}`);
@@ -216,4 +226,89 @@ export async function removeParticipant(scheduleId: string, assignmentId: string
   const supabase = await createSupabaseServerClient();
   await supabase.from("schedule_participants").update({ registration_status: "cancelled" }).eq("id", assignmentId);
   revalidatePath(`/admin/schedules/${scheduleId}`);
+}
+
+// --------------------------------------------------------------------
+// Assessor assignment (Assessor Management Phase 1)
+// --------------------------------------------------------------------
+
+/**
+ * Apply a primary assessor assignment for a schedule. Handles all three
+ * transitions from one call site:
+ *   * empty assessorId           -> remove (audit: assessor_unassigned)
+ *   * same assessor already set  -> no-op
+ *   * different assessorId       -> replace (audit: assessor_reassigned)
+ *   * no prior assignment        -> assign (audit: assessor_assigned)
+ * Only ACTIVE assessors are assignable; the target is re-validated server-side
+ * (never trusts the client select). The assessor record itself is never
+ * deleted — only the schedule_assessors junction row is removed.
+ *
+ * Reads/writes go through the RLS-bound client, so this stays admin+ only in
+ * practice (admin RLS on schedule_assessors); the app guard is defense in
+ * depth, not the only enforcement.
+ */
+async function applyAssessorAssignment(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  actorId: string,
+  scheduleId: string,
+  assessorId: string
+) {
+  const { data: current } = await supabase
+    .from("schedule_assessors")
+    .select("id, assessor_id, assessors(full_name)")
+    .eq("schedule_id", scheduleId)
+    .eq("is_primary", true)
+    .maybeSingle();
+  const currentId = (current as any)?.assessor_id ?? null;
+
+  if (!assessorId) {
+    if (!current) return;
+    await supabase.from("schedule_assessors").delete().eq("schedule_id", scheduleId);
+    await supabase.rpc("log_event", {
+      p_action: "assessor_unassigned",
+      p_entity_type: "schedule_assessors",
+      p_entity_id: scheduleId,
+      p_summary: `Assessor ${(current as any).assessors?.full_name ?? ""} unassigned from schedule`,
+      p_metadata: { schedule_id: scheduleId, assessor_id: currentId, actor_id: actorId },
+    });
+    return;
+  }
+
+  if (currentId === assessorId) return;
+
+  const { data: target } = await supabase.from("assessors").select("id, full_name, is_active").eq("id", assessorId).single();
+  if (!target || !target.is_active) return;
+
+  await supabase.from("schedule_assessors").delete().eq("schedule_id", scheduleId);
+  const { error } = await supabase.from("schedule_assessors").insert({
+    schedule_id: scheduleId,
+    assessor_id: assessorId,
+    is_primary: true,
+    assigned_by: actorId,
+  });
+  if (error) return;
+
+  const action = current ? "assessor_reassigned" : "assessor_assigned";
+  await supabase.rpc("log_event", {
+    p_action: action,
+    p_entity_type: "schedule_assessors",
+    p_entity_id: scheduleId,
+    p_summary: `Assessor ${target.full_name} ${action.replace("assessor_", "")} to schedule`,
+    p_metadata: { schedule_id: scheduleId, assessor_id: assessorId, previous_assessor_id: currentId ?? null, actor_id: actorId },
+  });
+}
+
+/** Standalone assign/replace/remove used by the schedule detail page control.
+ *  Signature matches the useActionState form pattern (reads assessor_id from
+ *  the submitted form). */
+export async function setScheduleAssessor(scheduleId: string, _prev: ScheduleFormState, formData: FormData): Promise<ScheduleFormState> {
+  const profile = await requireRole("admin");
+  await requireModuleAccess("schedules");
+  const assessorId = String(formData.get("assessor_id") ?? "").trim();
+  const supabase = await createSupabaseServerClient();
+  await applyAssessorAssignment(supabase, profile.id, scheduleId, assessorId);
+  revalidatePath(`/admin/schedules/${scheduleId}`);
+  revalidatePath(`/admin/assessment/${scheduleId}`);
+  revalidatePath(`/admin/attendance/${scheduleId}/print`);
+  return {};
 }

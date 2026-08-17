@@ -7,6 +7,19 @@ export async function loadCourseOptions() {
   return (data ?? []).map((c: any) => ({ id: c.id, label: c.title }));
 }
 
+/** Active assessor options for the schedule form / assignment control. Only
+ *  active assessors are selectable (a deactivated assessor keeps historical
+ *  assignments but can no longer be assigned to a new schedule). */
+export async function loadAssessorOptions() {
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase
+    .from("assessors")
+    .select("id, full_name")
+    .eq("is_active", true)
+    .order("full_name");
+  return (data ?? []).map((a: any) => ({ id: a.id, label: a.full_name }));
+}
+
 /**
  * Sales CRM Phase 3 handoff — course matching for a Won Opportunity's
  * `programme` free-text field. Case-insensitive EXACT match only (ilike

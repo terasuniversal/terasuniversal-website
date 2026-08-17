@@ -14,6 +14,8 @@ export function ScheduleForm({
   action,
   schedule,
   courses,
+  assessors,
+  defaultAssessorId,
   defaultTrainingMode,
   mode,
   handoff,
@@ -21,6 +23,10 @@ export function ScheduleForm({
   action: (prev: ScheduleFormState, fd: FormData) => Promise<ScheduleFormState>;
   schedule?: any;
   courses: Option[];
+  /** Active assessor options for the primary-assessor select (Phase 1). */
+  assessors: Option[];
+  /** Current primary assessor id (edit mode) — the select defaults to it. */
+  defaultAssessorId?: string;
   defaultTrainingMode?: string;
   mode: "create" | "edit";
   /** Sales CRM Phase 3 — present only when opened via a Won Opportunity's "Create Training Schedule" action. */
@@ -92,6 +98,17 @@ export function ScheduleForm({
               <input id="end_time" name="end_time" type="time" defaultValue={d.end_time ?? ""} />
             </Field>
           </div>
+        </div>
+      </Card>
+
+      <Card title="Assessor">
+        <div className="ta-form-pad">
+          <Field label="Primary assessor" name="assessor_id" hint="Optional. Select one assessor who will verify this schedule. Pick '— None —' to remove an existing assignment.">
+            <select id="assessor_id" name="assessor_id" defaultValue={defaultAssessorId ?? d.assessor_id ?? ""}>
+              <option value="">— None —</option>
+              {assessors.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
+            </select>
+          </Field>
         </div>
       </Card>
 

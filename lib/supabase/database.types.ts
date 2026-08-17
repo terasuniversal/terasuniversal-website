@@ -118,6 +118,36 @@ export interface StaffModuleAccess {
   updated_by: string | null;
 }
 
+/** Assessor master data (20260817002000). is_active replaces a soft-delete:
+ *  deactivate instead of deleting. */
+export interface Assessor {
+  id: string;
+  full_name: string;
+  ic_passport_no: string | null;
+  phone: string | null;
+  email: string | null;
+  organization: string | null;
+  qualification: string | null;
+  notes: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  created_by: string | null;
+  updated_by: string | null;
+}
+
+/** Schedule → assessor assignment junction (20260817002000). Phase 1 manages
+ *  one primary per schedule; the shape supports multiple assessors later. */
+export interface ScheduleAssessor {
+  id: string;
+  schedule_id: string;
+  assessor_id: string;
+  is_primary: boolean;
+  assigned_at: string;
+  assigned_by: string | null;
+  created_at: string;
+}
+
 export interface Course {
   id: string;
   title: string;
@@ -242,6 +272,13 @@ export interface Database {
         Row: StaffModuleAccess;
         Insert: Partial<StaffModuleAccess>;
         Update: Partial<StaffModuleAccess>;
+        Relationships: [];
+      };
+      assessors: { Row: Assessor; Insert: Partial<Assessor>; Update: Partial<Assessor>; Relationships: [] };
+      schedule_assessors: {
+        Row: ScheduleAssessor;
+        Insert: Partial<ScheduleAssessor>;
+        Update: Partial<ScheduleAssessor>;
         Relationships: [];
       };
       courses: { Row: Course; Insert: Partial<Course>; Update: Partial<Course>; Relationships: [] };

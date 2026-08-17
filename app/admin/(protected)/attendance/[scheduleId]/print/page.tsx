@@ -56,6 +56,17 @@ export default async function AttendancePrintPage({
   const courseName = s.courses?.course_name ?? null;
   const courseCode = s.courses?.course_code ?? null;
 
+  // Assigned primary assessor (Assessor Management Phase 1). The print sheet
+  // only pre-fills the ASSESSOR VERIFICATION name line — Signature and Date
+  // stay manual. No assessor assigned => blank handwriting line.
+  const { data: assessorAssignment } = await supabase
+    .from("schedule_assessors")
+    .select("assessor_id, assessors(full_name)")
+    .eq("schedule_id", scheduleId)
+    .eq("is_primary", true)
+    .maybeSingle();
+  const assessorName = (assessorAssignment as any)?.assessors?.full_name ?? "";
+
   // Enrolled roster, identical to the take-attendance page (incl. ordering).
   const { data: rosterRaw } = await supabase
     .from("schedule_participants")
@@ -232,7 +243,7 @@ export default async function AttendancePrintPage({
                   <h2>ASSESSOR VERIFICATION</h2>
                   <div className="att-confirm-line">
                     <span>Assessor Name:</span>
-                    <span className="att-line" />
+                    <span className="att-line">{assessorName}</span>
                   </div>
                   <div className="att-confirm-line">
                     <span>Signature:</span>

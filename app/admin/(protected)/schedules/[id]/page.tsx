@@ -5,7 +5,9 @@ import { requireModuleAccess, requireRole } from "../../../../../lib/auth/sessio
 import { isAdmin } from "../../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, EmptyState } from "../../../../../components/admin/ui";
 import { AssignParticipants } from "../AssignParticipants";
+import { AssessorAssignment } from "../AssessorAssignment";
 import { removeParticipant, softDeleteSchedule, duplicateSchedule } from "../actions";
+import { loadAssessorOptions } from "../options";
 
 export const metadata = { title: "Schedule Details — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
@@ -46,6 +48,17 @@ export default async function ScheduleDetailsPage({
     .limit(500);
   const available = (allActive ?? []).filter((p: any) => !activeIds.has(p.id));
 
+  // Primary assessor assignment (Assessor Management Phase 1).
+  const { data: assessorAssignment } = await supabase
+    .from("schedule_assessors")
+    .select("assessor_id, assessors(full_name, is_active)")
+    .eq("schedule_id", id)
+    .eq("is_primary", true)
+    .maybeSingle();
+  const currentAssessorId = (assessorAssignment as any)?.assessor_id ?? null;
+  const assessorName = (assessorAssignment as any)?.assessors?.full_name ?? null;
+  const assessorOptions = canWrite ? await loadAssessorOptions() : [];
+
   const dl = { display: "grid", gridTemplateColumns: "150px 1fr", gap: 4, margin: 0 } as const;
 
   return (
@@ -82,6 +95,7 @@ export default async function ScheduleDetailsPage({
               <dl style={dl}>
                 <dt style={{ color: "var(--ta-muted)", padding: "6px 0" }}>Course</dt><dd style={{ margin: 0, padding: "6px 0" }}>{courseName}</dd>
                 <dt style={{ color: "var(--ta-muted)", padding: "6px 0" }}>Trainer</dt><dd style={{ margin: 0, padding: "6px 0" }}>{s.trainer_name ?? "—"}</dd>
+                <dt style={{ color: "var(--ta-muted)", padding: "6px 0" }}>Assessor</dt><dd style={{ margin: 0, padding: "6px 0" }}>{assessorName ?? "Not assigned"}</dd>
                 <dt style={{ color: "var(--ta-muted)", padding: "6px 0" }}>Venue</dt><dd style={{ margin: 0, padding: "6px 0" }}>{s.venue ?? "—"}</dd>
                 <dt style={{ color: "var(--ta-muted)", padding: "6px 0" }}>Mode</dt><dd style={{ margin: 0, padding: "6px 0" }}>{s.training_mode ?? "—"}</dd>
                 <dt style={{ color: "var(--ta-muted)", padding: "6px 0" }}>Dates</dt><dd style={{ margin: 0, padding: "6px 0" }}>{new Date(s.start_date).toLocaleDateString("en-MY")} – {new Date(s.end_date).toLocaleDateString("en-MY")}</dd>
@@ -105,6 +119,14 @@ export default async function ScheduleDetailsPage({
         </div>
 
         <div style={{ display: "grid", gap: 18 }}>
+          {canWrite && (
+            <Card title="Primary Assessor">
+              <div className="ta-card-pad">
+                <AssessorAssignment scheduleId={id} assessors={assessorOptions} currentAssessorId={currentAssessorId} />
+              </div>
+            </Card>
+          )}
+
           <Card title={`Enrolled Participants (${active.length})`}>
             <div className="ta-card-pad">
               {active.length > 0 ? (

@@ -75,6 +75,7 @@ export const MODULE_ACCESS: Record<string, UserRole> = {
   reports: "editor",
   courses: "editor",
   trainers: "editor",
+  assessors: "admin",
   schedules: "editor",
   participants: "editor",
   companies: "editor",

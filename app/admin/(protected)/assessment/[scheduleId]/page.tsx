@@ -31,6 +31,16 @@ export default async function AssessSchedulePage({
   const s = scheduleRow as any;
   const courseName = s.courses?.course_name ?? "—";
 
+  // Assigned primary assessor (Assessor Management Phase 1 — display only;
+  // assessments.assessor_id is per-participant attribution and is untouched).
+  const { data: assessorAssignment } = await supabase
+    .from("schedule_assessors")
+    .select("assessor_id, assessors(full_name)")
+    .eq("schedule_id", scheduleId)
+    .eq("is_primary", true)
+    .maybeSingle();
+  const assessorName = (assessorAssignment as any)?.assessors?.full_name ?? null;
+
   // Enrolled roster, independent of whether an assessment row exists yet.
   const { data: roster } = await supabase
     .from("schedule_participants")
@@ -96,6 +106,7 @@ export default async function AssessSchedulePage({
         <div className="ta-card-pad" style={{ display: "flex", gap: 26, flexWrap: "wrap" }}>
           <div><small style={{ color: "var(--ta-muted)" }}>Course</small><div><strong>{courseName}</strong></div></div>
           <div><small style={{ color: "var(--ta-muted)" }}>Trainer</small><div>{s.trainer_name ?? "—"}</div></div>
+          <div><small style={{ color: "var(--ta-muted)" }}>Assessor</small><div>{assessorName ?? "Not assigned"}</div></div>
           <div><small style={{ color: "var(--ta-muted)" }}>Venue</small><div>{s.venue ?? "—"}</div></div>
           <div><small style={{ color: "var(--ta-muted)" }}>Date</small><div>{new Date(s.start_date).toLocaleDateString("en-MY")}</div></div>
           <div><small style={{ color: "var(--ta-muted)" }}>Enrolled</small><div>{s.seats_taken}/{s.capacity}</div></div>

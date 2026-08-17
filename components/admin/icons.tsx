@@ -58,6 +58,13 @@ const ICONS: Record<string, ReactNode> = {
       <path d="M15.5 14.6c2.6.1 4.4 1.5 5 4.4" />
     </>
   ),
+  assessors: (
+    <>
+      <rect x="5" y="3" width="14" height="18" rx="2" />
+      <path d="M9 2.8h6" />
+      <path d="m9 13 2 2 4-4.5" />
+    </>
+  ),
   schedules: (
     <>
       <rect x="3" y="4.5" width="18" height="16" rx="2" />
