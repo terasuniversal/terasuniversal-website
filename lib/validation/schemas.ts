@@ -173,6 +173,43 @@ export const participantSchema = z.object({
 export type ParticipantInput = z.infer<typeof participantSchema>;
 
 /**
+ * Personal Registration from a Sales Lead — a separate individual-enrollment
+ * path (not the B2B Opportunity flow). Identity/contact fields mirror the
+ * participant rules; IC/Passport is the only dedupe key (the app has no
+ * email/phone participant uniqueness rule, so none is invented here).
+ */
+export const personalRegistrationSchema = z.object({
+  schedule_id: z.string().uuid("Select a training schedule"),
+  full_name: z.string().trim().min(2, "Full name is required").max(160),
+  ic_passport_no: z.string().trim().max(40).optional().or(z.literal("")),
+  email: z.string().trim().email("Enter a valid email").max(254).optional().or(z.literal("")),
+  phone: z.string().trim().max(40).optional().or(z.literal("")),
+  company: z.string().trim().max(160).optional().or(z.literal("")),
+});
+export type PersonalRegistrationInput = z.infer<typeof personalRegistrationSchema>;
+
+/** Company Registration from a Sales Lead — several participants enrolled into
+ *  one existing eligible schedule, associated with the company (reuse an
+ *  existing company record by name; never create a duplicate company here). */
+export const companyRegistrationSchema = z.object({
+  schedule_id: z.string().uuid("Select a training schedule"),
+  company_id: z.string().uuid().optional().or(z.literal("")),
+  company_name: z.string().trim().max(200).optional().or(z.literal("")),
+  participants: z
+    .array(
+      z.object({
+        full_name: z.string().trim().min(2, "Participant name is required").max(160),
+        ic_passport_no: z.string().trim().max(40).optional().or(z.literal("")),
+        email: z.string().trim().email("Enter a valid email").max(254).optional().or(z.literal("")),
+        phone: z.string().trim().max(40).optional().or(z.literal("")),
+      })
+    )
+    .min(1, "Add at least one participant")
+    .max(50, "Max 50 participants per batch"),
+});
+export type CompanyRegistrationInput = z.infer<typeof companyRegistrationSchema>;
+
+/**
  * Row shape accepted by the CSV/Excel importer (header → field mapping).
  * Company and phone are optional here (unlike participantSchema, which the
  * manual add/edit form still enforces both as required for) — bulk source
