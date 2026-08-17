@@ -18,6 +18,7 @@ import {
   mytMonthKey,
   monthKeyLabel,
   conversionRate,
+  resolveReportArchiveState,
   REPORT_RANGE_KEYS,
   REPORT_RANGE_LABELS,
   type ReportRangeKey,
@@ -73,6 +74,22 @@ export const dynamic = "force-dynamic";
  *   Opportunity Stage  <- sales_opportunities, filtered by created_at;
  *                        'archived' is excluded (an administratively
  *                        hidden/dead record, not a live pipeline stage).
+ *   Owner Summary      <- active-workload columns (leads / opportunities /
+ *                        follow-ups / tasks due) resolve through
+ *                        resolveReportArchiveState() so archived chains are
+ *                        hidden (matching the Dashboard and Follow-ups
+ *                        queue); won / won value remain historical and keep
+ *                        archived REAL records.
+ *
+ * Archive rule: archived != test/demo. is_test=true chains are excluded
+ * from every metric. An archived REAL chain keeps its legitimate historical
+ * Won/lost/value standing in the funnel, conversions, won/lost, sales
+ * value, top programmes, monthly trend and CSV; only active-pipeline
+ * workload counts hide it. This intentionally differs from the historical
+ * ed9daf1 commit ("exclude archived sales chains from reports"), which
+ * removed archived real Won revenue — a business-rule conflict with the
+ * official TERAS rule that a real archived sales record must not lose its
+ * historical Sales revenue.
  *
  * Deduplication (Task 2): sales_lead_metadata has a real
  * unique(lead_source, source_id) constraint (one row per source lead) and
@@ -211,10 +228,56 @@ export default async function SalesReportsPage({
   // period its opportunity row happens to have been created in). ----
   const leadIds = leads.map((l: any) => l.id);
   const { data: leadsWithOppRaw } = leadIds.length
-    ? await supabase.from("sales_opportunities").select("lead_metadata_id").eq("is_test", false).in("lead_metadata_id", leadIds)
+    ? await supabase.from("sales_opportunities").select("id, stage, lead_metadata_id").eq("is_test", false).in("lead_metadata_id", leadIds)
     : { data: [] as any[] };
   const leadIdsWithOpportunity = new Set((leadsWithOppRaw ?? []).map((o: any) => o.lead_metadata_id));
   const isQualified = (l: any) => QUALIFIED_OR_LATER.has(l.status) || leadIdsWithOpportunity.has(l.id);
+
+  // ---- Archive exclusion — ACTIVE-pipeline surfaces only. Official rule:
+  // archived != test/demo. A real archived chain never loses its legitimate
+  // historical Won/lost/value standing, so the historical metrics below
+  // (funnel, conversions, lead source, quotation performance, won/lost, sales
+  // value, top programmes, monthly trend, CSV) deliberately keep archived
+  // REAL records. Only the Owner Summary's active-workload columns (leads /
+  // opportunities / follow-ups / tasks due) hide archived chains, matching
+  // the Dashboard, Follow-ups queue and Stage Distribution, which already
+  // treat 'archived' as an administratively hidden/dead record. Date-
+  // unfiltered lookups are required because tasks are due-dated inside the
+  // range while their lead/opportunity may predate it. ----
+  const workloadOppIds = new Set<string>([...opps.map((o: any) => o.id), ...tasksDue.map((t: any) => t.opportunity_id).filter(Boolean)]);
+  const taskQuotationIds = tasksDue.filter((t: any) => t.quotation_id && !t.opportunity_id).map((t: any) => t.quotation_id);
+  const { data: taskQuotationRowsRaw } = taskQuotationIds.length
+    ? await supabase.from("sales_quotations").select("id, opportunity_id").eq("is_test", false).in("id", taskQuotationIds)
+    : { data: [] as any[] };
+  const taskQuotationToOpp = new Map<string, string>((taskQuotationRowsRaw ?? []).map((q: any) => [q.id, q.opportunity_id]));
+  for (const oppId of taskQuotationToOpp.values()) if (oppId) workloadOppIds.add(oppId);
+
+  const outOfRangeOppIds = [...workloadOppIds].filter((id) => !opps.some((o: any) => o.id === id));
+  const { data: outOfRangeOppRowsRaw } = outOfRangeOppIds.length
+    ? await supabase.from("sales_opportunities").select("id, stage, lead_metadata_id").eq("is_test", false).in("id", outOfRangeOppIds)
+    : { data: [] as any[] };
+
+  const workloadLeadIds = new Set<string>([
+    ...leads.map((l: any) => l.id),
+    ...tasksDue.map((t: any) => t.lead_metadata_id).filter(Boolean),
+    ...(outOfRangeOppRowsRaw ?? []).map((o: any) => o.lead_metadata_id).filter(Boolean),
+  ]);
+  const outOfRangeLeadIds = [...workloadLeadIds].filter((id) => !leads.some((l: any) => l.id === id));
+  const { data: outOfRangeLeadRowsRaw } = outOfRangeLeadIds.length
+    ? await supabase.from("sales_lead_metadata").select("id, status").eq("is_test", false).in("id", outOfRangeLeadIds)
+    : { data: [] as any[] };
+
+  const { excludedLeadIds, excludedOppIds } = resolveReportArchiveState(
+    leads as any[],
+    opps as any[],
+    [...(leads as any[]), ...(outOfRangeLeadRowsRaw ?? [])],
+    [...(opps as any[]), ...(leadsWithOppRaw ?? []), ...(outOfRangeOppRowsRaw ?? [])]
+  );
+  const taskInArchivedChain = (t: any) =>
+    excludedLeadIds.has(t.lead_metadata_id) || excludedOppIds.has(t.opportunity_id) || excludedOppIds.has(taskQuotationToOpp.get(t.quotation_id) ?? "");
+  const activeWorkloadLeads = leads.filter((l: any) => !excludedLeadIds.has(l.id));
+  const activeWorkloadOpps = opps.filter((o: any) => !excludedOppIds.has(o.id));
+  const activeWorkloadTasks = tasksDue.filter((t: any) => !taskInArchivedChain(t));
 
   // ---- Top Programmes: participant counts, only where a real handoff exists (Phase 3 traceability). ----
   const wonOppIds = won.map((o: any) => o.id);
@@ -348,10 +411,10 @@ export default async function SalesReportsPage({
   // ==================================================================
   const ownerRows = staff
     .map((s) => {
-      const ownerLeads = leads.filter((l: any) => l.assigned_to === s.id).length;
-      const ownerOpps = opps.filter((o: any) => o.assigned_to === s.id).length;
-      const ownerFollowUps = leads.filter((l: any) => l.assigned_to === s.id && l.follow_up_at && !["won", "lost", "archived"].includes(l.status)).length;
-      const ownerTasksDue = tasksDue.filter((t: any) => t.assigned_to === s.id).length;
+      const ownerLeads = activeWorkloadLeads.filter((l: any) => l.assigned_to === s.id).length;
+      const ownerOpps = activeWorkloadOpps.filter((o: any) => o.assigned_to === s.id).length;
+      const ownerFollowUps = activeWorkloadLeads.filter((l: any) => l.assigned_to === s.id && l.follow_up_at && !["won", "lost", "archived"].includes(l.status)).length;
+      const ownerTasksDue = activeWorkloadTasks.filter((t: any) => t.assigned_to === s.id).length;
       const ownerWonOpps = won.filter((o: any) => o.assigned_to === s.id);
       const ownerWonValue = ownerWonOpps.reduce((sum: number, o: any) => sum + (acceptedByOpp.get(o.id) ?? 0), 0);
       return { name: s.full_name, leads: ownerLeads, opportunities: ownerOpps, followUps: ownerFollowUps, tasksDue: ownerTasksDue, won: ownerWonOpps.length, wonValue: ownerWonValue };
