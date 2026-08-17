@@ -340,12 +340,19 @@ const PRINT_STYLE = `
 
 .att-confirm {
   margin-top: 8px; border-top: 2px solid var(--att-navy); padding-top: 6px; padding-bottom: 0;
-  break-inside: avoid; page-break-inside: avoid;
 }
+/* globals.css:6755 scopes section{padding-block:86px} to body:has(.teras-admin)
+   — specificity (0,2,2) — which outranks the bare .att-confirm (0,1,0) and
+   adds 172px to this verification <section>, inflating it off page 1 (the
+   whole block then gets pushed to page 2, leaving a blank page-1 gap). The
+   padding override below is re-scoped to (0,3,0) so it wins. */
+.att-print-sheet .att-print-doc .att-confirm { padding-top: 6px; padding-bottom: 0; }
 .att-confirm-grid {
   display: grid; grid-template-columns: 1fr 1fr; gap: 28px;
-  break-inside: avoid; page-break-inside: avoid;
 }
+/* Columns stay intact if a genuinely large roster forces a page break; the
+   container itself is allowed to flow so it is never yanked wholesale to the
+   next page over a small remaining gap. */
 .att-confirm-col { min-width: 0; break-inside: avoid; page-break-inside: avoid; }
 @media (max-width: 640px) {
   /* Screen preview only — print A4 landscape keeps the side-by-side columns. */
@@ -375,13 +382,16 @@ const PRINT_STYLE = `
 
 /* One-page budget @100% scale, Headers/Footers OFF (A4 landscape =
    297mm wide ≈ 1122px, 210mm tall ≈ 794px; @page margins 12mm LR + 10mm TB
-   leave ≈ 1032px × 718px printable). Measured via headless-Chrome print media
-   for an 11-participant, 10-session sheet: header 52 · metadata 60 (two
-   rows) · legend 18 · thead 20 · 11 rows ≈ 374 (26–40px each, names wrapping
-   to two lines) · confirmation 85 · footer 24 ≈ 633px, ~85px spare — fits a
-   single A4 landscape page. A roster whose names all wrap to three lines can
-   still legitimately roll to a second page, with the header row repeating —
-   correct behaviour, not a regression. */
+   leave ≈ 1032px × 718px printable). Measured in real page context
+   (globals.css + admin.css + Montserrat/Poppins + admin shell) via
+   headless-Chrome print media for an 11-participant, 10-session sheet:
+   header 52 · metadata 60 (two rows) · legend 18 · thead 20 · 11 rows ≈ 374
+   (26–40px each, names wrapping to two lines) · confirmation 85 · footer 24
+   ≈ 633px, ~85px spare — fits a single A4 landscape page. (Before the
+   padding override above, globals' body:has(.teras-admin) section rule
+   silently added 172px and pushed the sheet to two pages.) A roster whose
+   names all wrap to three lines can still legitimately roll to a second
+   page, with the header row repeating — correct behaviour, not a regression. */
 @page { size: A4 landscape; margin: 10mm 12mm; }
 
 @media print {
