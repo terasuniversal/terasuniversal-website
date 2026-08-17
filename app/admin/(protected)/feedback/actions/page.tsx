@@ -27,7 +27,12 @@ export default async function FeedbackActionsPage({
     (() => {
       let q = supabase
         .from("feedback_improvement_actions")
-        .select("id, title, category, department, priority, status, assigned_to, due_date, corrective_action, verification_note, feedback_issues(title), profiles(full_name)")
+        // feedback_improvement_actions has three separate FKs into profiles
+        // (assigned_to/created_by/updated_by) — PostgREST can't infer which
+        // one "profiles(...)" means without the FK name, and errors with
+        // PGRST201 ("more than one relationship was found"). Qualify the
+        // embed by the exact constraint name for the one we want (assignee).
+        .select("id, title, category, department, priority, status, assigned_to, due_date, corrective_action, verification_note, feedback_issues(title), profiles!feedback_improvement_actions_assigned_to_fkey(full_name)")
         .order("created_at", { ascending: false })
         .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
       if (sp.status) q = q.eq("status", sp.status);
