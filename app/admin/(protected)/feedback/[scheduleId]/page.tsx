@@ -6,7 +6,7 @@ import { PageHead, Card, StatCard, EmptyState } from "../../../../../components/
 import { FeedbackLinkCard, type FeedbackLinkRow } from "./FeedbackLinkCard";
 import { GenerateLinksForm } from "./GenerateLinksForm";
 import { ClassFeedbackQrCard } from "./ClassFeedbackQrCard";
-import { siteOrigin } from "../../../../../lib/site-origin";
+import { canonicalSiteOrigin } from "../../../../../lib/site-origin";
 
 export const metadata = { title: "Schedule Feedback — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
@@ -16,7 +16,7 @@ export default async function ScheduleFeedbackPage({ params }: { params: Promise
   await requireModuleAccess("feedback");
   const { scheduleId } = await params;
   const supabase = await createSupabaseServerClient();
-  const origin = await siteOrigin();
+  const origin = await canonicalSiteOrigin();
 
   const { data: schedule } = await supabase
     .from("course_schedules")
