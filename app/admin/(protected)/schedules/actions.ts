@@ -26,6 +26,7 @@ function readForm(formData: FormData) {
     status: (v("status") || "open") as any,
     is_published: formData.get("is_published") === "on",
     notes: v("notes"),
+    assessor_id: v("assessor_id"),
     source_opportunity_id: v("source_opportunity_id"),
     source_quotation_id: v("source_quotation_id"),
   };
@@ -36,6 +37,9 @@ function clean(data: any) {
   for (const k of ["trainer_name", "venue", "training_mode", "start_time", "end_time", "notes", "source_opportunity_id", "source_quotation_id"]) {
     if (!out[k]) out[k] = null;
   }
+  // assessor_id is not a course_schedules column — it is stored relationally
+  // in schedule_assessors (see applyAssessorAssignment below).
+  delete out.assessor_id;
   return out;
 }
 
@@ -57,7 +61,8 @@ export async function createSchedule(_prev: ScheduleFormState, formData: FormDat
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
   const supabase = await createSupabaseServerClient();
-  const payload = clean(parsed.data);
+  const { assessor_id, ...scheduleData } = parsed.data;
+  const payload = clean(scheduleData);
   const { data: created, error } = await supabase
     .from("course_schedules")
     .insert(payload)
@@ -72,6 +77,19 @@ export async function createSchedule(_prev: ScheduleFormState, formData: FormDat
       return { message: "A training schedule has already been created from this opportunity." };
     }
     return { message: error.message };
+  }
+  if (!created) return { message: "Schedule could not be created." };
+
+  // Optional primary-assessor assignment. The schedule is committed first
+  // (schedule creation stays committed on assignment failure); any assignment
+  // error is surfaced on the schedule detail page as a partial-success
+  // recovery state rather than silently dropped.
+  if (assessor_id) {
+    const assignErr = await applyAssessorAssignment(supabase, created.id, assessor_id);
+    if (assignErr) {
+      revalidatePath("/admin/schedules");
+      redirect(`/admin/schedules/${created.id}?assessor_error=${encodeURIComponent(assignErr)}`);
+    }
   }
 
   if (payload.source_opportunity_id) {
@@ -106,8 +124,13 @@ export async function updateSchedule(id: string, _prev: ScheduleFormState, formD
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.from("course_schedules").update(clean(parsed.data)).eq("id", id);
+  const { assessor_id, ...scheduleData } = parsed.data;
+  const { error } = await supabase.from("course_schedules").update(clean(scheduleData)).eq("id", id);
   if (error) return { message: error.message };
+  // Assignment is atomic via RPC; on failure the schedule update is already
+  // committed, so surface the partial-success error on the edit form.
+  const assignErr = await applyAssessorAssignment(supabase, id, assessor_id ?? "");
+  if (assignErr) return { message: `Schedule updated, but the primary assessor could not be assigned: ${assignErr}` };
   revalidatePath("/admin/schedules");
   revalidatePath(`/admin/schedules/${id}`);
   redirect(`/admin/schedules/${id}`);
@@ -216,4 +239,58 @@ export async function removeParticipant(scheduleId: string, assignmentId: string
   const supabase = await createSupabaseServerClient();
   await supabase.from("schedule_participants").update({ registration_status: "cancelled" }).eq("id", assignmentId);
   revalidatePath(`/admin/schedules/${scheduleId}`);
+}
+
+// --------------------------------------------------------------------
+// Assessor assignment (Assessor Management Phase 1)
+// --------------------------------------------------------------------
+
+/** Map a set_schedule_assessor RPC error to a staff-facing message. */
+function mapAssignmentError(error: { code?: string; message: string }): string {
+  if (error.code === "42501" || /forbidden/i.test(error.message)) {
+    return "You don't have permission to manage schedule assessors.";
+  }
+  if (/schedule_not_found/i.test(error.message)) return "Schedule not found.";
+  if (/assessor_not_found_or_inactive/i.test(error.message)) {
+    return "The selected assessor is not active or no longer exists.";
+  }
+  return error.message;
+}
+
+/**
+ * Apply a primary assessor assignment for a schedule by delegating to the
+ * atomic public.set_schedule_assessor RPC (assign / replace / remove as one
+ * DB transaction — the old assignment is preserved if the new one fails, and
+ * the audit row commits with the change). Returns a staff-facing error string
+ * on failure, or null on success. Callers must surface the error — never
+ * silently ignore an assignment failure.
+ */
+async function applyAssessorAssignment(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  scheduleId: string,
+  assessorId: string
+): Promise<string | null> {
+  const { error } = await supabase.rpc("set_schedule_assessor", {
+    p_schedule_id: scheduleId,
+    p_assessor_id: assessorId || null,
+  });
+  if (error) return mapAssignmentError(error);
+  return null;
+}
+
+/** Standalone assign/replace/remove used by the schedule detail page control.
+ *  Signature matches the useActionState form pattern (reads assessor_id from
+ *  the submitted form). */
+export async function setScheduleAssessor(scheduleId: string, _prev: ScheduleFormState, formData: FormData): Promise<ScheduleFormState> {
+  await requireRole("admin");
+  await requireModuleAccess("schedules", "admin");
+  await requireModuleAccess("assessors");
+  const assessorId = String(formData.get("assessor_id") ?? "").trim();
+  const supabase = await createSupabaseServerClient();
+  const err = await applyAssessorAssignment(supabase, scheduleId, assessorId);
+  if (err) return { message: err };
+  revalidatePath(`/admin/schedules/${scheduleId}`);
+  revalidatePath(`/admin/assessment/${scheduleId}`);
+  revalidatePath(`/admin/attendance/${scheduleId}/print`);
+  return {};
 }

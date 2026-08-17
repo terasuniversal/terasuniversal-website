@@ -92,6 +92,9 @@ export const scheduleSchema = z
     status: z.enum(["open", "full", "in_progress", "completed", "cancelled"]).default("open"),
     is_published: z.boolean().default(true),
     notes: z.string().trim().max(2000).optional().or(z.literal("")),
+    // Primary assessor assignment (Assessor Management Phase 1) — stored
+    // relationally in schedule_assessors, never on course_schedules.
+    assessor_id: z.string().uuid("Select an assessor").optional().or(z.literal("")),
     // Sales CRM Phase 3 handoff traceability — set only when this schedule
     // is created from a Won Opportunity's "Create Training Schedule" action;
     // empty string on every normal create/edit.
@@ -246,6 +249,22 @@ export const trainerSchema = z.object({
   joining_date: z.string().date("Enter a valid date").optional().or(z.literal("")),
 });
 export type TrainerInput = z.infer<typeof trainerSchema>;
+
+/** Assessor master data (Assessor Management Phase 1). Mirrors trainerSchema's
+ *  shape/validation conventions; status is a select that maps to the table's
+ *  boolean is_active in the server action. */
+export const assessorSchema = z.object({
+  full_name: z.string().trim().min(2, "Full name is required").max(160),
+  ic_passport_no: z.string().trim().max(40).optional().or(z.literal("")),
+  phone: z.string().trim().max(40).optional().or(z.literal("")),
+  email: z.string().trim().email("Enter a valid email").max(254).optional().or(z.literal("")),
+  organization: z.string().trim().max(200).optional().or(z.literal("")),
+  qualification: z.string().trim().max(200).optional().or(z.literal("")),
+  notes: z.string().trim().max(2000).optional().or(z.literal("")),
+  status: z.enum(["active", "inactive"]).default("active"),
+});
+export type AssessorInput = z.infer<typeof assessorSchema>;
+
 
 export const newUserSchema = z.object({
   email: z.string().email(),
