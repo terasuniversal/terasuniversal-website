@@ -9,6 +9,7 @@ import { SOURCE_LABELS, followUpState, type SalesLeadInboxRow, type SalesActivit
 import { LeadActionsPanel } from "./LeadActionsPanel";
 import { LeadActivityTimeline } from "./LeadActivityTimeline";
 import { formatMalaysiaDateTime } from "../../../../../../lib/date-time";
+import { checkLeadRegistrationEligibility } from "../registration-schedules";
 
 export const metadata = { title: "Lead Detail — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
@@ -65,6 +66,28 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
     .eq("lead_metadata_id", id)
     .maybeSingle();
 
+  // Personal/Company Registration — the lead's registered schedule outcome,
+  // and whether the current staff member may register (needs participants +
+  // schedules + sales_leads module access; the page already enforces editor+).
+  const { data: regMeta } = await supabase
+    .from("sales_lead_metadata")
+    .select("registration_schedule_id")
+    .eq("id", id)
+    .maybeSingle();
+  let registeredSchedule: { id: string; schedule_code: string; course_name: string } | null = null;
+  if (regMeta?.registration_schedule_id) {
+    const { data: rs } = await supabase
+      .from("course_schedules")
+      .select("id, schedule_code, courses(course_name)")
+      .eq("id", regMeta.registration_schedule_id)
+      .maybeSingle();
+    registeredSchedule = rs as any ?? null;
+  }
+  const { data: moduleAccess } = await supabase.rpc("get_my_module_access");
+  const modules = Array.isArray(moduleAccess) ? moduleAccess.map((m: { module_key: string }) => m.module_key) : [];
+  const canRegister = modules.includes("sales_leads") && modules.includes("participants") && modules.includes("schedules");
+  const registrationEligibility = checkLeadRegistrationEligibility({ status: row.status, is_test: row.is_test });
+
   return (
     <>
       <PageHead
@@ -110,6 +133,37 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         </div>
 
         <div className="ta-lead-detail-side">
+          {canRegister && (
+            <Card title="Registration">
+              <div className="ta-card-pad ta-stack">
+                {registeredSchedule ? (
+                  <p style={{ margin: 0, fontSize: 13, color: "var(--ta-muted)" }}>
+                    <strong>Registered to</strong>{" "}
+                    <Link href={`/admin/schedules/${registeredSchedule.id}`} className="ta-link">
+                      {registeredSchedule.course_name} · {registeredSchedule.schedule_code}
+                    </Link>
+                  </p>
+                ) : (
+                  <p style={{ margin: 0, fontSize: 13, color: "var(--ta-muted)" }}>Not registered to a schedule yet.</p>
+                )}
+                {registrationEligibility.eligible ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <Link href={`/admin/sales/leads/${id}/personal-registration`} className="ta-btn ta-btn-outline ta-btn-sm">
+                      Personal Registration
+                    </Link>
+                    <Link href={`/admin/sales/leads/${id}/company-registration`} className="ta-btn ta-btn-outline ta-btn-sm">
+                      Company Registration
+                    </Link>
+                  </div>
+                ) : (
+                  <p className="ta-alert ta-alert-error" style={{ margin: 0, fontSize: 13 }} role="alert">
+                    {registrationEligibility.reason}
+                  </p>
+                )}
+              </div>
+            </Card>
+          )}
+
           <LeadActionsPanel
             leadMetadataId={row.lead_metadata_id}
             status={row.status}
