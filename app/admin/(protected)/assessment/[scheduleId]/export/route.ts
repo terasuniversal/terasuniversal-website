@@ -21,6 +21,17 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const { data: scheduleRow } = await supabase.from("course_schedules").select("schedule_code, trainer_name, venue, start_date, courses(course_name)").eq("id", scheduleId).single();
   const s = scheduleRow as any;
 
+  // Assigned PRIMARY assessor (Assessor Management Phase 1, display-only).
+  // assessments.assessor_id is per-participant attribution and is deliberately
+  // not used here. No primary assessor => blank manual handwriting line.
+  const { data: assessorAssignment } = await supabase
+    .from("schedule_assessors")
+    .select("assessor_id, assessors(full_name)")
+    .eq("schedule_id", scheduleId)
+    .eq("is_primary", true)
+    .maybeSingle();
+  const assessorName = (assessorAssignment as any)?.assessors?.full_name ?? "";
+
   const { data: roster } = await supabase
     .from("schedule_participants")
     .select("participant_id, participants(participant_id, full_name, company)")
@@ -79,7 +90,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 <h1>TERAS UNIVERSAL — ${esc(title)}</h1>
 <p>Schedule: ${esc(s?.schedule_code ?? "")} · Trainer: ${esc(s?.trainer_name ?? "-")} · Venue: ${esc(s?.venue ?? "-")} · Date: ${esc(s?.start_date ?? "")}</p>
 <table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>
-<p style="margin-top:26px">Assessor signature: ____________________________  Date: ____________</p>
+<div style="margin-top:26px;border-top:1px solid #ccc;padding-top:12px">
+  <strong style="font-size:12px">ASSESSOR VERIFICATION</strong>
+  <p style="margin:10px 0 2px;color:#0B2C56;font-size:12px"><strong>Assessor Name:</strong> ${esc(assessorName)}</p>
+  <p style="margin:2px 0;color:#0B2C56;font-size:12px"><strong>Signature:</strong> ____________________________</p>
+  <p style="margin:2px 0;color:#0B2C56;font-size:12px"><strong>Date:</strong> ____________________________</p>
+</div>
 </body></html>`;
       return new NextResponse(html, { headers: { "Content-Type": "text/html; charset=utf-8" } });
     }
