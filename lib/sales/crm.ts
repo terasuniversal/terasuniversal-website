@@ -359,6 +359,7 @@ export interface SalesLeadInboxRow {
   priority: SalesCrmPriority;
   lost_reason: SalesCrmLostReason | null;
   won_at: string | null;
+  is_test: boolean;
   created_at: string;
   updated_at: string;
   contact_name: string | null;

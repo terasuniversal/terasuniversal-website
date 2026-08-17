@@ -27,20 +27,23 @@ export default async function SalesDashboardPage() {
 
   // Each query is built (not awaited) here, then resolved together — no
   // `await` inside the Promise.all array literal (CLAUDE.md §5/§13).
-  const newLeadsQuery = supabase.from("sales_lead_metadata").select("id", { count: "exact", head: true }).eq("status", "new");
-  const openOpportunitiesQuery = supabase.from("sales_lead_metadata").select("id", { count: "exact", head: true }).in("status", OPEN_OPPORTUNITY_STATUSES);
+  // Test/demo chains (is_test=true) are excluded from every dashboard KPI.
+  const newLeadsQuery = supabase.from("sales_lead_metadata").select("id", { count: "exact", head: true }).eq("status", "new").eq("is_test", false);
+  const openOpportunitiesQuery = supabase.from("sales_lead_metadata").select("id", { count: "exact", head: true }).in("status", OPEN_OPPORTUNITY_STATUSES).eq("is_test", false);
   const followUpsDueQuery = supabase
     .from("sales_lead_metadata")
     .select("id", { count: "exact", head: true })
+    .eq("is_test", false)
     .lte("follow_up_at", nowIso)
     .not("follow_up_at", "is", null)
     .not("status", "in", "(won,lost,archived)");
-  const proposalSentQuery = supabase.from("sales_lead_metadata").select("id", { count: "exact", head: true }).eq("status", "proposal_sent");
-  const wonThisMonthQuery = supabase.from("sales_lead_metadata").select("id", { count: "exact", head: true }).eq("status", "won").gte("won_at", startOfMonth);
-  const lostQuery = supabase.from("sales_lead_metadata").select("id", { count: "exact", head: true }).eq("status", "lost");
+  const proposalSentQuery = supabase.from("sales_lead_metadata").select("id", { count: "exact", head: true }).eq("status", "proposal_sent").eq("is_test", false);
+  const wonThisMonthQuery = supabase.from("sales_lead_metadata").select("id", { count: "exact", head: true }).eq("status", "won").eq("is_test", false).gte("won_at", startOfMonth);
+  const lostQuery = supabase.from("sales_lead_metadata").select("id", { count: "exact", head: true }).eq("status", "lost").eq("is_test", false);
   const overdueRowsQuery = supabase
     .from("v_sales_lead_inbox")
     .select("*")
+    .eq("is_test", false)
     .lt("follow_up_at", nowIso)
     .not("follow_up_at", "is", null)
     .not("status", "in", "(won,lost,archived)")
@@ -55,12 +58,14 @@ export default async function SalesDashboardPage() {
   const overdueFollowUpsQuery = supabase
     .from("sales_lead_metadata")
     .select("id", { count: "exact", head: true })
+    .eq("is_test", false)
     .lt("follow_up_at", nowIso)
     .not("follow_up_at", "is", null)
     .not("status", "in", "(won,lost,archived)");
   const followUpsDueTodayQuery = supabase
     .from("sales_lead_metadata")
     .select("id", { count: "exact", head: true })
+    .eq("is_test", false)
     .gte("follow_up_at", nowIso)
     .lt("follow_up_at", endOfTodayMyt)
     .not("status", "in", "(won,lost,archived)");

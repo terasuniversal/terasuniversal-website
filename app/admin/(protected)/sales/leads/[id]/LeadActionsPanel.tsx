@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useActionState, useRef, useState } from "react";
 import { Card, Field } from "../../../../../../components/admin/ui";
-import { updateLeadStatus, assignLead, setLeadFollowUp, addLeadNote, convertLeadToOpportunity, type SalesActionState } from "../actions";
+import { updateLeadStatus, assignLead, setLeadFollowUp, addLeadNote, convertLeadToOpportunity, markLeadTest, type SalesActionState } from "../actions";
 import { CRM_STATUS_ORDER, CRM_STATUS_LABELS, LOST_REASONS, LOST_REASON_LABELS, type SalesCrmStatus, type SalesCrmPriority } from "../../../../../../lib/sales/crm";
 
 const INITIAL: SalesActionState = {};
@@ -18,6 +18,8 @@ export function LeadActionsPanel({
   canManage,
   existingOpportunity,
   defaultOpportunityTitle,
+  isSuperAdmin,
+  isTest,
 }: {
   leadMetadataId: string;
   status: SalesCrmStatus;
@@ -28,12 +30,18 @@ export function LeadActionsPanel({
   canManage: boolean;
   existingOpportunity: { id: string; opportunity_no: string } | null;
   defaultOpportunityTitle?: string;
+  isSuperAdmin?: boolean;
+  isTest?: boolean;
 }) {
   const [convertState, convertAction, convertPending] = useActionState(convertLeadToOpportunity.bind(null, leadMetadataId), INITIAL);
   const [statusState, statusAction, statusPending] = useActionState(updateLeadStatus.bind(null, leadMetadataId), INITIAL);
   const [assignState, assignAction, assignPending] = useActionState(assignLead.bind(null, leadMetadataId), INITIAL);
   const [followUpState, followUpAction, followUpPending] = useActionState(setLeadFollowUp.bind(null, leadMetadataId), INITIAL);
   const [noteState, noteAction, notePending] = useActionState(addLeadNote.bind(null, leadMetadataId), INITIAL);
+  const [testState, testAction, testPending] = useActionState<SalesActionState, FormData>(
+    async (_prev, _fd) => markLeadTest(leadMetadataId, !isTest),
+    INITIAL
+  );
 
   const [pendingStatus, setPendingStatus] = useState<SalesCrmStatus>(status);
   const statusFormRef = useRef<HTMLFormElement>(null);
@@ -171,6 +179,22 @@ export function LeadActionsPanel({
           </button>
         </form>
       </Card>
+
+      {isSuperAdmin && (
+        <Card title="Test/Demo Classification">
+          <form action={testAction} className="ta-card-pad ta-stack">
+            {testState.message && <div className="ta-alert ta-alert-error">{testState.message}</div>}
+            <p style={{ margin: 0, fontSize: 13, color: "var(--ta-muted)" }}>
+              {isTest
+                ? "Classified as Test/Demo — excluded from all Sales KPIs, reports and CSV exports (its opportunity/quotation chain is excluded too)."
+                : "Classified as real — counted in Sales KPIs, reports and CSV exports."}
+            </p>
+            <button type="submit" className="ta-btn ta-btn-outline ta-btn-sm" disabled={testPending}>
+              {testPending ? "Saving…" : isTest ? "Mark as Real" : "Mark as Test/Demo"}
+            </button>
+          </form>
+        </Card>
+      )}
 
       {!canManage && (
         <Card title="Manage Lead">
