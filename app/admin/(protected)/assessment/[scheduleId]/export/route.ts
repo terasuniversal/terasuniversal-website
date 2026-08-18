@@ -287,8 +287,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   /* Each .asm-print-page is a fully self-contained, deterministically-sized
      printed page (see the route handler's paginate() comment) -- every one
      except the last gets an explicit page break, instead of letting the
-     browser decide where a single long table should fragment. */
+     browser decide where a single long table should fragment. The last page
+     is explicit too (break-after: auto is the default, but stated here so
+     nothing relies on that default silently): there is no page after it, so
+     nothing should ever force one. */
   .asm-print-page:not(:last-of-type) { break-after: page; page-break-after: always; }
+  .asm-print-page:last-of-type { break-after: auto; page-break-after: auto; }
   .asm-head { background: #0B3A63; color: #fff; padding: 10px 16px; border-bottom: 3px solid #D4AF37; }
   .asm-head strong { display: block; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: #D4AF37; }
   .asm-head h1 { margin: 2px 0 0; font-size: 17px; font-weight: 800; letter-spacing: .04em; }
@@ -314,14 +318,20 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
      dedicated width, unlike a person's name which has no such bound. */
   th.ic, td.ic { white-space: nowrap; }
   tbody tr { break-inside: avoid; page-break-inside: avoid; }
-  /* Plain block flow, NOT display:grid/flex. break-inside:avoid stays here
-     as a safety net, but now that every .asm-print-page is deterministically
-     sized to fit the sign-off alongside its own row chunk (see paginate() in
-     the route handler), this section is never actually adjacent to a table
-     that spans multiple pages -- the specific condition that caused every
-     earlier pagination failure (reordering, a phantom repeated-header page,
-     the block splitting) simply no longer exists. */
-  .asm-signoff { margin-top: 8px; border-top: 2px solid #0B3A63; padding-top: 6px; break-inside: avoid; page-break-inside: avoid; }
+  /* Plain block flow, NOT display:grid/flex, and deliberately NO
+     break-inside/page-break-inside here. paginate() in the route handler
+     already groups this section's row chunk + sign-off into a single
+     .asm-print-page sized (by estimate, not a live measurement) to fit one
+     physical page -- but break-inside:avoid is a binary "fits entirely or
+     relocate the WHOLE block to a fresh page" rule, independent of that
+     grouping. Whenever the real rendered height came in even slightly over
+     the estimate, Chrome relocated this entire section to its own page
+     rather than just the small overflow -- exactly the "sign-off alone on
+     the next page" symptom, now on a single-page container instead of
+     across a fragmenting table. The only explicit page break in this
+     document is .asm-print-page's break-after, between pages the server
+     already decided on; nothing here should introduce another one. */
+  .asm-signoff { margin-top: 8px; border-top: 2px solid #0B3A63; padding-top: 6px; }
   .asm-signoff > strong { display: block; font-size: 11px; color: #0B3A63; letter-spacing: .06em; margin-bottom: 4px; }
   .asm-signoff-block { margin-bottom: 8px; font-size: 12px; }
   .asm-signoff-block p { margin: 2px 0; }
