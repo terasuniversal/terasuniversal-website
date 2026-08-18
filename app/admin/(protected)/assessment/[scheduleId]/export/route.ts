@@ -189,29 +189,33 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         ? signOffBlock(assessorDisplay.assessor)
         : assessorDisplay.entries.map((e) => signOffBlock(e.assessor, `${e.label} (${e.isOverride ? "Override" : "Class Assessor"})`)).join("");
 
-    // Root cause of the earlier reordering AND the later "16 rows visibly fit
-    // but sign-off still jumps to its own near-empty page" bug: Chromium's
-    // print fragmentation for a block-level sibling placed AFTER a closed
-    // </table> is unreliable once that table's own row count is enough to
-    // make Chromium plan multi-page layout -- break-inside:avoid on that
-    // sibling gets evaluated against an unreliable "does it fit" estimate,
-    // and Chromium can hold back table rows and/or misplace the sibling
-    // regardless of how small the block actually is (verified: shrinking the
-    // block's height alone did not fix it). The reliable fix is to stop
-    // asking Chromium to fragment "table, then a separate flow block" at
-    // all -- native <tfoot> is specifically designed by the CSS Fragmentation
-    // spec to be laid out as part of the SAME table fragmentation pass as
-    // <tbody>, attached to the table's last page when it fits and pushed
-    // whole to a new page only when it genuinely doesn't -- exactly the
-    // "no signature-only page unless the roster truly leaves no room"
-    // behavior needed here. Colspan matches the live column count.
-    const colCount = showGroupColumn ? 9 : 8;
-    const printFoot = `<tfoot><tr><td colspan="${colCount}" class="asm-signoff-cell">
+    // Two structural approaches were tried and rejected before this one:
+    //  1. A sibling <section> after </table> with break-inside:avoid --
+    //     caused Chromium to reorder content (rows 14-30 printed AFTER a
+    //     sign-off-only page, ahead of where they belong in document order).
+    //  2. Moving the sign-off into the table's own <tfoot> -- table
+    //     fragmentation put it in the right ORDER, but <thead> unconditionally
+    //     repeats on every table fragment per the CSS Fragmentation spec,
+    //     including a fragment that ends up containing nothing but the
+    //     <tfoot> -- producing a phantom page with a repeated header and zero
+    //     participant rows once the sign-off didn't fit alongside the tail of
+    //     the roster.
+    // Both failures traced back to the SAME trigger: break-inside:avoid (or
+    // being *inside* a table's own fragmentation machinery) on a block
+    // immediately adjacent to a <table> that itself needs to fragment across
+    // pages. The fix here is a true sibling <section> AFTER the closed
+    // </table> (plain, ordinary document flow -- no table/tfoot involvement,
+    // matching the requested architecture) with NO break-inside/
+    // page-break-inside on it or its sub-blocks. Removing "avoid" trades a
+    // (small, and so far never actually observed) risk of the block splitting
+    // across a page boundary for guaranteed document order and no phantom
+    // pages -- given every attempt at "guarantee it never splits" produced a
+    // worse, structural failure, that trade is the right one.
+    const signOffSection = `
   <section class="asm-signoff">
     <strong>ASSESSOR VERIFICATION</strong>
     ${signOff}
-  </section>
-</td></tr></tfoot>`;
+  </section>`;
 
     const html = `<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title>
 <style>
@@ -227,14 +231,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   .asm-meta dd { display: inline; margin: 0 0 0 5px; }
   table { border-collapse: collapse; width: 100%; font-size: 11px; table-layout: fixed; }
   thead { display: table-header-group; }
-  /* table-footer-group is the load-bearing part of the tfoot fix below:
-     it puts the Assessor Verification cell through the SAME native table
-     fragmentation pass as tbody's rows, instead of asking the browser to
-     fragment "a table, then a separate block" -- which is the combination
-     that was unreliable (see the printFoot comment in the route handler). */
-  tfoot { display: table-footer-group; }
-  tfoot tr, tfoot td { break-inside: avoid; page-break-inside: avoid; }
-  .asm-signoff-cell { border: none; padding: 0; vertical-align: top; }
   /* Only wrap at real word boundaries (the browser default) -- explicitly
      NOT word-break: break-word/anywhere, which is what was producing
      mid-word breaks like "PARTICIPAN / T NAME" in the previous portrait
@@ -248,16 +244,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
      dedicated width, unlike a person's name which has no such bound. */
   th.ic, td.ic { white-space: nowrap; }
   tbody tr { break-inside: avoid; page-break-inside: avoid; }
-  /* Plain block flow, deliberately NOT display:grid/flex (see the route
-     handler's comment on this section) -- a CSS Grid container here is what
-     was causing Chromium to reorder this section ahead of the table's later
-     row fragments instead of placing it after them. break-before: auto is
-     explicit (not the default-implied value) so the browser is never left
-     to infer it should do anything other than continue normal flow after
-     the table. */
-  .asm-signoff { margin-top: 8px; border-top: 2px solid #0B3A63; padding-top: 6px; break-inside: avoid; break-before: auto; page-break-inside: avoid; }
+  /* Plain block flow, NOT display:grid/flex (a grid wrapper here previously
+     caused Chromium to reorder this section ahead of the table's later row
+     fragments) and deliberately NO break-inside/page-break-inside on this
+     section or its sub-blocks -- see the route handler's comment above
+     signOffSection for why: both "avoid" here and moving this content into
+     the table's own <tfoot> were tried and each produced a structural
+     pagination failure (reordered rows, or a phantom repeated-header page).
+     break-before: auto is explicit so the browser is never left to infer
+     anything other than continuing normal flow after the table. */
+  .asm-signoff { margin-top: 8px; border-top: 2px solid #0B3A63; padding-top: 6px; break-before: auto; }
   .asm-signoff > strong { display: block; font-size: 11px; color: #0B3A63; letter-spacing: .06em; margin-bottom: 4px; }
-  .asm-signoff-block { break-inside: avoid; page-break-inside: avoid; margin-bottom: 8px; font-size: 12px; }
+  .asm-signoff-block { margin-bottom: 8px; font-size: 12px; }
   .asm-signoff-block p { margin: 2px 0; }
   .asm-signoff-label { font-weight: 700; color: #0B3A63; }
   .asm-sig-label { margin-bottom: 0; }
@@ -290,7 +288,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   </dl>
   ${
     printRows.length > 0
-      ? `<table>${colgroup}<thead><tr>${printHead}</tr></thead><tbody>${printBody}</tbody>${printFoot}</table>`
+      ? `<table>${colgroup}<thead><tr>${printHead}</tr></thead><tbody>${printBody}</tbody></table>${signOffSection}`
       : `<p class="asm-empty">${groupHeaderValue ? "No participants assigned to this group." : "No participants enrolled in this schedule yet."}</p>`
   }
 </div>
