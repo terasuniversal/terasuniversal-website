@@ -28,7 +28,7 @@ export default async function AssessSchedulePage({
 
   const { data: scheduleRow } = await supabase
     .from("course_schedules")
-    .select("id, schedule_code, trainer_name, venue, start_date, end_date, status, capacity, seats_taken, courses(course_name)")
+    .select("id, schedule_code, trainer_name, venue, exam_date, status, capacity, seats_taken, courses(course_name)")
     .eq("id", scheduleId)
     .single();
   if (!scheduleRow) notFound();
@@ -143,7 +143,11 @@ export default async function AssessSchedulePage({
             )}
           </div>
           <div><small style={{ color: "var(--ta-muted)" }}>Venue</small><div>{s.venue ?? "—"}</div></div>
-          <div><small style={{ color: "var(--ta-muted)" }}>Date</small><div>{new Date(s.start_date).toLocaleDateString("en-MY")}</div></div>
+          {/* Assessment Date must be exam_date, never start_date -- the two
+              represent different real-world events (training start vs. the
+              actual assessment/exam day) and were previously conflated here,
+              silently showing start_date under a bare "Date" label. */}
+          <div><small style={{ color: "var(--ta-muted)" }}>Assessment Date</small><div>{s.exam_date ? new Date(s.exam_date).toLocaleDateString("en-MY") : "Not Recorded"}</div></div>
           <div><small style={{ color: "var(--ta-muted)" }}>Enrolled</small><div>{s.seats_taken}/{s.capacity}</div></div>
           <div><small style={{ color: "var(--ta-muted)" }}>Status</small><div><Badge status={s.status} /></div></div>
         </div>
