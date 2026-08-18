@@ -22,7 +22,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const requestedGroup = sp.get("group");
   const supabase = await createSupabaseServerClient();
 
-  const { data: scheduleRow } = await supabase.from("course_schedules").select("schedule_code, trainer_name, venue, start_date, courses(course_name)").eq("id", scheduleId).single();
+  const { data: scheduleRow } = await supabase
+    .from("course_schedules")
+    .select("schedule_code, trainer_name, venue, start_date, exam_date, courses(course_name, course_code)")
+    .eq("id", scheduleId)
+    .single();
   const s = scheduleRow as any;
 
   // Schedule Groups V1 — same server-validated selection as the Assessment
@@ -46,7 +50,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const { data: rosterRaw } = await supabase
     .from("schedule_participants")
-    .select("participant_id, schedule_group_id, participants(participant_id, full_name, company)")
+    .select("participant_id, schedule_group_id, participants(participant_id, full_name, company, ic_passport_no)")
     .eq("schedule_id", scheduleId)
     .is("deleted_at", null)
     .neq("registration_status", "cancelled");
@@ -107,45 +111,125 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const stamp = new Date().toISOString().slice(0, 10);
   const esc = (v: unknown) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-  if (format === "excel" || format === "report") {
-    const head = H.map(([, l]) => `<th>${esc(l)}</th>`).join("");
-    const body = flat.map((r) => `<tr>${H.map(([k]) => `<td>${esc(r[k])}</td>`).join("")}</tr>`).join("");
-    if (format === "report") {
-      const title = `${s?.courses?.course_name ?? "Training"} — Assessment Report`;
-      const groupLine = selectedGroup
-        ? `<p>Group: <strong>${esc(selectedGroup.name)}</strong></p>`
-        : selection === UNGROUPED
-          ? `<p>Group: <strong>Ungrouped</strong></p>`
-          : "";
-      // Effective assessor per E: never assessments.assessor_id (that stays
-      // per-participant data-entry attribution) -- always the group override
-      // or schedule primary assessor, same rule as Attendance V2's print sheet.
-      const assessorBlock =
-        assessorDisplay.mode === "single"
-          ? `<p style="margin:10px 0 2px;color:#0B2C56;font-size:12px"><strong>Assessor Name:</strong> ${esc(assessorDisplay.assessor)}${assessorDisplay.showLabel && assessorDisplay.assessor ? ` (${assessorDisplay.isOverride ? "Override" : "Class Assessor"})` : ""}</p>
-  <p style="margin:2px 0;color:#0B2C56;font-size:12px"><strong>Signature:</strong> ____________________________</p>`
-          : assessorDisplay.entries
-              .map(
-                (e) =>
-                  `<p style="margin:10px 0 2px;color:#0B2C56;font-size:12px"><strong>${esc(e.label)} — Assessor Name:</strong> ${esc(e.assessor)} (${e.isOverride ? "Override" : "Class Assessor"})</p>
-  <p style="margin:2px 0;color:#0B2C56;font-size:12px"><strong>Signature:</strong> ____________________________</p>`
-              )
-              .join("\n");
-      const html = `<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title>
-<style>body{font-family:Arial,sans-serif;color:#0B2C56;padding:26px}h1{font-size:19px;margin:0 0 4px}p{margin:2px 0;color:#555;font-size:13px}table{border-collapse:collapse;width:100%;font-size:12px;margin-top:16px}th,td{border:1px solid #ccc;padding:6px 8px;text-align:left}th{background:#0B2C56;color:#fff}tfoot td{border:0;padding-top:22px;color:#555;font-size:11px}</style>
+  if (format === "report") {
+    // Print-specific columns per the approved Assessment Sign-off Sheet
+    // design -- deliberately NOT the same shape as the CSV/Excel row above
+    // (Participant ID/Company/Type/Overall are export-interchange fields;
+    // this is a formal signed document, matching Attendance Print's
+    // No./Name/IC convention instead). Blank-value convention ("—") matches
+    // AssessmentTable.tsx's own on-screen rendering for missing scores.
+    type PrintRow = {
+      no: number; name: string; ic: string;
+      theory: string | number; practical: string | number;
+      result: string; competency: string; remarks: string;
+    };
+    const printRows: PrintRow[] = roster.map((r: any, i: number) => {
+      const a = byParticipant.get(r.participant_id);
+      return {
+        no: i + 1,
+        name: r.participants?.full_name ?? "",
+        ic: String(r.participants?.ic_passport_no ?? "").trim() || "—",
+        theory: a?.theory_score ?? "—",
+        practical: a?.practical_score ?? "—",
+        result: a?.result ?? "pending",
+        competency: a?.competency_status ?? "—",
+        remarks: a?.remarks ?? "",
+      };
+    });
+    const printHead = `<th class="no">No.</th><th>Participant Name</th><th>IC / Passport</th><th>Theory</th><th>Practical</th><th>Result</th><th>Competency</th><th>Remarks</th>`;
+    const printBody = printRows
+      .map(
+        (r: PrintRow) =>
+          `<tr><td class="no">${r.no}</td><td>${esc(r.name)}</td><td>${esc(r.ic)}</td><td class="no">${esc(r.theory)}</td><td class="no">${esc(r.practical)}</td><td>${esc(r.result)}</td><td>${esc(r.competency)}</td><td>${esc(r.remarks)}</td></tr>`
+      )
+      .join("");
+
+    const title = `${s?.courses?.course_name ?? "Training"} — Assessment Sheet`;
+    const fmtDate = (d: string | null | undefined) =>
+      d ? new Date(d + "T00:00:00").toLocaleDateString("en-MY", { day: "numeric", month: "long", year: "numeric" }) : "Not Recorded";
+    const groupHeaderValue = selectedGroup ? selectedGroup.name : selection === UNGROUPED ? "Ungrouped" : null;
+
+    // Effective assessor per approved decision 7: never assessments.assessor_id
+    // (that stays per-participant data-entry attribution) -- always the group
+    // override or schedule primary assessor, same rule as Attendance V2's
+    // print sheet. Used both for the quick-reference header line and the
+    // formal sign-off block below.
+    const effectiveAssessorHeaderValue =
+      assessorDisplay.mode === "single"
+        ? assessorDisplay.assessor || "Not assigned"
+        : assessorDisplay.entries.map((e) => `${e.label} — ${e.assessor}`).join("; ");
+
+    const signOffBlock = (assessor: string, label?: string) => `
+  <div class="asm-signoff-block">
+    ${label ? `<p class="asm-signoff-label">${esc(label)}</p>` : ""}
+    <p><strong>Assessor Name:</strong> ${esc(assessor) || "Not assigned"}</p>
+    <p><strong>Signature:</strong> <span class="asm-line"></span></p>
+    <p><strong>Date:</strong> <span class="asm-line"></span></p>
+  </div>`;
+    const signOff =
+      assessorDisplay.mode === "single"
+        ? signOffBlock(assessorDisplay.assessor)
+        : assessorDisplay.entries.map((e) => signOffBlock(e.assessor, `${e.label} (${e.isOverride ? "Override" : "Class Assessor"})`)).join("");
+
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title>
+<style>
+  @page { size: A4 portrait; margin: 14mm 12mm; }
+  body { font-family: Arial, Helvetica, sans-serif; color: #1a1a1a; margin: 0; }
+  .asm-head { background: #0B3A63; color: #fff; padding: 10px 16px; border-bottom: 3px solid #D4AF37; }
+  .asm-head strong { display: block; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: #D4AF37; }
+  .asm-head h1 { margin: 2px 0 0; font-size: 17px; font-weight: 800; letter-spacing: .04em; }
+  .asm-body { padding: 14px 16px 0; }
+  .asm-meta { display: grid; grid-template-columns: repeat(2, 1fr); gap: 3px 24px; margin: 0 0 10px; font-size: 12px; }
+  .asm-meta div { padding: 3px 0; border-bottom: 1px solid #e1e6ee; }
+  .asm-meta dt { display: inline; color: #0B3A63; font-weight: 700; }
+  .asm-meta dd { display: inline; margin: 0 0 0 5px; }
+  table { border-collapse: collapse; width: 100%; font-size: 11px; table-layout: fixed; }
+  thead { display: table-header-group; }
+  th, td { border: 1px solid #c9cfd9; padding: 5px 6px; text-align: left; vertical-align: middle; word-wrap: break-word; }
+  th { background: #0B3A63; color: #fff; font-size: 10px; text-transform: uppercase; letter-spacing: .02em; }
+  th.no, td.no { width: 8%; text-align: center; }
+  tbody tr { break-inside: avoid; page-break-inside: avoid; }
+  .asm-signoff { margin-top: 18px; border-top: 2px solid #0B3A63; padding-top: 10px; break-inside: avoid; page-break-inside: avoid; }
+  .asm-signoff > strong { display: block; font-size: 11px; color: #0B3A63; letter-spacing: .06em; margin-bottom: 6px; }
+  .asm-signoff-block { break-inside: avoid; page-break-inside: avoid; margin-bottom: 10px; font-size: 12px; }
+  .asm-signoff-block p { margin: 3px 0; }
+  .asm-signoff-label { font-weight: 700; color: #0B3A63; }
+  .asm-line { display: inline-block; min-width: 260px; border-bottom: 1px solid #1a1a1a; }
+  .asm-empty { padding: 0 16px 16px; color: #0B3A63; font-weight: 600; }
+</style>
 </head><body onload="window.print()">
-<h1>TERAS UNIVERSAL — ${esc(title)}</h1>
-<p>Schedule: ${esc(s?.schedule_code ?? "")} · Trainer: ${esc(s?.trainer_name ?? "-")} · Venue: ${esc(s?.venue ?? "-")} · Date: ${esc(s?.start_date ?? "")}</p>
-${groupLine}
-<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>
-<div style="margin-top:26px;border-top:1px solid #ccc;padding-top:12px">
-  <strong style="font-size:12px">ASSESSOR VERIFICATION</strong>
-  ${assessorBlock}
-  <p style="margin:2px 0;color:#0B2C56;font-size:12px"><strong>Date:</strong> ____________________________</p>
+<header class="asm-head">
+  <strong>TERAS UNIVERSAL SDN. BHD.</strong>
+  <h1>ASSESSMENT SHEET</h1>
+</header>
+<div class="asm-body">
+  <dl class="asm-meta">
+    <div><dt>Programme / Course:</dt><dd>${esc(s?.courses?.course_name ?? "—")}</dd></div>
+    ${s?.courses?.course_code ? `<div><dt>Course Code:</dt><dd>${esc(s.courses.course_code)}</dd></div>` : ""}
+    <div><dt>Schedule / Batch:</dt><dd>${esc(s?.schedule_code ?? "—")}</dd></div>
+    ${groupHeaderValue ? `<div><dt>Group:</dt><dd>${esc(groupHeaderValue)}</dd></div>` : ""}
+    <div><dt>Assessment Date:</dt><dd>${esc(fmtDate(s?.exam_date))}</dd></div>
+    <div><dt>Venue:</dt><dd>${esc(s?.venue || "—")}</dd></div>
+    <div><dt>Trainer:</dt><dd>${esc(s?.trainer_name || "—")}</dd></div>
+    <div><dt>Effective Assessor:</dt><dd>${esc(effectiveAssessorHeaderValue)}</dd></div>
+  </dl>
+  ${
+    printRows.length > 0
+      ? `<table><thead><tr>${printHead}</tr></thead><tbody>${printBody}</tbody></table>
+  <section class="asm-signoff">
+    <strong>ASSESSOR VERIFICATION</strong>
+    ${signOff}
+  </section>`
+      : `<p class="asm-empty">${groupHeaderValue ? "No participants assigned to this group." : "No participants enrolled in this schedule yet."}</p>`
+  }
 </div>
 </body></html>`;
-      return new NextResponse(html, { headers: { "Content-Type": "text/html; charset=utf-8" } });
-    }
+    return new NextResponse(html, { headers: { "Content-Type": "text/html; charset=utf-8" } });
+  }
+
+  if (format === "excel") {
+    const head = H.map(([, l]) => `<th>${esc(l)}</th>`).join("");
+    const body = flat.map((r) => `<tr>${H.map(([k]) => `<td>${esc(r[k])}</td>`).join("")}</tr>`).join("");
     const xls = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8"></head><body><table border="1"><tr>${head}</tr>${body}</table></body></html>`;
     return new NextResponse(xls, { headers: { "Content-Type": "application/vnd.ms-excel; charset=utf-8", "Content-Disposition": `attachment; filename="assessment-${s?.schedule_code ?? "sheet"}-${stamp}.xls"` } });
   }
