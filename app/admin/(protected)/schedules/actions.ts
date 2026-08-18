@@ -20,6 +20,7 @@ function readForm(formData: FormData) {
     training_mode: v("training_mode"),
     start_date: v("start_date"),
     end_date: v("end_date"),
+    exam_date: v("exam_date"),
     start_time: v("start_time"),
     end_time: v("end_time"),
     capacity: formData.get("capacity") ?? 0,
@@ -34,7 +35,10 @@ function readForm(formData: FormData) {
 
 function clean(data: any) {
   const out: any = { ...data };
-  for (const k of ["trainer_name", "venue", "training_mode", "start_time", "end_time", "notes", "source_opportunity_id", "source_quotation_id"]) {
+  // exam_date is a nullable `date` column and, unlike start_date/end_date, is
+  // genuinely optional -- a blank submission must clear it to NULL, not send
+  // an empty string (which Postgres rejects for a date column).
+  for (const k of ["trainer_name", "venue", "training_mode", "exam_date", "start_time", "end_time", "notes", "source_opportunity_id", "source_quotation_id"]) {
     if (!out[k]) out[k] = null;
   }
   // assessor_id is not a course_schedules column — it is stored relationally
