@@ -169,9 +169,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         ? assessorDisplay.assessor || "Not assigned"
         : assessorDisplay.entries.map((e) => `${e.label} — ${e.assessor}`).join("; ");
 
-    // Real handwritten-signature room (~15mm blank), not a line immediately
-    // after the label -- the underline sits below the blank space, and Date
-    // follows separately underneath.
+    // Real handwritten-signature room (~13mm blank, within the approved
+    // 12-15mm range), not a line immediately after the label -- the
+    // underline sits below the blank space, and Date follows separately
+    // underneath.
     const signOffBlock = (assessor: string, label?: string) => `
   <div class="asm-signoff-block">
     ${label ? `<p class="asm-signoff-label">${esc(label)}</p>` : ""}
@@ -220,8 +221,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const ROW_HEIGHT_MM = 7; // td: 5px*2 padding + 11px font * 1.35 line-height + border, @96dpi
     const FULL_HEADER_MM = 38; // brand bar + body padding + 2-row meta grid + thead
     const CONTINUATION_HEADER_MM = 15; // compact "(continued)" line + body padding + thead
-    const SIGNOFF_BASE_MM = 10; // .asm-signoff section margin/border/padding/heading chrome
-    const SIGNOFF_BLOCK_MM = 30; // per assessor block: name + sig label + 15mm space + underline + date + margin
+    const SIGNOFF_BASE_MM = 7; // .asm-signoff section margin/border/padding/heading chrome (tightened alongside the CSS below)
+    const SIGNOFF_BLOCK_MM = 27; // per assessor block: name + sig label + 13mm space + underline + date + margin (tightened alongside the CSS below)
     const numAssessorBlocks = assessorDisplay.mode === "single" ? 1 : assessorDisplay.entries.length;
     const signOffHeightMm = SIGNOFF_BASE_MM + numAssessorBlocks * SIGNOFF_BLOCK_MM;
 
@@ -331,17 +332,25 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
      across a fragmenting table. The only explicit page break in this
      document is .asm-print-page's break-after, between pages the server
      already decided on; nothing here should introduce another one. */
-  .asm-signoff { margin-top: 8px; border-top: 2px solid #0B3A63; padding-top: 6px; }
-  .asm-signoff > strong { display: block; font-size: 11px; color: #0B3A63; letter-spacing: .06em; margin-bottom: 4px; }
-  .asm-signoff-block { margin-bottom: 8px; font-size: 12px; }
-  .asm-signoff-block p { margin: 2px 0; }
+  /* Chrome QA showed the tail of this section (underline + Date) spilling
+     onto a following page even after the previous round's break-inside
+     removal -- confirming the estimate this section's own footprint was
+     based on was a little optimistic, not that avoid was still in play.
+     Tightened the section/paragraph/block spacing here (never row height,
+     font size, columns, or page margins) to close that gap; SIGNOFF_BASE_MM/
+     SIGNOFF_BLOCK_MM in the route handler are kept in sync with these exact
+     values. */
+  .asm-signoff { margin-top: 4px; border-top: 2px solid #0B3A63; padding-top: 4px; }
+  .asm-signoff > strong { display: block; font-size: 11px; color: #0B3A63; letter-spacing: .06em; margin-bottom: 2px; }
+  .asm-signoff-block { margin-bottom: 4px; font-size: 12px; }
+  .asm-signoff-block p { margin: 1px 0; }
   .asm-signoff-label { font-weight: 700; color: #0B3A63; }
   .asm-sig-label { margin-bottom: 0; }
-  /* Practical handwriting room, ~15mm -- matches SIGNOFF_BLOCK_MM in the
-     route handler's pagination math; change both together if this value
-     changes. */
-  .asm-sig-space { height: 15mm; }
-  .asm-sig-underline { border-bottom: 1px solid #1a1a1a; width: 100%; max-width: 280px; margin: 0 0 4px; }
+  /* Practical handwriting room, ~13mm (within the approved 12-15mm range,
+     tightened from 15mm) -- matches SIGNOFF_BLOCK_MM in the route handler's
+     pagination math; change both together if this value changes. */
+  .asm-sig-space { height: 13mm; }
+  .asm-sig-underline { border-bottom: 1px solid #1a1a1a; width: 100%; max-width: 280px; margin: 0 0 2px; }
   .asm-line { display: inline-block; min-width: 220px; border-bottom: 1px solid #1a1a1a; }
   .asm-empty { padding: 0 16px 16px; color: #0B3A63; font-weight: 600; }
 </style>
