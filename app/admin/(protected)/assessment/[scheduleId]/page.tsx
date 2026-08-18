@@ -6,20 +6,24 @@ import { canManageAssessment, isSuperAdmin } from "../../../../../lib/auth/rbac"
 import { PageHead, Card, Badge, EmptyState, StatCard } from "../../../../../components/admin/ui";
 import { AssessmentTable, type AsmRow } from "../AssessmentTable";
 import { lockAssessments, unlockAssessments } from "../actions";
+import { loadScheduleGroups, resolveRequestedGroup, computeAssessorDisplay, UNGROUPED } from "../../../../../lib/scheduleGroupContext";
 
 export const metadata = { title: "Assessment — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
 
 export default async function AssessSchedulePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ scheduleId: string }>;
+  searchParams: Promise<{ group?: string }>;
 }) {
   await requireModuleAccess("assessment");
   const profile = await requireAssessment(false);
   const canManage = canManageAssessment(profile.role);
   const superAdmin = isSuperAdmin(profile.role);
   const { scheduleId } = await params;
+  const { group: requestedGroup } = await searchParams;
   const supabase = await createSupabaseServerClient();
 
   const { data: scheduleRow } = await supabase
@@ -39,16 +43,31 @@ export default async function AssessSchedulePage({
     .eq("schedule_id", scheduleId)
     .eq("is_primary", true)
     .maybeSingle();
-  const assessorName = (assessorAssignment as any)?.assessors?.full_name ?? null;
+  const schedulePrimaryAssessorName = (assessorAssignment as any)?.assessors?.full_name ?? "";
+
+  // Schedule Groups V1 — group is a view/filter/result-context dimension over
+  // the same assessment rows, never a second assessment system. selection is
+  // server-validated against THIS schedule's own groups so an invalid or
+  // cross-schedule ?group= value can never leak another schedule's roster.
+  const groups = await loadScheduleGroups(supabase, scheduleId);
+  const selection = resolveRequestedGroup(groups, requestedGroup);
 
   // Enrolled roster, independent of whether an assessment row exists yet.
   const { data: roster } = await supabase
     .from("schedule_participants")
-    .select("participant_id, participants(participant_id, full_name, company)")
+    .select("participant_id, schedule_group_id, participants(participant_id, full_name, company)")
     .eq("schedule_id", scheduleId)
     .is("deleted_at", null)
     .neq("registration_status", "cancelled")
     .order("enrolled_at", { ascending: true });
+
+  const rosterFiltered = (roster ?? []).filter((r: any) => {
+    if (selection === null) return true; // All Groups
+    if (selection === UNGROUPED) return !r.schedule_group_id;
+    return r.schedule_group_id === selection.id;
+  });
+  const hasUngrouped = groups.length > 0 && (roster ?? []).some((r: any) => !r.schedule_group_id);
+  const assessorDisplay = computeAssessorDisplay(groups, schedulePrimaryAssessorName, selection, hasUngrouped);
 
   const { data: asm } = await supabase
     .from("assessments")
@@ -71,7 +90,7 @@ export default async function AssessSchedulePage({
     skillsByParticipant.set(row.participant_id, m);
   }
 
-  const rows: AsmRow[] = (roster ?? []).map((r: any) => {
+  const rows: AsmRow[] = rosterFiltered.map((r: any) => {
     const a = byParticipant.get(r.participant_id);
     return {
       id: a?.id ?? null,
@@ -106,13 +125,58 @@ export default async function AssessSchedulePage({
         <div className="ta-card-pad" style={{ display: "flex", gap: 26, flexWrap: "wrap" }}>
           <div><small style={{ color: "var(--ta-muted)" }}>Course</small><div><strong>{courseName}</strong></div></div>
           <div><small style={{ color: "var(--ta-muted)" }}>Trainer</small><div>{s.trainer_name ?? "—"}</div></div>
-          <div><small style={{ color: "var(--ta-muted)" }}>Assessor</small><div>{assessorName ?? "Not assigned"}</div></div>
+          <div>
+            <small style={{ color: "var(--ta-muted)" }}>{assessorDisplay.mode === "list" ? "Assessor(s)" : "Assessor"}</small>
+            {assessorDisplay.mode === "single" ? (
+              <div>
+                {assessorDisplay.assessor || "Not assigned"}
+                {assessorDisplay.showLabel && assessorDisplay.assessor ? ` (${assessorDisplay.isOverride ? "Override" : "Class Assessor"})` : ""}
+              </div>
+            ) : (
+              <div style={{ display: "grid", gap: 2 }}>
+                {assessorDisplay.entries.map((e) => (
+                  <div key={e.label} style={{ fontSize: 13 }}>
+                    <strong>{e.label}</strong> — {e.assessor || "Not assigned"} {e.assessor ? `(${e.isOverride ? "Override" : "Class Assessor"})` : ""}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           <div><small style={{ color: "var(--ta-muted)" }}>Venue</small><div>{s.venue ?? "—"}</div></div>
           <div><small style={{ color: "var(--ta-muted)" }}>Date</small><div>{new Date(s.start_date).toLocaleDateString("en-MY")}</div></div>
           <div><small style={{ color: "var(--ta-muted)" }}>Enrolled</small><div>{s.seats_taken}/{s.capacity}</div></div>
           <div><small style={{ color: "var(--ta-muted)" }}>Status</small><div><Badge status={s.status} /></div></div>
         </div>
       </Card>
+
+      {groups.length > 0 && (
+        <div className="ta-toolbar" style={{ flexWrap: "wrap" }}>
+          <span style={{ color: "var(--ta-muted)", fontSize: 13 }}>Group:</span>
+          <Link
+            href={`/admin/assessment/${scheduleId}`}
+            className={`ta-btn ta-btn-sm ${selection === null ? "ta-btn-primary" : "ta-btn-outline"}`}
+          >
+            All Groups
+          </Link>
+          {groups.map((g) => (
+            <Link
+              key={g.id}
+              href={`/admin/assessment/${scheduleId}?group=${g.id}`}
+              className={`ta-btn ta-btn-sm ${selection !== null && selection !== UNGROUPED && selection.id === g.id ? "ta-btn-primary" : "ta-btn-outline"}`}
+            >
+              {g.name}
+            </Link>
+          ))}
+          {hasUngrouped && (
+            <Link
+              href={`/admin/assessment/${scheduleId}?group=${UNGROUPED}`}
+              className={`ta-btn ta-btn-sm ${selection === UNGROUPED ? "ta-btn-primary" : "ta-btn-outline"}`}
+            >
+              Ungrouped
+            </Link>
+          )}
+        </div>
+      )}
 
       <div className="ta-grid cols-4" style={{ margin: "18px 0" }}>
         <StatCard icon="✅" label="Competent" value={competent} />
@@ -134,15 +198,23 @@ export default async function AssessSchedulePage({
             </form>
           )}
           <div className="ta-spacer" />
-          <a href={`/admin/assessment/${scheduleId}/export?format=csv`} className="ta-btn ta-btn-outline ta-btn-sm">⬇ CSV</a>
-          <a href={`/admin/assessment/${scheduleId}/export?format=excel`} className="ta-btn ta-btn-outline ta-btn-sm">⬇ Excel</a>
-          <a href={`/admin/assessment/${scheduleId}/export?format=report`} target="_blank" className="ta-btn ta-btn-outline ta-btn-sm">📄 Report (PDF)</a>
+          <a href={`/admin/assessment/${scheduleId}/export?format=csv${requestedGroup ? `&group=${requestedGroup}` : ""}`} className="ta-btn ta-btn-outline ta-btn-sm">⬇ CSV</a>
+          <a href={`/admin/assessment/${scheduleId}/export?format=excel${requestedGroup ? `&group=${requestedGroup}` : ""}`} className="ta-btn ta-btn-outline ta-btn-sm">⬇ Excel</a>
+          <a href={`/admin/assessment/${scheduleId}/export?format=report${requestedGroup ? `&group=${requestedGroup}` : ""}`} target="_blank" className="ta-btn ta-btn-outline ta-btn-sm">📄 Report (PDF)</a>
         </div>
       )}
 
       <Card>
         {rows.length > 0 ? (
-          <AssessmentTable scheduleId={scheduleId} rows={rows} canManage={canManage} isSuperAdmin={superAdmin} />
+          <AssessmentTable
+            scheduleId={scheduleId}
+            rows={rows}
+            canManage={canManage}
+            isSuperAdmin={superAdmin}
+            groupId={selection && selection !== UNGROUPED ? selection.id : selection === UNGROUPED ? UNGROUPED : null}
+          />
+        ) : rosterFiltered.length === 0 && (roster ?? []).length > 0 ? (
+          <EmptyState icon="📝" message="No participants assigned to this group yet." />
         ) : (
           <EmptyState icon="📝" message="No participants enrolled in this schedule yet. Enroll participants from the Training Schedule module." />
         )}

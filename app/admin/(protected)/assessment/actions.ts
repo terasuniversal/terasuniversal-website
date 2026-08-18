@@ -7,6 +7,7 @@ import { requireModuleAccess, requireAssessment } from "../../../../lib/auth/ses
 import { getCurrentProfile } from "../../../../lib/auth/session";
 import { isSuperAdmin } from "../../../../lib/auth/rbac";
 import { participantSkillResultSchema } from "../../../../lib/validation/schemas";
+import { UNGROUPED } from "../../../../lib/scheduleGroupContext";
 
 const RESULT = z.enum(["pending", "pass", "fail"]);
 const COMPETENCY = z.enum(["pending_review", "competent", "not_yet_competent"]);
@@ -50,6 +51,25 @@ export async function updateAssessment(scheduleId: string, formData: FormData) {
 
   const supabase = await createSupabaseServerClient();
 
+  // Enrollment-integrity hardening: never trust participant_id from the form
+  // alone. A participant must have an ACTIVE enrollment in THIS schedule
+  // (not soft-deleted, not cancelled) before an assessment row can be
+  // created or updated for them -- otherwise a crafted participant_id could
+  // create an assessments row for someone never enrolled here, or one whose
+  // enrollment was later cancelled. Blocked the same way a locked row is
+  // below: a silent no-op, matching this action's existing convention (it's
+  // a plain form action, not wired to useActionState, so there is no
+  // client-visible error channel to populate here).
+  const { data: enrollment } = await supabase
+    .from("schedule_participants")
+    .select("participant_id")
+    .eq("schedule_id", scheduleId)
+    .eq("participant_id", participantId)
+    .is("deleted_at", null)
+    .neq("registration_status", "cancelled")
+    .maybeSingle();
+  if (!enrollment) return;
+
   // The client hides the edit form when locked, but nothing previously
   // stopped a direct call to this action from writing over a locked row.
   // No unlock/override flow exists here besides unlockAssessments (Super
@@ -81,21 +101,89 @@ export async function updateAssessment(scheduleId: string, formData: FormData) {
   revalidatePath(`/admin/assessment/${scheduleId}`);
 }
 
-/** Bulk-set result for the selected EXISTING assessment rows (a participant
+/**
+ * Bulk-set result for the selected EXISTING assessment rows (a participant
  * with no assessment row yet has nothing to bulk-update). Locked rows are
  * excluded from the update -- a bulk action must not be able to bypass the
  * Super-Admin-only unlock flow just because updateAssessment's per-row
- * check doesn't run on this path. */
-export async function bulkUpdateResult(scheduleId: string, formData: FormData) {
+ * check doesn't run on this path.
+ *
+ * Security fix (Assessment V3 audit): this previously fetched/updated rows
+ * by `.in("id", ids)` alone, with no `schedule_id` check -- a crafted POST
+ * naming another schedule's assessment ids would have updated them, because
+ * RLS only requires admin-or-trainer, not ownership of THIS schedule.
+ *
+ * Enrollment-integrity hardening (follow-up): every submitted id must now
+ * resolve to (a) a real assessment row belonging to THIS schedule, and (b) a
+ * participant with an ACTIVE enrollment in THIS schedule (not soft-deleted,
+ * not cancelled) -- checked for every context, including "All Groups", not
+ * only when a group is selected. When a group context is supplied, the
+ * participant's CURRENT `schedule_participants.schedule_group_id` must also
+ * match it (Ungrouped means IS NULL) -- no historical snapshot, see
+ * lib/scheduleGroupContext.ts.
+ *
+ * Unlike the read-side page (which safely falls back to "All Groups" on an
+ * invalid selection), a write rejects the WHOLE operation the moment any
+ * submitted id fails any of these checks, rather than silently updating just
+ * the valid subset -- a partial "succeeds for the legitimate ones" response
+ * would hide a crafted request that mixes real ids with foreign-schedule,
+ * cancelled, or wrong-group ones. Never rely on the UI's "select all in
+ * view" -- the DB round-trip re-derives every fact this action needs.
+ */
+export async function bulkUpdateResult(scheduleId: string, groupId: string | typeof UNGROUPED | null, formData: FormData) {
   await requireAssessment(true);
   await requireModuleAccess("assessment");
-  const ids = formData.getAll("ids").map(String).filter(Boolean);
+  const ids = Array.from(new Set(formData.getAll("ids").map(String).filter(Boolean)));
   const result = RESULT.safeParse(formData.get("result"));
   if (ids.length === 0 || !result.success) return;
   const supabase = await createSupabaseServerClient();
 
-  const { data: rows } = await supabase.from("assessments").select("id, locked").in("id", ids);
-  const unlockedIds = (rows ?? []).filter((r: any) => !r.locked).map((r: any) => r.id as string);
+  // Validate the requested group actually belongs to this schedule before
+  // using it to scope a write -- an invalid/foreign group id here must
+  // reject, not silently widen back to "all participants" the way the
+  // read-side page falls back for display.
+  if (groupId !== null && groupId !== UNGROUPED) {
+    const { data: groupRow } = await supabase
+      .from("schedule_groups")
+      .select("id")
+      .eq("id", groupId)
+      .eq("schedule_id", scheduleId)
+      .is("deleted_at", null)
+      .maybeSingle();
+    if (!groupRow) return;
+  }
+
+  const { data: rows } = await supabase
+    .from("assessments")
+    .select("id, participant_id, locked")
+    .eq("schedule_id", scheduleId)
+    .in("id", ids);
+  const candidates = (rows ?? []) as { id: string; participant_id: string; locked: boolean }[];
+  // Every submitted id must have resolved to a real, same-schedule row --
+  // a foreign-schedule or bogus id fails the whole operation.
+  if (candidates.length !== ids.length) return;
+
+  const participantIds = candidates.map((c) => c.participant_id);
+  const { data: membership } = await supabase
+    .from("schedule_participants")
+    .select("participant_id, schedule_group_id, deleted_at, registration_status")
+    .eq("schedule_id", scheduleId)
+    .in("participant_id", participantIds);
+  const membershipByParticipant = new Map<string, { schedule_group_id: string | null; deleted_at: string | null; registration_status: string }>(
+    (membership ?? []).map((m: any) => [m.participant_id, m])
+  );
+
+  const allValid = candidates.every((c) => {
+    const m = membershipByParticipant.get(c.participant_id);
+    const activelyEnrolled = !!m && m.deleted_at === null && m.registration_status !== "cancelled";
+    if (!activelyEnrolled) return false;
+    if (groupId === null) return true; // All Groups: active same-schedule enrollment is sufficient.
+    if (groupId === UNGROUPED) return m!.schedule_group_id === null;
+    return m!.schedule_group_id === groupId;
+  });
+  if (!allValid) return;
+
+  const unlockedIds = candidates.filter((r) => !r.locked).map((r) => r.id);
   if (unlockedIds.length === 0) return;
 
   // Derive competency from the pass/fail choice for convenience.
@@ -175,6 +263,21 @@ export async function updateParticipantSkillResults(
   if (!participantId) return { error: "Missing participant." };
 
   const supabase = await createSupabaseServerClient();
+
+  // Same enrollment-integrity check as updateAssessment: never trust
+  // participant_id from the form alone. Reachable from the same Assessment
+  // UI (the per-row Skills Record form), so it shares the same mutation
+  // integrity boundary -- a participant with no active enrollment in this
+  // schedule must be blocked before any participant_skill_results write.
+  const { data: enrollment } = await supabase
+    .from("schedule_participants")
+    .select("participant_id")
+    .eq("schedule_id", scheduleId)
+    .eq("participant_id", participantId)
+    .is("deleted_at", null)
+    .neq("registration_status", "cancelled")
+    .maybeSingle();
+  if (!enrollment) return { error: "This participant is not actively enrolled in this schedule." };
 
   // Same lock check as updateAssessment: the UI hides the form when locked,
   // but a direct call must not be able to write over a locked assessment.
