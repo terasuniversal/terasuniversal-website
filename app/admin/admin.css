@@ -540,9 +540,41 @@
 .ta-class-feedback-print img { display: block; width: min(320px, 100%); height: auto; margin: 18px auto; }
 
 @media print {
-  body > * { visibility: hidden !important; }
-  .ta-dialog-overlay, .ta-dialog-overlay * { visibility: visible !important; }
-  .ta-dialog-overlay { position: static !important; display: block !important; background: #fff !important; }
+  /* Scoped with :has() the same way the quotation print block above is --
+     an unscoped `body > *` here previously hid every element on every
+     /admin print (Attendance Print included) because this stylesheet loads
+     globally via app/admin/layout.tsx, not just wherever the Class Feedback
+     dialog is mounted. .ta-dialog-overlay is only ever rendered by the two
+     Class Feedback dialog components, so its presence is a safe, specific
+     trigger.
+     `max-height: 0; overflow: hidden` (in addition to visibility: hidden) on
+     the hidden top-level content collapses its contribution to the printed
+     document's total page count -- otherwise the real (long) Feedback page
+     underneath still occupies its full layout height, and Chrome paginates
+     for that height even though nothing on those pages is visible. This is
+     safe for a position:fixed descendant (below): a fixed element's
+     containing block is the viewport/page, not this ancestor, so neither
+     visibility: hidden nor max-height: 0 on the ancestor affects it. */
+  body:has(.ta-dialog-overlay) > * {
+    visibility: hidden !important;
+    max-height: 0 !important;
+    overflow: hidden !important;
+  }
+  body:has(.ta-dialog-overlay) .ta-dialog-overlay,
+  body:has(.ta-dialog-overlay) .ta-dialog-overlay * { visibility: visible !important; }
+  /* Deliberately NOT forcing position: static here (as a prior version of
+     this rule did): .ta-dialog-overlay is normally position: fixed (the
+     quotation print block above coerces it to absolute, unconditionally,
+     whenever anything is printed -- harmless here since .ta-class-feedback-
+     card has no positioned ancestor, so absolute resolves the same as fixed
+     against the initial containing block). Either way, staying OUT of
+     normal flow is what lets the overlay paint independent of its ancestor
+     chain. Forcing it into normal flow (position: static) made it a
+     descendant of .ta-class-feedback-card, which has `overflow: hidden`
+     (admin.css .ta-card) -- the overlay was being clipped by its own
+     parent's box instead of the page. Only the tint needs overriding for
+     print (a full-page dark background wastes ink). */
+  .ta-dialog-overlay { background: #fff !important; }
   .ta-class-feedback-dialog { width: 100% !important; max-width: none !important; max-height: none !important; box-shadow: none !important; border: 0 !important; }
   .ta-dialog-head, .ta-dialog-foot { display: none !important; }
   .ta-class-feedback-print { padding: 18mm !important; }

@@ -16,6 +16,14 @@ export function ClassFeedbackQrCard({ scheduleId, courseName, scheduleCode, base
   const [publicToken, setPublicToken] = useState(initialPublicToken);
   const [open, setOpen] = useState(false);
   const [qrData, setQrData] = useState("");
+  // Set by the <img>'s onLoad, not merely once qrData is assigned: a data
+  // URI still has to be decoded by the browser before it actually paints,
+  // and that decode is asynchronous -- printRequested's effect below fires
+  // window.print() as soon as its dependencies are true, and if that
+  // happens before decode finishes, Chrome's print snapshot captures a
+  // blank image region (the QR was visible on screen a moment later, once
+  // decode caught up, but too late for the print job already in flight).
+  const [qrReady, setQrReady] = useState(false);
   const [message, setMessage] = useState("");
   const [copied, setCopied] = useState(false);
   const [printRequested, setPrintRequested] = useState(false);
@@ -25,6 +33,7 @@ export function ClassFeedbackQrCard({ scheduleId, courseName, scheduleCode, base
   useEffect(() => {
     if (!open || !url) return;
     let active = true;
+    setQrReady(false);
     QRCode.toDataURL(url, { width: 320, margin: 1 }).then((data) => {
       if (active) setQrData(data);
     });
@@ -32,10 +41,10 @@ export function ClassFeedbackQrCard({ scheduleId, courseName, scheduleCode, base
   }, [open, url]);
 
   useEffect(() => {
-    if (!open || !qrData || !printRequested) return;
+    if (!open || !qrReady || !printRequested) return;
     setPrintRequested(false);
     window.print();
-  }, [open, printRequested, qrData]);
+  }, [open, printRequested, qrReady]);
 
   useEffect(() => {
     if (!open) return;
@@ -113,7 +122,15 @@ export function ClassFeedbackQrCard({ scheduleId, courseName, scheduleCode, base
               <h4>Participant Feedback</h4>
               <p><strong>Programme:</strong> {courseName}</p>
               <p><strong>Schedule:</strong> {scheduleCode}</p>
-              {qrData && <img src={qrData} alt={`Class feedback QR for ${label}`} width={320} height={320} />}
+              {qrData && (
+                <img
+                  src={qrData}
+                  alt={`Class feedback QR for ${label}`}
+                  width={320}
+                  height={320}
+                  onLoad={() => setQrReady(true)}
+                />
+              )}
               <p>Scan and enter your IC/Passport number to submit feedback.</p>
               <p className="ta-lead-sub" style={{ overflowWrap: "anywhere" }}>{url}</p>
               <p className="ta-lead-sub">Building Competence. Creating Opportunities.</p>
