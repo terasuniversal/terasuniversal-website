@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
 import { requireAttendance } from "../../../../../../lib/auth/session";
 import { PrintButton } from "./PrintButton";
+import { loadAttendanceGroups, resolveRequestedGroup, computeAssessorDisplay, UNGROUPED } from "../../groupFilter";
 
 export const metadata = {
   title: "Print Attendance Sheet — TERAS UNIVERSAL Admin",
@@ -39,11 +40,14 @@ const STATUS_CODE: Record<string, string> = {
  */
 export default async function AttendancePrintPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ scheduleId: string }>;
+  searchParams: Promise<{ group?: string }>;
 }) {
   await requireAttendance(false); // editor+ or trainer — same gate as Take Attendance
   const { scheduleId } = await params;
+  const { group: requestedGroup } = await searchParams;
   const supabase = await createSupabaseServerClient();
 
   const { data: scheduleRow } = await supabase
@@ -56,30 +60,64 @@ export default async function AttendancePrintPage({
   const courseName = s.courses?.course_name ?? null;
   const courseCode = s.courses?.course_code ?? null;
 
-  // Assigned primary assessor (Assessor Management Phase 1). The print sheet
-  // only pre-fills the ASSESSOR VERIFICATION name line — Signature and Date
-  // stay manual. No assessor assigned => blank handwriting line.
+  // Schedule Groups V1 — same server-validated selection as the Take
+  // Attendance page (groupFilter.ts); an invalid/cross-schedule ?group=
+  // value falls back to "All Groups" rather than leaking another
+  // schedule's roster onto this printout.
+  const groups = await loadAttendanceGroups(supabase, scheduleId);
+  const selection = resolveRequestedGroup(groups, requestedGroup);
+  const selectedGroup = selection && selection !== UNGROUPED ? selection : null;
+
+  // Assigned primary assessor (Assessor Management Phase 1) — the schedule's
+  // shared/default assessor. The print sheet only pre-fills the ASSESSOR
+  // VERIFICATION name line(s) — Signature and Date stay manual.
   const { data: assessorAssignment } = await supabase
     .from("schedule_assessors")
     .select("assessor_id, assessors(full_name)")
     .eq("schedule_id", scheduleId)
     .eq("is_primary", true)
     .maybeSingle();
-  const assessorName = (assessorAssignment as any)?.assessors?.full_name ?? "";
+  const schedulePrimaryAssessorName = (assessorAssignment as any)?.assessors?.full_name ?? "";
 
-  // Enrolled roster, identical to the take-attendance page (incl. ordering).
+  // Enrolled roster, identical to the take-attendance page (incl. ordering),
+  // filtered to the selected group exactly like the Take Attendance page.
   const { data: rosterRaw } = await supabase
     .from("schedule_participants")
-    .select("participant_id, participants(participant_id, full_name, ic_passport_no)")
+    .select("participant_id, schedule_group_id, participants(participant_id, full_name, ic_passport_no)")
     .eq("schedule_id", scheduleId)
     .is("deleted_at", null)
     .neq("registration_status", "cancelled")
     .order("enrolled_at", { ascending: true });
-  const roster: { participant_id: string; name: string; ic: string }[] = (rosterRaw ?? []).map((r: any) => ({
+  const rosterFilteredRaw = (rosterRaw ?? []).filter((r: any) => {
+    if (selection === null) return true;
+    if (selection === UNGROUPED) return !r.schedule_group_id;
+    return r.schedule_group_id === selection.id;
+  });
+  const hasUngrouped = groups.length > 0 && (rosterRaw ?? []).some((r: any) => !r.schedule_group_id);
+  const assessorDisplay = computeAssessorDisplay(groups, schedulePrimaryAssessorName, selection, hasUngrouped);
+  const roster: { participant_id: string; name: string; ic: string }[] = rosterFilteredRaw.map((r: any) => ({
     participant_id: r.participant_id,
     name: String(r.participants?.full_name ?? "").trim() || "—",
     ic: String(r.participants?.ic_passport_no ?? "").trim() || "—",
   }));
+
+  // Trainer verification: group-specific print uses that group's own
+  // trainer; "All Groups" on a legacy/single-trainer schedule keeps today's
+  // single line; "All Groups" with genuinely different group trainers lists
+  // each one with its own signature line instead of misattributing the
+  // whole class to one name (STOP GATE #1 rule).
+  const distinctGroupTrainers = new Set(groups.map((g) => g.trainer_name).filter(Boolean));
+  const trainerLines: { label: string; trainer: string }[] =
+    selectedGroup
+      ? [{ label: "Trainer Name", trainer: selectedGroup.trainer_name ?? "— none —" }]
+      : selection === UNGROUPED
+        ? [{ label: "Trainer Name", trainer: s.trainer_name ?? "" }]
+        : groups.length === 0 || distinctGroupTrainers.size <= 1
+          ? [{ label: "Trainer Name", trainer: (groups[0]?.trainer_name ?? s.trainer_name) ?? "" }]
+          : [
+              ...groups.map((g) => ({ label: g.name, trainer: g.trainer_name ?? "— none —" })),
+              ...(hasUngrouped ? [{ label: "Ungrouped", trainer: s.trainer_name ?? "" }] : []),
+            ];
 
   // ALL attendance rows for the schedule, once. Per (participant, session).
   const { data: attAll } = await supabase
@@ -132,7 +170,7 @@ export default async function AttendancePrintPage({
 
       <div className="att-print-bar">
         <PrintButton label="Print Attendance Sheet" />
-        <a href={`/admin/attendance/${scheduleId}`} className="ta-btn ta-btn-outline">
+        <a href={`/admin/attendance/${scheduleId}${requestedGroup ? `?group=${requestedGroup}` : ""}`} className="ta-btn ta-btn-outline">
           ← Back to attendance
         </a>
       </div>
@@ -161,6 +199,12 @@ export default async function AttendancePrintPage({
             <dt>Schedule / Batch</dt>
             <dd>{s.schedule_code || "—"}</dd>
           </div>
+          {selectedGroup || selection === UNGROUPED ? (
+            <div>
+              <dt>Group</dt>
+              <dd>{selectedGroup ? selectedGroup.name : "Ungrouped"}</dd>
+            </div>
+          ) : null}
           <div>
             <dt>Training Period</dt>
             <dd>{trainingPeriod}</dd>
@@ -169,10 +213,12 @@ export default async function AttendancePrintPage({
             <dt>Venue</dt>
             <dd>{s.venue || "—"}</dd>
           </div>
-          <div>
-            <dt>Trainer</dt>
-            <dd>{s.trainer_name || "—"}</dd>
-          </div>
+          {trainerLines.length === 1 && (
+            <div>
+              <dt>Trainer</dt>
+              <dd>{trainerLines[0].trainer || "—"}</dd>
+            </div>
+          )}
           <div>
             <dt>Total Participants</dt>
             <dd>{roster.length}</dd>
@@ -226,14 +272,32 @@ export default async function AttendancePrintPage({
               <div className="att-confirm-grid">
                 <div className="att-confirm-col">
                   <h2>TRAINER VERIFICATION</h2>
-                  <div className="att-confirm-line">
-                    <span>Trainer Name:</span>
-                    <span className="att-line">{s.trainer_name ?? ""}</span>
-                  </div>
-                  <div className="att-confirm-line">
-                    <span>Signature:</span>
-                    <span className="att-line" />
-                  </div>
+                  {trainerLines.length === 1 ? (
+                    <>
+                      <div className="att-confirm-line">
+                        <span>Trainer Name:</span>
+                        <span className="att-line">{trainerLines[0].trainer}</span>
+                      </div>
+                      <div className="att-confirm-line">
+                        <span>Signature:</span>
+                        <span className="att-line" />
+                      </div>
+                    </>
+                  ) : (
+                    // Multiple group trainers on an "All Groups" printout: one
+                    // name + signature line per trainer instead of one blank
+                    // line misattributed to a single name (STOP GATE #1 rule) --
+                    // kept inside this same column so the tuned one-page print
+                    // budget (see PRINT_STYLE comments) only grows by the few
+                    // extra lines a genuinely multi-trainer class needs, not a
+                    // whole second confirmation block.
+                    trainerLines.map((t) => (
+                      <div className="att-confirm-line" key={t.label}>
+                        <span>{t.label} — {t.trainer}:</span>
+                        <span className="att-line" />
+                      </div>
+                    ))
+                  )}
                   <div className="att-confirm-line">
                     <span>Date:</span>
                     <span className="att-line" />
@@ -241,14 +305,32 @@ export default async function AttendancePrintPage({
                 </div>
                 <div className="att-confirm-col">
                   <h2>ASSESSOR VERIFICATION</h2>
-                  <div className="att-confirm-line">
-                    <span>Assessor Name:</span>
-                    <span className="att-line">{assessorName}</span>
-                  </div>
-                  <div className="att-confirm-line">
-                    <span>Signature:</span>
-                    <span className="att-line" />
-                  </div>
+                  {assessorDisplay.mode === "single" ? (
+                    <>
+                      <div className="att-confirm-line">
+                        <span>Assessor Name:</span>
+                        <span className="att-line">
+                          {assessorDisplay.assessor}
+                          {assessorDisplay.showLabel ? ` (${assessorDisplay.isOverride ? "Override" : "Class Assessor"})` : ""}
+                        </span>
+                      </div>
+                      <div className="att-confirm-line">
+                        <span>Signature:</span>
+                        <span className="att-line" />
+                      </div>
+                    </>
+                  ) : (
+                    // Effective assessors genuinely differ across groups on
+                    // this "All Groups" printout: one name + signature line
+                    // per group instead of one line that would hide an
+                    // override (same treatment as multi-trainer, above).
+                    assessorDisplay.entries.map((e) => (
+                      <div className="att-confirm-line" key={e.label}>
+                        <span>{e.label} — {e.assessor} ({e.isOverride ? "Override" : "Class Assessor"}):</span>
+                        <span className="att-line" />
+                      </div>
+                    ))
+                  )}
                   <div className="att-confirm-line">
                     <span>Date:</span>
                     <span className="att-line" />
@@ -259,9 +341,11 @@ export default async function AttendancePrintPage({
           </>
         ) : (
           <p className="att-empty">
-            {rows.length === 0
-              ? "No participants enrolled in this schedule."
-              : "No attendance has been recorded for this schedule yet."}
+            {rows.length === 0 && (selectedGroup || selection === UNGROUPED)
+              ? "No participants assigned to this group."
+              : rows.length === 0
+                ? "No participants enrolled in this schedule."
+                : "No attendance has been recorded for this schedule yet."}
           </p>
         )}
 

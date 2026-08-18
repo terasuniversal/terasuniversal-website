@@ -6,6 +6,7 @@ import { canManageAttendance } from "../../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, EmptyState, StatCard } from "../../../../../components/admin/ui";
 import { AttendanceTable, type AttRow } from "../AttendanceTable";
 import { markAllPresent, resetAttendance } from "../actions";
+import { loadAttendanceGroups, resolveRequestedGroup, computeAssessorDisplay, UNGROUPED } from "../groupFilter";
 
 export const metadata = { title: "Take Attendance — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
@@ -15,13 +16,13 @@ export default async function TakeAttendancePage({
   searchParams,
 }: {
   params: Promise<{ scheduleId: string }>;
-  searchParams: Promise<{ date?: string }>;
+  searchParams: Promise<{ date?: string; group?: string }>;
 }) {
   await requireModuleAccess("attendance");
   const profile = await requireAttendance(false);
   const canManage = canManageAttendance(profile.role);
   const { scheduleId } = await params;
-  const { date } = await searchParams;
+  const { date, group: requestedGroup } = await searchParams;
   const supabase = await createSupabaseServerClient();
 
   const { data: scheduleRow } = await supabase
@@ -34,15 +35,40 @@ export default async function TakeAttendancePage({
   const courseName = s.courses?.course_name ?? "—";
   const sessionDate = date && date >= s.start_date && date <= s.end_date ? date : s.start_date;
 
+  // Schedule Groups V1 — group is a view/filter dimension over the same
+  // attendance rows, never a second attendance system. selection is
+  // server-validated against THIS schedule's own groups (groupFilter.ts) so
+  // an invalid or cross-schedule ?group= value can never leak another
+  // schedule's roster.
+  const groups = await loadAttendanceGroups(supabase, scheduleId);
+  const selection = resolveRequestedGroup(groups, requestedGroup);
+
+  // Schedule's shared/default assessor (Assessor Management Phase 1) — the
+  // fallback every group with no assessor_id override resolves to.
+  const { data: assessorAssignment } = await supabase
+    .from("schedule_assessors")
+    .select("assessor_id, assessors(full_name)")
+    .eq("schedule_id", scheduleId)
+    .eq("is_primary", true)
+    .maybeSingle();
+  const schedulePrimaryAssessorName = (assessorAssignment as any)?.assessors?.full_name ?? "";
+
   // Enrolled roster (schedule_participants), independent of whether
   // attendance has been recorded for this session date yet.
   const { data: roster } = await supabase
     .from("schedule_participants")
-    .select("participant_id, participants(id, participant_id, full_name, company)")
+    .select("participant_id, schedule_group_id, participants(id, participant_id, full_name, company)")
     .eq("schedule_id", scheduleId)
     .is("deleted_at", null)
     .neq("registration_status", "cancelled")
     .order("enrolled_at", { ascending: true });
+
+  const rosterFiltered = (roster ?? []).filter((r: any) => {
+    if (selection === null) return true; // All Groups
+    if (selection === UNGROUPED) return !r.schedule_group_id;
+    return r.schedule_group_id === selection.id;
+  });
+  const hasUngrouped = groups.length > 0 && (roster ?? []).some((r: any) => !r.schedule_group_id);
 
   // Attendance already recorded for this specific session date.
   const { data: att } = await supabase
@@ -52,7 +78,7 @@ export default async function TakeAttendancePage({
     .eq("session_date", sessionDate);
   const byParticipant = new Map<string, any>((att ?? []).map((a: any): [string, any] => [a.participant_id, a]));
 
-  const rows: AttRow[] = (roster ?? []).map((r: any) => {
+  const rows: AttRow[] = rosterFiltered.map((r: any) => {
     const a = byParticipant.get(r.participant_id);
     return {
       participant_id: r.participant_id,
@@ -63,6 +89,31 @@ export default async function TakeAttendancePage({
       remarks: a?.remarks ?? null,
     };
   });
+
+  // Trainer display: a lone name only ever means one thing. Once a schedule
+  // has groups with different trainers, a single "Trainer: X" line would
+  // misattribute Group B's session to Group A's trainer (or vice versa) --
+  // see STOP GATE #1 rule "do not pretend there is one trainer if there are
+  // multiple group trainers".
+  const distinctGroupTrainers = new Set(groups.map((g) => g.trainer_name).filter(Boolean));
+  const trainerDisplay: { mode: "single" | "list"; single?: string; list?: { label: string; trainer: string }[] } =
+    selection && selection !== UNGROUPED
+      ? { mode: "single", single: selection.trainer_name ?? "— none —" }
+      : selection === UNGROUPED
+        ? { mode: "single", single: s.trainer_name ?? "—" }
+        : groups.length === 0 || distinctGroupTrainers.size <= 1
+          ? { mode: "single", single: (groups[0]?.trainer_name ?? s.trainer_name) ?? "—" }
+          : {
+              mode: "list",
+              list: [
+                ...groups.map((g) => ({ label: g.name, trainer: g.trainer_name ?? "— none —" })),
+                ...(hasUngrouped ? [{ label: "Ungrouped", trainer: s.trainer_name ?? "—" }] : []),
+              ],
+            };
+
+  // Effective assessor = group.assessor_id ?? schedule primary assessor,
+  // applied identically to the print sheet (groupFilter.ts's shared rule).
+  const assessorDisplay = computeAssessorDisplay(groups, schedulePrimaryAssessorName, selection, hasUngrouped);
 
   const counts = rows.reduce((m: Record<string, number>, r) => {
     const key = r.attendance_status ?? "not_recorded";
@@ -93,12 +144,69 @@ export default async function TakeAttendancePage({
         <div className="ta-card-pad" style={{ display: "flex", gap: 26, flexWrap: "wrap" }}>
           <div><small style={{ color: "var(--ta-muted)" }}>Course</small><div><strong>{courseName}</strong></div></div>
           <div><small style={{ color: "var(--ta-muted)" }}>Venue</small><div>{s.venue ?? "—"}</div></div>
-          <div><small style={{ color: "var(--ta-muted)" }}>Trainer</small><div>{s.trainer_name ?? "—"}</div></div>
+          <div>
+            <small style={{ color: "var(--ta-muted)" }}>{trainerDisplay.mode === "list" ? "Trainer(s)" : "Trainer"}</small>
+            {trainerDisplay.mode === "single" ? (
+              <div>{trainerDisplay.single}</div>
+            ) : (
+              <div style={{ display: "grid", gap: 2 }}>
+                {trainerDisplay.list!.map((t) => (
+                  <div key={t.label} style={{ fontSize: 13 }}><strong>{t.label}</strong> — {t.trainer}</div>
+                ))}
+              </div>
+            )}
+          </div>
+          <div>
+            <small style={{ color: "var(--ta-muted)" }}>{assessorDisplay.mode === "list" ? "Assessor(s)" : "Assessor"}</small>
+            {assessorDisplay.mode === "single" ? (
+              <div>
+                {assessorDisplay.assessor || "— none —"}
+                {assessorDisplay.showLabel && assessorDisplay.assessor ? ` (${assessorDisplay.isOverride ? "Override" : "Class Assessor"})` : ""}
+              </div>
+            ) : (
+              <div style={{ display: "grid", gap: 2 }}>
+                {assessorDisplay.entries.map((e) => (
+                  <div key={e.label} style={{ fontSize: 13 }}>
+                    <strong>{e.label}</strong> — {e.assessor || "— none —"} {e.assessor ? `(${e.isOverride ? "Override" : "Class Assessor"})` : ""}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           <div><small style={{ color: "var(--ta-muted)" }}>Dates</small><div>{new Date(s.start_date).toLocaleDateString("en-MY")} – {new Date(s.end_date).toLocaleDateString("en-MY")}</div></div>
           <div><small style={{ color: "var(--ta-muted)" }}>Enrolled</small><div>{s.seats_taken}/{s.capacity}</div></div>
           <div><small style={{ color: "var(--ta-muted)" }}>Status</small><div><Badge status={s.status} /></div></div>
         </div>
       </Card>
+
+      {groups.length > 0 && (
+        <div className="ta-toolbar" style={{ flexWrap: "wrap" }}>
+          <span style={{ color: "var(--ta-muted)", fontSize: 13 }}>Group:</span>
+          <Link
+            href={`/admin/attendance/${scheduleId}?date=${sessionDate}`}
+            className={`ta-btn ta-btn-sm ${selection === null ? "ta-btn-primary" : "ta-btn-outline"}`}
+          >
+            All Groups
+          </Link>
+          {groups.map((g) => (
+            <Link
+              key={g.id}
+              href={`/admin/attendance/${scheduleId}?date=${sessionDate}&group=${g.id}`}
+              className={`ta-btn ta-btn-sm ${selection !== null && selection !== UNGROUPED && selection.id === g.id ? "ta-btn-primary" : "ta-btn-outline"}`}
+            >
+              {g.name}
+            </Link>
+          ))}
+          {hasUngrouped && (
+            <Link
+              href={`/admin/attendance/${scheduleId}?date=${sessionDate}&group=${UNGROUPED}`}
+              className={`ta-btn ta-btn-sm ${selection === UNGROUPED ? "ta-btn-primary" : "ta-btn-outline"}`}
+            >
+              Ungrouped
+            </Link>
+          )}
+        </div>
+      )}
 
       {days.length > 1 && (
         <div className="ta-toolbar" style={{ flexWrap: "wrap" }}>
@@ -106,7 +214,7 @@ export default async function TakeAttendancePage({
           {days.map((d) => (
             <Link
               key={d}
-              href={`/admin/attendance/${scheduleId}?date=${d}`}
+              href={`/admin/attendance/${scheduleId}?date=${d}${requestedGroup ? `&group=${requestedGroup}` : ""}`}
               className={`ta-btn ta-btn-sm ${d === sessionDate ? "ta-btn-primary" : "ta-btn-outline"}`}
             >
               {new Date(d + "T00:00:00").toLocaleDateString("en-MY", { day: "numeric", month: "short" })}
@@ -135,7 +243,7 @@ export default async function TakeAttendancePage({
           <div className="ta-spacer" />
           <a href={`/admin/attendance/${scheduleId}/export?format=csv&date=${sessionDate}`} className="ta-btn ta-btn-outline ta-btn-sm">⬇ CSV</a>
           <a href={`/admin/attendance/${scheduleId}/export?format=excel&date=${sessionDate}`} className="ta-btn ta-btn-outline ta-btn-sm">⬇ Excel</a>
-          <a href={`/admin/attendance/${scheduleId}/print`} target="_blank" className="ta-btn ta-btn-outline ta-btn-sm">🖨 Print Attendance Sheet</a>
+          <a href={`/admin/attendance/${scheduleId}/print${requestedGroup ? `?group=${requestedGroup}` : ""}`} target="_blank" className="ta-btn ta-btn-outline ta-btn-sm">🖨 Print Attendance Sheet</a>
           <Link href={`/admin/attendance/${scheduleId}/import?date=${sessionDate}`} className="ta-btn ta-btn-outline ta-btn-sm">⬆ Import</Link>
         </div>
       )}
@@ -143,6 +251,8 @@ export default async function TakeAttendancePage({
       <Card>
         {rows.length > 0 ? (
           <AttendanceTable scheduleId={scheduleId} sessionDate={sessionDate} rows={rows} canManage={canManage} />
+        ) : rosterFiltered.length === 0 && (roster ?? []).length > 0 ? (
+          <EmptyState icon="👥" message="No participants assigned to this group yet." />
         ) : (
           <EmptyState icon="👥" message="No participants enrolled in this schedule yet. Enroll participants from the Training Schedule module." />
         )}
