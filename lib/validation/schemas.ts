@@ -117,6 +117,21 @@ export const scheduleParticipantSchema = z.object({
 });
 export type ScheduleParticipantInput = z.infer<typeof scheduleParticipantSchema>;
 
+// Training Schedule Groups V1 (schedule_groups). trainer_id/assessor_id are
+// optional -- a group can exist with no trainer assigned yet, and
+// assessor_id is an OVERRIDE only (schedule.assessor via schedule_assessors
+// remains the default when this is empty). start_time/end_time mirror
+// scheduleSchema's own optional-string-or-empty shape.
+export const scheduleGroupSchema = z.object({
+  name: z.string().trim().min(1, "Group name is required").max(80),
+  trainer_id: z.string().uuid("Select a trainer").optional().or(z.literal("")),
+  assessor_id: z.string().uuid("Select an assessor").optional().or(z.literal("")),
+  capacity: z.coerce.number().int().min(0).optional().nullable(),
+  start_time: z.string().optional().or(z.literal("")),
+  end_time: z.string().optional().or(z.literal("")),
+});
+export type ScheduleGroupInput = z.infer<typeof scheduleGroupSchema>;
+
 /**
  * One row of participant_skill_results (Phase 2 schema — table ships empty;
  * no CMS screen writes through this yet, see supabase/migrations/

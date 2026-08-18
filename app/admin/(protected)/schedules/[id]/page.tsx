@@ -6,8 +6,10 @@ import { isAdmin } from "../../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, EmptyState } from "../../../../../components/admin/ui";
 import { AssignParticipants } from "../AssignParticipants";
 import { AssessorAssignment } from "../AssessorAssignment";
+import { GroupsPanel } from "../GroupsPanel";
+import { ParticipantGroupAssignment } from "../ParticipantGroupAssignment";
 import { removeParticipant, softDeleteSchedule, duplicateSchedule } from "../actions";
-import { loadAssessorOptions } from "../options";
+import { loadAssessorOptions, loadTrainerOptions } from "../options";
 
 export const metadata = { title: "Schedule Details — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
@@ -17,13 +19,13 @@ export default async function ScheduleDetailsPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ assessor_error?: string }>;
+  searchParams: Promise<{ assessor_error?: string; group_error?: string }>;
 }) {
   await requireModuleAccess("schedules");
   const profile = await requireRole("editor");
   const canWrite = isAdmin(profile.role);
   const { id } = await params;
-  const { assessor_error } = await searchParams;
+  const { assessor_error, group_error } = await searchParams;
   const supabase = await createSupabaseServerClient();
 
   const { data: s } = await supabase.from("course_schedules").select("*, courses(course_name)").eq("id", id).single();
@@ -36,7 +38,7 @@ export default async function ScheduleDetailsPage({
   // Active enrollments (join) + available (active participants not currently enrolled).
   const { data: enrolled } = await supabase
     .from("schedule_participants")
-    .select("id, enrolled_at, registration_status, participants(id, participant_id, full_name, company, phone, status)")
+    .select("id, enrolled_at, registration_status, schedule_group_id, participants(id, participant_id, full_name, company, phone, status)")
     .eq("schedule_id", id)
     .is("deleted_at", null)
     .order("enrolled_at", { ascending: true });
@@ -66,6 +68,32 @@ export default async function ScheduleDetailsPage({
   const currentAssessorId = (assessorAssignment as any)?.assessor_id ?? null;
   const assessorName = (assessorAssignment as any)?.assessors?.full_name ?? null;
   const assessorOptions = canWrite ? await loadAssessorOptions() : [];
+
+  // Training Schedule Groups V1 — optional subdivision of this class.
+  const { data: groupRows } = await supabase
+    .from("schedule_groups")
+    .select("id, name, trainer_id, assessor_id, capacity, start_time, end_time, trainers(full_name), assessors(full_name)")
+    .eq("schedule_id", id)
+    .is("deleted_at", null)
+    .order("name");
+  const groupParticipantCounts = new Map<string, number>();
+  for (const a of active as any[]) {
+    if (a.schedule_group_id) groupParticipantCounts.set(a.schedule_group_id, (groupParticipantCounts.get(a.schedule_group_id) ?? 0) + 1);
+  }
+  const groups = (groupRows ?? []).map((g: any) => ({
+    id: g.id,
+    name: g.name,
+    trainer_id: g.trainer_id,
+    trainer_name: g.trainers?.full_name ?? null,
+    assessor_id: g.assessor_id,
+    assessor_name: g.assessors?.full_name ?? null,
+    capacity: g.capacity,
+    start_time: g.start_time,
+    end_time: g.end_time,
+    participant_count: groupParticipantCounts.get(g.id) ?? 0,
+  }));
+  const trainerOptions = canWrite ? await loadTrainerOptions() : [];
+  const groupOptions = groups.map((g: any) => ({ id: g.id as string, name: g.name as string }));
 
   const dl = { display: "grid", gridTemplateColumns: "150px 1fr", gap: 4, margin: 0 } as const;
 
@@ -100,6 +128,12 @@ export default async function ScheduleDetailsPage({
         <div className="ta-alert ta-alert-error" style={{ marginBottom: 16 }}>
           <strong>Assessor assignment incomplete:</strong> the schedule was created/updated, but the primary
           assessor could not be assigned ({assessor_error}). Reassign it using the Primary Assessor control below.
+        </div>
+      )}
+
+      {group_error && (
+        <div className="ta-alert ta-alert-error" style={{ marginBottom: 16 }}>
+          <strong>Group not removed:</strong> {group_error}
         </div>
       )}
 
@@ -154,6 +188,25 @@ export default async function ScheduleDetailsPage({
             </Card>
           )}
 
+          <Card title={`Training Groups (${groups.length})`}>
+            <div className="ta-card-pad">
+              {canWrite ? (
+                <GroupsPanel scheduleId={id} groups={groups} trainers={trainerOptions} assessors={assessorOptions} scheduleAssessorName={assessorName} />
+              ) : groups.length > 0 ? (
+                <div style={{ display: "grid", gap: 6 }}>
+                  {groups.map((g: any) => (
+                    <div key={g.id} style={{ fontSize: 13 }}>
+                      <strong>{g.name}</strong> — Trainer: {g.trainer_name ?? "none"} · Assessor: {g.assessor_name ?? assessorName ?? "not assigned"}
+                      {(g.assessor_name || assessorName) ? ` (${g.assessor_name ? "Override" : "Class Assessor"})` : ""}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <EmptyState icon="👥" message="No groups — this schedule uses its trainer/venue fields directly." />
+              )}
+            </div>
+          </Card>
+
           <Card title={`Enrolled Participants (${active.length})`}>
             <div className="ta-card-pad">
               {active.length > 0 ? (
@@ -166,6 +219,15 @@ export default async function ScheduleDetailsPage({
                             <strong>{a.participants?.full_name}</strong>
                             <div style={{ color: "var(--ta-muted)", fontSize: 12 }}>{a.participants?.participant_id}{a.participants?.company ? ` · ${a.participants.company}` : ""}{a.registration_status !== "registered" ? ` · ${a.registration_status}` : ""}</div>
                           </td>
+                          {groups.length > 0 && (
+                            <td>
+                              {canWrite ? (
+                                <ParticipantGroupAssignment scheduleId={id} assignmentId={a.id} groups={groupOptions} currentGroupId={a.schedule_group_id ?? null} />
+                              ) : (
+                                <span style={{ fontSize: 12, color: "var(--ta-muted)" }}>{groupOptions.find((g: any) => g.id === a.schedule_group_id)?.name ?? "Ungrouped"}</span>
+                              )}
+                            </td>
+                          )}
                           <td style={{ textAlign: "right" }}>
                             {canWrite && (
                               <form action={removeParticipant.bind(null, id, a.id)} style={{ display: "inline" }}>
