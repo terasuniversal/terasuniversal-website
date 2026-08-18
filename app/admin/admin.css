@@ -540,8 +540,16 @@
 .ta-class-feedback-print img { display: block; width: min(320px, 100%); height: auto; margin: 18px auto; }
 
 @media print {
-  body > * { visibility: hidden !important; }
-  .ta-dialog-overlay, .ta-dialog-overlay * { visibility: visible !important; }
+  /* Scoped with :has() the same way the quotation print block above is --
+     an unscoped `body > *` here previously hid every element on every
+     /admin print (Attendance Print included) because this stylesheet loads
+     globally via app/admin/layout.tsx, not just wherever the Class Feedback
+     dialog is mounted. .ta-dialog-overlay is only ever rendered by the two
+     Class Feedback dialog components, so its presence is a safe, specific
+     trigger. */
+  body:has(.ta-dialog-overlay) > * { visibility: hidden !important; }
+  body:has(.ta-dialog-overlay) .ta-dialog-overlay,
+  body:has(.ta-dialog-overlay) .ta-dialog-overlay * { visibility: visible !important; }
   .ta-dialog-overlay { position: static !important; display: block !important; background: #fff !important; }
   .ta-class-feedback-dialog { width: 100% !important; max-width: none !important; max-height: none !important; box-shadow: none !important; border: 0 !important; }
   .ta-dialog-head, .ta-dialog-foot { display: none !important; }
