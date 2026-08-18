@@ -118,8 +118,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // this is a formal signed document, matching Attendance Print's
     // No./Name/IC convention instead). Blank-value convention ("—") matches
     // AssessmentTable.tsx's own on-screen rendering for missing scores.
+    // Group column: only for "All Groups" on a schedule that actually has
+    // active groups -- a specific group (or Ungrouped) already names itself
+    // in the header, so repeating it per row would be redundant; a legacy
+    // zero-group schedule has no group column at all, unchanged.
+    const showGroupColumn = groups.length > 0 && selection === null;
     type PrintRow = {
-      no: number; name: string; ic: string;
+      no: number; name: string; ic: string; group: string;
       theory: string | number; practical: string | number;
       result: string; competency: string; remarks: string;
     };
@@ -129,6 +134,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         no: i + 1,
         name: r.participants?.full_name ?? "",
         ic: String(r.participants?.ic_passport_no ?? "").trim() || "—",
+        group: groupNameByParticipant.get(r.participant_id) ?? "Ungrouped",
         theory: a?.theory_score ?? "—",
         practical: a?.practical_score ?? "—",
         result: a?.result ?? "pending",
@@ -136,11 +142,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         remarks: a?.remarks ?? "",
       };
     });
-    const printHead = `<th class="no">No.</th><th>Participant Name</th><th>IC / Passport</th><th>Theory</th><th>Practical</th><th>Result</th><th>Competency</th><th>Remarks</th>`;
+    const printHead = `<th class="no">No.</th><th>Participant Name</th><th>IC / Passport</th>${showGroupColumn ? "<th>Group</th>" : ""}<th>Theory</th><th>Practical</th><th>Result</th><th>Competency</th><th>Remarks</th>`;
     const printBody = printRows
       .map(
         (r: PrintRow) =>
-          `<tr><td class="no">${r.no}</td><td>${esc(r.name)}</td><td>${esc(r.ic)}</td><td class="no">${esc(r.theory)}</td><td class="no">${esc(r.practical)}</td><td>${esc(r.result)}</td><td>${esc(r.competency)}</td><td>${esc(r.remarks)}</td></tr>`
+          `<tr><td class="no">${r.no}</td><td>${esc(r.name)}</td><td>${esc(r.ic)}</td>${showGroupColumn ? `<td>${esc(r.group)}</td>` : ""}<td class="no">${esc(r.theory)}</td><td class="no">${esc(r.practical)}</td><td>${esc(r.result)}</td><td>${esc(r.competency)}</td><td>${esc(r.remarks)}</td></tr>`
       )
       .join("");
 
@@ -183,10 +189,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   .asm-meta div { padding: 3px 0; border-bottom: 1px solid #e1e6ee; }
   .asm-meta dt { display: inline; color: #0B3A63; font-weight: 700; }
   .asm-meta dd { display: inline; margin: 0 0 0 5px; }
-  table { border-collapse: collapse; width: 100%; font-size: 11px; table-layout: fixed; }
+  table { border-collapse: collapse; width: 100%; font-size: 10.5px; table-layout: fixed; }
   thead { display: table-header-group; }
-  th, td { border: 1px solid #c9cfd9; padding: 5px 6px; text-align: left; vertical-align: middle; word-wrap: break-word; }
-  th { background: #0B3A63; color: #fff; font-size: 10px; text-transform: uppercase; letter-spacing: .02em; }
+  th, td { border: 1px solid #c9cfd9; padding: 4px 6px; text-align: left; vertical-align: middle; word-wrap: break-word; line-height: 1.3; }
+  th { background: #0B3A63; color: #fff; font-size: 9.5px; text-transform: uppercase; letter-spacing: .02em; }
   th.no, td.no { width: 8%; text-align: center; }
   tbody tr { break-inside: avoid; page-break-inside: avoid; }
   .asm-signoff { margin-top: 18px; border-top: 2px solid #0B3A63; padding-top: 10px; break-inside: avoid; page-break-inside: avoid; }
