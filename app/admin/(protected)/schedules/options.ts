@@ -41,3 +41,17 @@ export async function matchCourseByProgramme(programme: string | null | undefine
 // Trainer options deferred: no live `trainers` table (see
 // SCHEDULES_ARCHITECTURE_DECISION.md §F / this migration's Phase 9/3).
 // course_schedules.trainer_name is a plain text field until Trainers exists.
+
+/** Active trainer options for the schedule-group trainer picker (Training
+ *  Schedule Groups V1). public.trainers now exists — this does NOT change
+ *  course_schedules.trainer_name, which stays free text as noted above. */
+export async function loadTrainerOptions() {
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase
+    .from("trainers")
+    .select("id, full_name")
+    .eq("status", "active")
+    .is("deleted_at", null)
+    .order("full_name");
+  return (data ?? []).map((t: any) => ({ id: t.id, label: t.full_name }));
+}

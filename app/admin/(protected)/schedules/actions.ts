@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { requireModuleAccess, requireRole } from "../../../../lib/auth/session";
-import { scheduleSchema, fieldErrors } from "../../../../lib/validation/schemas";
+import { scheduleSchema, scheduleGroupSchema, fieldErrors } from "../../../../lib/validation/schemas";
 
 export type ScheduleFormState = { errors?: Record<string, string>; message?: string };
 
@@ -292,5 +292,254 @@ export async function setScheduleAssessor(scheduleId: string, _prev: ScheduleFor
   revalidatePath(`/admin/schedules/${scheduleId}`);
   revalidatePath(`/admin/assessment/${scheduleId}`);
   revalidatePath(`/admin/attendance/${scheduleId}/print`);
+  return {};
+}
+
+// --------------------------------------------------------------------
+// Training Schedule Groups V1 (schedule_groups)
+// --------------------------------------------------------------------
+
+export type GroupFormState = { errors?: Record<string, string>; message?: string };
+
+type SupaClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
+
+/** The parent schedule's own date/time — every group's fallback window and
+ *  the range within which cross-schedule conflicts are even considered. */
+async function loadScheduleWindow(supabase: SupaClient, scheduleId: string) {
+  const { data } = await supabase
+    .from("course_schedules")
+    .select("id, start_date, end_date, start_time, end_time, deleted_at")
+    .eq("id", scheduleId)
+    .single();
+  return data as { id: string; start_date: string; end_date: string; start_time: string | null; end_time: string | null; deleted_at: string | null } | null;
+}
+
+function conflictMessage(kind: "trainer" | "assessor", rows: { group_name: string; schedule_code: string | null }[]): string {
+  const who = kind === "trainer" ? "This trainer" : "This assessor";
+  const list = rows.map((r) => `${r.group_name} (${r.schedule_code ?? "schedule"})`).join(", ");
+  return `${who} is already assigned to an overlapping time slot: ${list}. Adjust the group's time or choose someone else.`;
+}
+
+/**
+ * Create a group under a schedule. Validates trainer/assessor are real and
+ * active, then runs the trainer/assessor overlap checks (see the migration's
+ * schedule_group_*_conflicts() functions) BEFORE inserting — this is an
+ * app-layer pre-check (same risk model assignParticipants already uses for
+ * capacity: a race is possible under real concurrent admin edits, which
+ * this module does not see in practice), not a DB-level exclusion
+ * constraint.
+ */
+export async function createGroup(scheduleId: string, _prev: GroupFormState, formData: FormData): Promise<GroupFormState> {
+  await requireRole("admin");
+  await requireModuleAccess("schedules");
+  const parsed = scheduleGroupSchema.safeParse({
+    name: String(formData.get("name") ?? "").trim(),
+    trainer_id: String(formData.get("trainer_id") ?? "").trim(),
+    assessor_id: String(formData.get("assessor_id") ?? "").trim(),
+    capacity: formData.get("capacity") || null,
+    start_time: String(formData.get("start_time") ?? "").trim(),
+    end_time: String(formData.get("end_time") ?? "").trim(),
+  });
+  if (!parsed.success) return { errors: fieldErrors(parsed.error) };
+  const { name, trainer_id, assessor_id, capacity, start_time, end_time } = parsed.data;
+
+  const supabase = await createSupabaseServerClient();
+  const schedule = await loadScheduleWindow(supabase, scheduleId);
+  if (!schedule || schedule.deleted_at) return { message: "Schedule not found." };
+
+  if (trainer_id) {
+    const { data: trainer } = await supabase.from("trainers").select("id, status, deleted_at").eq("id", trainer_id).maybeSingle();
+    if (!trainer || (trainer as any).deleted_at || (trainer as any).status !== "active") {
+      return { errors: { trainer_id: "Selected trainer is not active or no longer exists." } };
+    }
+  }
+  if (assessor_id) {
+    const { data: assessor } = await supabase.from("assessors").select("id, is_active").eq("id", assessor_id).maybeSingle();
+    if (!assessor || !(assessor as any).is_active) {
+      return { errors: { assessor_id: "Selected assessor is not active or no longer exists." } };
+    }
+  }
+
+  const effStart = start_time || schedule.start_time;
+  const effEnd = end_time || schedule.end_time;
+
+  if (trainer_id && effStart && effEnd) {
+    const { data: conflicts } = await supabase.rpc("schedule_group_trainer_conflicts", {
+      p_trainer_id: trainer_id, p_schedule_id: scheduleId, p_start_time: effStart, p_end_time: effEnd, p_exclude_group_id: null,
+    });
+    if (conflicts && conflicts.length > 0) return { message: conflictMessage("trainer", conflicts as any) };
+  }
+  if (assessor_id && effStart && effEnd) {
+    const { data: conflicts } = await supabase.rpc("schedule_group_assessor_conflicts", {
+      p_assessor_id: assessor_id, p_schedule_id: scheduleId, p_start_time: effStart, p_end_time: effEnd, p_exclude_group_id: null,
+    });
+    if (conflicts && conflicts.length > 0) return { message: conflictMessage("assessor", conflicts as any) };
+  }
+
+  const { error } = await supabase.from("schedule_groups").insert({
+    schedule_id: scheduleId,
+    name,
+    trainer_id: trainer_id || null,
+    assessor_id: assessor_id || null,
+    capacity: capacity ?? null,
+    start_time: start_time || null,
+    end_time: end_time || null,
+  });
+  if (error) {
+    if (error.code === "23505") return { errors: { name: "A group with this name already exists on this schedule." } };
+    return { message: error.message };
+  }
+  revalidatePath(`/admin/schedules/${scheduleId}`);
+  return {};
+}
+
+/** Update a group's name/trainer/assessor-override/time/capacity. Same
+ *  validation + conflict checks as createGroup, excluding the group's own
+ *  row from the overlap comparison. */
+export async function updateGroup(scheduleId: string, groupId: string, _prev: GroupFormState, formData: FormData): Promise<GroupFormState> {
+  await requireRole("admin");
+  await requireModuleAccess("schedules");
+  const parsed = scheduleGroupSchema.safeParse({
+    name: String(formData.get("name") ?? "").trim(),
+    trainer_id: String(formData.get("trainer_id") ?? "").trim(),
+    assessor_id: String(formData.get("assessor_id") ?? "").trim(),
+    capacity: formData.get("capacity") || null,
+    start_time: String(formData.get("start_time") ?? "").trim(),
+    end_time: String(formData.get("end_time") ?? "").trim(),
+  });
+  if (!parsed.success) return { errors: fieldErrors(parsed.error) };
+  const { name, trainer_id, assessor_id, capacity, start_time, end_time } = parsed.data;
+
+  const supabase = await createSupabaseServerClient();
+  const { data: existing } = await supabase.from("schedule_groups").select("id, schedule_id, deleted_at").eq("id", groupId).maybeSingle();
+  if (!existing || (existing as any).deleted_at || (existing as any).schedule_id !== scheduleId) {
+    return { message: "Group not found on this schedule." };
+  }
+  const schedule = await loadScheduleWindow(supabase, scheduleId);
+  if (!schedule || schedule.deleted_at) return { message: "Schedule not found." };
+
+  if (trainer_id) {
+    const { data: trainer } = await supabase.from("trainers").select("id, status, deleted_at").eq("id", trainer_id).maybeSingle();
+    if (!trainer || (trainer as any).deleted_at || (trainer as any).status !== "active") {
+      return { errors: { trainer_id: "Selected trainer is not active or no longer exists." } };
+    }
+  }
+  if (assessor_id) {
+    const { data: assessor } = await supabase.from("assessors").select("id, is_active").eq("id", assessor_id).maybeSingle();
+    if (!assessor || !(assessor as any).is_active) {
+      return { errors: { assessor_id: "Selected assessor is not active or no longer exists." } };
+    }
+  }
+
+  const effStart = start_time || schedule.start_time;
+  const effEnd = end_time || schedule.end_time;
+
+  if (trainer_id && effStart && effEnd) {
+    const { data: conflicts } = await supabase.rpc("schedule_group_trainer_conflicts", {
+      p_trainer_id: trainer_id, p_schedule_id: scheduleId, p_start_time: effStart, p_end_time: effEnd, p_exclude_group_id: groupId,
+    });
+    if (conflicts && conflicts.length > 0) return { message: conflictMessage("trainer", conflicts as any) };
+  }
+  if (assessor_id && effStart && effEnd) {
+    const { data: conflicts } = await supabase.rpc("schedule_group_assessor_conflicts", {
+      p_assessor_id: assessor_id, p_schedule_id: scheduleId, p_start_time: effStart, p_end_time: effEnd, p_exclude_group_id: groupId,
+    });
+    if (conflicts && conflicts.length > 0) return { message: conflictMessage("assessor", conflicts as any) };
+  }
+
+  const { error } = await supabase
+    .from("schedule_groups")
+    .update({
+      name,
+      trainer_id: trainer_id || null,
+      assessor_id: assessor_id || null,
+      capacity: capacity ?? null,
+      start_time: start_time || null,
+      end_time: end_time || null,
+    })
+    .eq("id", groupId);
+  if (error) {
+    if (error.code === "23505") return { errors: { name: "A group with this name already exists on this schedule." } };
+    return { message: error.message };
+  }
+  revalidatePath(`/admin/schedules/${scheduleId}`);
+  return {};
+}
+
+/**
+ * Soft-delete a group. Blocks removal while any active (non-cancelled,
+ * non-deleted) participant is still assigned to it -- the admin must
+ * reassign those participants (to another group, or back to ungrouped)
+ * first. Surfaces the block via a redirect query param, matching the
+ * existing assessor_error pattern on this same page.
+ */
+export async function removeGroup(scheduleId: string, groupId: string) {
+  await requireRole("admin");
+  await requireModuleAccess("schedules");
+  const supabase = await createSupabaseServerClient();
+  const { count } = await supabase
+    .from("schedule_participants")
+    .select("id", { count: "exact", head: true })
+    .eq("schedule_group_id", groupId)
+    .is("deleted_at", null)
+    .neq("registration_status", "cancelled");
+  if ((count ?? 0) > 0) {
+    redirect(`/admin/schedules/${scheduleId}?group_error=${encodeURIComponent(`${count} participant(s) are still assigned to this group — reassign them first.`)}`);
+  }
+  await supabase.from("schedule_groups").update({ deleted_at: new Date().toISOString() }).eq("id", groupId).eq("schedule_id", scheduleId);
+  revalidatePath(`/admin/schedules/${scheduleId}`);
+}
+
+/**
+ * Assign/reassign/unassign one participant's group within their existing
+ * schedule enrollment. Never creates or duplicates a schedule_participants
+ * row -- this only ever updates the schedule_group_id column on the
+ * participant's existing enrollment row (see schedule_group_id's own
+ * column comment in the migration for why a column, not a mapping table).
+ */
+export async function assignParticipantGroup(scheduleId: string, assignmentId: string, _prev: GroupFormState, formData: FormData): Promise<GroupFormState> {
+  await requireRole("admin");
+  await requireModuleAccess("schedules");
+  const groupId = String(formData.get("schedule_group_id") ?? "").trim();
+  const supabase = await createSupabaseServerClient();
+
+  const { data: assignment } = await supabase
+    .from("schedule_participants")
+    .select("id, schedule_id, deleted_at")
+    .eq("id", assignmentId)
+    .maybeSingle();
+  if (!assignment || (assignment as any).deleted_at || (assignment as any).schedule_id !== scheduleId) {
+    return { message: "Enrollment not found on this schedule." };
+  }
+
+  if (groupId) {
+    const { data: group } = await supabase.from("schedule_groups").select("id, schedule_id, capacity, deleted_at").eq("id", groupId).maybeSingle();
+    if (!group || (group as any).deleted_at || (group as any).schedule_id !== scheduleId) {
+      return { message: "That group does not belong to this schedule." };
+    }
+    const capacity = (group as any).capacity as number | null;
+    if (capacity != null) {
+      const { count } = await supabase
+        .from("schedule_participants")
+        .select("id", { count: "exact", head: true })
+        .eq("schedule_group_id", groupId)
+        .is("deleted_at", null)
+        .neq("registration_status", "cancelled")
+        .neq("id", assignmentId);
+      if ((count ?? 0) >= capacity) return { message: "This group is at capacity." };
+    }
+  }
+
+  const { error } = await supabase.from("schedule_participants").update({ schedule_group_id: groupId || null }).eq("id", assignmentId);
+  if (error) {
+    // schedule_participants_group_same_schedule_fkey (composite FK, group id
+    // + schedule id together) — the pre-checks above should always catch
+    // this first; a 23503 here means the group/schedule pairing changed
+    // between the check and the write (race), not a routine input error, so
+    // don't leak the constraint name to the admin.
+    if (error.code === "23503") return { message: "That group no longer belongs to this schedule. Refresh and try again." };
+    return { message: error.message };
+  }
+  revalidatePath(`/admin/schedules/${scheduleId}`);
   return {};
 }
