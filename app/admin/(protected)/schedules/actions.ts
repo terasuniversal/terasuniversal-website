@@ -186,6 +186,26 @@ export async function restoreSchedule(id: string) {
  * cannot target a partial index, so duplicates are pre-filtered with a
  * single batched lookup query instead of a per-row loop; the index remains
  * the race-condition safety net if two requests race past the pre-check.
+ *
+ * A selected participant falls into exactly one of three buckets:
+ *   - already ACTIVE here -> skip, no duplicate.
+ *   - has a CANCELLED (non-deleted) row here -> RESTORE that same row
+ *     (registration_status back to 'registered', schedule_group_id reset to
+ *     NULL so a removed/changed group is never blindly reapplied -- an admin
+ *     re-assigns Group 1/2 deliberately afterward) instead of inserting a
+ *     second row. This was previously missing: the old duplicate-check only
+ *     looked at active rows, so re-adding a cancelled participant silently
+ *     inserted a brand-new row every time (multiple real participants on
+ *     2026-BSE-01 ended up with 2-3 rows each from repeated remove/re-add).
+ *   - never enrolled here -> insert a fresh row, as before.
+ * If a participant somehow has more than one cancelled row (pre-existing
+ * duplicate debris from before this fix), only the most recently touched one
+ * is restored -- picked by updated_at (falling back to created_at for a tie)
+ * since updated_at is what the cancel action itself stamps, so "most recent
+ * cancelled row" means "most recently cancelled," not "most recently
+ * created." The others are left cancelled untouched; cleaning up historical
+ * duplicates is a separate, explicit task, not something this fix does
+ * silently as a side effect.
  */
 export async function assignParticipants(scheduleId: string, _prev: ScheduleFormState, formData: FormData): Promise<ScheduleFormState> {
   await requireRole("admin");
@@ -194,24 +214,39 @@ export async function assignParticipants(scheduleId: string, _prev: ScheduleForm
   if (ids.length === 0) return {};
   const supabase = await createSupabaseServerClient();
 
-  // Active-enrollment lookup first so the capacity check counts NET-NEW
-  // participants only: someone already actively enrolled consumes zero
-  // additional seats, so the raw selection size would otherwise reject a
-  // valid batch that re-picks an enrolled participant.
-  const { data: existing } = await supabase
+  // Every non-deleted row (active or cancelled) for the selected participants
+  // on this schedule, fetched once so the three buckets above can be sorted
+  // out in memory instead of a per-participant round trip.
+  const { data: existingRows } = await supabase
     .from("schedule_participants")
-    .select("participant_id")
+    .select("id, participant_id, registration_status, updated_at, created_at")
     .eq("schedule_id", scheduleId)
     .is("deleted_at", null)
-    .neq("registration_status", "cancelled")
     .in("participant_id", ids);
-  const already = new Set((existing ?? []).map((r: any) => r.participant_id as string));
-  const rows = ids.filter((id) => !already.has(id)).map((participant_id) => ({ schedule_id: scheduleId, participant_id }));
+
+  const alreadyActive = new Set<string>();
+  const cancelledByParticipant = new Map<string, { id: string; updated_at: string; created_at: string }>();
+  for (const r of (existingRows ?? []) as { id: string; participant_id: string; registration_status: string; updated_at: string; created_at: string }[]) {
+    if (r.registration_status !== "cancelled") {
+      alreadyActive.add(r.participant_id);
+      continue;
+    }
+    const current = cancelledByParticipant.get(r.participant_id);
+    if (!current || r.updated_at > current.updated_at || (r.updated_at === current.updated_at && r.created_at > current.created_at)) {
+      cancelledByParticipant.set(r.participant_id, r);
+    }
+  }
+
+  const toRestore = ids.filter((id) => !alreadyActive.has(id) && cancelledByParticipant.has(id));
+  const toInsert = ids.filter((id) => !alreadyActive.has(id) && !cancelledByParticipant.has(id));
+  const restoreRowIds = toRestore.map((id) => cancelledByParticipant.get(id)!.id);
 
   // Capacity is enforced here too, not just by the client's disable-the-button
   // check: seats can be taken between page load and submit, and the DB check
   // constraint (seats_taken <= capacity) would then reject the insert silently.
   // Reject with a message instead of trusting the UI or swallowing the error.
+  // A restore consumes a seat exactly like a fresh insert does (both flip a
+  // row from not-counted to counted in seats_taken), so both count here.
   const { data: sched } = await supabase
     .from("course_schedules")
     .select("capacity, seats_taken")
@@ -219,12 +254,22 @@ export async function assignParticipants(scheduleId: string, _prev: ScheduleForm
     .single();
   if (!sched) return { message: "Schedule not found." };
   const remaining = Math.max((Number(sched.capacity) || 0) - (Number(sched.seats_taken) || 0), 0);
-  if (rows.length > remaining) {
-    return { message: `Only ${remaining} seat(s) remaining, but ${rows.length} selected. Increase capacity or select fewer participants.` };
+  const newlyActiveCount = toInsert.length + toRestore.length;
+  if (newlyActiveCount > remaining) {
+    return { message: `Only ${remaining} seat(s) remaining, but ${newlyActiveCount} selected. Increase capacity or select fewer participants.` };
   }
 
-  if (rows.length > 0) {
-    const { error } = await supabase.from("schedule_participants").insert(rows);
+  if (restoreRowIds.length > 0) {
+    const { error } = await supabase
+      .from("schedule_participants")
+      .update({ registration_status: "registered", schedule_group_id: null })
+      .in("id", restoreRowIds);
+    if (error) return { message: error.message };
+  }
+  if (toInsert.length > 0) {
+    const { error } = await supabase
+      .from("schedule_participants")
+      .insert(toInsert.map((participant_id) => ({ schedule_id: scheduleId, participant_id })));
     if (error) return { message: error.message };
   }
   revalidatePath(`/admin/schedules/${scheduleId}`);
