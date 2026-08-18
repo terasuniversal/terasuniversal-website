@@ -4,6 +4,7 @@ import { Fragment, useActionState, useState } from "react";
 import { Badge } from "../../../../components/admin/ui";
 import { updateAssessment, bulkUpdateResult, lockAssessments, unlockAssessments, updateParticipantSkillResults, type SkillsFormState } from "./actions";
 import { participantSkillResultSchema } from "../../../../lib/validation/schemas";
+import { UNGROUPED } from "../../../../lib/scheduleGroupContext";
 
 export interface AsmRow {
   id: string | null; // null = not assessed yet (roster-driven, no auto-create)
@@ -117,11 +118,17 @@ export function AssessmentTable({
   rows,
   canManage,
   isSuperAdmin,
+  groupId,
 }: {
   scheduleId: string;
   rows: AsmRow[];
   canManage: boolean;
   isSuperAdmin: boolean;
+  /** Currently-selected group context (Assessment V3), passed through to
+   * bulkUpdateResult so it can re-verify each targeted row still belongs to
+   * this group server-side -- never trust that `rows` (already
+   * server-filtered for display) is what the mutation should trust. */
+  groupId: string | typeof UNGROUPED | null;
 }) {
   const [q, setQ] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -148,7 +155,7 @@ export function AssessmentTable({
         <div className="ta-card ta-card-pad" style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
           <strong>{selected.size} selected</strong>
           <div style={{ flex: 1 }} />
-          <form action={bulkUpdateResult.bind(null, scheduleId)} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <form action={bulkUpdateResult.bind(null, scheduleId, groupId)} style={{ display: "flex", gap: 8, alignItems: "center" }}>
             {[...selected].map((id) => <input key={id} type="hidden" name="ids" value={id} />)}
             <select name="result" value={bulkResult} onChange={(e) => setBulkResult(e.target.value)} style={selStyle}>
               {RESULTS.map((s) => <option key={s} value={s}>{label(s)}</option>)}
