@@ -169,18 +169,22 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         ? assessorDisplay.assessor || "Not assigned"
         : assessorDisplay.entries.map((e) => `${e.label} — ${e.assessor}`).join("; ");
 
-    // Real handwritten-signature room (~13mm blank, within the approved
-    // 12-15mm range), not a line immediately after the label -- the
-    // underline sits below the blank space, and Date follows separately
-    // underneath.
+    // Compact HORIZONTAL sign-off: Assessor Name / Signature / Date sit
+    // side by side, each over its own ruled line, instead of stacking
+    // vertically (name, then a tall blank, then an underline, then Date on
+    // its own row). Same information and the same practical ~12mm
+    // handwriting depth, but roughly half the vertical footprint -- the
+    // stacked version's height was what kept eating the last page's
+    // remaining space. Plain inline-block cells, deliberately not
+    // flex/grid/table (each of those has bitten this print sheet before).
     const signOffBlock = (assessor: string, label?: string) => `
   <div class="asm-signoff-block">
     ${label ? `<p class="asm-signoff-label">${esc(label)}</p>` : ""}
-    <p><strong>Assessor Name:</strong> ${esc(assessor) || "Not assigned"}</p>
-    <p class="asm-sig-label"><strong>Signature:</strong></p>
-    <div class="asm-sig-space"></div>
-    <div class="asm-sig-underline"></div>
-    <p><strong>Date:</strong> <span class="asm-line"></span></p>
+    <div class="asm-sig-row">
+      <div class="asm-sig-cell asm-sig-cell-name"><span>Assessor Name:</span><div class="asm-sig-fill asm-sig-value">${esc(assessor) || "Not assigned"}</div></div>
+      <div class="asm-sig-cell"><span>Signature:</span><div class="asm-sig-fill"></div></div>
+      <div class="asm-sig-cell asm-sig-cell-date"><span>Date:</span><div class="asm-sig-fill"></div></div>
+    </div>
   </div>`;
     const signOff =
       assessorDisplay.mode === "single"
@@ -211,50 +215,90 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // (.asm-print-page) instead of asking the browser to decide where a
     // single long table should split.
     //
-    // Height constants below are derived directly from this file's own CSS
-    // (padding, font-size, line-height, borders, converted to mm at 96dpi)
-    // and rounded for a safety margin against occasional 2-line wraps in
-    // Remarks -- an estimate, not a live browser measurement. If a real
-    // render falls outside this budget, these are the first values to
-    // revisit; the row/section markup itself does not need to change.
+    // Height constants are derived from this file's own CSS (padding,
+    // font-size, line-height, borders, converted to mm at 96dpi). They are
+    // estimates, not live browser measurements -- which is precisely why
+    // the distribution below is BALANCED rather than greedy (see paginate).
+    //
+    // ROW_HEIGHT_MM is deliberately budgeted above a single-line row's real
+    // ~6.9mm: a long participant name wraps to two lines in its column, and
+    // real Chrome output proved that packing a page to the single-line
+    // maximum overflows once several rows wrap.
     const PAGE_HEIGHT_MM = 186; // A4 landscape 210mm - 12mm top/bottom @page margin
-    const ROW_HEIGHT_MM = 7; // td: 5px*2 padding + 11px font * 1.35 line-height + border, @96dpi
+    const ROW_HEIGHT_MM = 8; // ~6.9mm single-line + headroom for names that wrap to 2 lines
     const FULL_HEADER_MM = 38; // brand bar + body padding + 2-row meta grid + thead
     const CONTINUATION_HEADER_MM = 15; // compact "(continued)" line + body padding + thead
-    const SIGNOFF_BASE_MM = 7; // .asm-signoff section margin/border/padding/heading chrome (tightened alongside the CSS below)
-    const SIGNOFF_BLOCK_MM = 27; // per assessor block: name + sig label + 13mm space + underline + date + margin (tightened alongside the CSS below)
+    const SIGNOFF_BASE_MM = 6; // .asm-signoff margin/border/padding + heading
+    const SIGNOFF_BLOCK_MM = 16; // per assessor block: one horizontal row (label + 12mm ruled fill)
     const numAssessorBlocks = assessorDisplay.mode === "single" ? 1 : assessorDisplay.entries.length;
     const signOffHeightMm = SIGNOFF_BASE_MM + numAssessorBlocks * SIGNOFF_BLOCK_MM;
 
     type PrintPage = { rows: PrintRow[]; header: "full" | "compact"; includeSignOff: boolean };
+    const capacityFor = (header: "full" | "compact", withSignOff: boolean) =>
+      Math.max(
+        1,
+        Math.floor(
+          (PAGE_HEIGHT_MM - (header === "full" ? FULL_HEADER_MM : CONTINUATION_HEADER_MM) - (withSignOff ? signOffHeightMm : 0)) / ROW_HEIGHT_MM
+        )
+      );
+
+    /**
+     * Chooses the fewest pages that can hold the roster, then spreads rows
+     * EVENLY across them instead of filling each page to its maximum.
+     *
+     * The greedy version this replaces packed the last page to its exact
+     * theoretical capacity, leaving zero slack -- so any row taller than the
+     * estimate (a wrapped name) pushed the tail onto an extra page. Real
+     * Chrome output confirmed this: a computed 19-row final page rendered as
+     * 18 rows + an orphaned page. Balancing 30 rows as 15/15 instead of
+     * 11/19 uses the same two pages but leaves several rows' worth of
+     * headroom on each, which absorbs estimation error rather than
+     * compounding it. Purely arithmetic -- no participant identity, group
+     * id, or roster size is special-cased.
+     */
     function paginate(rows: PrintRow[]): PrintPage[] {
       if (rows.length === 0) return [];
-      const fitsOnePage = rows.length * ROW_HEIGHT_MM + FULL_HEADER_MM + signOffHeightMm <= PAGE_HEIGHT_MM;
-      if (fitsOnePage) return [{ rows, header: "full", includeSignOff: true }];
+      if (rows.length <= capacityFor("full", true)) return [{ rows, header: "full", includeSignOff: true }];
 
-      // Reserve the LAST page for as many trailing rows as fit alongside the
-      // sign-off (using the smaller continuation header, since a genuine
-      // multi-page report's last page is never the first). At least one row
-      // is held back for earlier pages so the first page -- which needs the
-      // full header, not the continuation one -- is never miscomputed as if
-      // it were the last.
-      const lastPageCapacity = Math.max(1, Math.floor((PAGE_HEIGHT_MM - CONTINUATION_HEADER_MM - signOffHeightMm) / ROW_HEIGHT_MM));
-      const rowsForLastPage = Math.min(lastPageCapacity, Math.max(0, rows.length - 1));
-      const leadRows = rows.slice(0, rows.length - rowsForLastPage);
-      const lastRows = rows.slice(rows.length - rowsForLastPage);
+      for (let pageCount = 2; ; pageCount++) {
+        const caps = Array.from({ length: pageCount }, (_, i) =>
+          capacityFor(i === 0 ? "full" : "compact", i === pageCount - 1)
+        );
+        if (caps.reduce((a, b) => a + b, 0) < rows.length) continue;
 
-      const firstPageCapacity = Math.max(1, Math.floor((PAGE_HEIGHT_MM - FULL_HEADER_MM) / ROW_HEIGHT_MM));
-      const middlePageCapacity = Math.max(1, Math.floor((PAGE_HEIGHT_MM - CONTINUATION_HEADER_MM) / ROW_HEIGHT_MM));
-      const pages: PrintPage[] = [];
-      let cursor = 0;
-      while (cursor < leadRows.length) {
-        const capacity = pages.length === 0 ? firstPageCapacity : middlePageCapacity;
-        const chunk = leadRows.slice(cursor, cursor + capacity);
-        pages.push({ rows: chunk, header: pages.length === 0 ? "full" : "compact", includeSignOff: false });
-        cursor += chunk.length;
+        // Even split, then push any per-page overflow forward; the last page
+        // is the tightest (it also carries the sign-off), so it is settled
+        // first by pushing its excess backward.
+        const base = Math.floor(rows.length / pageCount);
+        const counts = Array.from({ length: pageCount }, (_, i) => base + (i < rows.length % pageCount ? 1 : 0));
+        for (let i = pageCount - 1; i > 0; i--) {
+          const over = counts[i] - caps[i];
+          if (over > 0) {
+            counts[i] -= over;
+            counts[i - 1] += over;
+          }
+        }
+        for (let i = 0; i < pageCount - 1; i++) {
+          const over = counts[i] - caps[i];
+          if (over > 0) {
+            counts[i] -= over;
+            counts[i + 1] += over;
+          }
+        }
+        if (counts.some((c, i) => c > caps[i]) || counts.some((c) => c < 1)) continue; // infeasible -> try one more page
+
+        const pages: PrintPage[] = [];
+        let cursor = 0;
+        for (let i = 0; i < pageCount; i++) {
+          pages.push({
+            rows: rows.slice(cursor, cursor + counts[i]),
+            header: i === 0 ? "full" : "compact",
+            includeSignOff: i === pageCount - 1,
+          });
+          cursor += counts[i];
+        }
+        return pages;
       }
-      pages.push({ rows: lastRows, header: pages.length === 0 ? "full" : "compact", includeSignOff: true });
-      return pages;
     }
     const printPages = paginate(printRows);
     const pageHtml = (page: PrintPage) => `
@@ -319,39 +363,28 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
      dedicated width, unlike a person's name which has no such bound. */
   th.ic, td.ic { white-space: nowrap; }
   tbody tr { break-inside: avoid; page-break-inside: avoid; }
-  /* Plain block flow, NOT display:grid/flex, and deliberately NO
-     break-inside/page-break-inside here. paginate() in the route handler
-     already groups this section's row chunk + sign-off into a single
-     .asm-print-page sized (by estimate, not a live measurement) to fit one
-     physical page -- but break-inside:avoid is a binary "fits entirely or
-     relocate the WHOLE block to a fresh page" rule, independent of that
-     grouping. Whenever the real rendered height came in even slightly over
-     the estimate, Chrome relocated this entire section to its own page
-     rather than just the small overflow -- exactly the "sign-off alone on
-     the next page" symptom, now on a single-page container instead of
-     across a fragmenting table. The only explicit page break in this
-     document is .asm-print-page's break-after, between pages the server
-     already decided on; nothing here should introduce another one. */
-  /* Chrome QA showed the tail of this section (underline + Date) spilling
-     onto a following page even after the previous round's break-inside
-     removal -- confirming the estimate this section's own footprint was
-     based on was a little optimistic, not that avoid was still in play.
-     Tightened the section/paragraph/block spacing here (never row height,
-     font size, columns, or page margins) to close that gap; SIGNOFF_BASE_MM/
-     SIGNOFF_BLOCK_MM in the route handler are kept in sync with these exact
-     values. */
+  /* The section itself carries NO break-inside: a binary "fits entirely or
+     relocate the whole block" rule on a section this tall is what produced
+     the sign-off-only page in an earlier round. Each individual assessor
+     block does carry it -- one compact ~16mm row is small enough to relocate
+     safely if it ever had to, and a half-signed block split across pages
+     would be a genuinely invalid document. The only explicit page break in
+     this document remains .asm-print-page's break-after, between pages
+     paginate() already decided on. */
   .asm-signoff { margin-top: 4px; border-top: 2px solid #0B3A63; padding-top: 4px; }
-  .asm-signoff > strong { display: block; font-size: 11px; color: #0B3A63; letter-spacing: .06em; margin-bottom: 2px; }
-  .asm-signoff-block { margin-bottom: 4px; font-size: 12px; }
-  .asm-signoff-block p { margin: 1px 0; }
-  .asm-signoff-label { font-weight: 700; color: #0B3A63; }
-  .asm-sig-label { margin-bottom: 0; }
-  /* Practical handwriting room, ~13mm (within the approved 12-15mm range,
-     tightened from 15mm) -- matches SIGNOFF_BLOCK_MM in the route handler's
-     pagination math; change both together if this value changes. */
-  .asm-sig-space { height: 13mm; }
-  .asm-sig-underline { border-bottom: 1px solid #1a1a1a; width: 100%; max-width: 280px; margin: 0 0 2px; }
-  .asm-line { display: inline-block; min-width: 220px; border-bottom: 1px solid #1a1a1a; }
+  .asm-signoff > strong { display: block; font-size: 11px; color: #0B3A63; letter-spacing: .06em; margin-bottom: 3px; }
+  .asm-signoff-block { margin-bottom: 4px; font-size: 12px; break-inside: avoid; page-break-inside: avoid; }
+  .asm-signoff-label { font-weight: 700; color: #0B3A63; margin: 0 0 2px; }
+  /* Horizontal sign-off row: Name / Signature / Date side by side, each over
+     its own ruled line. vertical-align:bottom keeps all three rules on the
+     same baseline even though the name cell's content is shorter. */
+  .asm-sig-row { font-size: 0; }
+  .asm-sig-cell { display: inline-block; vertical-align: bottom; width: 32%; margin-right: 2%; font-size: 12px; }
+  .asm-sig-cell-date { margin-right: 0; }
+  .asm-sig-cell > span { display: block; font-weight: 700; color: #0B3A63; font-size: 11px; margin-bottom: 1px; }
+  /* 12mm of ruled handwriting depth -- the practical signing area. */
+  .asm-sig-fill { height: 12mm; border-bottom: 1px solid #1a1a1a; }
+  .asm-sig-value { height: auto; min-height: 12mm; padding-top: 8mm; font-weight: 600; overflow-wrap: anywhere; }
   .asm-empty { padding: 0 16px 16px; color: #0B3A63; font-weight: 600; }
 </style>
 </head><body onload="window.print()">
