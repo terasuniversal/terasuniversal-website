@@ -196,8 +196,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   .asm-head { background: #0B3A63; color: #fff; padding: 10px 16px; border-bottom: 3px solid #D4AF37; }
   .asm-head strong { display: block; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: #D4AF37; }
   .asm-head h1 { margin: 2px 0 0; font-size: 17px; font-weight: 800; letter-spacing: .04em; }
-  .asm-body { padding: 14px 16px 0; }
-  .asm-meta { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px 24px; margin: 0 0 10px; font-size: 12px; }
+  .asm-body { padding: 10px 16px 0; }
+  .asm-meta { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px 24px; margin: 0 0 6px; font-size: 12px; }
   .asm-meta div { padding: 3px 0; border-bottom: 1px solid #e1e6ee; }
   .asm-meta dt { display: inline; color: #0B3A63; font-weight: 700; }
   .asm-meta dd { display: inline; margin: 0 0 0 5px; }
@@ -216,17 +216,27 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
      dedicated width, unlike a person's name which has no such bound. */
   th.ic, td.ic { white-space: nowrap; }
   tbody tr { break-inside: avoid; page-break-inside: avoid; }
-  .asm-signoff { margin-top: 18px; border-top: 2px solid #0B3A63; padding-top: 10px; break-inside: avoid; page-break-inside: avoid; }
-  .asm-signoff > strong { display: block; font-size: 11px; color: #0B3A63; letter-spacing: .06em; margin-bottom: 6px; }
-  .asm-signoff-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0 32px; }
-  .asm-signoff-block { break-inside: avoid; page-break-inside: avoid; margin-bottom: 10px; font-size: 12px; }
-  .asm-signoff-block p { margin: 3px 0; }
+  /* Plain block flow, deliberately NOT display:grid/flex (see the route
+     handler's comment on this section) -- a CSS Grid container here is what
+     was causing Chromium to reorder this section ahead of the table's later
+     row fragments instead of placing it after them. break-before: auto is
+     explicit (not the default-implied value) so the browser is never left
+     to infer it should do anything other than continue normal flow after
+     the table. */
+  .asm-signoff { margin-top: 8px; border-top: 2px solid #0B3A63; padding-top: 6px; break-inside: avoid; break-before: auto; page-break-inside: avoid; }
+  .asm-signoff > strong { display: block; font-size: 11px; color: #0B3A63; letter-spacing: .06em; margin-bottom: 4px; }
+  .asm-signoff-block { break-inside: avoid; page-break-inside: avoid; margin-bottom: 8px; font-size: 12px; }
+  .asm-signoff-block p { margin: 2px 0; }
   .asm-signoff-label { font-weight: 700; color: #0B3A63; }
   .asm-sig-label { margin-bottom: 0; }
-  /* Real blank signing area (~28mm) between the "Signature:" label and its
-     underline, instead of the line sitting immediately after the label. */
-  .asm-sig-space { height: 28mm; }
-  .asm-sig-underline { border-bottom: 1px solid #1a1a1a; width: 100%; max-width: 280px; margin: 0 0 8px; }
+  /* Practical handwriting room (~20mm), trimmed down from an earlier ~28mm:
+     the larger figure made the sign-off block too tall to fit in the space
+     remaining after a roster that otherwise finishes with room to spare
+     (e.g. 15 rows), pushing the whole block to its own near-empty page even
+     though break-inside: avoid was only ever meant to stop it splitting,
+     not to grow it past what "fits after a normal roster" actually needs. */
+  .asm-sig-space { height: 20mm; }
+  .asm-sig-underline { border-bottom: 1px solid #1a1a1a; width: 100%; max-width: 280px; margin: 0 0 4px; }
   .asm-line { display: inline-block; min-width: 220px; border-bottom: 1px solid #1a1a1a; }
   .asm-empty { padding: 0 16px 16px; color: #0B3A63; font-weight: 600; }
 </style>
@@ -251,7 +261,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       ? `<table>${colgroup}<thead><tr>${printHead}</tr></thead><tbody>${printBody}</tbody></table>
   <section class="asm-signoff">
     <strong>ASSESSOR VERIFICATION</strong>
-    <div class="asm-signoff-grid">${signOff}</div>
+    ${signOff}
   </section>`
       : `<p class="asm-empty">${groupHeaderValue ? "No participants assigned to this group." : "No participants enrolled in this schedule yet."}</p>`
   }
