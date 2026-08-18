@@ -244,28 +244,30 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
      dedicated width, unlike a person's name which has no such bound. */
   th.ic, td.ic { white-space: nowrap; }
   tbody tr { break-inside: avoid; page-break-inside: avoid; }
-  /* Plain block flow, NOT display:grid/flex (a grid wrapper here previously
-     caused Chromium to reorder this section ahead of the table's later row
-     fragments) and deliberately NO break-inside/page-break-inside on this
-     section or its sub-blocks -- see the route handler's comment above
-     signOffSection for why: both "avoid" here and moving this content into
-     the table's own <tfoot> were tried and each produced a structural
-     pagination failure (reordered rows, or a phantom repeated-header page).
-     break-before: auto is explicit so the browser is never left to infer
-     anything other than continuing normal flow after the table. */
-  .asm-signoff { margin-top: 8px; border-top: 2px solid #0B3A63; padding-top: 6px; break-before: auto; }
+  /* Plain block flow, NOT display:grid/flex -- a grid wrapper (an earlier
+     attempt) was what caused Chromium to reorder this section ahead of the
+     table's later row fragments, and moving this content into the table's
+     own <tfoot> (another earlier attempt) produced a phantom repeated-header
+     page. Neither of those failures was caused by break-inside: avoid on a
+     PLAIN sibling by itself -- that combination (this one) keeps document
+     order correct and lands the whole section on the table's page when
+     there's room, on a fresh page when there genuinely isn't. avoid is
+     applied to the OUTER .asm-signoff wrapper so the heading, every
+     assessor block, and the Date line all move together as one atomic
+     unit -- confirmed in the generated HTML that Date sits inside this same
+     wrapper, never outside it. */
+  .asm-signoff { margin-top: 8px; border-top: 2px solid #0B3A63; padding-top: 6px; break-before: auto; break-inside: avoid; page-break-inside: avoid; }
   .asm-signoff > strong { display: block; font-size: 11px; color: #0B3A63; letter-spacing: .06em; margin-bottom: 4px; }
   .asm-signoff-block { margin-bottom: 8px; font-size: 12px; }
   .asm-signoff-block p { margin: 2px 0; }
   .asm-signoff-label { font-weight: 700; color: #0B3A63; }
   .asm-sig-label { margin-bottom: 0; }
-  /* Practical handwriting room (~20mm), trimmed down from an earlier ~28mm:
-     the larger figure made the sign-off block too tall to fit in the space
-     remaining after a roster that otherwise finishes with room to spare
-     (e.g. 15 rows), pushing the whole block to its own near-empty page even
-     though break-inside: avoid was only ever meant to stop it splitting,
-     not to grow it past what "fits after a normal roster" actually needs. */
-  .asm-sig-space { height: 20mm; }
+  /* Practical handwriting room, tightened to ~16mm (from ~20mm) now that
+     break-inside:avoid is back on the outer wrapper (above) -- the whole
+     section, including this space, must fit in one page's remaining room
+     as a single atomic unit, so every mm here is budget the roster's own
+     last page has to spare. Still a real, usable signing gap. */
+  .asm-sig-space { height: 16mm; }
   .asm-sig-underline { border-bottom: 1px solid #1a1a1a; width: 100%; max-width: 280px; margin: 0 0 4px; }
   .asm-line { display: inline-block; min-width: 220px; border-bottom: 1px solid #1a1a1a; }
   .asm-empty { padding: 0 16px 16px; color: #0B3A63; font-weight: 600; }
