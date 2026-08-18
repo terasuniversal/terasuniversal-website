@@ -34,19 +34,30 @@ export default async function EditSchedulePage({ params }: { params: Promise<{ i
 
   // Training Schedule Groups V1 — same query shape as the schedule detail
   // page's GroupsPanel section (reused component, not a second subsystem).
-  const { data: groupRows } = await supabase
+  // { error } is checked on both queries deliberately: a swallowed error
+  // (missing table, RLS denial, any query failure) must never render as
+  // "0 groups" / "0 assigned" — that's indistinguishable from a genuinely
+  // empty, successful result and hides real problems from staff.
+  const { data: groupRows, error: groupsError } = await supabase
     .from("schedule_groups")
     .select("id, name, trainer_id, assessor_id, capacity, start_time, end_time, trainers(full_name), assessors(full_name)")
     .eq("schedule_id", id)
     .is("deleted_at", null)
     .order("name");
-  const { data: groupCounts } = await supabase
+  if (groupsError) {
+    console.error("edit schedule: schedule_groups query failed", { scheduleId: id, error: groupsError.message });
+  }
+  const { data: groupCounts, error: groupCountsError } = await supabase
     .from("schedule_participants")
     .select("schedule_group_id")
     .eq("schedule_id", id)
     .is("deleted_at", null)
     .neq("registration_status", "cancelled")
     .not("schedule_group_id", "is", null);
+  if (groupCountsError) {
+    console.error("edit schedule: schedule_participants group-count query failed", { scheduleId: id, error: groupCountsError.message });
+  }
+  const groupsLoadFailed = !!groupsError || !!groupCountsError;
   const participantCountByGroup = new Map<string, number>();
   for (const r of (groupCounts ?? []) as any[]) {
     if (r.schedule_group_id) participantCountByGroup.set(r.schedule_group_id, (participantCountByGroup.get(r.schedule_group_id) ?? 0) + 1);
@@ -72,10 +83,18 @@ export default async function EditSchedulePage({ params }: { params: Promise<{ i
       <div style={{ maxWidth: 820, marginTop: 18 }}>
         <Card title="Training Groups">
           <div className="ta-form-pad">
-            <p style={{ color: "var(--ta-muted)", fontSize: 13, margin: "0 0 12px" }}>
-              Optional — only add groups if this class needs more than one trainer. A schedule with no groups keeps behaving exactly as before.
-            </p>
-            <GroupsPanel scheduleId={id} groups={groups} trainers={trainerOptions} assessors={assessorOptions} scheduleAssessorName={scheduleAssessorName} />
+            {groupsLoadFailed ? (
+              <div className="ta-alert ta-alert-error">
+                Training Groups couldn't be loaded right now. Try refreshing the page — if this keeps happening, contact an admin.
+              </div>
+            ) : (
+              <>
+                <p style={{ color: "var(--ta-muted)", fontSize: 13, margin: "0 0 12px" }}>
+                  Optional — only add groups if this class needs more than one trainer. A schedule with no groups keeps behaving exactly as before.
+                </p>
+                <GroupsPanel scheduleId={id} groups={groups} trainers={trainerOptions} assessors={assessorOptions} scheduleAssessorName={scheduleAssessorName} />
+              </>
+            )}
           </div>
         </Card>
       </div>

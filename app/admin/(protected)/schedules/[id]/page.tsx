@@ -70,12 +70,20 @@ export default async function ScheduleDetailsPage({
   const assessorOptions = canWrite ? await loadAssessorOptions() : [];
 
   // Training Schedule Groups V1 — optional subdivision of this class.
-  const { data: groupRows } = await supabase
+  // { error } is checked deliberately: a swallowed error here (missing
+  // table, RLS denial, any query failure) must never be silently rendered
+  // as "0 groups" — that's indistinguishable from a genuinely empty,
+  // successful result and hides real problems from staff.
+  const { data: groupRows, error: groupsError } = await supabase
     .from("schedule_groups")
     .select("id, name, trainer_id, assessor_id, capacity, start_time, end_time, trainers(full_name), assessors(full_name)")
     .eq("schedule_id", id)
     .is("deleted_at", null)
     .order("name");
+  if (groupsError) {
+    console.error("schedule detail: schedule_groups query failed", { scheduleId: id, error: groupsError.message });
+  }
+  const groupsLoadFailed = !!groupsError;
   const groupParticipantCounts = new Map<string, number>();
   for (const a of active as any[]) {
     if (a.schedule_group_id) groupParticipantCounts.set(a.schedule_group_id, (groupParticipantCounts.get(a.schedule_group_id) ?? 0) + 1);
@@ -188,9 +196,13 @@ export default async function ScheduleDetailsPage({
             </Card>
           )}
 
-          <Card title={`Training Groups (${groups.length})`}>
+          <Card title={groupsLoadFailed ? "Training Groups" : `Training Groups (${groups.length})`}>
             <div className="ta-card-pad">
-              {canWrite ? (
+              {groupsLoadFailed ? (
+                <div className="ta-alert ta-alert-error">
+                  Training Groups couldn't be loaded right now. Try refreshing the page — if this keeps happening, contact an admin.
+                </div>
+              ) : canWrite ? (
                 <GroupsPanel scheduleId={id} groups={groups} trainers={trainerOptions} assessors={assessorOptions} scheduleAssessorName={assessorName} />
               ) : groups.length > 0 ? (
                 <div style={{ display: "grid", gap: 6 }}>
