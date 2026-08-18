@@ -98,6 +98,9 @@ export function ScheduleForm({
               <input id="end_time" name="end_time" type="time" defaultValue={d.end_time ?? ""} />
             </Field>
           </div>
+          <Field label="Exam date" name="exam_date" hint="Optional. Read by Assessment (assessment sheet header/print)." error={e.exam_date}>
+            <input id="exam_date" name="exam_date" type="date" defaultValue={d.exam_date ?? ""} />
+          </Field>
         </div>
       </Card>
 
