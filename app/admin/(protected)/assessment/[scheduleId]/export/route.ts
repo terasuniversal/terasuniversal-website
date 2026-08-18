@@ -226,9 +226,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // maximum overflows once several rows wrap.
     const PAGE_HEIGHT_MM = 186; // A4 landscape 210mm - 12mm top/bottom @page margin
     const ROW_HEIGHT_MM = 8; // ~6.9mm single-line + headroom for names that wrap to 2 lines
-    const FULL_HEADER_MM = 38; // brand bar + body padding + 2-row meta grid + thead
+    const FULL_HEADER_MM = 35; // brand bar + body padding + 2-row meta grid + thead (post padding trim)
     const CONTINUATION_HEADER_MM = 15; // compact "(continued)" line + body padding + thead
-    const SIGNOFF_BASE_MM = 6; // .asm-signoff margin/border/padding + heading
+    const SIGNOFF_BASE_MM = 5; // .asm-signoff margin/border/padding + heading (post padding trim)
     const SIGNOFF_BLOCK_MM = 16; // per assessor block: one horizontal row (label + 12mm ruled fill)
     const numAssessorBlocks = assessorDisplay.mode === "single" ? 1 : assessorDisplay.entries.length;
     const signOffHeightMm = SIGNOFF_BASE_MM + numAssessorBlocks * SIGNOFF_BLOCK_MM;
@@ -338,14 +338,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
      nothing should ever force one. */
   .asm-print-page:not(:last-of-type) { break-after: page; page-break-after: always; }
   .asm-print-page:last-of-type { break-after: auto; page-break-after: auto; }
-  .asm-head { background: #0B3A63; color: #fff; padding: 10px 16px; border-bottom: 3px solid #D4AF37; }
+  /* Chrome print output showed a 15-row sheet landing ~1-2mm over one page.
+     The vertical padding trimmed here (brand bar, body top, meta rows/gap)
+     reclaims ~5mm of pure chrome without touching table row height, font
+     sizes, columns, orientation, or the signature area. */
+  .asm-head { background: #0B3A63; color: #fff; padding: 7px 16px; border-bottom: 3px solid #D4AF37; }
   .asm-head strong { display: block; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: #D4AF37; }
   .asm-head h1 { margin: 2px 0 0; font-size: 17px; font-weight: 800; letter-spacing: .04em; }
-  .asm-body { padding: 10px 16px 0; }
+  .asm-body { padding: 6px 16px 0; }
   .asm-body-compact { padding-top: 8px; }
   .asm-continued { margin: 0 0 6px; font-size: 11px; font-weight: 700; color: #0B3A63; }
-  .asm-meta { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px 24px; margin: 0 0 6px; font-size: 12px; }
-  .asm-meta div { padding: 3px 0; border-bottom: 1px solid #e1e6ee; }
+  .asm-meta { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px 24px; margin: 0 0 4px; font-size: 12px; }
+  .asm-meta div { padding: 2px 0; border-bottom: 1px solid #e1e6ee; }
   .asm-meta dt { display: inline; color: #0B3A63; font-weight: 700; }
   .asm-meta dd { display: inline; margin: 0 0 0 5px; }
   table { border-collapse: collapse; width: 100%; font-size: 11px; table-layout: fixed; }
@@ -370,10 +374,17 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
      safely if it ever had to, and a half-signed block split across pages
      would be a genuinely invalid document. The only explicit page break in
      this document remains .asm-print-page's break-after, between pages
-     paginate() already decided on. */
-  .asm-signoff { margin-top: 4px; border-top: 2px solid #0B3A63; padding-top: 4px; }
-  .asm-signoff > strong { display: block; font-size: 11px; color: #0B3A63; letter-spacing: .06em; margin-bottom: 3px; }
+     paginate() already decided on.
+     break-after:avoid on the heading is what keeps "ASSESSOR VERIFICATION"
+     attached to the fields beneath it: without it, Chrome would place the
+     heading, discover the (break-inside:avoid) block below did not fit, and
+     relocate only the block -- stranding the heading alone at the bottom of
+     the previous page, which is exactly what real print output showed. */
+  .asm-signoff { margin-top: 3px; border-top: 2px solid #0B3A63; padding-top: 3px; }
+  .asm-signoff > strong { display: block; font-size: 11px; color: #0B3A63; letter-spacing: .06em; margin-bottom: 2px; break-after: avoid; page-break-after: avoid; }
   .asm-signoff-block { margin-bottom: 4px; font-size: 12px; break-inside: avoid; page-break-inside: avoid; }
+  /* The last block needs no trailing gap -- it is the end of the document. */
+  .asm-signoff-block:last-child { margin-bottom: 0; }
   .asm-signoff-label { font-weight: 700; color: #0B3A63; margin: 0 0 2px; }
   /* Horizontal sign-off row: Name / Signature / Date side by side, each over
      its own ruled line. vertical-align:bottom keeps all three rules on the
