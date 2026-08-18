@@ -150,12 +150,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       ? `<colgroup><col style="width:4%"><col style="width:20%"><col style="width:13%"><col style="width:8%"><col style="width:7%"><col style="width:7%"><col style="width:8%"><col style="width:11%"><col style="width:22%"></colgroup>`
       : `<colgroup><col style="width:5%"><col style="width:24%"><col style="width:15%"><col style="width:8%"><col style="width:8%"><col style="width:9%"><col style="width:12%"><col style="width:19%"></colgroup>`;
     const printHead = `<th class="no">No.</th><th>Participant Name</th><th class="ic">IC / Passport</th>${showGroupColumn ? "<th>Group</th>" : ""}<th>Theory</th><th>Practical</th><th>Result</th><th>Competency</th><th>Remarks</th>`;
-    const printBody = printRows
-      .map(
-        (r: PrintRow) =>
-          `<tr><td class="no">${r.no}</td><td>${esc(r.name)}</td><td class="ic">${esc(r.ic)}</td>${showGroupColumn ? `<td>${esc(r.group)}</td>` : ""}<td class="no">${esc(r.theory)}</td><td class="no">${esc(r.practical)}</td><td>${esc(r.result)}</td><td>${esc(r.competency)}</td><td>${esc(r.remarks)}</td></tr>`
-      )
-      .join("");
+    const rowHtml = (r: PrintRow) =>
+      `<tr><td class="no">${r.no}</td><td>${esc(r.name)}</td><td class="ic">${esc(r.ic)}</td>${showGroupColumn ? `<td>${esc(r.group)}</td>` : ""}<td class="no">${esc(r.theory)}</td><td class="no">${esc(r.practical)}</td><td>${esc(r.result)}</td><td>${esc(r.competency)}</td><td>${esc(r.remarks)}</td></tr>`;
+    const tableHtml = (rows: PrintRow[]) => `<table>${colgroup}<thead><tr>${printHead}</tr></thead><tbody>${rows.map(rowHtml).join("")}</tbody></table>`;
 
     const title = `${s?.courses?.course_name ?? "Training"} — Assessment Sheet`;
     const fmtDate = (d: string | null | undefined) =>
@@ -172,7 +169,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         ? assessorDisplay.assessor || "Not assigned"
         : assessorDisplay.entries.map((e) => `${e.label} — ${e.assessor}`).join("; ");
 
-    // Real handwritten-signature room (~20mm blank), not a line immediately
+    // Real handwritten-signature room (~15mm blank), not a line immediately
     // after the label -- the underline sits below the blank space, and Date
     // follows separately underneath.
     const signOffBlock = (assessor: string, label?: string) => `
@@ -188,43 +185,116 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       assessorDisplay.mode === "single"
         ? signOffBlock(assessorDisplay.assessor)
         : assessorDisplay.entries.map((e) => signOffBlock(e.assessor, `${e.label} (${e.isOverride ? "Override" : "Class Assessor"})`)).join("");
-
-    // Two structural approaches were tried and rejected before this one:
-    //  1. A sibling <section> after </table> with break-inside:avoid --
-    //     caused Chromium to reorder content (rows 14-30 printed AFTER a
-    //     sign-off-only page, ahead of where they belong in document order).
-    //  2. Moving the sign-off into the table's own <tfoot> -- table
-    //     fragmentation put it in the right ORDER, but <thead> unconditionally
-    //     repeats on every table fragment per the CSS Fragmentation spec,
-    //     including a fragment that ends up containing nothing but the
-    //     <tfoot> -- producing a phantom page with a repeated header and zero
-    //     participant rows once the sign-off didn't fit alongside the tail of
-    //     the roster.
-    // Both failures traced back to the SAME trigger: break-inside:avoid (or
-    // being *inside* a table's own fragmentation machinery) on a block
-    // immediately adjacent to a <table> that itself needs to fragment across
-    // pages. The fix here is a true sibling <section> AFTER the closed
-    // </table> (plain, ordinary document flow -- no table/tfoot involvement,
-    // matching the requested architecture) with NO break-inside/
-    // page-break-inside on it or its sub-blocks. Removing "avoid" trades a
-    // (small, and so far never actually observed) risk of the block splitting
-    // across a page boundary for guaranteed document order and no phantom
-    // pages -- given every attempt at "guarantee it never splits" produced a
-    // worse, structural failure, that trade is the right one.
     const signOffSection = `
   <section class="asm-signoff">
     <strong>ASSESSOR VERIFICATION</strong>
     ${signOff}
   </section>`;
 
+    // Deterministic print pagination.
+    //
+    // Every earlier attempt at this print sheet (see this file's git history)
+    // relied on Chromium's own automatic fragmentation of ONE long <table>
+    // followed by a sign-off block, controlled via break-inside/break-before
+    // CSS. That combination proved unreliable across many rounds: reordered
+    // rows, a phantom page with nothing but a repeated <thead>, and the
+    // sign-off block itself splitting mid-block -- each fix traded one
+    // failure mode for another. The actual trigger in all of them was the
+    // SAME thing: a table (or a block adjacent to one) that itself needs to
+    // fragment across pages.
+    //
+    // The fix here removes that trigger entirely: row chunks are computed
+    // server-side and each physical printed page gets its OWN short,
+    // self-contained <table> that never needs to span more than one page.
+    // Pages are separated with an explicit break-after:page container
+    // (.asm-print-page) instead of asking the browser to decide where a
+    // single long table should split.
+    //
+    // Height constants below are derived directly from this file's own CSS
+    // (padding, font-size, line-height, borders, converted to mm at 96dpi)
+    // and rounded for a safety margin against occasional 2-line wraps in
+    // Remarks -- an estimate, not a live browser measurement. If a real
+    // render falls outside this budget, these are the first values to
+    // revisit; the row/section markup itself does not need to change.
+    const PAGE_HEIGHT_MM = 186; // A4 landscape 210mm - 12mm top/bottom @page margin
+    const ROW_HEIGHT_MM = 7; // td: 5px*2 padding + 11px font * 1.35 line-height + border, @96dpi
+    const FULL_HEADER_MM = 38; // brand bar + body padding + 2-row meta grid + thead
+    const CONTINUATION_HEADER_MM = 15; // compact "(continued)" line + body padding + thead
+    const SIGNOFF_BASE_MM = 10; // .asm-signoff section margin/border/padding/heading chrome
+    const SIGNOFF_BLOCK_MM = 30; // per assessor block: name + sig label + 15mm space + underline + date + margin
+    const numAssessorBlocks = assessorDisplay.mode === "single" ? 1 : assessorDisplay.entries.length;
+    const signOffHeightMm = SIGNOFF_BASE_MM + numAssessorBlocks * SIGNOFF_BLOCK_MM;
+
+    type PrintPage = { rows: PrintRow[]; header: "full" | "compact"; includeSignOff: boolean };
+    function paginate(rows: PrintRow[]): PrintPage[] {
+      if (rows.length === 0) return [];
+      const fitsOnePage = rows.length * ROW_HEIGHT_MM + FULL_HEADER_MM + signOffHeightMm <= PAGE_HEIGHT_MM;
+      if (fitsOnePage) return [{ rows, header: "full", includeSignOff: true }];
+
+      // Reserve the LAST page for as many trailing rows as fit alongside the
+      // sign-off (using the smaller continuation header, since a genuine
+      // multi-page report's last page is never the first). At least one row
+      // is held back for earlier pages so the first page -- which needs the
+      // full header, not the continuation one -- is never miscomputed as if
+      // it were the last.
+      const lastPageCapacity = Math.max(1, Math.floor((PAGE_HEIGHT_MM - CONTINUATION_HEADER_MM - signOffHeightMm) / ROW_HEIGHT_MM));
+      const rowsForLastPage = Math.min(lastPageCapacity, Math.max(0, rows.length - 1));
+      const leadRows = rows.slice(0, rows.length - rowsForLastPage);
+      const lastRows = rows.slice(rows.length - rowsForLastPage);
+
+      const firstPageCapacity = Math.max(1, Math.floor((PAGE_HEIGHT_MM - FULL_HEADER_MM) / ROW_HEIGHT_MM));
+      const middlePageCapacity = Math.max(1, Math.floor((PAGE_HEIGHT_MM - CONTINUATION_HEADER_MM) / ROW_HEIGHT_MM));
+      const pages: PrintPage[] = [];
+      let cursor = 0;
+      while (cursor < leadRows.length) {
+        const capacity = pages.length === 0 ? firstPageCapacity : middlePageCapacity;
+        const chunk = leadRows.slice(cursor, cursor + capacity);
+        pages.push({ rows: chunk, header: pages.length === 0 ? "full" : "compact", includeSignOff: false });
+        cursor += chunk.length;
+      }
+      pages.push({ rows: lastRows, header: pages.length === 0 ? "full" : "compact", includeSignOff: true });
+      return pages;
+    }
+    const printPages = paginate(printRows);
+    const pageHtml = (page: PrintPage) => `
+<div class="asm-print-page">
+  ${
+    page.header === "full"
+      ? `<header class="asm-head"><strong>TERAS UNIVERSAL SDN. BHD.</strong><h1>ASSESSMENT SHEET</h1></header>
+  <div class="asm-body">
+    <dl class="asm-meta">
+      <div><dt>Programme / Course:</dt><dd>${esc(s?.courses?.course_name ?? "—")}</dd></div>
+      ${s?.courses?.course_code ? `<div><dt>Course Code:</dt><dd>${esc(s.courses.course_code)}</dd></div>` : ""}
+      <div><dt>Schedule / Batch:</dt><dd>${esc(s?.schedule_code ?? "—")}</dd></div>
+      ${groupHeaderValue ? `<div><dt>Group:</dt><dd>${esc(groupHeaderValue)}</dd></div>` : ""}
+      <div><dt>Assessment Date:</dt><dd>${esc(fmtDate(s?.exam_date))}</dd></div>
+      <div><dt>Venue:</dt><dd>${esc(s?.venue || "—")}</dd></div>
+      <div><dt>Trainer:</dt><dd>${esc(s?.trainer_name || "—")}</dd></div>
+      <div><dt>Effective Assessor:</dt><dd>${esc(effectiveAssessorHeaderValue)}</dd></div>
+    </dl>`
+      : `<div class="asm-body asm-body-compact">
+    <p class="asm-continued">TERAS UNIVERSAL — ${esc(title)} (continued)</p>`
+  }
+    ${tableHtml(page.rows)}
+    ${page.includeSignOff ? signOffSection : ""}
+  </div>
+</div>`;
+
     const html = `<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title>
 <style>
   @page { size: A4 landscape; margin: 12mm 14mm; }
   body { font-family: Arial, Helvetica, sans-serif; color: #1a1a1a; margin: 0; }
+  /* Each .asm-print-page is a fully self-contained, deterministically-sized
+     printed page (see the route handler's paginate() comment) -- every one
+     except the last gets an explicit page break, instead of letting the
+     browser decide where a single long table should fragment. */
+  .asm-print-page:not(:last-of-type) { break-after: page; page-break-after: always; }
   .asm-head { background: #0B3A63; color: #fff; padding: 10px 16px; border-bottom: 3px solid #D4AF37; }
   .asm-head strong { display: block; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: #D4AF37; }
   .asm-head h1 { margin: 2px 0 0; font-size: 17px; font-weight: 800; letter-spacing: .04em; }
   .asm-body { padding: 10px 16px 0; }
+  .asm-body-compact { padding-top: 8px; }
+  .asm-continued { margin: 0 0 6px; font-size: 11px; font-weight: 700; color: #0B3A63; }
   .asm-meta { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px 24px; margin: 0 0 6px; font-size: 12px; }
   .asm-meta div { padding: 3px 0; border-bottom: 1px solid #e1e6ee; }
   .asm-meta dt { display: inline; color: #0B3A63; font-weight: 700; }
@@ -244,56 +314,48 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
      dedicated width, unlike a person's name which has no such bound. */
   th.ic, td.ic { white-space: nowrap; }
   tbody tr { break-inside: avoid; page-break-inside: avoid; }
-  /* Plain block flow, NOT display:grid/flex -- a grid wrapper (an earlier
-     attempt) was what caused Chromium to reorder this section ahead of the
-     table's later row fragments, and moving this content into the table's
-     own <tfoot> (another earlier attempt) produced a phantom repeated-header
-     page. Neither of those failures was caused by break-inside: avoid on a
-     PLAIN sibling by itself -- that combination (this one) keeps document
-     order correct and lands the whole section on the table's page when
-     there's room, on a fresh page when there genuinely isn't. avoid is
-     applied to the OUTER .asm-signoff wrapper so the heading, every
-     assessor block, and the Date line all move together as one atomic
-     unit -- confirmed in the generated HTML that Date sits inside this same
-     wrapper, never outside it. */
-  .asm-signoff { margin-top: 8px; border-top: 2px solid #0B3A63; padding-top: 6px; break-before: auto; break-inside: avoid; page-break-inside: avoid; }
+  /* Plain block flow, NOT display:grid/flex. break-inside:avoid stays here
+     as a safety net, but now that every .asm-print-page is deterministically
+     sized to fit the sign-off alongside its own row chunk (see paginate() in
+     the route handler), this section is never actually adjacent to a table
+     that spans multiple pages -- the specific condition that caused every
+     earlier pagination failure (reordering, a phantom repeated-header page,
+     the block splitting) simply no longer exists. */
+  .asm-signoff { margin-top: 8px; border-top: 2px solid #0B3A63; padding-top: 6px; break-inside: avoid; page-break-inside: avoid; }
   .asm-signoff > strong { display: block; font-size: 11px; color: #0B3A63; letter-spacing: .06em; margin-bottom: 4px; }
   .asm-signoff-block { margin-bottom: 8px; font-size: 12px; }
   .asm-signoff-block p { margin: 2px 0; }
   .asm-signoff-label { font-weight: 700; color: #0B3A63; }
   .asm-sig-label { margin-bottom: 0; }
-  /* Practical handwriting room, tightened to ~16mm (from ~20mm) now that
-     break-inside:avoid is back on the outer wrapper (above) -- the whole
-     section, including this space, must fit in one page's remaining room
-     as a single atomic unit, so every mm here is budget the roster's own
-     last page has to spare. Still a real, usable signing gap. */
-  .asm-sig-space { height: 16mm; }
+  /* Practical handwriting room, ~15mm -- matches SIGNOFF_BLOCK_MM in the
+     route handler's pagination math; change both together if this value
+     changes. */
+  .asm-sig-space { height: 15mm; }
   .asm-sig-underline { border-bottom: 1px solid #1a1a1a; width: 100%; max-width: 280px; margin: 0 0 4px; }
   .asm-line { display: inline-block; min-width: 220px; border-bottom: 1px solid #1a1a1a; }
   .asm-empty { padding: 0 16px 16px; color: #0B3A63; font-weight: 600; }
 </style>
 </head><body onload="window.print()">
-<header class="asm-head">
-  <strong>TERAS UNIVERSAL SDN. BHD.</strong>
-  <h1>ASSESSMENT SHEET</h1>
-</header>
-<div class="asm-body">
-  <dl class="asm-meta">
-    <div><dt>Programme / Course:</dt><dd>${esc(s?.courses?.course_name ?? "—")}</dd></div>
-    ${s?.courses?.course_code ? `<div><dt>Course Code:</dt><dd>${esc(s.courses.course_code)}</dd></div>` : ""}
-    <div><dt>Schedule / Batch:</dt><dd>${esc(s?.schedule_code ?? "—")}</dd></div>
-    ${groupHeaderValue ? `<div><dt>Group:</dt><dd>${esc(groupHeaderValue)}</dd></div>` : ""}
-    <div><dt>Assessment Date:</dt><dd>${esc(fmtDate(s?.exam_date))}</dd></div>
-    <div><dt>Venue:</dt><dd>${esc(s?.venue || "—")}</dd></div>
-    <div><dt>Trainer:</dt><dd>${esc(s?.trainer_name || "—")}</dd></div>
-    <div><dt>Effective Assessor:</dt><dd>${esc(effectiveAssessorHeaderValue)}</dd></div>
-  </dl>
-  ${
-    printRows.length > 0
-      ? `<table>${colgroup}<thead><tr>${printHead}</tr></thead><tbody>${printBody}</tbody></table>${signOffSection}`
-      : `<p class="asm-empty">${groupHeaderValue ? "No participants assigned to this group." : "No participants enrolled in this schedule yet."}</p>`
-  }
-</div>
+${
+  printRows.length > 0
+    ? printPages.map(pageHtml).join("")
+    : `<div class="asm-print-page">
+  <header class="asm-head"><strong>TERAS UNIVERSAL SDN. BHD.</strong><h1>ASSESSMENT SHEET</h1></header>
+  <div class="asm-body">
+    <dl class="asm-meta">
+      <div><dt>Programme / Course:</dt><dd>${esc(s?.courses?.course_name ?? "—")}</dd></div>
+      ${s?.courses?.course_code ? `<div><dt>Course Code:</dt><dd>${esc(s.courses.course_code)}</dd></div>` : ""}
+      <div><dt>Schedule / Batch:</dt><dd>${esc(s?.schedule_code ?? "—")}</dd></div>
+      ${groupHeaderValue ? `<div><dt>Group:</dt><dd>${esc(groupHeaderValue)}</dd></div>` : ""}
+      <div><dt>Assessment Date:</dt><dd>${esc(fmtDate(s?.exam_date))}</dd></div>
+      <div><dt>Venue:</dt><dd>${esc(s?.venue || "—")}</dd></div>
+      <div><dt>Trainer:</dt><dd>${esc(s?.trainer_name || "—")}</dd></div>
+      <div><dt>Effective Assessor:</dt><dd>${esc(effectiveAssessorHeaderValue)}</dd></div>
+    </dl>
+    <p class="asm-empty">${groupHeaderValue ? "No participants assigned to this group." : "No participants enrolled in this schedule yet."}</p>
+  </div>
+</div>`
+}
 </body></html>`;
     return new NextResponse(html, { headers: { "Content-Type": "text/html; charset=utf-8" } });
   }
