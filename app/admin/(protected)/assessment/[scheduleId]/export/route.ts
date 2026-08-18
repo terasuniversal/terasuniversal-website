@@ -142,11 +142,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         remarks: a?.remarks ?? "",
       };
     });
-    const printHead = `<th class="no">No.</th><th>Participant Name</th><th>IC / Passport</th>${showGroupColumn ? "<th>Group</th>" : ""}<th>Theory</th><th>Practical</th><th>Result</th><th>Competency</th><th>Remarks</th>`;
+    // Explicit <colgroup> widths (not left to the browser's fixed-layout
+    // auto-distribution) so Participant Name and IC/Passport get real room
+    // in landscape instead of wrapping mid-word. Two width sets because the
+    // column count itself differs with/without the Group column.
+    const colgroup = showGroupColumn
+      ? `<colgroup><col style="width:4%"><col style="width:20%"><col style="width:13%"><col style="width:8%"><col style="width:7%"><col style="width:7%"><col style="width:8%"><col style="width:11%"><col style="width:22%"></colgroup>`
+      : `<colgroup><col style="width:5%"><col style="width:24%"><col style="width:15%"><col style="width:8%"><col style="width:8%"><col style="width:9%"><col style="width:12%"><col style="width:19%"></colgroup>`;
+    const printHead = `<th class="no">No.</th><th>Participant Name</th><th class="ic">IC / Passport</th>${showGroupColumn ? "<th>Group</th>" : ""}<th>Theory</th><th>Practical</th><th>Result</th><th>Competency</th><th>Remarks</th>`;
     const printBody = printRows
       .map(
         (r: PrintRow) =>
-          `<tr><td class="no">${r.no}</td><td>${esc(r.name)}</td><td>${esc(r.ic)}</td>${showGroupColumn ? `<td>${esc(r.group)}</td>` : ""}<td class="no">${esc(r.theory)}</td><td class="no">${esc(r.practical)}</td><td>${esc(r.result)}</td><td>${esc(r.competency)}</td><td>${esc(r.remarks)}</td></tr>`
+          `<tr><td class="no">${r.no}</td><td>${esc(r.name)}</td><td class="ic">${esc(r.ic)}</td>${showGroupColumn ? `<td>${esc(r.group)}</td>` : ""}<td class="no">${esc(r.theory)}</td><td class="no">${esc(r.practical)}</td><td>${esc(r.result)}</td><td>${esc(r.competency)}</td><td>${esc(r.remarks)}</td></tr>`
       )
       .join("");
 
@@ -165,11 +172,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         ? assessorDisplay.assessor || "Not assigned"
         : assessorDisplay.entries.map((e) => `${e.label} — ${e.assessor}`).join("; ");
 
+    // Real handwritten-signature room (approx. 25-35mm blank), not a line
+    // immediately after the label -- the underline sits below the blank
+    // space, and Date follows separately underneath.
     const signOffBlock = (assessor: string, label?: string) => `
   <div class="asm-signoff-block">
     ${label ? `<p class="asm-signoff-label">${esc(label)}</p>` : ""}
     <p><strong>Assessor Name:</strong> ${esc(assessor) || "Not assigned"}</p>
-    <p><strong>Signature:</strong> <span class="asm-line"></span></p>
+    <p class="asm-sig-label"><strong>Signature:</strong></p>
+    <div class="asm-sig-space"></div>
+    <div class="asm-sig-underline"></div>
     <p><strong>Date:</strong> <span class="asm-line"></span></p>
   </div>`;
     const signOff =
@@ -179,28 +191,43 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const html = `<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title>
 <style>
-  @page { size: A4 portrait; margin: 14mm 12mm; }
+  @page { size: A4 landscape; margin: 12mm 14mm; }
   body { font-family: Arial, Helvetica, sans-serif; color: #1a1a1a; margin: 0; }
   .asm-head { background: #0B3A63; color: #fff; padding: 10px 16px; border-bottom: 3px solid #D4AF37; }
   .asm-head strong { display: block; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: #D4AF37; }
   .asm-head h1 { margin: 2px 0 0; font-size: 17px; font-weight: 800; letter-spacing: .04em; }
   .asm-body { padding: 14px 16px 0; }
-  .asm-meta { display: grid; grid-template-columns: repeat(2, 1fr); gap: 3px 24px; margin: 0 0 10px; font-size: 12px; }
+  .asm-meta { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px 24px; margin: 0 0 10px; font-size: 12px; }
   .asm-meta div { padding: 3px 0; border-bottom: 1px solid #e1e6ee; }
   .asm-meta dt { display: inline; color: #0B3A63; font-weight: 700; }
   .asm-meta dd { display: inline; margin: 0 0 0 5px; }
-  table { border-collapse: collapse; width: 100%; font-size: 10.5px; table-layout: fixed; }
+  table { border-collapse: collapse; width: 100%; font-size: 11px; table-layout: fixed; }
   thead { display: table-header-group; }
-  th, td { border: 1px solid #c9cfd9; padding: 4px 6px; text-align: left; vertical-align: middle; word-wrap: break-word; line-height: 1.3; }
+  /* Only wrap at real word boundaries (the browser default) -- explicitly
+     NOT word-break: break-word/anywhere, which is what was producing
+     mid-word breaks like "PARTICIPAN / T NAME" in the previous portrait
+     layout. Generous <colgroup> widths (below) mean this rarely triggers
+     for Name; Remarks is the column expected to actually wrap sometimes. */
+  th, td { border: 1px solid #c9cfd9; padding: 5px 7px; text-align: left; vertical-align: middle; white-space: normal; word-break: normal; overflow-wrap: normal; line-height: 1.35; }
   th { background: #0B3A63; color: #fff; font-size: 9.5px; text-transform: uppercase; letter-spacing: .02em; }
-  th.no, td.no { width: 8%; text-align: center; }
+  th.no, td.no { text-align: center; }
+  /* IC/passport numbers are short, fixed-format strings (e.g.
+     980605-04-5321) -- always safe to keep on one line given the column's
+     dedicated width, unlike a person's name which has no such bound. */
+  th.ic, td.ic { white-space: nowrap; }
   tbody tr { break-inside: avoid; page-break-inside: avoid; }
   .asm-signoff { margin-top: 18px; border-top: 2px solid #0B3A63; padding-top: 10px; break-inside: avoid; page-break-inside: avoid; }
   .asm-signoff > strong { display: block; font-size: 11px; color: #0B3A63; letter-spacing: .06em; margin-bottom: 6px; }
+  .asm-signoff-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0 32px; }
   .asm-signoff-block { break-inside: avoid; page-break-inside: avoid; margin-bottom: 10px; font-size: 12px; }
   .asm-signoff-block p { margin: 3px 0; }
   .asm-signoff-label { font-weight: 700; color: #0B3A63; }
-  .asm-line { display: inline-block; min-width: 260px; border-bottom: 1px solid #1a1a1a; }
+  .asm-sig-label { margin-bottom: 0; }
+  /* Real blank signing area (~28mm) between the "Signature:" label and its
+     underline, instead of the line sitting immediately after the label. */
+  .asm-sig-space { height: 28mm; }
+  .asm-sig-underline { border-bottom: 1px solid #1a1a1a; width: 100%; max-width: 280px; margin: 0 0 8px; }
+  .asm-line { display: inline-block; min-width: 220px; border-bottom: 1px solid #1a1a1a; }
   .asm-empty { padding: 0 16px 16px; color: #0B3A63; font-weight: 600; }
 </style>
 </head><body onload="window.print()">
@@ -221,10 +248,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   </dl>
   ${
     printRows.length > 0
-      ? `<table><thead><tr>${printHead}</tr></thead><tbody>${printBody}</tbody></table>
+      ? `<table>${colgroup}<thead><tr>${printHead}</tr></thead><tbody>${printBody}</tbody></table>
   <section class="asm-signoff">
     <strong>ASSESSOR VERIFICATION</strong>
-    ${signOff}
+    <div class="asm-signoff-grid">${signOff}</div>
   </section>`
       : `<p class="asm-empty">${groupHeaderValue ? "No participants assigned to this group." : "No participants enrolled in this schedule yet."}</p>`
   }
