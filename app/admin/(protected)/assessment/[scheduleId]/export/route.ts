@@ -172,9 +172,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         ? assessorDisplay.assessor || "Not assigned"
         : assessorDisplay.entries.map((e) => `${e.label} — ${e.assessor}`).join("; ");
 
-    // Real handwritten-signature room (approx. 25-35mm blank), not a line
-    // immediately after the label -- the underline sits below the blank
-    // space, and Date follows separately underneath.
+    // Real handwritten-signature room (~20mm blank), not a line immediately
+    // after the label -- the underline sits below the blank space, and Date
+    // follows separately underneath.
     const signOffBlock = (assessor: string, label?: string) => `
   <div class="asm-signoff-block">
     ${label ? `<p class="asm-signoff-label">${esc(label)}</p>` : ""}
@@ -188,6 +188,30 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       assessorDisplay.mode === "single"
         ? signOffBlock(assessorDisplay.assessor)
         : assessorDisplay.entries.map((e) => signOffBlock(e.assessor, `${e.label} (${e.isOverride ? "Override" : "Class Assessor"})`)).join("");
+
+    // Root cause of the earlier reordering AND the later "16 rows visibly fit
+    // but sign-off still jumps to its own near-empty page" bug: Chromium's
+    // print fragmentation for a block-level sibling placed AFTER a closed
+    // </table> is unreliable once that table's own row count is enough to
+    // make Chromium plan multi-page layout -- break-inside:avoid on that
+    // sibling gets evaluated against an unreliable "does it fit" estimate,
+    // and Chromium can hold back table rows and/or misplace the sibling
+    // regardless of how small the block actually is (verified: shrinking the
+    // block's height alone did not fix it). The reliable fix is to stop
+    // asking Chromium to fragment "table, then a separate flow block" at
+    // all -- native <tfoot> is specifically designed by the CSS Fragmentation
+    // spec to be laid out as part of the SAME table fragmentation pass as
+    // <tbody>, attached to the table's last page when it fits and pushed
+    // whole to a new page only when it genuinely doesn't -- exactly the
+    // "no signature-only page unless the roster truly leaves no room"
+    // behavior needed here. Colspan matches the live column count.
+    const colCount = showGroupColumn ? 9 : 8;
+    const printFoot = `<tfoot><tr><td colspan="${colCount}" class="asm-signoff-cell">
+  <section class="asm-signoff">
+    <strong>ASSESSOR VERIFICATION</strong>
+    ${signOff}
+  </section>
+</td></tr></tfoot>`;
 
     const html = `<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title>
 <style>
@@ -203,6 +227,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   .asm-meta dd { display: inline; margin: 0 0 0 5px; }
   table { border-collapse: collapse; width: 100%; font-size: 11px; table-layout: fixed; }
   thead { display: table-header-group; }
+  /* table-footer-group is the load-bearing part of the tfoot fix below:
+     it puts the Assessor Verification cell through the SAME native table
+     fragmentation pass as tbody's rows, instead of asking the browser to
+     fragment "a table, then a separate block" -- which is the combination
+     that was unreliable (see the printFoot comment in the route handler). */
+  tfoot { display: table-footer-group; }
+  tfoot tr, tfoot td { break-inside: avoid; page-break-inside: avoid; }
+  .asm-signoff-cell { border: none; padding: 0; vertical-align: top; }
   /* Only wrap at real word boundaries (the browser default) -- explicitly
      NOT word-break: break-word/anywhere, which is what was producing
      mid-word breaks like "PARTICIPAN / T NAME" in the previous portrait
@@ -258,11 +290,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   </dl>
   ${
     printRows.length > 0
-      ? `<table>${colgroup}<thead><tr>${printHead}</tr></thead><tbody>${printBody}</tbody></table>
-  <section class="asm-signoff">
-    <strong>ASSESSOR VERIFICATION</strong>
-    ${signOff}
-  </section>`
+      ? `<table>${colgroup}<thead><tr>${printHead}</tr></thead><tbody>${printBody}</tbody>${printFoot}</table>`
       : `<p class="asm-empty">${groupHeaderValue ? "No participants assigned to this group." : "No participants enrolled in this schedule yet."}</p>`
   }
 </div>
