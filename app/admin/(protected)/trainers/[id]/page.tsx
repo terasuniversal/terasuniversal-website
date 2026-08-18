@@ -23,14 +23,17 @@ export default async function TrainerProfilePage({ params }: { params: Promise<{
   const { data: t } = await supabase.from("trainers").select("*").eq("id", id).single();
   if (!t) notFound();
   const isDeleted = !!t.deleted_at;
-  const today = new Date().toISOString().slice(0, 10);
 
-  // Integrations: assigned schedules + workload + certificates issued.
-  const [{ data: schedules }, { count: upcomingCount }, { count: certsCount }] = await Promise.all([
-    supabase.from("training_schedules").select("id, schedule_id, course_name, start_date, end_date, status").eq("trainer_id", id).is("deleted_at", null).order("start_date", { ascending: false }).limit(20),
-    supabase.from("training_schedules").select("*", { count: "exact", head: true }).eq("trainer_id", id).is("deleted_at", null).gte("start_date", today).not("status", "in", "(cancelled,archived)"),
-    supabase.from("certificates").select("*", { count: "exact", head: true }).is("deleted_at", null).in("schedule_id", (await supabase.from("training_schedules").select("id").eq("trainer_id", id)).data?.map((s: any) => s.id) ?? ["00000000-0000-0000-0000-000000000000"]),
-  ]);
+  // Assigned-schedules/certificates integration is intentionally not wired
+  // up yet: the live public.course_schedules has no trainer_id FK (it only
+  // carries a free-text trainer_name — see Trainer Master V1 migration
+  // header), and the old public.training_schedules this section used to
+  // query was never applied to production. Linking this table to
+  // course_schedules is a separate future phase; for now this section
+  // degrades to an empty/zero state rather than erroring.
+  const schedules: { id: string; course_name: string; schedule_id: string; start_date: string; status: string }[] = [];
+  const upcomingCount = 0;
+  const certsCount = 0;
 
   const dl = { display: "grid", gridTemplateColumns: "160px 1fr", gap: 2, margin: 0 } as const;
 
