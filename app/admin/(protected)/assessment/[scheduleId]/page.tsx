@@ -71,7 +71,7 @@ export default async function AssessSchedulePage({
 
   const { data: asm } = await supabase
     .from("assessments")
-    .select("id, participant_id, assessment_type, theory_score, practical_score, result, competency_status, remarks, locked")
+    .select("id, participant_id, assessment_type, theory_score, practical_score, theory_result, practical_result, result, competency_status, remarks, locked")
     .eq("schedule_id", scheduleId)
     .is("deleted_at", null);
   const byParticipant = new Map<string, any>((asm ?? []).map((a: any): [string, any] => [a.participant_id, a]));
@@ -98,6 +98,8 @@ export default async function AssessSchedulePage({
       assessment_type: a?.assessment_type ?? null,
       theory_score: a?.theory_score ?? null,
       practical_score: a?.practical_score ?? null,
+      theory_result: a?.theory_result ?? "pending",
+      practical_result: a?.practical_result ?? "pending",
       result: a?.result ?? "pending",
       competency_status: a?.competency_status ?? null,
       remarks: a?.remarks ?? null,

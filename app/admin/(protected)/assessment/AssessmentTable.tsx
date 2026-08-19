@@ -12,6 +12,8 @@ export interface AsmRow {
   assessment_type: string | null;
   theory_score: number | null;
   practical_score: number | null;
+  theory_result: string;
+  practical_result: string;
   result: string;
   competency_status: string | null;
   remarks: string | null;
@@ -210,8 +212,18 @@ export function AssessmentTable({
                             {TYPES.map((t) => <option key={t} value={t}>{label(t)}</option>)}
                           </select>
                         </div>
-                        <input name="theory_score" type="number" min="0" max="100" step="0.01" defaultValue={r.theory_score ?? ""} placeholder="Theory" style={inp} aria-label="Theory score" />
-                        <input name="practical_score" type="number" min="0" max="100" step="0.01" defaultValue={r.practical_score ?? ""} placeholder="Practical" style={inp} aria-label="Practical score" />
+                        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                          <input name="theory_score" type="number" min="0" max="100" step="0.01" defaultValue={r.theory_score ?? ""} placeholder="Theory" style={inp} aria-label="Theory score" />
+                          <select name="theory_result" defaultValue={r.theory_result} style={inp} aria-label="Theory result">
+                            {RESULTS.map((s) => <option key={s} value={s}>{label(s)}</option>)}
+                          </select>
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                          <input name="practical_score" type="number" min="0" max="100" step="0.01" defaultValue={r.practical_score ?? ""} placeholder="Practical" style={inp} aria-label="Practical score" />
+                          <select name="practical_result" defaultValue={r.practical_result} style={inp} aria-label="Practical result">
+                            {RESULTS.map((s) => <option key={s} value={s}>{label(s)}</option>)}
+                          </select>
+                        </div>
                         <div style={{ fontWeight: 700, textAlign: "center" }}>{overallScore(r.theory_score, r.practical_score)}</div>
                         <select name="result" defaultValue={r.result} style={inp} aria-label="Result">
                           {RESULTS.map((s) => <option key={s} value={s}>{label(s)}</option>)}
@@ -230,8 +242,8 @@ export function AssessmentTable({
                         <strong>{r.participant?.full_name}</strong>
                         <div style={{ color: "var(--ta-muted)", fontSize: 11 }}>{r.participant?.participant_id}{r.locked ? " · 🔒 locked" : ""}{!r.id ? " · not assessed" : ""}</div>
                       </td>
-                      <td>{r.theory_score ?? "—"}</td>
-                      <td>{r.practical_score ?? "—"}</td>
+                      <td>{r.theory_score ?? "—"}<div style={{ marginTop: 4 }}><Badge status={r.theory_result} /></div></td>
+                      <td>{r.practical_score ?? "—"}<div style={{ marginTop: 4 }}><Badge status={r.practical_result} /></div></td>
                       <td><strong>{overallScore(r.theory_score, r.practical_score)}</strong></td>
                       <td><Badge status={r.result} /></td>
                       <td>{r.competency_status ? <Badge status={r.competency_status} /> : "—"}</td>
