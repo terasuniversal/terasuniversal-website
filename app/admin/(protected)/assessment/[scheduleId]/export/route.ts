@@ -189,7 +189,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       : `<colgroup><col style="width:5%"><col style="width:24%"><col style="width:15%"><col style="width:8%"><col style="width:8%"><col style="width:9%"><col style="width:12%"><col style="width:19%"></colgroup>`;
     const printHead = `<th class="no">No.</th><th>Participant Name</th><th class="ic">IC / Passport</th>${showGroupColumn ? "<th>Group</th>" : ""}<th>Theory</th><th>Practical</th><th>Result</th><th>Competency</th><th>Remarks</th>`;
     const rowHtml = (r: PrintRow) =>
-      `<tr><td class="no">${r.no}</td><td>${esc(r.name)}</td><td class="ic">${esc(r.ic)}</td>${showGroupColumn ? `<td>${esc(r.group)}</td>` : ""}<td class="no">${esc(r.theory)}</td><td class="no">${esc(r.practical)}</td><td>${esc(r.result)}</td><td>${esc(r.competency)}</td><td>${esc(r.remarks)}</td></tr>`;
+      `<tr><td class="no">${r.no}</td><td>${esc(r.name)}</td><td class="ic">${esc(r.ic)}</td>${showGroupColumn ? `<td>${esc(r.group)}</td>` : ""}<td class="no">${esc(r.theory)}</td><td class="no">${esc(r.practical)}</td><td>${esc(r.result)}</td><td class="competency">${esc(r.competency)}</td><td>${esc(r.remarks)}</td></tr>`;
     const tableHtml = (rows: PrintRow[]) => `<table>${colgroup}<thead><tr>${printHead}</tr></thead><tbody>${rows.map(rowHtml).join("")}</tbody></table>`;
 
     const title = `${s?.courses?.course_name ?? "Training"} — Assessment Sheet`;
@@ -438,6 +438,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
      980605-04-5321) -- always safe to keep on one line given the column's
      dedicated width, unlike a person's name which has no such bound. */
   th.ic, td.ic { white-space: nowrap; }
+  /* Competency body cells only (not the header, not any other column).
+     Real Chrome measurement (Range.getBoundingClientRect() against the
+     actual rendered text, not the unreliable td.scrollWidth) against the
+     narrowest real case -- the 11%-wide Competency column in the 9-column
+     "All Groups" table -- found "NOT YET COMPETENT" needs ~103mm at the
+     table's 11px body font but the column only has ~94px of content width
+     after padding: 9.5px still overflows by ~9px, 8.5px is the first size
+     that fits with real margin (~92px vs ~94px available). This was the
+     actual cause of the continuation page's 5.46mm real overflow -- the
+     column width, row-count allocation, and every other cell's font size
+     are untouched. */
+  td.competency { font-size: 8.5px; white-space: nowrap; }
   tbody tr { break-inside: avoid; page-break-inside: avoid; }
   /* REVERTED: an .asm-multi-page table { break-inside: avoid } rule briefly
      lived here to stop row 15 fragmenting onto its own page. Real Chrome
