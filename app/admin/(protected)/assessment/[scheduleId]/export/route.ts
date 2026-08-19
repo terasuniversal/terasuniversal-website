@@ -370,15 +370,22 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   /* Chrome print output showed a 15-row sheet landing ~1-2mm over one page.
      The vertical padding trimmed here (brand bar, body top, meta rows/gap)
      reclaims ~5mm of pure chrome without touching table row height, font
-     sizes, columns, orientation, or the signature area. */
-  .asm-head { background: #0B3A63; color: #fff; padding: 7px 16px; border-bottom: 3px solid #D4AF37; }
+     sizes, columns, orientation, or the signature area. A second pass below
+     (head padding 7px->5px, body top 6px->4px, meta margin/row padding
+     halved) reclaims a further ~3.4mm of the same kind of chrome -- All
+     Groups' first page (full header, 15 rows, no signoff yet) was still
+     landing a stray row 15 on its own extra page in real Chrome output even
+     though the server-side split already intended an even 15/15; this page
+     carries no signoff to trim, so the header/meta is the only lever left
+     that doesn't touch table row height, font size, or orientation. */
+  .asm-head { background: #0B3A63; color: #fff; padding: 5px 16px; border-bottom: 3px solid #D4AF37; }
   .asm-head strong { display: block; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: #D4AF37; }
-  .asm-head h1 { margin: 2px 0 0; font-size: 17px; font-weight: 800; letter-spacing: .04em; }
-  .asm-body { padding: 6px 16px 0; }
+  .asm-head h1 { margin: 1px 0 0; font-size: 17px; font-weight: 800; letter-spacing: .04em; }
+  .asm-body { padding: 4px 16px 0; }
   .asm-body-compact { padding-top: 8px; }
   .asm-continued { margin: 0 0 6px; font-size: 11px; font-weight: 700; color: #0B3A63; }
-  .asm-meta { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px 24px; margin: 0 0 4px; font-size: 12px; }
-  .asm-meta div { padding: 2px 0; border-bottom: 1px solid #e1e6ee; }
+  .asm-meta { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px 24px; margin: 0 0 2px; font-size: 12px; }
+  .asm-meta div { padding: 1px 0; border-bottom: 1px solid #e1e6ee; }
   .asm-meta dt { display: inline; color: #0B3A63; font-weight: 700; }
   .asm-meta dd { display: inline; margin: 0 0 0 5px; }
   table { border-collapse: collapse; width: 100%; font-size: 11px; table-layout: fixed; }
