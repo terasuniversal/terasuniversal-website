@@ -61,6 +61,29 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   });
   const hasUngrouped = groups.length > 0 && (rosterRaw ?? []).some((r: any) => !r.schedule_group_id);
   const assessorDisplay = computeAssessorDisplay(groups, schedulePrimaryAssessorName, selection, hasUngrouped);
+
+  // Effective trainer, same rule as Attendance V2's print page (the existing
+  // canonical pattern for this: app/admin/(protected)/attendance/[scheduleId]/print/page.tsx)
+  // -- group.trainer_id (via schedule_groups) is per-group and takes priority
+  // over the schedule-level course_schedules.trainer_name fallback. A
+  // selected group print always uses that group's own trainer; "All Groups"
+  // collapses to one line only when every group (+ Ungrouped, if present)
+  // shares the same trainer, otherwise each is listed with its own label so
+  // genuinely different group trainers are never misattributed to one name.
+  const distinctGroupTrainers = new Set(groups.map((g) => g.trainer_name).filter(Boolean));
+  const trainerLines: { label: string; trainer: string }[] = selectedGroup
+    ? [{ label: "Trainer", trainer: selectedGroup.trainer_name || "— none —" }]
+    : selection === UNGROUPED
+      ? [{ label: "Trainer", trainer: s?.trainer_name || "—" }]
+      : groups.length === 0 || distinctGroupTrainers.size <= 1
+        ? [{ label: "Trainer", trainer: (groups[0]?.trainer_name ?? s?.trainer_name) || "—" }]
+        : [
+            ...groups.map((g) => ({ label: g.name, trainer: g.trainer_name || "— none —" })),
+            ...(hasUngrouped ? [{ label: "Ungrouped", trainer: s?.trainer_name || "—" }] : []),
+          ];
+  const trainerHeaderLabel = trainerLines.length > 1 ? "Trainers" : "Trainer";
+  const trainerHeaderValue =
+    trainerLines.length > 1 ? trainerLines.map((t) => `${t.label} — ${t.trainer}`).join("; ") : trainerLines[0].trainer;
   const groupNameByParticipant = new Map<string, string>(
     (rosterRaw ?? []).map((r: any) => [r.participant_id, groups.find((g) => g.id === r.schedule_group_id)?.name ?? "Ungrouped"])
   );
@@ -314,7 +337,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       ${groupHeaderValue ? `<div><dt>Group:</dt><dd>${esc(groupHeaderValue)}</dd></div>` : ""}
       <div><dt>Assessment Date:</dt><dd>${esc(fmtDate(s?.exam_date))}</dd></div>
       <div><dt>Venue:</dt><dd>${esc(s?.venue || "—")}</dd></div>
-      <div><dt>Trainer:</dt><dd>${esc(s?.trainer_name || "—")}</dd></div>
+      <div><dt>${esc(trainerHeaderLabel)}:</dt><dd>${esc(trainerHeaderValue)}</dd></div>
       <div><dt>Effective Assessor:</dt><dd>${esc(effectiveAssessorHeaderValue)}</dd></div>
     </dl>`
       : `<div class="asm-body asm-body-compact">
@@ -412,7 +435,7 @@ ${
       ${groupHeaderValue ? `<div><dt>Group:</dt><dd>${esc(groupHeaderValue)}</dd></div>` : ""}
       <div><dt>Assessment Date:</dt><dd>${esc(fmtDate(s?.exam_date))}</dd></div>
       <div><dt>Venue:</dt><dd>${esc(s?.venue || "—")}</dd></div>
-      <div><dt>Trainer:</dt><dd>${esc(s?.trainer_name || "—")}</dd></div>
+      <div><dt>${esc(trainerHeaderLabel)}:</dt><dd>${esc(trainerHeaderValue)}</dd></div>
       <div><dt>Effective Assessor:</dt><dd>${esc(effectiveAssessorHeaderValue)}</dd></div>
     </dl>
     <p class="asm-empty">${groupHeaderValue ? "No participants assigned to this group." : "No participants enrolled in this schedule yet."}</p>
