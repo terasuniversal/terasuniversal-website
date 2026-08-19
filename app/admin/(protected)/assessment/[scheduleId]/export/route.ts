@@ -330,10 +330,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       }
     }
     const printPages = paginate(printRows);
-    // All Groups only (this is always false for By Group, which always
-    // takes paginate()'s early single-page return) -- see the
-    // .asm-multi-page table rule below for why this flag exists.
-    const isMultiPage = printPages.length > 1;
     const pageHtml = (page: PrintPage) => `
 <div class="asm-print-page">
   ${
@@ -407,23 +403,21 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
      dedicated width, unlike a person's name which has no such bound. */
   th.ic, td.ic { white-space: nowrap; }
   tbody tr { break-inside: avoid; page-break-inside: avoid; }
-  /* All Groups only (.asm-multi-page, added to <body> below iff paginate()
-     produced more than one page -- never true for By Group, which always
-     takes the single-page return and so never carries this class, leaving
-     its approved CSS/output untouched).
-     tbody tr's break-inside:avoid above stops a ROW splitting mid-row, but
-     nothing stopped the TABLE ITSELF splitting BETWEEN rows: real Chrome
-     print output showed page 1's 15-row table fragmenting after row 14
-     even though the server-side split -- and every height measured against
-     this file's own markup/CSS -- said it should fit with room to spare.
-     That mismatch (an auto-fragmentation heuristic misfiring near a page
-     boundary, not a genuine height deficit) is exactly the failure class
-     already on record in this file's history for the single-table design
-     this replaced. break-inside:avoid on the table itself removes Chrome's
-     latitude to fragment it at all: either it fits as the one atomic block
-     paginate() already sized it to be, or (if it truly doesn't) the whole
-     table relocates together -- never a lone stranded row again. */
-  .asm-multi-page table { break-inside: avoid; page-break-inside: avoid; }
+  /* REVERTED: an .asm-multi-page table { break-inside: avoid } rule briefly
+     lived here to stop row 15 fragmenting onto its own page. Real Chrome
+     print output showed that rule causes a WORSE failure, not a fix: since
+     break-inside:avoid's only two outcomes are "fits, stays whole" or
+     "doesn't fit, whole block relocates," and the whole 15-row table
+     doesn't fit in the remaining page-1 space in actual Chrome rendering,
+     Chrome relocated the ENTIRE table (all 15 rows) to page 2, leaving
+     page 1 as header/meta only. That is direct, load-bearing proof (not a
+     screen-measurement estimate) that page 1's real available height in
+     Chrome's print engine is measurably less than the table needs -- a
+     genuine deficit this codebase has not yet found a lever for that
+     doesn't also touch header/meta spacing, fonts, row height, or columns.
+     Left as tbody-row-level avoid only (no table-level avoid) so a
+     genuine shortfall fragments between rows -- visually imperfect but
+     never worse than the whole-table relocation this rule caused. */
   /* The section itself carries NO break-inside: a binary "fits entirely or
      relocate the whole block" rule on a section this tall is what produced
      the sign-off-only page in an earlier round. Each individual assessor
@@ -463,7 +457,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   .asm-sig-value { height: auto; min-height: 12mm; padding-top: 2mm; font-weight: 600; overflow-wrap: anywhere; }
   .asm-empty { padding: 0 16px 16px; color: #0B3A63; font-weight: 600; }
 </style>
-</head><body class="${isMultiPage ? "asm-multi-page" : ""}" onload="window.print()">
+</head><body onload="window.print()">
 ${
   printRows.length > 0
     ? printPages.map(pageHtml).join("")
