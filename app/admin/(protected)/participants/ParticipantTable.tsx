@@ -89,7 +89,7 @@ export function ParticipantTable({
       )}
 
       <div className="ta-table-wrap">
-        <table className="ta-table">
+        <table className="ta-table ta-table-compact">
           <thead>
             <tr>
               <th style={{ width: 34 }}>
@@ -97,11 +97,11 @@ export function ParticipantTable({
               </th>
               <th>Participant ID</th>
               <th>Name</th>
-              <th>IC / Passport</th>
-              <th>Company</th>
-              <th>Position</th>
-              <th>Phone</th>
-              <th>Status</th>
+              <th style={{ width: 170 }}>IC / Passport</th>
+              <th style={{ minWidth: 180 }}>Company</th>
+              <th style={{ minWidth: 150 }}>Position</th>
+              <th style={{ width: 140 }}>Phone</th>
+              <th style={{ width: 110, textAlign: "center" }}>Status</th>
               <th>Created</th>
               <th></th>
             </tr>
@@ -114,11 +114,11 @@ export function ParticipantTable({
                 </td>
                 <td><code style={{ fontSize: 12 }}>{r.participant_id}</code></td>
                 <td><strong>{r.full_name}</strong></td>
-                <td>{r.ic_passport_no ?? "—"}</td>
+                <td style={{ whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums", fontWeight: 500 }}>{r.ic_passport_no ?? "—"}</td>
                 <td>{r.company ?? "—"}</td>
                 <td>{r.position ?? "—"}</td>
-                <td>{r.phone ?? "—"}</td>
-                <td><Badge status={r.status} /></td>
+                <td style={{ whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>{r.phone ?? "—"}</td>
+                <td style={{ textAlign: "center" }}><Badge status={r.status} /></td>
                 <td style={{ color: "var(--ta-muted)", whiteSpace: "nowrap" }}>
                   {formatMalaysiaDate(r.created_at)}
                 </td>

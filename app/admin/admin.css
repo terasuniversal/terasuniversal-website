@@ -186,6 +186,8 @@
 .ta-table td { padding: 12px 16px; border-bottom: 1px solid var(--ta-line); vertical-align: middle; }
 .ta-table tr:last-child td { border-bottom: 0; }
 .ta-table tr:hover td { background: #fbfcfe; }
+.ta-table-compact th { padding: 9px 16px; }
+.ta-table-compact td { padding: 10px 16px; }
 
 /* --- Badges -------------------------------------------------------- */
 .ta-badge-pill { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 700; text-transform: capitalize; }
