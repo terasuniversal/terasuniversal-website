@@ -238,10 +238,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // (.asm-print-page) instead of asking the browser to decide where a
     // single long table should split.
     //
-    // Height constants are derived from this file's own CSS (padding,
-    // font-size, line-height, borders, converted to mm at 96dpi). They are
-    // estimates, not live browser measurements -- which is precisely why
-    // the distribution below is BALANCED rather than greedy (see paginate).
+    // Height constants below are calibrated against real Chrome rendering
+    // (getBoundingClientRect measurements of this exact markup/CSS at the
+    // true 269mm print content width), not guessed from the CSS source --
+    // an earlier round of guesses had FULL_HEADER_MM at 35 (real: ~41.6) and
+    // SIGNOFF_BLOCK_MM at 16 (real: ~17.1 after the .asm-sig-value fix
+    // above; ~23.7 before it), which together were the actual source of the
+    // occasional extra page: the JS decision said "fits on one page" while
+    // the real render didn't. The distribution below is still BALANCED
+    // rather than greedy (see paginate) as a second layer of margin for
+    // per-schedule text variance (a long name wrapping to 2 lines, etc.).
     //
     // ROW_HEIGHT_MM is deliberately budgeted above a single-line row's real
     // ~6.9mm: a long participant name wraps to two lines in its column, and
@@ -249,10 +255,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // maximum overflows once several rows wrap.
     const PAGE_HEIGHT_MM = 186; // A4 landscape 210mm - 12mm top/bottom @page margin
     const ROW_HEIGHT_MM = 8; // ~6.9mm single-line + headroom for names that wrap to 2 lines
-    const FULL_HEADER_MM = 35; // brand bar + body padding + 2-row meta grid + thead (post padding trim)
-    const CONTINUATION_HEADER_MM = 15; // compact "(continued)" line + body padding + thead
-    const SIGNOFF_BASE_MM = 5; // .asm-signoff margin/border/padding + heading (post padding trim)
-    const SIGNOFF_BLOCK_MM = 16; // per assessor block: one horizontal row (label + 12mm ruled fill)
+    const FULL_HEADER_MM = 42; // brand bar + body padding + 2-row meta grid + thead (measured ~41.6mm)
+    const CONTINUATION_HEADER_MM = 15; // compact "(continued)" line + body padding + thead (measured ~13.3mm)
+    const SIGNOFF_BASE_MM = 5; // .asm-signoff margin/border/padding + heading (measured ~5.0mm)
+    const SIGNOFF_BLOCK_MM = 18; // per assessor block: one horizontal row (label + 12mm ruled fill; measured ~17.1mm)
     const numAssessorBlocks = assessorDisplay.mode === "single" ? 1 : assessorDisplay.entries.length;
     const signOffHeightMm = SIGNOFF_BASE_MM + numAssessorBlocks * SIGNOFF_BLOCK_MM;
 
@@ -418,7 +424,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   .asm-sig-cell > span { display: block; font-weight: 700; color: #0B3A63; font-size: 11px; margin-bottom: 1px; }
   /* 12mm of ruled handwriting depth -- the practical signing area. */
   .asm-sig-fill { height: 12mm; border-bottom: 1px solid #1a1a1a; }
-  .asm-sig-value { height: auto; min-height: 12mm; padding-top: 8mm; font-weight: 600; overflow-wrap: anywhere; }
+  /* padding-top here (not the 12mm ruled line itself, which is untouched)
+     was measured in real Chrome output at 8mm -- pushing the Assessor Name
+     cell to ~23.7mm tall against the Signature/Date cells' ~15.7mm, since
+     .asm-sig-row's vertical-align:bottom makes the row (and so the whole
+     signoff block) as tall as its tallest cell. That single oversized cell,
+     not table row wrapping, was what pushed a 15-row page's total past the
+     186mm budget. 2mm keeps the pre-filled name comfortably clear of the
+     top border without carrying the other 6mm as pure dead space. */
+  .asm-sig-value { height: auto; min-height: 12mm; padding-top: 2mm; font-weight: 600; overflow-wrap: anywhere; }
   .asm-empty { padding: 0 16px 16px; color: #0B3A63; font-weight: 600; }
 </style>
 </head><body onload="window.print()">
