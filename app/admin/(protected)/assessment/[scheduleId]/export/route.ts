@@ -261,29 +261,50 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const SIGNOFF_BLOCK_MM = 18; // per assessor block: one horizontal row (label + 12mm ruled fill; measured ~17.1mm)
     const numAssessorBlocks = assessorDisplay.mode === "single" ? 1 : assessorDisplay.entries.length;
     const signOffHeightMm = SIGNOFF_BASE_MM + numAssessorBlocks * SIGNOFF_BLOCK_MM;
-
+    // Real Chrome print output (not this file's own DOM/mm measurements,
+    // which repeatedly showed comfortable margin for content that then
+    // still failed to fit) proved the full-header first page of a MULTI-page
+    // document needs materially more real slack than the formula below
+    // otherwise budgets -- confirmed by forcing table-level break-inside:avoid
+    // as a diagnostic: Chrome relocated the entire 15-row table off page 1
+    // rather than keep it there, which only happens when it genuinely does
+    // not fit. Applied ONLY inside the multi-page loop below (never to the
+    // single-page capacity check a fifteen-row By Group schedule uses, and
+    // never to a continuation page's capacity) -- By Group's approved
+    // single-page output is untouched by this constant.
+    const FIRST_PAGE_MULTI_PAGE_SAFETY_MM = 48;
     type PrintPage = { rows: PrintRow[]; header: "full" | "compact"; includeSignOff: boolean };
-    const capacityFor = (header: "full" | "compact", withSignOff: boolean) =>
+    const capacityFor = (header: "full" | "compact", withSignOff: boolean, extraMarginMm = 0) =>
       Math.max(
         1,
         Math.floor(
-          (PAGE_HEIGHT_MM - (header === "full" ? FULL_HEADER_MM : CONTINUATION_HEADER_MM) - (withSignOff ? signOffHeightMm : 0)) / ROW_HEIGHT_MM
+          (PAGE_HEIGHT_MM -
+            (header === "full" ? FULL_HEADER_MM : CONTINUATION_HEADER_MM) -
+            (withSignOff ? signOffHeightMm : 0) -
+            extraMarginMm) /
+            ROW_HEIGHT_MM
         )
       );
 
     /**
      * Chooses the fewest pages that can hold the roster, then spreads rows
-     * EVENLY across them instead of filling each page to its maximum.
+     * as EVENLY as each page's own capacity allows instead of filling each
+     * page to its maximum. An exact even split (e.g. 15/15 for 30 rows) is
+     * no longer a requirement here -- FIRST_PAGE_MULTI_PAGE_SAFETY_MM above
+     * deliberately shrinks page 1's real capacity below an even share, so
+     * the "push overflow forward" step below routinely lands the first page
+     * a few rows short of even (e.g. 12/18) and carries the rest onto later
+     * pages, which have real headroom to spare. That's intentional, not a
+     * bug: a merely uneven split is an approved outcome; a stranded single
+     * row, a sign-off-only page, or a blank page are not, and this is what
+     * actually prevents those.
      *
      * The greedy version this replaces packed the last page to its exact
      * theoretical capacity, leaving zero slack -- so any row taller than the
      * estimate (a wrapped name) pushed the tail onto an extra page. Real
      * Chrome output confirmed this: a computed 19-row final page rendered as
-     * 18 rows + an orphaned page. Balancing 30 rows as 15/15 instead of
-     * 11/19 uses the same two pages but leaves several rows' worth of
-     * headroom on each, which absorbs estimation error rather than
-     * compounding it. Purely arithmetic -- no participant identity, group
-     * id, or roster size is special-cased.
+     * 18 rows + an orphaned page. Purely arithmetic -- no participant
+     * identity, group id, or roster size is special-cased.
      */
     function paginate(rows: PrintRow[]): PrintPage[] {
       if (rows.length === 0) return [];
@@ -291,7 +312,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
       for (let pageCount = 2; ; pageCount++) {
         const caps = Array.from({ length: pageCount }, (_, i) =>
-          capacityFor(i === 0 ? "full" : "compact", i === pageCount - 1)
+          capacityFor(i === 0 ? "full" : "compact", i === pageCount - 1, i === 0 ? FIRST_PAGE_MULTI_PAGE_SAFETY_MM : 0)
         );
         if (caps.reduce((a, b) => a + b, 0) < rows.length) continue;
 
