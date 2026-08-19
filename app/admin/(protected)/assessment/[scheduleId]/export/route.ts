@@ -90,15 +90,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const { data: asm } = await supabase
     .from("assessments")
-    .select("participant_id, assessment_type, theory_score, practical_score, result, competency_status, remarks")
+    .select("participant_id, assessment_type, theory_score, practical_score, theory_result, practical_result, result, competency_status, remarks")
     .eq("schedule_id", scheduleId)
     .is("deleted_at", null);
   const byParticipant = new Map<string, any>((asm ?? []).map((a: any): [string, any] => [a.participant_id, a]));
 
   type AssessmentExportRow = {
     participant_id: string; full_name: string; company: string; group: string; assessment_type: string;
-    theory_score: string | number; practical_score: string | number; overall_score: string | number;
-    result: string; competency_status: string; remarks: string;
+    theory_score: string | number; theory_result: string; practical_score: string | number; practical_result: string;
+    overall_score: string | number; result: string; competency_status: string; remarks: string;
   };
   const flat: AssessmentExportRow[] = roster.map((r: any): AssessmentExportRow => {
     const a = byParticipant.get(r.participant_id);
@@ -112,7 +112,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       group: groupNameByParticipant.get(r.participant_id) ?? "Ungrouped",
       assessment_type: a?.assessment_type ?? "",
       theory_score: theory ?? "",
+      theory_result: a?.theory_result ?? "pending",
       practical_score: practical ?? "",
+      practical_result: a?.practical_result ?? "pending",
       overall_score: overall,
       result: a?.result ?? "pending",
       competency_status: a?.competency_status ?? "",
@@ -120,11 +122,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     };
   });
   // Group column only added when the schedule actually has active groups --
-  // a legacy zero-group schedule's export stays byte-identical to today's.
+  // a legacy zero-group schedule's export stays byte-identical to today's
+  // (aside from the additive Theory Result/Practical Result columns below,
+  // which apply to every schedule regardless of group architecture).
   const H: [keyof (typeof flat)[number], string][] = [
     ["participant_id", "Participant ID"], ["full_name", "Name"], ["company", "Company"],
     ...(groups.length > 0 ? ([["group", "Group"]] as [keyof (typeof flat)[number], string][]) : []),
-    ["assessment_type", "Type"], ["theory_score", "Theory"], ["practical_score", "Practical"],
+    ["assessment_type", "Type"], ["theory_score", "Theory"], ["theory_result", "Theory Result"],
+    ["practical_score", "Practical"], ["practical_result", "Practical Result"],
     ["overall_score", "Overall"], ["result", "Result"], ["competency_status", "Competency"], ["remarks", "Remarks"],
   ];
 
@@ -148,9 +153,19 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const showGroupColumn = groups.length > 0 && selection === null;
     type PrintRow = {
       no: number; name: string; ic: string; group: string;
-      theory: string | number; practical: string | number;
+      theory: string; practical: string;
       result: string; competency: string; remarks: string;
     };
+    // Theory/Practical print as the manually-entered PASS/FAIL/PENDING
+    // component result (theory_result/practical_result), never the raw
+    // score -- scores stay in the CRM/CSV only, per the approved V4 design.
+    // No score -> result derivation happens here or anywhere else; a null
+    // component result (a row saved before this feature existed) falls back
+    // to "pending", matching this column's own DB default. Result/
+    // Competency keep their existing null-fallback ("—" for an unset
+    // competency_status, matching the on-screen AssessmentTable.tsx
+    // convention) and are otherwise just uppercased/space-formatted for the
+    // formal document, not re-derived.
     const printRows: PrintRow[] = roster.map((r: any, i: number) => {
       const a = byParticipant.get(r.participant_id);
       return {
@@ -158,10 +173,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         name: r.participants?.full_name ?? "",
         ic: String(r.participants?.ic_passport_no ?? "").trim() || "—",
         group: groupNameByParticipant.get(r.participant_id) ?? "Ungrouped",
-        theory: a?.theory_score ?? "—",
-        practical: a?.practical_score ?? "—",
-        result: a?.result ?? "pending",
-        competency: a?.competency_status ?? "—",
+        theory: (a?.theory_result ?? "pending").toUpperCase(),
+        practical: (a?.practical_result ?? "pending").toUpperCase(),
+        result: (a?.result ?? "pending").toUpperCase(),
+        competency: a?.competency_status ? String(a.competency_status).replace(/_/g, " ").toUpperCase() : "—",
         remarks: a?.remarks ?? "",
       };
     });
@@ -174,7 +189,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       : `<colgroup><col style="width:5%"><col style="width:24%"><col style="width:15%"><col style="width:8%"><col style="width:8%"><col style="width:9%"><col style="width:12%"><col style="width:19%"></colgroup>`;
     const printHead = `<th class="no">No.</th><th>Participant Name</th><th class="ic">IC / Passport</th>${showGroupColumn ? "<th>Group</th>" : ""}<th>Theory</th><th>Practical</th><th>Result</th><th>Competency</th><th>Remarks</th>`;
     const rowHtml = (r: PrintRow) =>
-      `<tr><td class="no">${r.no}</td><td>${esc(r.name)}</td><td class="ic">${esc(r.ic)}</td>${showGroupColumn ? `<td>${esc(r.group)}</td>` : ""}<td class="no">${esc(r.theory)}</td><td class="no">${esc(r.practical)}</td><td>${esc(r.result)}</td><td>${esc(r.competency)}</td><td>${esc(r.remarks)}</td></tr>`;
+      `<tr><td class="no">${r.no}</td><td>${esc(r.name)}</td><td class="ic">${esc(r.ic)}</td>${showGroupColumn ? `<td>${esc(r.group)}</td>` : ""}<td class="no">${esc(r.theory)}</td><td class="no">${esc(r.practical)}</td><td>${esc(r.result)}</td><td class="competency">${esc(r.competency)}</td><td>${esc(r.remarks)}</td></tr>`;
     const tableHtml = (rows: PrintRow[]) => `<table>${colgroup}<thead><tr>${printHead}</tr></thead><tbody>${rows.map(rowHtml).join("")}</tbody></table>`;
 
     const title = `${s?.courses?.course_name ?? "Training"} — Assessment Sheet`;
@@ -423,6 +438,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
      980605-04-5321) -- always safe to keep on one line given the column's
      dedicated width, unlike a person's name which has no such bound. */
   th.ic, td.ic { white-space: nowrap; }
+  /* Competency body cells only (not the header, not any other column).
+     Real Chrome measurement (Range.getBoundingClientRect() against the
+     actual rendered text, not the unreliable td.scrollWidth) against the
+     narrowest real case -- the 11%-wide Competency column in the 9-column
+     "All Groups" table -- found "NOT YET COMPETENT" needs ~103mm at the
+     table's 11px body font but the column only has ~94px of content width
+     after padding: 9.5px still overflows by ~9px, 8.5px is the first size
+     that fits with real margin (~92px vs ~94px available). This was the
+     actual cause of the continuation page's 5.46mm real overflow -- the
+     column width, row-count allocation, and every other cell's font size
+     are untouched. */
+  td.competency { font-size: 8.5px; white-space: nowrap; }
   tbody tr { break-inside: avoid; page-break-inside: avoid; }
   /* REVERTED: an .asm-multi-page table { break-inside: avoid } rule briefly
      lived here to stop row 15 fragmenting onto its own page. Real Chrome
