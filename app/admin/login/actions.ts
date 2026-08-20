@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { createSupabaseServerClient } from "../../../lib/supabase/server";
+import { createSupabaseServerClient, createSupabaseServiceClient } from "../../../lib/supabase/server";
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -47,11 +47,22 @@ export async function loginAction(
     }
     // Stamp last login + write an audit event.
     await supabase.from("profiles").update({ last_login_at: new Date().toISOString() }).eq("id", user.id);
-    await supabase.rpc("log_event" as never, {
+    // `authenticated` has no EXECUTE grant on log_event (revoked in
+    // 20260815120000_security_remediation_pack1.sql) -- server-side audit
+    // writes must go through the service-role client calling
+    // log_event_as_service, which takes the actor explicitly since there's
+    // no auth.uid() session context on that client.
+    const service = createSupabaseServiceClient();
+    const { error: auditError } = await service.rpc("log_event_as_service" as never, {
+      p_actor_id: user.id,
+      p_actor_email: user.email ?? parsed.data.email,
       p_action: "login",
       p_entity_type: "auth",
       p_summary: "Admin sign-in",
     } as never);
+    if (auditError) {
+      console.error("loginAction: failed to write login audit event", { message: auditError.message, userId: user.id });
+    }
 
     // First-login password change takes priority over every other landing
     // decision. The (protected) layout enforces the same gate on all other
