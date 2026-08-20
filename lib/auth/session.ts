@@ -16,11 +16,24 @@ export const getCurrentProfile = cache(async (): Promise<Profile | null> => {
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const { data: profile } = await supabase
+  const { data: profile, error } = await supabase
     .from("profiles")
     .select("*")
     .eq("id", user.id)
     .single();
+
+  if (error) {
+    // PGRST116 = no matching row — a genuinely missing profile, which the
+    // existing null-profile handling in every guard below already covers
+    // correctly. Any other code is a real Supabase/PostgREST failure; log it
+    // so it's distinguishable from a legitimate missing profile. Either way
+    // this still returns null (fail closed) — a query error must never be
+    // treated as a valid, authorized profile.
+    if (error.code !== "PGRST116") {
+      console.error("getCurrentProfile: profile lookup failed", { message: error.message, code: error.code, userId: user.id });
+    }
+    return null;
+  }
 
   return (profile as Profile) ?? null;
 });
