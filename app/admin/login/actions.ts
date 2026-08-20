@@ -12,6 +12,8 @@ const loginSchema = z.object({
 
 export type LoginState = { error?: string };
 
+const GENERIC_LOGIN_ERROR = "Something went wrong signing you in. Please try again.";
+
 export async function loginAction(
   _prev: LoginState,
   formData: FormData
@@ -36,17 +38,30 @@ export async function loginAction(
     data: { user },
   } = await supabase.auth.getUser();
   if (user) {
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("is_active, role, must_change_password")
       .eq("id", user.id)
       .single();
+    if (profileError) {
+      // A query/connection failure here must never be read as "deactivated"
+      // or "no profile" — those are business states, not system failures.
+      console.error("loginAction: profile lookup failed", { message: profileError.message, code: profileError.code, userId: user.id });
+      return { error: GENERIC_LOGIN_ERROR };
+    }
     if (!profile?.is_active) {
       await supabase.auth.signOut();
       return { error: "This account has been deactivated. Contact an administrator." };
     }
-    // Stamp last login + write an audit event.
-    await supabase.from("profiles").update({ last_login_at: new Date().toISOString() }).eq("id", user.id);
+    // Stamp last login + write an audit event. Informational only — a
+    // failure here must not block an otherwise-successful login.
+    const { error: lastLoginError } = await supabase
+      .from("profiles")
+      .update({ last_login_at: new Date().toISOString() })
+      .eq("id", user.id);
+    if (lastLoginError) {
+      console.error("loginAction: failed to stamp last_login_at", { message: lastLoginError.message, userId: user.id });
+    }
     // `authenticated` has no EXECUTE grant on log_event (revoked in
     // 20260815120000_security_remediation_pack1.sql) -- server-side audit
     // writes must go through the service-role client calling
@@ -77,7 +92,14 @@ export async function loginAction(
     // training-operations dashboard. Send them to a module they actually have
     // (Sales staff -> Sales Dashboard). Legacy (role-default) staff keep the
     // existing dashboard landing because they pass the role-based fallback.
-    const { data: moduleAccess } = await supabase.rpc("get_my_module_access");
+    // A failed lookup degrades to the same "no override" fallback as an
+    // empty result — actual module authorization is enforced per-page by
+    // requireRole()/requireModuleAccess(), not by this landing-route choice,
+    // so this fallback cannot grant access the user doesn't already have.
+    const { data: moduleAccess, error: moduleAccessError } = await supabase.rpc("get_my_module_access");
+    if (moduleAccessError) {
+      console.error("loginAction: get_my_module_access failed", { message: moduleAccessError.message, userId: user.id });
+    }
     const allowed = Array.isArray(moduleAccess)
       ? moduleAccess.map((m: { module_key: string }) => m.module_key)
       : [];
