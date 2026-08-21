@@ -49,6 +49,15 @@ export interface StandardScaffoldProgramme {
   assessment_methods: string[];
   content_status: "verified" | "draft";
   source: string;
+  /**
+   * Set only on the 3 Erector programmes (Basic/Intermediate/Advanced) — the
+   * scaffold background watermark's density, merged into the render config
+   * by certData.ts (see lib/certificate-watermarks.ts). Deliberately unset
+   * on every Inspection/Awareness programme: this first watermark pass is
+   * Erector-only, so those certificates keep rendering the same generic
+   * watermark they always have.
+   */
+  watermark_level?: "basic" | "intermediate" | "advanced";
 }
 
 export const standardScaffoldProgrammes: Record<string, StandardScaffoldProgramme> = {
@@ -84,6 +93,7 @@ export const standardScaffoldProgrammes: Record<string, StandardScaffoldProgramm
     assessment_methods: ["Theory Assessment", "Practical Assessment", "Continuous Trainer Evaluation"],
     content_status: "verified",
     source: "data/courseCatalog.js — \"Basic Scaffolder (Level 1)\" (TERAS UNIVERSAL Training Course Catalogue 2026)",
+    watermark_level: "basic",
   },
   intermediate_erection: {
     programme_key: "intermediate_erection",
@@ -113,6 +123,7 @@ export const standardScaffoldProgrammes: Record<string, StandardScaffoldProgramm
     assessment_methods: ["Theory Assessment", "Practical Assessment", "Continuous Trainer Evaluation"],
     content_status: "verified",
     source: "data/courseCatalog.js — \"Intermediate Scaffolder (Level 2)\" (TERAS UNIVERSAL Training Course Catalogue 2026)",
+    watermark_level: "intermediate",
   },
   advanced_erection: {
     programme_key: "advanced_erection",
@@ -142,6 +153,7 @@ export const standardScaffoldProgrammes: Record<string, StandardScaffoldProgramm
     assessment_methods: ["Theory Assessment", "Practical Assessment", "Continuous Trainer Evaluation"],
     content_status: "verified",
     source: "data/courseCatalog.js — \"Advanced Scaffolder (Level 3)\" (TERAS UNIVERSAL Training Course Catalogue 2026)",
+    watermark_level: "advanced",
   },
   basic_inspection: {
     programme_key: "basic_inspection",
