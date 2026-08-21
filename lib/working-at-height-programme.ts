@@ -8,39 +8,19 @@
  * render config by certData.ts only when the resolved template's
  * design_variant is "working_at_height_certificate".
  *
- * content_status is "draft" for every field here, not "verified" — unlike
- * the Standard Scaffold family (whose "verified" content was copied from
- * dedicated spec sheets in the TERAS UNIVERSAL Training Course Catalogue
- * 2026), there is no dedicated Working at Height spec sheet anywhere in this
- * repo. Every field below is taken from data/courseCatalog.js's public
- * website copy for this course (its `summary` and `modules` array) — real,
- * sourced content, but website marketing copy, not a reviewed certificate
- * spec sheet. Do NOT treat this as business-approved certificate content
- * until someone confirms it, and do NOT add fields not traceable to that
- * source (see the missing learning_outcomes/assessment_methods note below).
+ * content_status is "verified": business-approved TERAS programme content,
+ * approved 2026-08-21. Supersedes the earlier catalog-derived draft (see git
+ * history) -- that draft was sourced only from data/courseCatalog.js's
+ * public website copy and was never treated as certificate-ready content;
+ * every field below (objective, coverage, learning outcomes, assessment
+ * methods, duration) was explicitly supplied and approved by the business
+ * for this purpose.
  *
- * duration_label is intentionally OMITTED (not set to any string).
- * data/courseCatalog.js's own `duration` field for this course is
- * "Course duration to be confirmed based on scope" -- a placeholder, not a
- * real value. Manufacturing a duration (e.g. copying Standard Scaffold's
- * "10-Day Practical Training") would be inventing data. The generic
- * renderer already handles an absent duration_label correctly: the
- * front-page duration ribbon only renders `if (duration)` (see
- * CertificateDocument.tsx / certificate-html.ts), so omitting this field
- * here simply hides the ribbon rather than showing a wrong or fabricated
- * one.
- *
- * learning_outcomes and assessment_methods are also intentionally omitted.
- * The catalog source has a `modules` (topic) list and a `summary` sentence,
- * but no distinct learning-outcomes or assessment-method lists -- inventing
- * either from the module topics would cross from "sourced content" into
- * "guessed content presented as real". Left unset, certData.ts's merge
- * (mirroring the Standard Scaffold pattern) never sets these config fields,
- * so the generic renderer's own neutral, already-accepted defaults
- * (DEFAULT_OUTCOMES / DEFAULT_ASSESSMENT in CertificateDocument.tsx /
- * certificate-html.ts) render instead -- the same fallback every other
- * template-less certificate in this system already uses, not new
- * Working-at-Height-specific invention.
+ * duration_label uses this certificate family's existing "{N}-Day Practical
+ * Training" convention (see lib/standard-scaffold-programmes.ts's own
+ * 2-day entries: intermediate_inspection / basic_inspection /
+ * advanced_inspection all use "2-Day Practical Training") -- not a new
+ * format invented for this course.
  */
 
 export interface WorkingAtHeightProgramme {
@@ -48,10 +28,11 @@ export interface WorkingAtHeightProgramme {
   /** Live public.courses.id this programme maps to, or null if unmapped. */
   course_id: string | null;
   programme_title: string;
-  /** Intentionally optional/unset here -- see file header. Never invent a value. */
-  duration_label?: string;
+  duration_label: string;
   objectives_text: string;
   coverage_items: string[];
+  learning_outcomes: string[];
+  assessment_methods: string[];
   content_status: "verified" | "draft";
   source: string;
 }
@@ -61,19 +42,37 @@ export const workingAtHeightProgrammes: Record<string, WorkingAtHeightProgramme>
     programme_key: "working_at_height",
     course_id: "963b1f6b-4c15-4833-90da-21aa0af0f544", // Working at Height (re-verified live 2026-08-21)
     programme_title: "Working at Height",
-    // duration_label intentionally omitted -- see file header.
+    duration_label: "2-Day Practical Training",
     objectives_text:
-      "Develop awareness of fall hazards, safe access, equipment use and workplace controls for elevated work.",
+      "To provide participants with the knowledge and practical awareness required to identify working-at-height hazards, understand fall-prevention and fall-protection principles, select and use appropriate access and personal protective equipment, and apply safe work practices for activities performed at height.",
     coverage_items: [
-      "Working at Height Hazards",
-      "Access and Fall Prevention Principles",
-      "Equipment and PPE Awareness",
-      "Safe Work Planning",
+      "Working at Height Hazards and Risk Controls",
+      "Hierarchy of Fall Prevention and Fall Protection",
+      "Safe Access and Egress",
+      "Ladders, Platforms and Elevated Work Areas",
+      "Full-Body Harnesses, Lanyards and Anchorage Awareness",
+      "Inspection and Proper Use of PPE",
+      "Safe Work Planning and Permit/Control Requirements",
+      "Emergency and Rescue Awareness",
       "Practical Scenario Review",
     ],
-    content_status: "draft",
-    source:
-      "data/courseCatalog.js — \"Working at Height\" (public website copy: summary + modules list). Not a dedicated certificate spec sheet -- DRAFT, business sign-off required before this content is treated as approved. duration field on this course is placeholder text (\"Course duration to be confirmed based on scope\"), not a real value, and is not used here.",
+    learning_outcomes: [
+      "Identify common hazards associated with working at height",
+      "Explain appropriate fall-prevention and fall-protection control measures",
+      "Recognise suitable access and fall-protection equipment",
+      "Perform basic pre-use checks on relevant PPE",
+      "Apply safe work practices and planning principles for work at height",
+      "Respond appropriately to unsafe conditions or emergency situations involving work at height",
+    ],
+    assessment_methods: [
+      "Theory Knowledge Assessment",
+      "Practical Demonstration / Scenario-Based Assessment",
+      "PPE and Equipment Identification / Pre-Use Check",
+      "Trainer Observation and Continuous Evaluation",
+      "100% Attendance Requirement",
+    ],
+    content_status: "verified",
+    source: "Business-approved TERAS programme content, approved 2026-08-21.",
   },
 };
 
