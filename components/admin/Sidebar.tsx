@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { NAV } from "../../lib/admin-nav";
-import { hasMinRole } from "../../lib/auth/rbac";
+import { canAccessModule } from "../../lib/auth/rbac";
 import type { UserRole } from "../../lib/supabase/database.types";
 import { NavIcon } from "./icons";
 
@@ -14,21 +14,16 @@ import { NavIcon } from "./icons";
  */
 export function Sidebar({
   role,
-  modules,
+  moduleKeys = [],
+  accessControlEnabled = false,
   badges = {},
 }: {
   role: UserRole;
-  /** Module keys the current staff member may access (empty/undefined = all role-permitted). */
-  modules?: string[];
+  moduleKeys?: readonly string[];
+  accessControlEnabled?: boolean;
   badges?: Record<string, number>;
 }) {
   const pathname = usePathname();
-
-  const hasModule = (key: string) => {
-    if (role === "super_admin") return true;
-    if (!modules) return true;
-    return modules.includes(key);
-  };
 
   return (
     <aside className="ta-sidebar" aria-label="Admin navigation">
@@ -41,7 +36,7 @@ export function Sidebar({
       </div>
       <nav className="ta-nav">
         {NAV.map((group) => {
-          const items = group.items.filter((i) => hasMinRole(role, i.minRole) && hasModule(i.key));
+          const items = group.items.filter((i) => canAccessModule(role, i.moduleKey ?? i.key, moduleKeys, accessControlEnabled));
           if (items.length === 0) return null;
           return (
             <div key={group.label}>

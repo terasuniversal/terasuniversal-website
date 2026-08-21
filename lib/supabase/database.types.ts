@@ -21,22 +21,14 @@ export type UserRole =
   | "client"
   | "participant";
 export type StaffDepartment =
-  | "management"
   | "sales"
   | "marketing"
   | "training_operations"
-  | "administration"
   | "finance"
+  | "administration"
+  | "management"
   | "hr";
 export type ModuleAccessLevel = "view" | "edit" | "admin";
-export type StaffAuditAction =
-  | "staff_created"
-  | "staff_updated"
-  | "staff_activated"
-  | "staff_deactivated"
-  | "staff_role_changed"
-  | "staff_department_changed"
-  | "staff_module_access_changed";
 export type EnquiryStatus =
   | "new"
   | "in_review"
@@ -88,64 +80,13 @@ export interface Profile {
   avatar_url: string | null;
   job_title: string | null;
   role: UserRole;
-  is_active: boolean;
-  last_login_at: string | null;
   department: StaffDepartment | null;
+  is_active: boolean;
   access_control_enabled: boolean;
-  updated_by: string | null;
-  /** True until the staff member changes their one-time temporary password (first login). */
   must_change_password: boolean;
+  last_login_at: string | null;
   created_at: string;
   updated_at: string;
-}
-
-export interface StaffModuleCatalog {
-  module_key: string;
-  label: string;
-  group_key: string;
-  min_role: UserRole;
-  is_active: boolean;
-  created_at: string;
-}
-
-export interface StaffModuleAccess {
-  user_id: string;
-  module_key: string;
-  access_level: ModuleAccessLevel;
-  created_at: string;
-  created_by: string | null;
-  updated_at: string;
-  updated_by: string | null;
-}
-
-/** Assessor master data (20260817002000). is_active replaces a soft-delete:
- *  deactivate instead of deleting. */
-export interface Assessor {
-  id: string;
-  full_name: string;
-  ic_passport_no: string | null;
-  phone: string | null;
-  email: string | null;
-  organization: string | null;
-  qualification: string | null;
-  notes: string | null;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-  created_by: string | null;
-  updated_by: string | null;
-}
-
-/** Schedule → assessor assignment junction (20260817002000). Phase 1 manages
- *  one primary per schedule; the shape supports multiple assessors later. */
-export interface ScheduleAssessor {
-  id: string;
-  schedule_id: string;
-  assessor_id: string;
-  is_primary: boolean;
-  assigned_at: string;
-  assigned_by: string | null;
-  created_at: string;
 }
 
 export interface Course {
@@ -262,25 +203,6 @@ export interface Database {
   public: {
     Tables: {
       profiles: { Row: Profile; Insert: Partial<Profile>; Update: Partial<Profile>; Relationships: [] };
-      staff_module_catalog: {
-        Row: StaffModuleCatalog;
-        Insert: Partial<StaffModuleCatalog>;
-        Update: Partial<StaffModuleCatalog>;
-        Relationships: [];
-      };
-      staff_module_access: {
-        Row: StaffModuleAccess;
-        Insert: Partial<StaffModuleAccess>;
-        Update: Partial<StaffModuleAccess>;
-        Relationships: [];
-      };
-      assessors: { Row: Assessor; Insert: Partial<Assessor>; Update: Partial<Assessor>; Relationships: [] };
-      schedule_assessors: {
-        Row: ScheduleAssessor;
-        Insert: Partial<ScheduleAssessor>;
-        Update: Partial<ScheduleAssessor>;
-        Relationships: [];
-      };
       courses: { Row: Course; Insert: Partial<Course>; Update: Partial<Course>; Relationships: [] };
       enquiries: { Row: Enquiry; Insert: Partial<Enquiry>; Update: Partial<Enquiry>; Relationships: [] };
       proposal_requests: {
@@ -314,8 +236,6 @@ export interface Database {
       proposal_status: ProposalStatus;
       schedule_status: ScheduleStatus;
       course_delivery_mode: CourseDeliveryMode;
-      staff_department: StaffDepartment;
-      module_access_level: ModuleAccessLevel;
     };
   };
 }

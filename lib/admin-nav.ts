@@ -2,6 +2,8 @@ import type { UserRole } from "./supabase/database.types";
 
 export interface NavItem {
   key: string;
+  /** Stored module key when the display key differs (e.g. certificate templates). */
+  moduleKey?: string;
   label: string;
   href: string;
   /** Lightweight inline-SVG icon key, rendered by components/admin/icons.tsx. */
@@ -33,7 +35,6 @@ export const NAV: NavGroup[] = [
     items: [
       { key: "courses", label: "Courses", href: "/admin/courses", icon: "courses", minRole: "editor" },
       { key: "trainers", label: "Trainers", href: "/admin/trainers", icon: "trainers", minRole: "editor" },
-      { key: "assessors", label: "Assessors", href: "/admin/assessors", icon: "assessors", minRole: "admin" },
       { key: "schedules", label: "Training Schedule", href: "/admin/schedules", icon: "schedules", minRole: "editor" },
       { key: "participants", label: "Participants", href: "/admin/participants", icon: "participants", minRole: "editor" },
       { key: "companies", label: "Companies", href: "/admin/companies", icon: "companies", minRole: "editor" },
@@ -45,7 +46,7 @@ export const NAV: NavGroup[] = [
     label: "Certification",
     items: [
       { key: "certificates", label: "Certificates", href: "/admin/certificates", icon: "certificates", minRole: "trainer" },
-      { key: "cert-templates", label: "Certificate Templates", href: "/admin/certificates/templates", icon: "cert-templates", minRole: "admin" },
+      { key: "cert-templates", moduleKey: "certificate_templates", label: "Certificate Templates", href: "/admin/certificates/templates", icon: "cert-templates", minRole: "admin" },
     ],
   },
   {
@@ -61,15 +62,6 @@ export const NAV: NavGroup[] = [
       { key: "sales_followups", label: "Follow-ups", href: "/admin/sales/follow-ups", icon: "followups", minRole: "editor" },
       { key: "sales_tasks", label: "Tasks", href: "/admin/sales/tasks", icon: "tasks", minRole: "editor" },
       { key: "sales_reports", label: "Reports", href: "/admin/sales/reports", icon: "sales-reports", minRole: "editor" },
-    ],
-  },
-  {
-    label: "Feedback",
-    items: [
-      { key: "feedback", label: "Feedback Dashboard", href: "/admin/feedback", icon: "feedback", minRole: "editor" },
-      { key: "feedback_responses", label: "Responses", href: "/admin/feedback/responses", icon: "feedback-responses", minRole: "editor" },
-      { key: "feedback_issues", label: "Issues", href: "/admin/feedback/issues", icon: "feedback-issues", minRole: "editor" },
-      { key: "feedback_actions", label: "Improvement Actions", href: "/admin/feedback/actions", icon: "feedback-actions", minRole: "editor" },
     ],
   },
   {
@@ -90,7 +82,16 @@ export const NAV: NavGroup[] = [
       { key: "system", label: "System Health", href: "/admin/system", icon: "system", minRole: "admin" },
       { key: "backups", label: "Backup Manager", href: "/admin/backups", icon: "backups", minRole: "admin" },
       { key: "audit", label: "Audit Log", href: "/admin/audit", icon: "audit", minRole: "admin" },
-      { key: "users", label: "Users & Roles", href: "/admin/users", icon: "users", minRole: "admin" },
+      { key: "users", label: "Users & Roles", href: "/admin/users", icon: "users", minRole: "super_admin" },
+    ],
+  },
+  {
+    label: "Feedback",
+    items: [
+      { key: "feedback", label: "Feedback Dashboard", href: "/admin/feedback", icon: "feedback", minRole: "editor" },
+      { key: "feedback_responses", label: "Responses", href: "/admin/feedback/responses", icon: "feedback-responses", minRole: "editor" },
+      { key: "feedback_issues", label: "Issues", href: "/admin/feedback/issues", icon: "feedback-issues", minRole: "editor" },
+      { key: "feedback_actions", label: "Improvement Actions", href: "/admin/feedback/actions", icon: "feedback-actions", minRole: "editor" },
     ],
   },
 ];

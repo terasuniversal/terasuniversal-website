@@ -1,30 +1,18 @@
 import Link from "next/link";
-import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { requireModuleAccess } from "../../../../../lib/auth/session";
 import { PageHead } from "../../../../../components/admin/ui";
-import type { StaffModuleCatalog } from "../../../../../lib/supabase/database.types";
-import { NewStaffForm } from "./NewStaffForm";
+import { StaffUserForm } from "../StaffUserForm";
 
 export const metadata = { title: "Add Staff — TERAS UNIVERSAL Admin" };
-export const dynamic = "force-dynamic";
 
-export default async function NewStaffPage() {
-  await requireModuleAccess("users", "admin");
-  const supabase = await createSupabaseServerClient();
-  const { data: catalogRows } = await supabase
-    .from("staff_module_catalog")
-    .select("*")
-    .eq("is_active", true)
-    .order("group_key");
-
+export default async function AddStaffPage() {
+  await requireModuleAccess("users");
   return (
     <>
-      <PageHead
-        title="Add Staff"
-        subtitle="Create a new staff account with department, role, status and module access. Server-side authorization is enforced on every step."
-        action={<Link href="/admin/users" className="ta-btn ta-btn-outline">← Back to Staff</Link>}
-      />
-      <NewStaffForm catalog={(catalogRows ?? []) as StaffModuleCatalog[]} />
+      <PageHead title="Add Staff" subtitle="Invite a staff member to the existing TERAS Admin login." action={<Link href="/admin/users" className="ta-btn ta-btn-outline">Back to Staff Users</Link>} />
+      <div className="ta-card ta-card-pad">
+        <StaffUserForm />
+      </div>
     </>
   );
 }

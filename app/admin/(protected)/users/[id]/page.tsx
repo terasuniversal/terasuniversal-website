@@ -1,47 +1,40 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { requireModuleAccess } from "../../../../../lib/auth/session";
-import { PageHead, Card, Badge } from "../../../../../components/admin/ui";
-import type { Profile, StaffModuleCatalog, StaffModuleAccess, ModuleAccessLevel, StaffDepartment } from "../../../../../lib/supabase/database.types";
-import { StaffUserForm } from "./StaffUserForm";
+import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
+import { PageHead } from "../../../../../components/admin/ui";
+import { StaffUserForm } from "../StaffUserForm";
+import { resendStaffInviteAction } from "../actions";
 
-export const metadata = { title: "Edit Staff User — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
 
-export default async function StaffUserEditPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function StaffDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ saved?: string; resent?: string }> }) {
   await requireModuleAccess("users");
   const { id } = await params;
   const supabase = await createSupabaseServerClient();
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("id, email, full_name, department, role, is_active, access_control_enabled, updated_at")
-    .eq("id", id)
-    .maybeSingle();
+  const [{ data: profile }, { data: access }] = await Promise.all([
+    supabase.from("profiles").select("id,email,full_name,department,role,is_active").eq("id", id).maybeSingle(),
+    supabase.from("staff_module_access").select("module_key").eq("user_id", id),
+  ]);
   if (!profile) notFound();
-
-  const { data: catalogRows } = await supabase.from("staff_module_catalog").select("*").eq("is_active", true).order("group_key");
-  const { data: accessRows } = await supabase.from("staff_module_access").select("*").eq("user_id", id);
-
-  const existingAccess: Record<string, ModuleAccessLevel> = {};
-  for (const row of (accessRows ?? []) as Pick<StaffModuleAccess, "module_key" | "access_level">[]) {
-    existingAccess[row.module_key] = row.access_level;
-  }
+  const sp = await searchParams;
+  const staff = profile as { id: string; email: string; full_name: string | null; department: "sales" | "marketing" | "training_operations" | "finance" | "administration" | "management" | "hr" | null; role: "super_admin" | "admin" | "editor" | "trainer"; is_active: boolean };
 
   return (
     <>
-      <PageHead
-        title={profile.full_name || profile.email}
-        subtitle={`${profile.email} · ${profile.role} · ${profile.is_active ? "Active" : "Inactive"}`}
-        action={<Link href="/admin/users" className="ta-btn ta-btn-outline">← Back to Staff</Link>}
-      />
-      <StaffUserForm
-        profile={profile as unknown as Profile}
-        catalog={(catalogRows ?? []) as StaffModuleCatalog[]}
-        existingAccess={existingAccess}
-        departments={["management", "sales", "marketing", "training_operations", "administration", "finance", "hr"] as StaffDepartment[]}
-      />
+      <PageHead title="Staff User" subtitle={`${staff.email} · ${staff.role.replace("_", " ")}`} action={<Link href="/admin/users" className="ta-btn ta-btn-outline">Back to Staff Users</Link>} />
+      {(sp.saved || sp.resent) && <p className="ta-card ta-card-pad" role="status">{sp.resent ? "Invitation sent." : "Staff access saved."}</p>}
+      <div className="ta-card ta-card-pad">
+        <StaffUserForm profile={{ ...staff, moduleKeys: (access ?? []).map((row: { module_key: string }) => row.module_key) }} />
+      </div>
+      <div className="ta-card ta-card-pad" style={{ marginTop: 18 }}>
+        <h3 style={{ marginTop: 0 }}>Invitation</h3>
+        <p style={{ color: "var(--ta-muted)" }}>Use this only for an unconfirmed account. Confirmed staff should use the normal password-reset flow.</p>
+        <form action={resendStaffInviteAction}>
+          <input type="hidden" name="user_id" value={staff.id} />
+          <button className="ta-btn ta-btn-outline" type="submit">Resend Invite</button>
+        </form>
+      </div>
     </>
   );
 }
