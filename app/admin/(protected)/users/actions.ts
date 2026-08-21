@@ -213,6 +213,17 @@ export async function inviteStaffAction(_prev: StaffActionState, formData: FormD
  *
  * Audit: no manual audit call. Both RPC calls fire the existing DB triggers
  * automatically, with the real authenticated actor.
+ *
+ * Module access is only ever submitted as a set of keys (StaffUserForm has
+ * no access-level control), so set_staff_module_access -- which fully
+ * replaces the target's staff_module_access rows on every call -- must never
+ * be called with a manufactured level. Before writing, this reads the
+ * target's CURRENT levels and reuses them for every retained key, defaulting
+ * only genuinely new keys to "view"; and it skips the RPC call entirely when
+ * the submitted key set is unchanged, so a profile-only edit (department,
+ * name, status) never touches staff_module_access or its audit trail. A
+ * production incident on 2026-08-21 confirmed the prior always-"view"
+ * payload silently downgraded existing edit/admin grants on every save.
  */
 export async function updateStaffAction(_prev: StaffActionState, formData: FormData): Promise<StaffActionState> {
   await requireModuleAccess("users", "admin");
@@ -229,13 +240,16 @@ export async function updateStaffAction(_prev: StaffActionState, formData: FormD
   if ("error" in requested) return requested;
 
   const supabase = await createSupabaseServerClient();
-  const { data: current, error: currentError } = await supabase
-    .from("profiles")
-    .select("id,role")
-    .eq("id", parsed.data.user_id)
-    .maybeSingle();
+  const [{ data: current, error: currentError }, { data: currentAccess, error: currentAccessError }] = await Promise.all([
+    supabase.from("profiles").select("id,role").eq("id", parsed.data.user_id).maybeSingle(),
+    supabase.from("staff_module_access").select("module_key,access_level").eq("user_id", parsed.data.user_id),
+  ]);
   if (currentError) {
     console.error("updateStaffAction: profile lookup failed", { message: currentError.message, userId: parsed.data.user_id });
+    return { error: "Staff profile could not be updated. Please try again." };
+  }
+  if (currentAccessError) {
+    console.error("updateStaffAction: module access lookup failed", { message: currentAccessError.message, userId: parsed.data.user_id });
     return { error: "Staff profile could not be updated. Please try again." };
   }
   if (!current) return { error: "Staff profile not found." };
@@ -255,10 +269,19 @@ export async function updateStaffAction(_prev: StaffActionState, formData: FormD
     return { error: mapRpcError(profileError.message) };
   }
 
-  if (parsed.data.role !== "super_admin") {
+  const currentLevelByKey = new Map(
+    (currentAccess ?? []).map((row: { module_key: string; access_level: string }) => [row.module_key, row.access_level]),
+  );
+  const moduleSelectionChanged =
+    currentLevelByKey.size !== requested.modules.length || requested.modules.some((key) => !currentLevelByKey.has(key));
+
+  if (parsed.data.role !== "super_admin" && moduleSelectionChanged) {
     const { error: accessError } = await supabase.rpc("set_staff_module_access", {
       p_user_id: parsed.data.user_id,
-      p_modules: requested.modules.map((module_key) => ({ module_key, access_level: "view" })),
+      p_modules: requested.modules.map((module_key) => ({
+        module_key,
+        access_level: currentLevelByKey.get(module_key) ?? "view",
+      })),
     });
     if (accessError) {
       console.error("updateStaffAction: set_staff_module_access failed", { message: accessError.message, userId: parsed.data.user_id });
