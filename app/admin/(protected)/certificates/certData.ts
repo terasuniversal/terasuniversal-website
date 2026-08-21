@@ -238,10 +238,14 @@ export async function loadCertificateRender(id: string): Promise<
       config.coverage_items ??= programme.coverage_items;
       config.learning_outcomes ??= programme.learning_outcomes;
       config.assessment_methods ??= programme.assessment_methods;
-      // watermark_level is set only on the 3 Erector programmes -- unset
-      // (undefined) for Inspection/Awareness, so ??= leaves those courses'
-      // watermark exactly as before (the generic ScaffoldMotif default).
+      // watermark_level is set only on the 3 Erector programmes; unset for
+      // Inspection/Awareness, so ??= leaves those courses' front/back-page
+      // motif exactly as before. inspector_watermark_level is the mirror of
+      // this for the 3 Inspection programmes, and is never set alongside
+      // watermark_level on the same entry -- the two families are mutually
+      // exclusive per lib/standard-scaffold-programmes.ts's own comment.
       config.watermark_level ??= programme.watermark_level;
+      config.inspector_watermark_level ??= programme.inspector_watermark_level;
     }
   }
 
