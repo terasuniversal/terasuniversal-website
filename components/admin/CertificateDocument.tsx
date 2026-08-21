@@ -1,6 +1,6 @@
 import type { CSSProperties, ReactNode } from "react";
 import { fitHolderNameSize, formatDateRange, isAffirmativeStatus } from "../../lib/certificate-format";
-import { scaffoldWatermarkLines, type ScaffoldWatermarkLevel } from "../../lib/certificate-watermarks";
+import { scaffoldWatermarkLines, type ScaffoldWatermarkLevel, inspectorWatermarkShapes, type InspectorWatermarkLevel } from "../../lib/certificate-watermarks";
 
 /**
  * Template-driven certificate renderer (server component, no client JS).
@@ -66,6 +66,8 @@ export interface TemplateConfig {
   show_qr?: boolean;
   /** Swaps the generic scaffold-pole background watermark for a level-specific density (Standard Scaffold Erector only, resolved per-course by certData.ts's merge — see lib/certificate-watermarks.ts). Unset everywhere else, which renders the same generic watermark this template always had. */
   watermark_level?: ScaffoldWatermarkLevel;
+  /** Swaps the background watermark for the distinct clipboard/magnifier Inspector motif (Standard Scaffold Inspector only, resolved per-course by certData.ts's merge — see lib/certificate-watermarks.ts). Takes precedence over watermark_level if both were somehow set, but the two are never set on the same programme. */
+  inspector_watermark_level?: InspectorWatermarkLevel;
   // Front page
   duration_label?: string;
   skills_update_recommendation?: string;
@@ -195,6 +197,27 @@ function ScaffoldMotif({ color, corner = false, level }: { color: string; corner
   );
 }
 
+/**
+ * Scaffold Inspector watermark — clipboard/checklist + magnifier + tagged
+ * scaffold inspection points, a distinct visual theme from ScaffoldMotif
+ * above (Standard Scaffold Inspector only, via config.inspector_watermark_level;
+ * see lib/certificate-watermarks.ts). Same positioning/opacity/placement
+ * pattern as ScaffoldMotif so it drops into the identical layout slot.
+ */
+function InspectorWatermark({ color, corner = false, level }: { color: string; corner?: boolean; level: InspectorWatermarkLevel }) {
+  const size = corner ? { width: 460, height: 340, style: { bottom: -10, right: -30 } } : { width: 460, height: 320, style: { bottom: 150, left: "50%", transform: "translateX(-50%)" } };
+  const shapes = inspectorWatermarkShapes(level);
+  return (
+    <svg viewBox="0 0 320 240" style={{ position: "absolute", width: size.width, height: size.height, opacity: 0.055, pointerEvents: "none", ...size.style }}>
+      <g stroke={color} strokeWidth="2.5" fill="none">
+        {shapes.lines.map(([x1, y1, x2, y2], i) => <line key={`l${i}`} x1={x1} y1={y1} x2={x2} y2={y2} />)}
+        {shapes.rects.map(([x, y, w, h], i) => <rect key={`r${i}`} x={x} y={y} width={w} height={h} />)}
+        {shapes.circles.map(([cx, cy, r], i) => <circle key={`c${i}`} cx={cx} cy={cy} r={r} />)}
+      </g>
+    </svg>
+  );
+}
+
 type IconKind = "calendar" | "refresh" | "doc" | "id" | "target" | "book" | "bulb" | "clipboard" | "warning" | "shield" | "globe" | "phone" | "mail" | "qrMini";
 function iconGlyph(kind: IconKind, color: string, strokeWidth = 1.7) {
   const common = { width: "58%", height: "58%", viewBox: "0 0 24 24", fill: "none", stroke: color, strokeWidth, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
@@ -276,7 +299,11 @@ export function CertificateDocument({ data, config }: { data: CertData; config: 
         backgroundSize: "cover", backgroundPosition: "center",
       }}
     >
-      {!config.background_url && <ScaffoldMotif color={navy} level={config.watermark_level} />}
+      {!config.background_url && (
+        config.inspector_watermark_level
+          ? <InspectorWatermark color={navy} level={config.inspector_watermark_level} />
+          : <ScaffoldMotif color={navy} level={config.watermark_level} />
+      )}
       <OrnateBorder navy={navy} gold={gold} />
 
       <div style={{ position: "relative", height: "100%", padding: "26px 34px", display: "flex", flexDirection: "column", textAlign: "center" }}>
@@ -397,7 +424,9 @@ export function CertificateBackPage({ data, config }: { data: CertData; config: 
 
   return (
     <div style={{ width: PAGE_W, height: PAGE_H, margin: "0 auto", position: "relative", background: "#fff", boxSizing: "border-box", padding: 34, fontFamily: "Georgia, 'Times New Roman', serif", color: "#1F2937", overflow: "hidden" }}>
-      <ScaffoldMotif color={navy} corner level={config.watermark_level} />
+      {config.inspector_watermark_level
+        ? <InspectorWatermark color={navy} corner level={config.inspector_watermark_level} />
+        : <ScaffoldMotif color={navy} corner level={config.watermark_level} />}
       <OrnateBorder navy={navy} gold={gold} />
       <div style={{ position: "relative", height: "100%", padding: "28px 34px", display: "flex", flexDirection: "column" }}>
         <RibbonBanner navy={navy} gold={gold} style={{ alignSelf: "center" }}>
@@ -458,7 +487,9 @@ export function CertificateBackPage({ data, config }: { data: CertData; config: 
         </div>
 
         <div style={{ position: "relative", border: `1.5px solid ${gold}`, borderRadius: 6, padding: "14px 18px", marginTop: 10, overflow: "hidden" }}>
-          <ScaffoldMotif color={navy} corner level={config.watermark_level} />
+          {config.inspector_watermark_level
+            ? <InspectorWatermark color={navy} corner level={config.inspector_watermark_level} />
+            : <ScaffoldMotif color={navy} corner level={config.watermark_level} />}
           <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
             <CircleIcon kind="warning" navy={navy} gold={gold} size={24} />
             <span style={{ fontSize: 12.5, fontWeight: 700, color: navy }}>IMPORTANT NOTICE</span>

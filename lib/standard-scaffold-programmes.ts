@@ -52,12 +52,21 @@ export interface StandardScaffoldProgramme {
   /**
    * Set only on the 3 Erector programmes (Basic/Intermediate/Advanced) — the
    * scaffold background watermark's density, merged into the render config
-   * by certData.ts (see lib/certificate-watermarks.ts). Deliberately unset
-   * on every Inspection/Awareness programme: this first watermark pass is
-   * Erector-only, so those certificates keep rendering the same generic
-   * watermark they always have.
+   * by certData.ts (see lib/certificate-watermarks.ts). Never set on an
+   * Inspection programme -- those use inspector_watermark_level instead, a
+   * visually distinct family (see that field's own comment). Deliberately
+   * unset on Awareness: no watermark work has been done for that programme.
    */
   watermark_level?: "basic" | "intermediate" | "advanced";
+  /**
+   * Set only on the 3 Inspection programmes (Basic/Intermediate/Advanced) —
+   * selects the distinct clipboard/checklist/magnifier Inspector watermark
+   * family (see lib/certificate-watermarks.ts's inspectorWatermarkShapes),
+   * merged into the render config by certData.ts the same way
+   * watermark_level is. Never set alongside watermark_level on the same
+   * programme -- Erector and Inspection are mutually exclusive families.
+   */
+  inspector_watermark_level?: "basic" | "intermediate" | "advanced";
 }
 
 export const standardScaffoldProgrammes: Record<string, StandardScaffoldProgramme> = {
@@ -183,6 +192,7 @@ export const standardScaffoldProgrammes: Record<string, StandardScaffoldProgramm
     assessment_methods: ["Theory Assessment", "Practical Inspection Assessment", "Continuous Trainer Evaluation"],
     content_status: "verified",
     source: "data/courseCatalog.js — \"Scaffolding Inspector (Basic)\" (TERAS UNIVERSAL Training Course Catalogue 2026); course record now live in the CMS as \"Basic Scaffolding Inspector\" (draft status)",
+    inspector_watermark_level: "basic",
   },
   intermediate_inspection: {
     programme_key: "intermediate_inspection",
@@ -212,6 +222,7 @@ export const standardScaffoldProgrammes: Record<string, StandardScaffoldProgramm
     assessment_methods: ["Theory Assessment", "Practical Inspection Assessment", "Continuous Trainer Evaluation"],
     content_status: "verified",
     source: "data/courseCatalog.js — \"Scaffolding Inspector (Intermediate)\" (TERAS UNIVERSAL Training Course Catalogue 2026); course record now live in the CMS as \"Intermediate Scaffolding Inspector\" (draft status)",
+    inspector_watermark_level: "intermediate",
   },
   advanced_inspection: {
     programme_key: "advanced_inspection",
@@ -241,6 +252,7 @@ export const standardScaffoldProgrammes: Record<string, StandardScaffoldProgramm
     assessment_methods: ["Theory Assessment", "Practical Inspection Assessment", "Continuous Trainer Evaluation"],
     content_status: "verified",
     source: "data/courseCatalog.js — \"Scaffolding Inspector (Advanced)\" (TERAS UNIVERSAL Training Course Catalogue 2026); course record now live in the CMS as \"Advanced Scaffolding Inspector\" (draft status)",
+    inspector_watermark_level: "advanced",
   },
   scaffold_awareness: {
     programme_key: "scaffold_awareness",

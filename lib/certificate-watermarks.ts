@@ -105,3 +105,115 @@ export function scaffoldWatermarkLines(level: ScaffoldWatermarkLevel): Watermark
       };
   }
 }
+
+/**
+ * Scaffold Inspector watermark family -- a distinct visual theme from the
+ * Erector family above (inspection clipboard/checklist + magnifier + tagged
+ * scaffold inspection points, not a pure pole/ledger/brace structure), used
+ * so Inspector certificates read as visually related to but clearly
+ * different from Erector ones. Same coordinate space (viewBox 0 0 320 240)
+ * and consumption pattern: one shared geometry function, both the React and
+ * HTML/ZIP renderers map the same shape lists themselves. Never a photo,
+ * never the TERAS logo, no external image URL, no binary asset file.
+ *
+ * This is entirely additive -- ScaffoldWatermarkLevel/WatermarkLineSet/
+ * scaffoldWatermarkLines above (the Erector geometry) are untouched.
+ */
+export type InspectorWatermarkLevel = "basic" | "intermediate" | "advanced";
+
+export interface WatermarkShapeSet {
+  /** [x1, y1, x2, y2] straight lines (checklist rows, magnifier handle/crosshair, scaffold poles/ledgers/braces). */
+  lines: [number, number, number, number][];
+  /** [x, y, width, height] rectangles (the clipboard body and its clip tab). */
+  rects: [number, number, number, number][];
+  /** [cx, cy, r] circles (checklist tick marks, the magnifier lens, tagged scaffold inspection points). */
+  circles: [number, number, number][];
+}
+
+/**
+ * basic: 3-row checklist, small magnifier, a minimal 2-pole scaffold detail
+ *   with no tagged inspection points -- reads as "just getting started."
+ * intermediate: 5-row checklist, a slightly larger magnifier, a 3-pole
+ *   scaffold with 2 tagged inspection points (small circles at joints).
+ * advanced: 7-row checklist, the largest magnifier with an internal
+ *   crosshair (denser/more technical), and a 4-pole braced scaffold with 4
+ *   tagged inspection points -- the densest of the three, same visual
+ *   grammar (clipboard, checklist, magnifier, scaffold + tags) throughout so
+ *   all three read as one TERAS family, distinct from the Erector family.
+ */
+export function inspectorWatermarkShapes(level: InspectorWatermarkLevel): WatermarkShapeSet {
+  const clipboardBody: [number, number, number, number] = [95, 45, 90, 125];
+  const clipboardTab: [number, number, number, number] = [125, 32, 30, 16];
+
+  const checklistRows = level === "basic" ? 3 : level === "intermediate" ? 5 : 7;
+  const checklistLines: [number, number, number, number][] = [];
+  const checkCircles: [number, number, number][] = [];
+  for (let i = 0; i < checklistRows; i++) {
+    const y = 72 + i * 13;
+    checklistLines.push([112, y, 172, y]);
+    checkCircles.push([104, y, 3]);
+  }
+
+  const magnifierR = level === "basic" ? 20 : level === "intermediate" ? 25 : 30;
+  const magCenter: [number, number] = level === "basic" ? [230, 170] : level === "intermediate" ? [235, 175] : [240, 180];
+  const magLines: [number, number, number, number][] = [
+    [
+      magCenter[0] + magnifierR * 0.7,
+      magCenter[1] + magnifierR * 0.7,
+      magCenter[0] + magnifierR * 1.35,
+      magCenter[1] + magnifierR * 1.35,
+    ],
+  ];
+  if (level === "advanced") {
+    magLines.push(
+      [magCenter[0] - 10, magCenter[1], magCenter[0] + 10, magCenter[1]],
+      [magCenter[0], magCenter[1] - 10, magCenter[0], magCenter[1] + 10]
+    );
+  }
+
+  let scaffoldLines: [number, number, number, number][] = [];
+  let scaffoldCircles: [number, number, number][] = [];
+  if (level === "basic") {
+    scaffoldLines = [
+      [20, 220, 20, 140],
+      [55, 220, 55, 140],
+      [20, 180, 55, 180],
+    ];
+  } else if (level === "intermediate") {
+    scaffoldLines = [
+      [15, 220, 15, 120],
+      [50, 220, 50, 120],
+      [85, 220, 85, 120],
+      [15, 150, 85, 150],
+      [15, 190, 85, 190],
+    ];
+    scaffoldCircles = [
+      [50, 150, 4],
+      [85, 190, 4],
+    ];
+  } else {
+    scaffoldLines = [
+      [10, 225, 10, 100],
+      [40, 225, 40, 100],
+      [70, 225, 70, 100],
+      [100, 225, 100, 100],
+      [10, 135, 100, 135],
+      [10, 175, 100, 175],
+      [10, 215, 100, 215],
+      [10, 135, 40, 175],
+      [40, 135, 10, 175],
+    ];
+    scaffoldCircles = [
+      [10, 135, 4],
+      [70, 175, 4],
+      [100, 215, 4],
+      [40, 100, 4],
+    ];
+  }
+
+  return {
+    lines: [...checklistLines, ...magLines, ...scaffoldLines],
+    rects: [clipboardBody, clipboardTab],
+    circles: [...checkCircles, [magCenter[0], magCenter[1], magnifierR], ...scaffoldCircles],
+  };
+}
