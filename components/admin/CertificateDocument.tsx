@@ -1,6 +1,6 @@
 import type { CSSProperties, ReactNode } from "react";
 import { fitHolderNameSize, formatDateRange, isAffirmativeStatus } from "../../lib/certificate-format";
-import { scaffoldWatermarkLines, type ScaffoldWatermarkLevel, inspectorWatermarkShapes, type InspectorWatermarkLevel } from "../../lib/certificate-watermarks";
+import { scaffoldWatermarkLines, type ScaffoldWatermarkLevel, inspectorWatermarkShapes, type InspectorWatermarkLevel, workingAtHeightWatermarkShapes } from "../../lib/certificate-watermarks";
 
 /**
  * Template-driven certificate renderer (server component, no client JS).
@@ -68,6 +68,8 @@ export interface TemplateConfig {
   watermark_level?: ScaffoldWatermarkLevel;
   /** Swaps the background watermark for the distinct clipboard/magnifier Inspector motif (Standard Scaffold Inspector only, resolved per-course by certData.ts's merge — see lib/certificate-watermarks.ts). Takes precedence over watermark_level if both were somehow set, but the two are never set on the same programme. */
   inspector_watermark_level?: InspectorWatermarkLevel;
+  /** Swaps the background watermark for the harness/twin-lanyard/anchorage Working at Height motif, set unconditionally by certData.ts's merge whenever config.design_variant === "working_at_height_certificate" (see lib/certificate-watermarks.ts). Takes precedence over inspector_watermark_level/watermark_level; never set alongside either since design_variant scopes each family to its own template. */
+  wah_watermark?: boolean;
   // Front page
   duration_label?: string;
   skills_update_recommendation?: string;
@@ -218,6 +220,28 @@ function InspectorWatermark({ color, corner = false, level }: { color: string; c
   );
 }
 
+/**
+ * Working at Height watermark — full-body harness silhouette + twin-leg
+ * lanyard + overhead anchorage/fall-arrest line, a third distinct visual
+ * theme from ScaffoldMotif/InspectorWatermark above (Working at Height only,
+ * via config.wah_watermark; see lib/certificate-watermarks.ts). Same
+ * positioning/opacity/placement pattern as the other two so it drops into
+ * the identical layout slot.
+ */
+function WorkingAtHeightWatermark({ color, corner = false }: { color: string; corner?: boolean }) {
+  const size = corner ? { width: 460, height: 340, style: { bottom: -10, right: -30 } } : { width: 460, height: 320, style: { bottom: 150, left: "50%", transform: "translateX(-50%)" } };
+  const shapes = workingAtHeightWatermarkShapes();
+  return (
+    <svg viewBox="0 0 320 240" style={{ position: "absolute", width: size.width, height: size.height, opacity: 0.055, pointerEvents: "none", ...size.style }}>
+      <g stroke={color} strokeWidth="2.5" fill="none">
+        {shapes.lines.map(([x1, y1, x2, y2], i) => <line key={`l${i}`} x1={x1} y1={y1} x2={x2} y2={y2} />)}
+        {shapes.rects.map(([x, y, w, h], i) => <rect key={`r${i}`} x={x} y={y} width={w} height={h} />)}
+        {shapes.circles.map(([cx, cy, r], i) => <circle key={`c${i}`} cx={cx} cy={cy} r={r} />)}
+      </g>
+    </svg>
+  );
+}
+
 type IconKind = "calendar" | "refresh" | "doc" | "id" | "target" | "book" | "bulb" | "clipboard" | "warning" | "shield" | "globe" | "phone" | "mail" | "qrMini";
 function iconGlyph(kind: IconKind, color: string, strokeWidth = 1.7) {
   const common = { width: "58%", height: "58%", viewBox: "0 0 24 24", fill: "none", stroke: color, strokeWidth, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
@@ -302,6 +326,8 @@ export function CertificateDocument({ data, config }: { data: CertData; config: 
       {!config.background_url && (
         config.inspector_watermark_level
           ? <InspectorWatermark color={navy} level={config.inspector_watermark_level} />
+          : config.wah_watermark
+          ? <WorkingAtHeightWatermark color={navy} />
           : <ScaffoldMotif color={navy} level={config.watermark_level} />
       )}
       <OrnateBorder navy={navy} gold={gold} />
@@ -426,6 +452,8 @@ export function CertificateBackPage({ data, config }: { data: CertData; config: 
     <div style={{ width: PAGE_W, height: PAGE_H, margin: "0 auto", position: "relative", background: "#fff", boxSizing: "border-box", padding: 34, fontFamily: "Georgia, 'Times New Roman', serif", color: "#1F2937", overflow: "hidden" }}>
       {config.inspector_watermark_level
         ? <InspectorWatermark color={navy} corner level={config.inspector_watermark_level} />
+        : config.wah_watermark
+        ? <WorkingAtHeightWatermark color={navy} corner />
         : <ScaffoldMotif color={navy} corner level={config.watermark_level} />}
       <OrnateBorder navy={navy} gold={gold} />
       <div style={{ position: "relative", height: "100%", padding: "28px 34px", display: "flex", flexDirection: "column" }}>
@@ -489,6 +517,8 @@ export function CertificateBackPage({ data, config }: { data: CertData; config: 
         <div style={{ position: "relative", border: `1.5px solid ${gold}`, borderRadius: 6, padding: "14px 18px", marginTop: 10, overflow: "hidden" }}>
           {config.inspector_watermark_level
             ? <InspectorWatermark color={navy} corner level={config.inspector_watermark_level} />
+            : config.wah_watermark
+            ? <WorkingAtHeightWatermark color={navy} corner />
             : <ScaffoldMotif color={navy} corner level={config.watermark_level} />}
           <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
             <CircleIcon kind="warning" navy={navy} gold={gold} size={24} />
