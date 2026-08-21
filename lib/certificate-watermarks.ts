@@ -217,3 +217,67 @@ export function inspectorWatermarkShapes(level: InspectorWatermarkLevel): Waterm
     circles: [...checkCircles, [magCenter[0], magCenter[1], magnifierR], ...scaffoldCircles],
   };
 }
+
+/**
+ * Working at Height watermark -- a third, distinct visual theme from both
+ * ScaffoldMotif and InspectorWatermark above (full-body harness silhouette +
+ * twin-leg lanyard + overhead anchorage/fall-arrest line, not a pole/ledger
+ * structure or a clipboard/magnifier), used so Working at Height certificates
+ * read as visually related to but clearly different from either Scaffold
+ * family. Same coordinate space (viewBox 0 0 320 240) and consumption
+ * pattern as the two functions above: one shared geometry function, both the
+ * React and HTML/ZIP renderers map the same shape lists themselves. Never a
+ * photo, never the TERAS logo, no external image URL, no binary asset file,
+ * and depicts only equipment in its normal worn/rigged state -- no fall,
+ * no injury, no unsafe posture.
+ *
+ * Unlike scaffoldWatermarkLines/inspectorWatermarkShapes there is exactly one
+ * Working at Height programme (see lib/working-at-height-programme.ts), so
+ * this takes no level parameter -- one fixed density, not a 3-tier family.
+ *
+ * Harness (left of centre): shoulder straps converge at a dorsal/neck ring,
+ * continue as torso straps to a chest D-ring, a waist band, and leg straps
+ * ending in leg-loop rings -- the standard full-body-harness strap layout
+ * read as a flat line-art schematic, not an anatomical illustration.
+ * Lanyard + anchorage (right of centre, mirroring where InspectorWatermark
+ * places its magnifier): twin lanyard legs run from the same dorsal ring up
+ * to two separate hook connectors, each dropped from an overhead anchorage
+ * beam with its own fixed anchorage device; a separate vertical line with a
+ * small shock-absorber-pack rect represents the fall-arrest lifeline,
+ * subtly distinct from the two lanyard legs.
+ */
+export function workingAtHeightWatermarkShapes(): WatermarkShapeSet {
+  const dorsalRing: [number, number, number] = [120, 45, 5];
+  const chestRing: [number, number, number] = [120, 110, 5];
+  const legLoopL: [number, number, number] = [75, 210, 5];
+  const legLoopR: [number, number, number] = [165, 210, 5];
+  const hook1: [number, number, number] = [170, 25, 4];
+  const hook2: [number, number, number] = [230, 25, 4];
+
+  const harnessLines: [number, number, number, number][] = [
+    [120, 45, 85, 70], // shoulder strap L (dorsal ring -> left shoulder)
+    [120, 45, 155, 70], // shoulder strap R
+    [85, 70, 120, 110], // torso strap L (shoulder -> chest ring)
+    [155, 70, 120, 110], // torso strap R
+    [95, 150, 75, 210], // leg strap L (waist -> leg loop L)
+    [145, 150, 165, 210], // leg strap R (waist -> leg loop R)
+  ];
+  const waistBand: [number, number, number, number] = [80, 146, 80, 8];
+
+  const lanyardLines: [number, number, number, number][] = [
+    [120, 45, 170, 25], // twin lanyard leg 1 (dorsal ring -> hook 1)
+    [120, 45, 230, 25], // twin lanyard leg 2 (dorsal ring -> hook 2)
+    [60, 15, 280, 15], // overhead anchorage beam
+    [170, 15, 170, 25], // connector drop, beam -> hook 1
+    [230, 15, 230, 25], // connector drop, beam -> hook 2
+    [200, 15, 200, 140], // fall-arrest vertical lifeline, separate from the lanyard legs
+  ];
+  const anchorageDevice: [number, number, number, number] = [145, 10, 20, 8];
+  const shockAbsorberPack: [number, number, number, number] = [195, 70, 10, 18];
+
+  return {
+    lines: [...harnessLines, ...lanyardLines],
+    rects: [waistBand, anchorageDevice, shockAbsorberPack],
+    circles: [dorsalRing, chestRing, legLoopL, legLoopR, hook1, hook2],
+  };
+}

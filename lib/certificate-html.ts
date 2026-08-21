@@ -1,7 +1,7 @@
 import type { CertData, TemplateConfig } from "../components/admin/CertificateDocument";
 import { fitHolderNameSize, formatDateRange, isAffirmativeStatus } from "./certificate-format";
 import { renderProfessionalScaffoldCertificateDocument } from "./professional-scaffold-certificate-html";
-import { scaffoldWatermarkLines, type ScaffoldWatermarkLevel, inspectorWatermarkShapes, type InspectorWatermarkLevel } from "./certificate-watermarks";
+import { scaffoldWatermarkLines, type ScaffoldWatermarkLevel, inspectorWatermarkShapes, type InspectorWatermarkLevel, workingAtHeightWatermarkShapes } from "./certificate-watermarks";
 
 /**
  * Standalone HTML string renderer for a certificate — no React / no
@@ -117,6 +117,23 @@ function inspectorWatermark(color: string, corner: boolean, level: InspectorWate
   </svg>`;
 }
 
+/**
+ * Mirrors WorkingAtHeightWatermark in CertificateDocument.tsx — full-body
+ * harness silhouette + twin-leg lanyard + overhead anchorage/fall-arrest
+ * line, a third distinct visual theme from scaffoldMotif/inspectorWatermark
+ * above (Working at Height only, via config.wah_watermark).
+ */
+function workingAtHeightWatermark(color: string, corner: boolean): string {
+  const pos = corner ? "bottom:-10px;right:-30px;width:460px;height:340px;" : "bottom:150px;left:50%;transform:translateX(-50%);width:460px;height:320px;";
+  const shapes = workingAtHeightWatermarkShapes();
+  const lines = shapes.lines.map(([x1, y1, x2, y2]) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`).join("");
+  const rects = shapes.rects.map(([x, y, w, h]) => `<rect x="${x}" y="${y}" width="${w}" height="${h}"/>`).join("");
+  const circles = shapes.circles.map(([cx, cy, r]) => `<circle cx="${cx}" cy="${cy}" r="${r}"/>`).join("");
+  return `<svg viewBox="0 0 320 240" style="position:absolute;${pos}opacity:.055;pointer-events:none;">
+    <g stroke="${color}" stroke-width="2.5" fill="none">${lines}${rects}${circles}</g>
+  </svg>`;
+}
+
 type IconKind = "calendar" | "refresh" | "doc" | "id" | "target" | "book" | "bulb" | "clipboard" | "warning" | "shield" | "globe" | "phone" | "mail";
 function iconGlyph(kind: IconKind, color: string): string {
   const a = `width="58%" height="58%" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"`;
@@ -181,6 +198,8 @@ export function renderCertificateFront(data: CertData, config: TemplateConfig): 
   const motif = !config.background_url
     ? config.inspector_watermark_level
       ? inspectorWatermark(navy, false, config.inspector_watermark_level)
+      : config.wah_watermark
+      ? workingAtHeightWatermark(navy, false)
       : scaffoldMotif(navy, false, config.watermark_level)
     : "";
   const logo = config.logo_url ? `<img src="${esc(config.logo_url)}" alt="" style="width:104px;height:104px;object-fit:contain;margin:0 auto 6px;display:block;"/>` : "";
@@ -266,6 +285,8 @@ export function renderCertificateBack(data: CertData, config: TemplateConfig): s
   const gold = config.accent_color || "#D4AF37";
   const backMotif = config.inspector_watermark_level
     ? inspectorWatermark(navy, true, config.inspector_watermark_level)
+    : config.wah_watermark
+    ? workingAtHeightWatermark(navy, true)
     : scaffoldMotif(navy, true, config.watermark_level);
   const coverage = config.coverage_items?.length ? config.coverage_items : DEFAULT_COVERAGE;
   const outcomes = config.learning_outcomes?.length ? config.learning_outcomes : DEFAULT_OUTCOMES;

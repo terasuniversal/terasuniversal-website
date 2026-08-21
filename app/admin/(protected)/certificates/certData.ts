@@ -265,6 +265,11 @@ export async function loadCertificateRender(id: string): Promise<
       config.learning_outcomes ??= programme.learning_outcomes;
       config.assessment_methods ??= programme.assessment_methods;
     }
+    // The harness/lanyard/anchorage watermark is a property of the design_variant
+    // itself, not per-programme content, so it's set here unconditionally
+    // (not inside the `if (programme)` block above) — see
+    // lib/certificate-watermarks.ts's workingAtHeightWatermarkShapes().
+    config.wah_watermark ??= true;
   }
 
   const certificateNumber: string = c.certificate_number || c.certificate_no;
