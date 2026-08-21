@@ -3,26 +3,16 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "../../lib/supabase/client";
-import { hasMinRole } from "../../lib/auth/rbac";
 import type { Profile } from "../../lib/supabase/database.types";
+import { canAccessModule } from "../../lib/auth/rbac";
 
 /**
  * Top bar: mobile nav toggle, global search box (Cmd-K style — posts to the
  * global_search RPC), and the signed-in user menu with sign-out.
  */
-export function Topbar({
-  profile,
-  modules,
-}: {
-  profile: Profile;
-  /** Same module-key list passed to Sidebar — see its `hasModule` for the fallback rule. */
-  modules?: string[];
-}) {
+export function Topbar({ profile, moduleKeys = [] }: { profile: Profile; moduleKeys?: readonly string[] }) {
   const router = useRouter();
   const [q, setQ] = useState("");
-  const hasAutomation =
-    profile.role === "super_admin" ||
-    (hasMinRole(profile.role, "admin") && (!modules || modules.includes("automation")));
   const initials = (profile.full_name || profile.email)
     .split(" ")
     .map((s) => s[0])
@@ -64,14 +54,9 @@ export function Topbar({
         />
       </form>
       <div className="ta-topbar-spacer" />
-      {hasAutomation && (
-        <a className="ta-topbar-link" href="/admin/automation">
-          Activity centre
-        </a>
+      {canAccessModule(profile.role, "automation", moduleKeys, profile.access_control_enabled) && (
+        <a className="ta-topbar-link" href="/admin/automation">Activity centre</a>
       )}
-      <a className="ta-topbar-link" href="/admin/account/change-password">
-        Change Password
-      </a>
       <div className="ta-user">
         <div className="ta-avatar" aria-hidden="true">
           {initials}
