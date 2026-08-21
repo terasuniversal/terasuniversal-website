@@ -91,14 +91,11 @@ function mapRpcError(raw: string | undefined): string {
 }
 
 /**
- * Invite a new staff account. Authorization: requireModuleAccess("users") --
- * this workspace's session.ts resolves that via canAccessModule(), and the
- * "users" module's MODULE_CATALOG entry has minRole: "super_admin", so this
- * is effectively super-admin-only at the app layer today. That's stricter
- * than the DB's app.can_manage_staff() (which also allows an admin with an
- * explicit users=admin grant) -- app authorization is a subset of what the
- * DB would allow, never broader, so the two never disagree in the unsafe
- * direction.
+ * Invite a new staff account. Authorization: requireModuleAccess("users",
+ * "admin") -- enforced via the has_module_access_level DB RPC, the same
+ * source of truth app.can_manage_staff() uses (super_admin always; admin
+ * only with an explicit users=admin grant, or the role-default fallback to
+ * staff_module_catalog's min_role for "users", which is "admin").
  *
  * Only the Auth admin operations (inviteUserByEmail / compensating
  * deleteUser) use the service-role client. Profile and module-access writes
@@ -122,7 +119,7 @@ function mapRpcError(raw: string | undefined): string {
  * required for a correct audit trail here.
  */
 export async function inviteStaffAction(_prev: StaffActionState, formData: FormData): Promise<StaffActionState> {
-  await requireModuleAccess("users");
+  await requireModuleAccess("users", "admin");
   const parsed = staffSchema.safeParse({
     full_name: formData.get("full_name"),
     email: formData.get("email"),
@@ -187,7 +184,7 @@ export async function inviteStaffAction(_prev: StaffActionState, formData: FormD
 
 /**
  * Edit an existing staff profile + explicit module access from the combined
- * Staff User Form. Authorization: requireModuleAccess("users"),
+ * Staff User Form. Authorization: requireModuleAccess("users", "admin"),
  * matching inviteStaffAction and app.can_manage_staff().
  *
  * Writes go through update_staff_profile() then, unless the target role is
@@ -218,7 +215,7 @@ export async function inviteStaffAction(_prev: StaffActionState, formData: FormD
  * automatically, with the real authenticated actor.
  */
 export async function updateStaffAction(_prev: StaffActionState, formData: FormData): Promise<StaffActionState> {
-  await requireModuleAccess("users");
+  await requireModuleAccess("users", "admin");
   const parsed = editStaffSchema.safeParse({
     user_id: formData.get("user_id"),
     full_name: formData.get("full_name"),
@@ -290,7 +287,7 @@ export async function updateStaffAction(_prev: StaffActionState, formData: FormD
  * reconciliation.
  */
 export async function resendStaffInviteAction(formData: FormData): Promise<void> {
-  await requireModuleAccess("users");
+  await requireModuleAccess("users", "admin");
   const userId = staffUserId.safeParse(formData.get("user_id"));
   if (!userId.success) redirect("/admin/users?error=invalid-staff-account");
   const redirectTo = invitationRedirectUrl();

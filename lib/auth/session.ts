@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 import { cache } from "react";
 import { createSupabaseServerClient } from "../supabase/server";
-import type { Profile, UserRole } from "../supabase/database.types";
-import { hasMinRole, canAccessModule, canViewAttendance, canManageAttendance, canViewAssessment, canManageAssessment, canViewCertificate, canManageCertificate } from "./rbac";
+import type { Profile, UserRole, ModuleAccessLevel } from "../supabase/database.types";
+import { hasMinRole, canViewAttendance, canManageAttendance, canViewAssessment, canManageAssessment, canViewCertificate, canManageCertificate } from "./rbac";
 
 /**
  * Returns the current staff member's profile (role, status, name) or null.
@@ -16,25 +16,49 @@ export const getCurrentProfile = cache(async (): Promise<Profile | null> => {
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const { data: profile } = await supabase
+  const { data: profile, error } = await supabase
     .from("profiles")
     .select("*")
     .eq("id", user.id)
     .single();
 
+  if (error) {
+    // PGRST116 = no matching row — a genuinely missing profile, which the
+    // existing null-profile handling in every guard below already covers
+    // correctly. Any other code is a real Supabase/PostgREST failure; log it
+    // so it's distinguishable from a legitimate missing profile. Either way
+    // this still returns null (fail closed) — a query error must never be
+    // treated as a valid, authorized profile.
+    if (error.code !== "PGRST116") {
+      console.error("getCurrentProfile: profile lookup failed", { message: error.message, code: error.code, userId: user.id });
+    }
+    return null;
+  }
+
   return (profile as Profile) ?? null;
 });
 
-/** Load the current user's explicit module set once per server request. */
+/**
+ * Load the current user's explicit module set, for Sidebar/Topbar display
+ * only (which items to *show*). This is NOT the authorization boundary —
+ * requireModuleAccess()/hasModuleAccess() below enforce access via the
+ * has_module_access_level DB RPC regardless of what this returns. A query
+ * error here degrades to an empty set (fewer nav items shown) rather than
+ * blocking rendering; it must never be used to grant or deny a request.
+ */
 export const getCurrentModuleAccess = cache(async (): Promise<Set<string>> => {
   const profile = await getCurrentProfile();
   if (!profile || !profile.access_control_enabled || profile.role === "super_admin") return new Set();
 
   const supabase = await createSupabaseServerClient();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("staff_module_access")
     .select("module_key")
     .eq("user_id", profile.id);
+  if (error) {
+    console.error("getCurrentModuleAccess: staff_module_access lookup failed", { message: error.message, userId: profile.id });
+    return new Set();
+  }
   return new Set((data ?? []).map((row: { module_key: string }) => row.module_key));
 });
 
@@ -66,35 +90,57 @@ export async function requireStaff(): Promise<Profile> {
 }
 
 /**
- * Central module guard. It enforces the catalog role threshold and, for
- * profiles with explicit access control enabled, the stored allow-list.
+ * Module-access guard (Staff User Management Phase 1).
  *
- * The second parameter is accepted-but-ignored for call-site compatibility
- * with callers still passing a graduated access level (this module's own
- * access check is presence-based, not leveled) -- avoids forcing every
- * existing requireModuleAccess(key, "admin")-style call site to change just
- * because of this reconciliation.
+ * Enforces `public.has_module_access_level(moduleKey, level)` server-side —
+ * this RPC, not any local computation, is the authorization source of
+ * truth. Behavior is backward-compatible: profiles without explicit access
+ * control fall back to the module catalog's role threshold
+ * (`staff_module_catalog.min_role`), so existing admin/editor staff keep
+ * their current access. Profiles with `access_control_enabled=true` must
+ * hold an explicit `staff_module_access` row at or above `level`. Super
+ * admins always pass. A failed RPC call fails closed (redirects to
+ * no-access), same as an explicit denial.
+ *
+ * Callers should ALSO keep their existing `requireRole(...)` guard where one
+ * exists — this guard is additive, not a replacement, during incremental
+ * integration.
  */
-export async function requireModuleAccess(moduleKey: string, _level?: string): Promise<Profile> {
-  const profile = await requireStaff();
-  const moduleKeys = await getCurrentModuleAccess();
-  if (!canAccessModule(profile.role, moduleKey, moduleKeys, profile.access_control_enabled)) {
-    redirect("/admin/no-access");
-  }
+export async function requireModuleAccess(
+  moduleKey: string,
+  level: ModuleAccessLevel = "view"
+): Promise<Profile> {
+  const profile = await getCurrentProfile();
+  if (!profile) redirect("/admin/login");
+  if (!profile.is_active) redirect("/admin/login?error=inactive");
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("has_module_access_level", {
+    p_module_key: moduleKey,
+    p_level: level,
+  });
+  if (error || data !== true) redirect("/admin/no-access");
   return profile;
 }
 
 /**
- * Non-redirecting module-access check for Route Handlers (export/download
- * endpoints), which return a 403 response rather than redirecting like
- * requireModuleAccess does for pages. Same underlying check, just without
- * the redirect side effect.
+ * Module-access check for Route Handlers (export/download endpoints), which
+ * return a 403 response rather than redirecting like `requireModuleAccess`
+ * does for pages. Same enforcement, same `has_module_access_level` RPC —
+ * this is not a second authorization model, just a non-redirecting caller
+ * for the one that already exists. Callers must still check `profile` /
+ * `profile.is_active` / the existing role-based guard themselves first, the
+ * same way every export route already does.
  */
-export async function hasModuleAccess(moduleKey: string, _level?: string): Promise<boolean> {
-  const profile = await getCurrentProfile();
-  if (!profile || !profile.is_active) return false;
-  const moduleKeys = await getCurrentModuleAccess();
-  return canAccessModule(profile.role, moduleKey, moduleKeys, profile.access_control_enabled);
+export async function hasModuleAccess(
+  moduleKey: string,
+  level: ModuleAccessLevel = "view"
+): Promise<boolean> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("has_module_access_level", {
+    p_module_key: moduleKey,
+    p_level: level,
+  });
+  return !error && data === true;
 }
 
 /**

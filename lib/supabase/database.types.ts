@@ -28,6 +28,7 @@ export type StaffDepartment =
   | "administration"
   | "management"
   | "hr";
+export type ModuleAccessLevel = "view" | "edit" | "admin";
 export type EnquiryStatus =
   | "new"
   | "in_review"

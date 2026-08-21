@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { redirect } from "next/navigation";
 import { getCurrentModuleAccess, requireStaff } from "../../../lib/auth/session";
 import { createSupabaseServerClient } from "../../../lib/supabase/server";
 import { Sidebar } from "../../../components/admin/Sidebar";
@@ -9,9 +10,16 @@ import { NavScrim } from "../../../components/admin/NavScrim";
  * Protected admin shell. Every route in the (protected) group requires at
  * least the "editor" role — enforced here (server-side) AND by middleware.
  * Renders the persistent sidebar + topbar around each page.
+ *
+ * First-login gate: a staff member who has not changed their temporary
+ * password yet is forced to /admin/account/change-password and cannot reach
+ * ANY protected module (including direct URLs to /admin/sales etc.) until the
+ * password is changed. The change-password page lives outside this group so
+ * it stays reachable.
  */
 export default async function ProtectedLayout({ children }: { children: ReactNode }) {
   const profile = await requireStaff();
+  if (profile.must_change_password) redirect("/admin/account/change-password");
   const moduleKeys = await getCurrentModuleAccess();
   const supabase = await createSupabaseServerClient();
 
