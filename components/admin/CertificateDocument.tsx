@@ -1,5 +1,6 @@
 import type { CSSProperties, ReactNode } from "react";
 import { fitHolderNameSize, formatDateRange, isAffirmativeStatus } from "../../lib/certificate-format";
+import { scaffoldWatermarkLines, type ScaffoldWatermarkLevel } from "../../lib/certificate-watermarks";
 
 /**
  * Template-driven certificate renderer (server component, no client JS).
@@ -63,6 +64,8 @@ export interface TemplateConfig {
   signature_layout?: "dual" | "single";
   body_text?: string;
   show_qr?: boolean;
+  /** Swaps the generic scaffold-pole background watermark for a level-specific density (Standard Scaffold Erector only, resolved per-course by certData.ts's merge — see lib/certificate-watermarks.ts). Unset everywhere else, which renders the same generic watermark this template always had. */
+  watermark_level?: ScaffoldWatermarkLevel;
   // Front page
   duration_label?: string;
   skills_update_recommendation?: string;
@@ -171,23 +174,22 @@ function OrnateBorder({ navy, gold }: { navy: string; gold: string }) {
  * third-party asset — used as a very low-opacity watermark so the page
  * doesn't read as unfinished in its whitespace. `corner` shifts it for page
  * 2's lower-right placement (larger, spanning behind the notice panel too).
+ * `level` (Standard Scaffold Erector only, via config.watermark_level; see
+ * lib/certificate-watermarks.ts) swaps in a denser/sparser line set for
+ * Basic/Intermediate/Advanced -- "intermediate" is the same geometry this
+ * component always rendered, so every certificate without a level (every
+ * other template, including Standard Scaffold Inspector and Working at
+ * Height) renders byte-for-byte as before.
  */
-function ScaffoldMotif({ color, corner = false }: { color: string; corner?: boolean }) {
+function ScaffoldMotif({ color, corner = false, level }: { color: string; corner?: boolean; level?: ScaffoldWatermarkLevel }) {
   const size = corner ? { width: 460, height: 340, style: { bottom: -10, right: -30 } } : { width: 460, height: 320, style: { bottom: 150, left: "50%", transform: "translateX(-50%)" } };
+  const lines = scaffoldWatermarkLines(level ?? "intermediate");
   return (
     <svg viewBox="0 0 320 240" style={{ position: "absolute", width: size.width, height: size.height, opacity: 0.055, pointerEvents: "none", ...size.style }}>
       <g stroke={color} strokeWidth="2.5" fill="none">
-        {/* verticals (poles) */}
-        <line x1="20" y1="220" x2="20" y2="10" /><line x1="90" y1="220" x2="90" y2="10" />
-        <line x1="160" y1="220" x2="160" y2="10" /><line x1="230" y1="220" x2="230" y2="10" /><line x1="300" y1="220" x2="300" y2="10" />
-        {/* horizontals (ledgers) */}
-        <line x1="20" y1="30" x2="300" y2="30" /><line x1="20" y1="90" x2="300" y2="90" />
-        <line x1="20" y1="150" x2="300" y2="150" /><line x1="20" y1="210" x2="300" y2="210" />
-        {/* diagonal braces */}
-        <line x1="20" y1="30" x2="90" y2="90" /><line x1="90" y1="30" x2="20" y2="90" />
-        <line x1="160" y1="90" x2="230" y2="150" /><line x1="230" y1="90" x2="160" y2="150" />
-        <line x1="20" y1="150" x2="90" y2="210" /><line x1="90" y1="150" x2="20" y2="210" />
-        <line x1="230" y1="30" x2="300" y2="90" /><line x1="300" y1="30" x2="230" y2="90" />
+        {lines.verticals.map(([x, y1, y2], i) => <line key={`v${i}`} x1={x} y1={y1} x2={x} y2={y2} />)}
+        {lines.horizontals.map(([x1, x2, y], i) => <line key={`h${i}`} x1={x1} y1={y} x2={x2} y2={y} />)}
+        {lines.braces.map(([x1, y1, x2, y2], i) => <line key={`b${i}`} x1={x1} y1={y1} x2={x2} y2={y2} />)}
       </g>
     </svg>
   );
@@ -274,7 +276,7 @@ export function CertificateDocument({ data, config }: { data: CertData; config: 
         backgroundSize: "cover", backgroundPosition: "center",
       }}
     >
-      {!config.background_url && <ScaffoldMotif color={navy} />}
+      {!config.background_url && <ScaffoldMotif color={navy} level={config.watermark_level} />}
       <OrnateBorder navy={navy} gold={gold} />
 
       <div style={{ position: "relative", height: "100%", padding: "26px 34px", display: "flex", flexDirection: "column", textAlign: "center" }}>
@@ -395,7 +397,7 @@ export function CertificateBackPage({ data, config }: { data: CertData; config: 
 
   return (
     <div style={{ width: PAGE_W, height: PAGE_H, margin: "0 auto", position: "relative", background: "#fff", boxSizing: "border-box", padding: 34, fontFamily: "Georgia, 'Times New Roman', serif", color: "#1F2937", overflow: "hidden" }}>
-      <ScaffoldMotif color={navy} corner />
+      <ScaffoldMotif color={navy} corner level={config.watermark_level} />
       <OrnateBorder navy={navy} gold={gold} />
       <div style={{ position: "relative", height: "100%", padding: "28px 34px", display: "flex", flexDirection: "column" }}>
         <RibbonBanner navy={navy} gold={gold} style={{ alignSelf: "center" }}>
@@ -456,7 +458,7 @@ export function CertificateBackPage({ data, config }: { data: CertData; config: 
         </div>
 
         <div style={{ position: "relative", border: `1.5px solid ${gold}`, borderRadius: 6, padding: "14px 18px", marginTop: 10, overflow: "hidden" }}>
-          <ScaffoldMotif color={navy} corner />
+          <ScaffoldMotif color={navy} corner level={config.watermark_level} />
           <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
             <CircleIcon kind="warning" navy={navy} gold={gold} size={24} />
             <span style={{ fontSize: 12.5, fontWeight: 700, color: navy }}>IMPORTANT NOTICE</span>

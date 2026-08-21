@@ -1,6 +1,7 @@
 import type { CertData, TemplateConfig } from "../components/admin/CertificateDocument";
 import { fitHolderNameSize, formatDateRange, isAffirmativeStatus } from "./certificate-format";
 import { renderProfessionalScaffoldCertificateDocument } from "./professional-scaffold-certificate-html";
+import { scaffoldWatermarkLines, type ScaffoldWatermarkLevel } from "./certificate-watermarks";
 
 /**
  * Standalone HTML string renderer for a certificate — no React / no
@@ -80,20 +81,22 @@ function ornateBorder(navy: string, gold: string): string {
   <div style="position:absolute;inset:13px;border:1px solid ${navy};opacity:.25;pointer-events:none;"></div>`;
 }
 
-/** Mirrors ScaffoldMotif in CertificateDocument.tsx — original SVG pole/brace lines, not a photo/third-party asset. */
-function scaffoldMotif(color: string, corner: boolean): string {
+/**
+ * Mirrors ScaffoldMotif in CertificateDocument.tsx — original SVG pole/brace
+ * lines, not a photo/third-party asset. `level` (Standard Scaffold Erector
+ * only, via config.watermark_level) sources its geometry from the same
+ * lib/certificate-watermarks.ts helper the React renderer uses — "intermediate"
+ * is the geometry this function always rendered, so every certificate
+ * without a level renders byte-for-byte as before.
+ */
+function scaffoldMotif(color: string, corner: boolean, level?: ScaffoldWatermarkLevel): string {
   const pos = corner ? "bottom:-10px;right:-30px;width:460px;height:340px;" : "bottom:150px;left:50%;transform:translateX(-50%);width:460px;height:320px;";
+  const lines = scaffoldWatermarkLines(level ?? "intermediate");
+  const verticals = lines.verticals.map(([x, y1, y2]) => `<line x1="${x}" y1="${y1}" x2="${x}" y2="${y2}"/>`).join("");
+  const horizontals = lines.horizontals.map(([x1, x2, y]) => `<line x1="${x1}" y1="${y}" x2="${x2}" y2="${y}"/>`).join("");
+  const braces = lines.braces.map(([x1, y1, x2, y2]) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`).join("");
   return `<svg viewBox="0 0 320 240" style="position:absolute;${pos}opacity:.055;pointer-events:none;">
-    <g stroke="${color}" stroke-width="2.5" fill="none">
-      <line x1="20" y1="220" x2="20" y2="10"/><line x1="90" y1="220" x2="90" y2="10"/>
-      <line x1="160" y1="220" x2="160" y2="10"/><line x1="230" y1="220" x2="230" y2="10"/><line x1="300" y1="220" x2="300" y2="10"/>
-      <line x1="20" y1="30" x2="300" y2="30"/><line x1="20" y1="90" x2="300" y2="90"/>
-      <line x1="20" y1="150" x2="300" y2="150"/><line x1="20" y1="210" x2="300" y2="210"/>
-      <line x1="20" y1="30" x2="90" y2="90"/><line x1="90" y1="30" x2="20" y2="90"/>
-      <line x1="160" y1="90" x2="230" y2="150"/><line x1="230" y1="90" x2="160" y2="150"/>
-      <line x1="20" y1="150" x2="90" y2="210"/><line x1="90" y1="150" x2="20" y2="210"/>
-      <line x1="230" y1="30" x2="300" y2="90"/><line x1="300" y1="30" x2="230" y2="90"/>
-    </g>
+    <g stroke="${color}" stroke-width="2.5" fill="none">${verticals}${horizontals}${braces}</g>
   </svg>`;
 }
 
@@ -158,7 +161,7 @@ export function renderCertificateFront(data: CertData, config: TemplateConfig): 
   const nameSize = fitHolderNameSize(data.holder_name) + 4;
   const bgImage = config.background_url ? `background-image:url('${esc(config.background_url)}');background-size:cover;background-position:center;` : "";
 
-  const motif = !config.background_url ? scaffoldMotif(navy, false) : "";
+  const motif = !config.background_url ? scaffoldMotif(navy, false, config.watermark_level) : "";
   const logo = config.logo_url ? `<img src="${esc(config.logo_url)}" alt="" style="width:104px;height:104px;object-fit:contain;margin:0 auto 6px;display:block;"/>` : "";
   const icBlock = data.ic_passport ? `<p style="font-size:12.5px;color:#6b7280;margin:10px 0 0;">Passport / IC No: ${esc(data.ic_passport)}</p>` : "";
   const durationBlock = duration
@@ -280,7 +283,7 @@ export function renderCertificateBack(data: CertData, config: TemplateConfig): s
   const qrHtml = config.show_qr !== false && data.qr_svg ? qrBlock(data.qr_svg, navy, gold, 58, false) : "";
 
   return `<div style="width:${PAGE_W}px;height:${PAGE_H}px;margin:0 auto;position:relative;background:#fff;box-sizing:border-box;padding:34px;font-family:Georgia,'Times New Roman',serif;color:#1F2937;overflow:hidden;">
-  ${scaffoldMotif(navy, true)}
+  ${scaffoldMotif(navy, true, config.watermark_level)}
   ${ornateBorder(navy, gold)}
   <div style="position:relative;height:100%;padding:28px 34px;display:flex;flex-direction:column;">
     ${ribbonBanner(`<span style="font-size:15px;font-weight:700;letter-spacing:2px;">PROGRAMME INFORMATION</span>`, navy, gold, "align-self:center;display:block;width:fit-content;margin:0 auto;")}
@@ -309,7 +312,7 @@ export function renderCertificateBack(data: CertData, config: TemplateConfig): s
       </div>
     </div>
     <div style="position:relative;border:1.5px solid ${gold};border-radius:6px;padding:14px 18px;margin-top:10px;overflow:hidden;">
-      ${scaffoldMotif(navy, true)}
+      ${scaffoldMotif(navy, true, config.watermark_level)}
       <div style="position:relative;display:flex;align-items:center;gap:8px;margin-bottom:8px;">
         ${circleIcon("warning", navy, gold, 24)}<span style="font-size:12.5px;font-weight:700;color:${navy};">IMPORTANT NOTICE</span>
       </div>
