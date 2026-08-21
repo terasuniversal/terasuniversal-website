@@ -1,6 +1,7 @@
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { siteOrigin } from "../../../../lib/site-origin";
 import { generateQrSvg, formatHumanDate } from "../../../../lib/certificate-format";
+import { findStandardScaffoldProgrammeByCourseId } from "../../../../lib/standard-scaffold-programmes";
 import type { CertData, TemplateConfig } from "../../../../components/admin/CertificateDocument";
 
 // Delegates to the same UTC-safe, round-trip-validated parser the renderers
@@ -218,6 +219,26 @@ export async function loadCertificateRender(id: string): Promise<
     tpl = def ?? null;
   }
   const config: TemplateConfig = { ...((tpl?.config as TemplateConfig) ?? {}) };
+
+  // Standard Scaffold family: the shared certificate_templates row deliberately
+  // holds no per-programme content of its own (see
+  // lib/standard-scaffold-programmes.ts's header) -- it's merged in here by the
+  // certificate's own course_id, filling only fields the template row didn't
+  // already set so a future per-template override still wins. Inert today: no
+  // live certificate_templates row has this design_variant yet (deferred
+  // pending business sign-off -- see supabase/post_baseline_drafts/README.md),
+  // so this branch never executes against real data until that row exists.
+  if (config.design_variant === "standard_scaffold_certificate") {
+    const programme = findStandardScaffoldProgrammeByCourseId(c.course_id);
+    if (programme) {
+      config.programme_title ??= programme.programme_title;
+      config.duration_label ??= programme.duration_label;
+      config.objectives_text ??= programme.objectives_text;
+      config.coverage_items ??= programme.coverage_items;
+      config.learning_outcomes ??= programme.learning_outcomes;
+      config.assessment_methods ??= programme.assessment_methods;
+    }
+  }
 
   const certificateNumber: string = c.certificate_number || c.certificate_no;
   const origin = await siteOrigin();
