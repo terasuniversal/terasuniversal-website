@@ -1,9 +1,18 @@
 -- Standard Scaffold Certificate Family — activation migration. Promoted from
 -- the reviewed draft at
 -- supabase/post_baseline_drafts/20260821000000_standard_scaffold_certificate_activation.sql
--- (STANDARD_SCAFFOLD_ACTIVATION_MIGRATION_READY_FOR_REVIEW, approved).
--- SQL logic is unchanged from that reviewed draft — only this header and the
--- filename/timestamp changed for promotion into the live migration chain.
+-- (STANDARD_SCAFFOLD_ACTIVATION_MIGRATION_READY_FOR_REVIEW, approved), then
+-- hardened once more after promotion (PR #64 re-review): the ACTIVATE_NOW /
+-- BIND_BUT_DRAFT postconditions were combined "bad row" counts, keyed by
+-- WHERE id IN (...) AND <mismatch> -- a target course that's completely
+-- missing or soft-deleted contributes zero rows to that count, which reads
+-- identically to "0 bad rows found" (success) even though fewer than the
+-- approved 2/4 courses actually got activated. Replaced with explicit
+-- expected-count assertions (exactly 2/4 live, exactly 2/4 bound, exactly
+-- 2/4 with the correct generation flag) per group. Template config and the
+-- binding matrix itself are unchanged from the reviewed draft; only these
+-- postcondition checks were strengthened. The historical draft is left
+-- unmodified -- this file is now the authoritative version.
 --
 -- Supersedes 20260812120000_standard_scaffold_certificate_template.sql
 -- (supabase/post_baseline_drafts/), which is now stale: all 3 course_ids it
@@ -175,23 +184,50 @@ begin
   end if;
 
   -- The 2 ACTIVATE_NOW courses must now point at v_template_id with
-  -- generation enabled. If either was already bound to a DIFFERENT
-  -- template before this ran, the UPDATE above silently skipped it (its
-  -- certificate_template_id IS NULL guard) -- catch that here instead of
-  -- reporting success.
+  -- generation enabled. Three EXPLICIT counts, not one combined "bad row"
+  -- count: a target course that's completely missing or soft-deleted
+  -- contributes zero rows to a WHERE id IN (...) AND <mismatch> count, which
+  -- would silently read as "0 bad rows" -- i.e. success -- even though fewer
+  -- than the approved 2 courses actually got activated. Checking "exactly 2
+  -- exist, exactly 2 are bound, exactly 2 have generation enabled"
+  -- separately closes that gap; each is its own explicit assertion.
   select count(*) into v_bad_count
   from public.courses
   where id in (
     '2a78decf-6997-4626-a7cc-a1a23a110cf8',
     'b9c737b8-8a97-4c91-91ee-c65dc5982ca7'
   )
-  and (certificate_template_id is distinct from v_template_id
-       or certificate_generation_enabled is distinct from true);
-  if v_bad_count > 0 then
-    raise exception 'postcondition_failed: % of the 2 ACTIVATE_NOW course(s) are not bound to % with certificate_generation_enabled = true (likely already bound to a different template before this migration ran) -- refusing to report success.', v_bad_count, v_template_id;
+  and deleted_at is null;
+  if v_bad_count <> 2 then
+    raise exception 'postcondition_failed: expected exactly 2 live ACTIVATE_NOW target courses, found % -- a target course is missing or soft-deleted. Refusing to report success.', v_bad_count;
   end if;
 
-  -- Same check for the 4 BIND_BUT_DRAFT courses (generation must be false).
+  select count(*) into v_bad_count
+  from public.courses
+  where id in (
+    '2a78decf-6997-4626-a7cc-a1a23a110cf8',
+    'b9c737b8-8a97-4c91-91ee-c65dc5982ca7'
+  )
+  and deleted_at is null
+  and certificate_template_id = v_template_id;
+  if v_bad_count <> 2 then
+    raise exception 'postcondition_failed: expected exactly 2 ACTIVATE_NOW courses bound to %, found % (likely already bound to a different template before this migration ran). Refusing to report success.', v_template_id, v_bad_count;
+  end if;
+
+  select count(*) into v_bad_count
+  from public.courses
+  where id in (
+    '2a78decf-6997-4626-a7cc-a1a23a110cf8',
+    'b9c737b8-8a97-4c91-91ee-c65dc5982ca7'
+  )
+  and deleted_at is null
+  and certificate_generation_enabled = true;
+  if v_bad_count <> 2 then
+    raise exception 'postcondition_failed: expected exactly 2 ACTIVATE_NOW courses with certificate_generation_enabled = true, found %. Refusing to report success.', v_bad_count;
+  end if;
+
+  -- Same three explicit checks for the 4 BIND_BUT_DRAFT courses (generation
+  -- must be false, not merely "not true").
   select count(*) into v_bad_count
   from public.courses
   where id in (
@@ -200,10 +236,37 @@ begin
     '18945a4b-8df0-4f39-bbf9-7bd91c1bb58d',
     'b7c0866c-fe4e-4ccb-ad66-e18d3572ed3c'
   )
-  and (certificate_template_id is distinct from v_template_id
-       or certificate_generation_enabled is distinct from false);
-  if v_bad_count > 0 then
-    raise exception 'postcondition_failed: % of the 4 BIND_BUT_DRAFT course(s) are not bound to % with certificate_generation_enabled = false (likely already bound to a different template before this migration ran) -- refusing to report success.', v_bad_count, v_template_id;
+  and deleted_at is null;
+  if v_bad_count <> 4 then
+    raise exception 'postcondition_failed: expected exactly 4 live BIND_BUT_DRAFT target courses, found % -- a target course is missing or soft-deleted. Refusing to report success.', v_bad_count;
+  end if;
+
+  select count(*) into v_bad_count
+  from public.courses
+  where id in (
+    '904293c4-8792-41d7-8744-42143887e577',
+    'b10c2e4b-f35f-478b-b450-f98323926345',
+    '18945a4b-8df0-4f39-bbf9-7bd91c1bb58d',
+    'b7c0866c-fe4e-4ccb-ad66-e18d3572ed3c'
+  )
+  and deleted_at is null
+  and certificate_template_id = v_template_id;
+  if v_bad_count <> 4 then
+    raise exception 'postcondition_failed: expected exactly 4 BIND_BUT_DRAFT courses bound to %, found % (likely already bound to a different template before this migration ran). Refusing to report success.', v_template_id, v_bad_count;
+  end if;
+
+  select count(*) into v_bad_count
+  from public.courses
+  where id in (
+    '904293c4-8792-41d7-8744-42143887e577',
+    'b10c2e4b-f35f-478b-b450-f98323926345',
+    '18945a4b-8df0-4f39-bbf9-7bd91c1bb58d',
+    'b7c0866c-fe4e-4ccb-ad66-e18d3572ed3c'
+  )
+  and deleted_at is null
+  and certificate_generation_enabled = false;
+  if v_bad_count <> 4 then
+    raise exception 'postcondition_failed: expected exactly 4 BIND_BUT_DRAFT courses with certificate_generation_enabled = false, found %. Refusing to report success.', v_bad_count;
   end if;
 
   -- Template A must be completely unaffected by anything above.
