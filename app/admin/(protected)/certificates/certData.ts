@@ -2,6 +2,7 @@ import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { siteOrigin } from "../../../../lib/site-origin";
 import { generateQrSvg, formatHumanDate } from "../../../../lib/certificate-format";
 import { findStandardScaffoldProgrammeByCourseId } from "../../../../lib/standard-scaffold-programmes";
+import { findWorkingAtHeightProgrammeByCourseId } from "../../../../lib/working-at-height-programme";
 import type { CertData, TemplateConfig } from "../../../../components/admin/CertificateDocument";
 
 // Delegates to the same UTC-safe, round-trip-validated parser the renderers
@@ -237,6 +238,24 @@ export async function loadCertificateRender(id: string): Promise<
       config.coverage_items ??= programme.coverage_items;
       config.learning_outcomes ??= programme.learning_outcomes;
       config.assessment_methods ??= programme.assessment_methods;
+    }
+  }
+
+  // Working at Height family: same fill-if-absent merge pattern as Standard
+  // Scaffold above, by the certificate's own course_id. content_status is
+  // "draft" for every field in lib/working-at-height-programme.ts (see that
+  // file's header) -- duration_label is deliberately never set there, so it
+  // is never merged in here either; learning_outcomes/assessment_methods
+  // aren't sourced there either, so they're intentionally absent from this
+  // merge and the generic renderer's own neutral defaults apply instead.
+  // Inert today: no live certificate_templates row has this design_variant
+  // yet (no migration has been created or applied for this family).
+  if (config.design_variant === "working_at_height_certificate") {
+    const programme = findWorkingAtHeightProgrammeByCourseId(c.course_id);
+    if (programme) {
+      config.programme_title ??= programme.programme_title;
+      config.objectives_text ??= programme.objectives_text;
+      config.coverage_items ??= programme.coverage_items;
     }
   }
 
