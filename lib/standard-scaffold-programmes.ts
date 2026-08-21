@@ -9,12 +9,22 @@
  * by certData.ts only when the resolved template's design_variant is
  * "standard_scaffold_certificate".
  *
- * `course_id` is null for programmes with no live `courses` row yet (Basic/
- * Intermediate/Advanced Scaffold Inspection, Scaffold Awareness — confirmed
- * absent from the connected Supabase project, 2026-08-12). Those entries
- * exist so the content is authored and reviewable now, but nothing in
- * certData.ts can reach them via a real certificate until a course row +
- * courses.certificate_template_id binding exists — see the audit report.
+ * `course_id` values were re-verified live against the connected Supabase
+ * project on 2026-08-21 (course mapping resolution pass) and point at the
+ * current, non-deleted `courses` rows: "Basic/Intermediate/Advanced
+ * Scaffolding Erector" and "Basic/Intermediate/Advanced Scaffolding
+ * Inspector". The 3 erection `course_id`s originally recorded here (as of
+ * 2026-08-12) were soft-deleted on 2026-08-14 in an unrelated course-data
+ * cleanup; the 3 inspection `course_id`s were null because no course row
+ * existed yet at all -- both are now resolved to the live rows above.
+ * `course_id` remains null only for Scaffold Awareness: no live `courses` row
+ * exists for it, and its content is still `draft`/placeholder pending
+ * business approval -- see that entry's own comment. Nothing in certData.ts
+ * can reach any entry via a real certificate until a course row's
+ * `certificate_template_id` is actually bound to a "standard_scaffold_certificate"
+ * template, which remains deferred pending business sign-off (see
+ * supabase/post_baseline_drafts/README.md) -- these course_id updates alone
+ * activate nothing.
  *
  * content_status: "verified" content is copied/derived from
  * data/courseCatalog.js, whose own header states it's "taken directly from
@@ -44,7 +54,7 @@ export interface StandardScaffoldProgramme {
 export const standardScaffoldProgrammes: Record<string, StandardScaffoldProgramme> = {
   basic_erection: {
     programme_key: "basic_erection",
-    course_id: "3a73c860-f4ac-4dc7-9358-b2f653a487fc", // BASIC ERECTOR SCAFFOLDING COURSE
+    course_id: "2a78decf-6997-4626-a7cc-a1a23a110cf8", // Basic Scaffolding Erector (re-verified live 2026-08-21)
     level: "Basic",
     category: "Scaffold Erection",
     programme_title: "TERAS BASIC SCAFFOLD ERECTION PROGRAMME",
@@ -77,7 +87,7 @@ export const standardScaffoldProgrammes: Record<string, StandardScaffoldProgramm
   },
   intermediate_erection: {
     programme_key: "intermediate_erection",
-    course_id: "ecd31e73-a21e-4320-a063-cce9e10f6599", // INTERMEDIATE ERECTOR SCAFFOLDING COURSE
+    course_id: "904293c4-8792-41d7-8744-42143887e577", // Intermediate Scaffolding Erector (re-verified live 2026-08-21)
     level: "Intermediate",
     category: "Scaffold Erection",
     programme_title: "TERAS INTERMEDIATE SCAFFOLD ERECTION PROGRAMME",
@@ -106,7 +116,7 @@ export const standardScaffoldProgrammes: Record<string, StandardScaffoldProgramm
   },
   advanced_erection: {
     programme_key: "advanced_erection",
-    course_id: "b014f14e-1cc4-408d-a3f2-293e258bb1b7", // ADVANCED ERECTOR SCAFFOLDING COURSE
+    course_id: "b9c737b8-8a97-4c91-91ee-c65dc5982ca7", // Advanced Scaffolding Erector (re-verified live 2026-08-21)
     level: "Advanced",
     category: "Scaffold Erection",
     programme_title: "TERAS ADVANCED SCAFFOLD ERECTION PROGRAMME",
@@ -135,7 +145,7 @@ export const standardScaffoldProgrammes: Record<string, StandardScaffoldProgramm
   },
   basic_inspection: {
     programme_key: "basic_inspection",
-    course_id: null, // no live course row — see file header
+    course_id: "b10c2e4b-f35f-478b-b450-f98323926345", // Basic Scaffolding Inspector (re-verified live 2026-08-21)
     level: "Basic",
     category: "Scaffold Inspection",
     programme_title: "TERAS BASIC SCAFFOLD INSPECTION PROGRAMME",
@@ -160,11 +170,11 @@ export const standardScaffoldProgrammes: Record<string, StandardScaffoldProgramm
     ],
     assessment_methods: ["Theory Assessment", "Practical Inspection Assessment", "Continuous Trainer Evaluation"],
     content_status: "verified",
-    source: "data/courseCatalog.js — \"Scaffolding Inspector (Basic)\" (TERAS UNIVERSAL Training Course Catalogue 2026); course record not yet created in the CMS",
+    source: "data/courseCatalog.js — \"Scaffolding Inspector (Basic)\" (TERAS UNIVERSAL Training Course Catalogue 2026); course record now live in the CMS as \"Basic Scaffolding Inspector\" (draft status)",
   },
   intermediate_inspection: {
     programme_key: "intermediate_inspection",
-    course_id: null,
+    course_id: "18945a4b-8df0-4f39-bbf9-7bd91c1bb58d", // Intermediate Scaffolding Inspector (re-verified live 2026-08-21)
     level: "Intermediate",
     category: "Scaffold Inspection",
     programme_title: "TERAS INTERMEDIATE SCAFFOLD INSPECTION PROGRAMME",
@@ -189,11 +199,11 @@ export const standardScaffoldProgrammes: Record<string, StandardScaffoldProgramm
     ],
     assessment_methods: ["Theory Assessment", "Practical Inspection Assessment", "Continuous Trainer Evaluation"],
     content_status: "verified",
-    source: "data/courseCatalog.js — \"Scaffolding Inspector (Intermediate)\" (TERAS UNIVERSAL Training Course Catalogue 2026); course record not yet created in the CMS",
+    source: "data/courseCatalog.js — \"Scaffolding Inspector (Intermediate)\" (TERAS UNIVERSAL Training Course Catalogue 2026); course record now live in the CMS as \"Intermediate Scaffolding Inspector\" (draft status)",
   },
   advanced_inspection: {
     programme_key: "advanced_inspection",
-    course_id: null,
+    course_id: "b7c0866c-fe4e-4ccb-ad66-e18d3572ed3c", // Advanced Scaffolding Inspector (re-verified live 2026-08-21)
     level: "Advanced",
     category: "Scaffold Inspection",
     programme_title: "TERAS ADVANCED SCAFFOLD INSPECTION PROGRAMME",
@@ -218,7 +228,7 @@ export const standardScaffoldProgrammes: Record<string, StandardScaffoldProgramm
     ],
     assessment_methods: ["Theory Assessment", "Practical Inspection Assessment", "Continuous Trainer Evaluation"],
     content_status: "verified",
-    source: "data/courseCatalog.js — \"Scaffolding Inspector (Advanced)\" (TERAS UNIVERSAL Training Course Catalogue 2026); course record not yet created in the CMS",
+    source: "data/courseCatalog.js — \"Scaffolding Inspector (Advanced)\" (TERAS UNIVERSAL Training Course Catalogue 2026); course record now live in the CMS as \"Advanced Scaffolding Inspector\" (draft status)",
   },
   scaffold_awareness: {
     programme_key: "scaffold_awareness",
