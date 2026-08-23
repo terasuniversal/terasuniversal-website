@@ -13,12 +13,12 @@ export default async function StaffDetailPage({ params, searchParams }: { params
   const { id } = await params;
   const supabase = await createSupabaseServerClient();
   const [{ data: profile }, { data: access }] = await Promise.all([
-    supabase.from("profiles").select("id,email,full_name,department,role,is_active").eq("id", id).maybeSingle(),
+    supabase.from("profiles").select("id,email,full_name,department,role,is_active,access_control_enabled").eq("id", id).maybeSingle(),
     supabase.from("staff_module_access").select("module_key").eq("user_id", id),
   ]);
   if (!profile) notFound();
   const sp = await searchParams;
-  const staff = profile as { id: string; email: string; full_name: string | null; department: "sales" | "marketing" | "training_operations" | "finance" | "administration" | "management" | "hr" | null; role: "super_admin" | "admin" | "editor" | "trainer"; is_active: boolean };
+  const staff = profile as { id: string; email: string; full_name: string | null; department: "sales" | "marketing" | "training_operations" | "finance" | "administration" | "management" | "hr" | null; role: "super_admin" | "admin" | "editor" | "trainer"; is_active: boolean; access_control_enabled: boolean };
 
   return (
     <>

@@ -14,6 +14,10 @@ import type { UserRole } from "../../../../lib/supabase/database.types";
 const departmentValues = ["sales", "marketing", "training_operations", "finance", "administration", "management", "hr"] as const;
 const editableRoles = ["super_admin", "admin", "editor", "trainer"] as const;
 const moduleKeys = new Set(MODULE_CATALOG.map((module) => module.key));
+// Explicit access mode (Staff Access Mode fix) -- role_default maps to
+// access_control_enabled=false, custom maps to true. Never inferred from
+// whether module_key checkboxes happen to be present; see actions below.
+const accessModeValues = ["role_default", "custom"] as const;
 
 export type StaffActionState = { error?: string };
 
@@ -32,6 +36,10 @@ const staffSchema = z.object({
   department: z.enum(departmentValues),
   role: z.enum(["admin", "editor", "trainer"]),
   status: z.enum(["active", "inactive"]).default("active"),
+  // Not submitted at all when the form hides the access-mode control (target
+  // role is super_admin) -- defaults to role_default, which is simply
+  // unused in that case (see isSuperAdminTarget in both actions below).
+  access_mode: z.enum(accessModeValues).default("role_default"),
 });
 
 const editStaffSchema = staffSchema.extend({
@@ -68,6 +76,20 @@ function requestedModulesOrError(formData: FormData) {
   return { modules } as const;
 }
 
+/**
+ * Custom Module Access requires at least one module -- an empty selection in
+ * Custom mode is a validation error, surfaced before any RPC call, never a
+ * silent "wipe every grant" (which is what set_staff_module_access's own new
+ * `empty_modules` DB guard also independently rejects, as defense in depth).
+ * Role Default mode never reaches this check's caller at all.
+ */
+function validateAccessSelection(accessMode: (typeof accessModeValues)[number], moduleCount: number): { error: string } | null {
+  if (accessMode === "custom" && moduleCount === 0) {
+    return { error: "Select at least one module for Custom Module Access, or choose Role Default Access." };
+  }
+  return null;
+}
+
 /** Map known RPC guard errors to safe, user-facing messages -- mirrors the
  * exception codes raised by update_staff_profile / set_staff_module_access
  * (20260817000000_staff_user_management_phase1.sql). Never expose raw DB
@@ -85,6 +107,7 @@ function mapRpcError(raw: string | undefined): string {
   if (msg.includes("invalid_access_level")) return "Invalid module access level selected.";
   if (msg.includes("invalid_module_key")) return "An unknown module was submitted.";
   if (msg.includes("invalid_modules")) return "Invalid module access payload.";
+  if (msg.includes("empty_modules")) return "Select at least one module for Custom Module Access, or choose Role Default Access.";
   if (msg.includes("forbidden")) return "You are not permitted to perform this action.";
   if (msg.includes("invalid_user")) return "Invalid user.";
   return "The update could not be completed. Please try again.";
@@ -126,11 +149,15 @@ export async function inviteStaffAction(_prev: StaffActionState, formData: FormD
     department: formData.get("department"),
     role: formData.get("role"),
     status: formData.get("status") || "active",
+    access_mode: formData.get("access_mode") || "role_default",
   });
   const requested = requestedModulesOrError(formData);
   if (!parsed.success) return { error: "Enter a valid name, email, department, role and status." };
   if ("error" in requested) return requested;
   if (!STAFF_ROLES.includes(parsed.data.role as UserRole)) return { error: "That role is not permitted for staff invitations." };
+  const isCustom = parsed.data.access_mode === "custom";
+  const selectionError = validateAccessSelection(parsed.data.access_mode, requested.modules.length);
+  if (selectionError) return selectionError;
 
   const redirectTo = invitationRedirectUrl();
   if (!redirectTo) return { error: "Staff invitations are not configured: NEXT_PUBLIC_SITE_URL is missing." };
@@ -156,27 +183,35 @@ export async function inviteStaffAction(_prev: StaffActionState, formData: FormD
   }
   const userId = invitation.user.id;
 
+  // Modules (if any) are written BEFORE the profile's access_control_enabled
+  // is ever flipped to true, so access_control_enabled can never end up true
+  // with zero backing rows -- the exact P0 lockout shape this ordering
+  // exists to prevent. Both steps roll back the whole invitation on failure
+  // either way, so this ordering costs nothing for the new-user case.
+  if (isCustom) {
+    const { error: accessError } = await supabase.rpc("set_staff_module_access", {
+      p_user_id: userId,
+      p_modules: requested.modules.map((module_key) => ({ module_key, access_level: "view" })),
+    });
+    if (accessError) {
+      console.error("inviteStaffAction: set_staff_module_access failed", { message: accessError.message, userId });
+      await service.client.auth.admin.deleteUser(userId);
+      return { error: "The invitation was rolled back because module access could not be saved." };
+    }
+  }
+
   const { error: profileError } = await supabase.rpc("update_staff_profile", {
     p_user_id: userId,
     p_full_name: parsed.data.full_name,
     p_department: parsed.data.department,
     p_role: parsed.data.role,
     p_is_active: parsed.data.status === "active",
+    p_access_control_enabled: isCustom,
   });
   if (profileError) {
     console.error("inviteStaffAction: update_staff_profile failed", { message: profileError.message, userId });
     await service.client.auth.admin.deleteUser(userId);
     return { error: "The invitation was rolled back because the staff profile could not be configured." };
-  }
-
-  const { error: accessError } = await supabase.rpc("set_staff_module_access", {
-    p_user_id: userId,
-    p_modules: requested.modules.map((module_key) => ({ module_key, access_level: "view" })),
-  });
-  if (accessError) {
-    console.error("inviteStaffAction: set_staff_module_access failed", { message: accessError.message, userId });
-    await service.client.auth.admin.deleteUser(userId);
-    return { error: "The invitation was rolled back because module access could not be saved." };
   }
 
   redirect(`/admin/users?invited=1`);
@@ -187,18 +222,33 @@ export async function inviteStaffAction(_prev: StaffActionState, formData: FormD
  * Staff User Form. Authorization: requireModuleAccess("users", "admin"),
  * matching inviteStaffAction and app.can_manage_staff().
  *
- * Writes go through update_staff_profile() then, unless the target role is
- * super_admin (the form shows no module checkboxes for super_admin -- they
- * are unrestricted by role and don't need explicit grants), set_staff_module_access().
- * These remain two separate RPC calls / two separate DB transactions -- see
- * the atomicity note below; no combined transactional RPC is introduced here.
+ * Access mode (Staff Access Mode fix) is an explicit choice submitted by the
+ * form, never inferred from checkbox state: Role Default -> update_staff_profile's
+ * p_access_control_enabled=false (module rows, if any, are left in place but
+ * ignored -- see 20260823130000_staff_access_mode_fix.sql's data-decision
+ * comment); Custom -> true, with at least one module required (validated here
+ * AND independently by set_staff_module_access's own `empty_modules` DB
+ * guard). For a super_admin target the whole access-mode control is hidden
+ * (unrestricted regardless of the flag), so p_access_control_enabled is left
+ * null (unchanged) in that one case.
  *
- * access_control_enabled is never set directly by this action. It is left
- * exactly as update_staff_profile's own (unmodified, 5-argument) behavior
- * already leaves it: untouched. It only changes as an existing, already-shipped
- * side effect of set_staff_module_access (which sets it true when explicit
- * module access is actually being configured) -- not from any role-derived
- * logic added here.
+ * Ordering is safety-driven, not arbitrary: when switching into or staying in
+ * Custom mode with a changed selection, set_staff_module_access is called
+ * BEFORE update_staff_profile -- so access_control_enabled can only ever
+ * become true after the target already has at least one valid module row,
+ * never before. This is what actually closes the P0 lockout gap; the ordering
+ * in the prior version of this function (profile first, modules second) is
+ * exactly how that gap was reachable. In Role Default mode,
+ * set_staff_module_access is never called at all.
+ *
+ * These remain two separate RPC calls / two separate DB transactions -- no
+ * combined transactional RPC is introduced here. If the module-access call
+ * fails, nothing else in this submission was written yet (full_name/
+ * department/role/status/access_control_enabled all still live in the second
+ * call), so a failure here is a clean no-op, not a partial state. If the
+ * profile call fails afterward, the (already-valid, already-saved) module
+ * rows simply sit inert until a successful retry flips the flag -- never an
+ * unrecoverable state.
  *
  * Last-active-super-admin protection and the admin role-floor rules are
  * enforced by the DB (app.protect_last_super_admin() trigger + update_staff_profile's
@@ -234,10 +284,17 @@ export async function updateStaffAction(_prev: StaffActionState, formData: FormD
     department: formData.get("department"),
     role: formData.get("role"),
     status: formData.get("status") || "active",
+    access_mode: formData.get("access_mode") || "role_default",
   });
   const requested = requestedModulesOrError(formData);
   if (!parsed.success) return { error: "Enter valid staff details." };
   if ("error" in requested) return requested;
+  const isSuperAdminTarget = parsed.data.role === "super_admin";
+  const isCustom = parsed.data.access_mode === "custom";
+  if (!isSuperAdminTarget) {
+    const selectionError = validateAccessSelection(parsed.data.access_mode, requested.modules.length);
+    if (selectionError) return selectionError;
+  }
 
   const supabase = await createSupabaseServerClient();
   const [{ data: current, error: currentError }, { data: currentAccess, error: currentAccessError }] = await Promise.all([
@@ -257,25 +314,17 @@ export async function updateStaffAction(_prev: StaffActionState, formData: FormD
     return { error: "Only an existing Super Admin may retain that role; it cannot be granted from Staff Users." };
   }
 
-  const { error: profileError } = await supabase.rpc("update_staff_profile", {
-    p_user_id: parsed.data.user_id,
-    p_full_name: parsed.data.full_name,
-    p_department: parsed.data.department,
-    p_role: parsed.data.role,
-    p_is_active: parsed.data.status === "active",
-  });
-  if (profileError) {
-    console.error("updateStaffAction: update_staff_profile failed", { message: profileError.message, userId: parsed.data.user_id });
-    return { error: mapRpcError(profileError.message) };
-  }
-
   const currentLevelByKey = new Map(
     (currentAccess ?? []).map((row: { module_key: string; access_level: string }) => [row.module_key, row.access_level]),
   );
   const moduleSelectionChanged =
     currentLevelByKey.size !== requested.modules.length || requested.modules.some((key) => !currentLevelByKey.has(key));
+  const shouldWriteModules = !isSuperAdminTarget && isCustom && moduleSelectionChanged;
 
-  if (parsed.data.role !== "super_admin" && moduleSelectionChanged) {
+  // Modules are written BEFORE update_staff_profile's access_control_enabled
+  // flip -- see this function's own doc comment for why the ordering itself
+  // is the actual P0 fix, not just the empty-selection validation above.
+  if (shouldWriteModules) {
     const { error: accessError } = await supabase.rpc("set_staff_module_access", {
       p_user_id: parsed.data.user_id,
       p_modules: requested.modules.map((module_key) => ({
@@ -285,14 +334,25 @@ export async function updateStaffAction(_prev: StaffActionState, formData: FormD
     });
     if (accessError) {
       console.error("updateStaffAction: set_staff_module_access failed", { message: accessError.message, userId: parsed.data.user_id });
-      // Profile fields above were already saved and are NOT rolled back here.
-      // The current architecture already treats profile and module-access
-      // edits as independently-completable steps (the prior, still-committed
-      // [id]/StaffUserForm.tsx submits them as two separate forms/buttons) --
-      // a partial-completion state between the two is the existing accepted
-      // behavior, not a new risk introduced by combining them into one submit.
-      return { error: `Staff profile was updated, but module access could not be saved: ${mapRpcError(accessError.message)}` };
+      // Nothing else in this submission has been written yet at this point --
+      // full_name/department/role/status/access_control_enabled are all in
+      // the update_staff_profile call below, not yet attempted.
+      return { error: `Module access could not be saved: ${mapRpcError(accessError.message)}` };
     }
+  }
+
+  const { error: profileError } = await supabase.rpc("update_staff_profile", {
+    p_user_id: parsed.data.user_id,
+    p_full_name: parsed.data.full_name,
+    p_department: parsed.data.department,
+    p_role: parsed.data.role,
+    p_is_active: parsed.data.status === "active",
+    p_access_control_enabled: isSuperAdminTarget ? null : isCustom,
+  });
+  if (profileError) {
+    console.error("updateStaffAction: update_staff_profile failed", { message: profileError.message, userId: parsed.data.user_id });
+    const suffix = shouldWriteModules ? " Module access was already saved; please try again to finish updating the profile." : "";
+    return { error: `${mapRpcError(profileError.message)}${suffix}` };
   }
 
   redirect(`/admin/users/${parsed.data.user_id}?saved=1`);
