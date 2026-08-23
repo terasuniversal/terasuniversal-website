@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { requireModuleAccess, requireRole } from "../../../../../lib/auth/session";
-import { isAdmin } from "../../../../../lib/auth/rbac";
+import { isAdmin, canManageCertificate } from "../../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, EmptyState } from "../../../../../components/admin/ui";
 import { AssignParticipants } from "../AssignParticipants";
 import { AssessorAssignment } from "../AssessorAssignment";
@@ -24,6 +24,11 @@ export default async function ScheduleDetailsPage({
   await requireModuleAccess("schedules");
   const profile = await requireRole("editor");
   const canWrite = isAdmin(profile.role);
+  // Certificate Generation card: only shown when the viewer can actually
+  // reach /admin/certificates/generate/[scheduleId] (that route itself gates
+  // on requireCertificate(true) -> canManageCertificate, i.e. admin+) --
+  // lower-privilege editors must not see a dead-end card.
+  const canGenerateCertificates = canManageCertificate(profile.role);
   const { id } = await params;
   const { assessor_error, group_error } = await searchParams;
   const supabase = await createSupabaseServerClient();
@@ -172,7 +177,13 @@ export default async function ScheduleDetailsPage({
               <Link href={`/admin/assessment/${id}`} className="ta-btn ta-btn-outline">Open assessment for this schedule →</Link>
             </div>
           </Card>
-          <Card title="Certificate Generation"><div className="ta-card-pad"><EmptyState icon="🏅" message="Certificate generation for this schedule is a later follow-up (see SCHEDULES_ARCHITECTURE_DECISION.md §J)." /></div></Card>
+          {canGenerateCertificates && (
+            <Card title="Certificate Generation">
+              <div className="ta-card-pad">
+                <Link href={`/admin/certificates/generate/${id}`} className="ta-btn ta-btn-outline">Generate certificates for this schedule →</Link>
+              </div>
+            </Card>
+          )}
           <Card title="Participant Feedback">
             <div className="ta-card-pad">
               <div style={{ fontSize: 28, fontWeight: 800, color: "var(--ta-navy)", marginBottom: 4 }}>

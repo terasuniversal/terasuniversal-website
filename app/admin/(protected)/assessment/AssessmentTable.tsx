@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Fragment, useActionState, useState } from "react";
 import { Badge } from "../../../../components/admin/ui";
 import { updateAssessment, bulkUpdateResult, lockAssessments, unlockAssessments, updateParticipantSkillResults, type SkillsFormState } from "./actions";
@@ -120,12 +121,17 @@ export function AssessmentTable({
   rows,
   canManage,
   isSuperAdmin,
+  canViewParticipants,
   groupId,
 }: {
   scheduleId: string;
   rows: AsmRow[];
   canManage: boolean;
   isSuperAdmin: boolean;
+  /** Gates the per-row link to /admin/participants/[id] -- that route itself
+   * requires requireRole("editor"), so the link is hidden below that rather
+   * than leading a lower-privilege viewer to /admin/no-access. */
+  canViewParticipants: boolean;
   /** Currently-selected group context (Assessment V3), passed through to
    * bulkUpdateResult so it can re-verify each targeted row still belongs to
    * this group server-side -- never trust that `rows` (already
@@ -206,7 +212,15 @@ export function AssessmentTable({
                         <input type="hidden" name="participant_id" value={r.participant_id} />
                         <div>
                           <strong>{r.participant?.full_name}</strong>
-                          <div style={{ color: "var(--ta-muted)", fontSize: 11 }}>{r.participant?.participant_id}{!r.id ? " · not assessed" : ""}</div>
+                          <div style={{ color: "var(--ta-muted)", fontSize: 11 }}>
+                            {r.participant?.participant_id}{!r.id ? " · not assessed" : ""}
+                            {canViewParticipants && (
+                              <>
+                                {" · "}
+                                <Link href={`/admin/participants/${r.participant_id}`} style={{ color: "var(--ta-navy)", textDecoration: "underline" }}>View profile</Link>
+                              </>
+                            )}
+                          </div>
                           <select name="assessment_type" defaultValue={r.assessment_type ?? ""} style={{ ...inp, marginTop: 4, width: "100%" }} aria-label="Type">
                             <option value="">— (awareness / no type)</option>
                             {TYPES.map((t) => <option key={t} value={t}>{label(t)}</option>)}
@@ -240,7 +254,15 @@ export function AssessmentTable({
                     <>
                       <td>
                         <strong>{r.participant?.full_name}</strong>
-                        <div style={{ color: "var(--ta-muted)", fontSize: 11 }}>{r.participant?.participant_id}{r.locked ? " · 🔒 locked" : ""}{!r.id ? " · not assessed" : ""}</div>
+                        <div style={{ color: "var(--ta-muted)", fontSize: 11 }}>
+                          {r.participant?.participant_id}{r.locked ? " · 🔒 locked" : ""}{!r.id ? " · not assessed" : ""}
+                          {canViewParticipants && (
+                            <>
+                              {" · "}
+                              <Link href={`/admin/participants/${r.participant_id}`} style={{ color: "var(--ta-navy)", textDecoration: "underline" }}>View profile</Link>
+                            </>
+                          )}
+                        </div>
                       </td>
                       <td>{r.theory_score ?? "—"}<div style={{ marginTop: 4 }}><Badge status={r.theory_result} /></div></td>
                       <td>{r.practical_score ?? "—"}<div style={{ marginTop: 4 }}><Badge status={r.practical_result} /></div></td>

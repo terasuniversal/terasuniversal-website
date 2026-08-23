@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { requireModuleAccess, requireAssessment } from "../../../../../lib/auth/session";
-import { canManageAssessment, isSuperAdmin } from "../../../../../lib/auth/rbac";
+import { canManageAssessment, canManageCertificate, isEditor, isSuperAdmin } from "../../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, EmptyState, StatCard } from "../../../../../components/admin/ui";
 import { AssessmentTable, type AsmRow } from "../AssessmentTable";
 import { lockAssessments, unlockAssessments } from "../actions";
@@ -22,6 +22,15 @@ export default async function AssessSchedulePage({
   const profile = await requireAssessment(false);
   const canManage = canManageAssessment(profile.role);
   const superAdmin = isSuperAdmin(profile.role);
+  // Certificate Generator card: only shown when the viewer can actually reach
+  // /admin/certificates/generate/[scheduleId] (that route itself gates on
+  // requireCertificate(true) -> canManageCertificate, i.e. admin+). A trainer
+  // -- the minimum role for this page -- must never see a clickable card
+  // that leads to /admin/no-access.
+  const canGenerateCertificates = canManageCertificate(profile.role);
+  // Participant-detail link: /admin/participants/[id] itself gates on
+  // requireRole("editor"), so the row link is hidden below that.
+  const canViewParticipants = isEditor(profile.role);
   const { scheduleId } = await params;
   const { group: requestedGroup } = await searchParams;
   const supabase = await createSupabaseServerClient();
@@ -217,6 +226,7 @@ export default async function AssessSchedulePage({
             rows={rows}
             canManage={canManage}
             isSuperAdmin={superAdmin}
+            canViewParticipants={canViewParticipants}
             groupId={selection && selection !== UNGROUPED ? selection.id : selection === UNGROUPED ? UNGROUPED : null}
           />
         ) : rosterFiltered.length === 0 && (roster ?? []).length > 0 ? (
@@ -226,11 +236,26 @@ export default async function AssessSchedulePage({
         )}
       </Card>
 
-      <div className="ta-grid cols-4" style={{ marginTop: 18 }}>
-        <Card title="Certificate Generator"><div className="ta-card-pad"><EmptyState icon="🏅" message="Certificate generation is a later follow-up (see SCHEDULES_ARCHITECTURE_DECISION.md §J)." /></div></Card>
-        <Card title="Participant History"><div className="ta-card-pad"><EmptyState icon="👤" message="Per-participant results — coming soon." /></div></Card>
-        <Card title="Training History"><div className="ta-card-pad"><EmptyState icon="🎓" message="Course outcomes — coming soon." /></div></Card>
-        <Card title="Reporting Dashboard"><div className="ta-card-pad"><EmptyState icon="📊" message="Competency analytics — coming soon." /></div></Card>
+      {/* Participant History and Reporting Dashboard placeholders removed --
+          both already exist as real features (/admin/participants/[id] per
+          participant, /admin/reports globally) rather than something to
+          duplicate here. Participant history is linked per-row in
+          AssessmentTable instead, since it's inherently per-participant, not
+          a single schedule-level view. */}
+      <div className="ta-grid cols-2" style={{ marginTop: 18 }}>
+        {canGenerateCertificates && (
+          <Card title="Certificate Generator">
+            <div className="ta-card-pad">
+              <p style={{ marginTop: 0, color: "var(--ta-muted)", fontSize: 13 }}>Generate and manage certificates for eligible participants in this schedule.</p>
+              <Link href={`/admin/certificates/generate/${scheduleId}`} className="ta-btn ta-btn-outline">Open Certificate Generator →</Link>
+            </div>
+          </Card>
+        )}
+        <Card title="Batch Outcomes / Training History">
+          <div className="ta-card-pad">
+            <EmptyState icon="🎓" message="Consolidated enrollment, attendance, assessment and certificate outcomes for this batch — planned." />
+          </div>
+        </Card>
       </div>
     </>
   );
