@@ -368,6 +368,41 @@ function RibbonBanner({ children, navy, gold, style }: { children: ReactNode; na
   );
 }
 
+/**
+ * Structural guidance shown only when there is no signature_url — makes the
+ * empty well read as an intentionally-reserved attestation slot on an issued
+ * document, not an unfinished form field. Never a substitute for the mark
+ * itself: no initials/handwriting/graphic, just a label above the (still
+ * empty) well. Mirrored in lib/certificate-html.ts's authorisedSignatureLabel.
+ */
+function AuthorisedSignatureLabel() {
+  return (
+    <div style={{ color: "#9aa3b2", fontSize: 6.5, letterSpacing: 1.3, fontFamily: SANS, textTransform: "uppercase", marginBottom: 3 }}>
+      Authorised Signature
+    </div>
+  );
+}
+
+/**
+ * Neutral authentication placeholder — no approved company stamp asset
+ * exists (confirmed repo-wide), so this stays deliberately unbranded: no
+ * seal wording, no registration numbers, no logo. Double navy/gold ring
+ * mirrors the QR plate's offset-hairline frame language one column over, so
+ * the two read as siblings rather than one finished element beside one
+ * placeholder. Mirrored in lib/certificate-html.ts's stampSeal.
+ */
+function StampSeal({ navy, gold }: { navy: string; gold: string }) {
+  return (
+    <div style={{ position: "relative", width: 74, height: 74, marginBottom: 4 }}>
+      <div style={{ position: "absolute", inset: 0, borderRadius: "50%", border: `1px solid ${navy}`, opacity: 0.55 }} />
+      <div style={{ position: "absolute", inset: 5, borderRadius: "50%", border: `1px solid ${gold}`, opacity: 0.6 }} />
+      <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", padding: 8 }}>
+        <span style={{ fontSize: 7, letterSpacing: 1.2, fontFamily: SANS, color: "#9aa3b2", textAlign: "center", textTransform: "uppercase" }}>Company Stamp</span>
+      </div>
+    </div>
+  );
+}
+
 export function CertificateDocument({ data, config }: { data: CertData; config: TemplateConfig }) {
   const navy = config.primary_color || "#0B3A63";
   const gold = config.accent_color || "#D4AF37";
@@ -473,16 +508,27 @@ export function CertificateDocument({ data, config }: { data: CertData; config: 
             rather than its ceremonial crest. */}
         <div style={{ position: "relative", marginTop: 18, paddingTop: 18, borderTop: "1px solid #e3e7ee" }}>
           <span style={{ position: "absolute", top: -1, left: "50%", transform: "translateX(-50%)", width: 48, height: 2, background: gold }} />
-        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "center", gap: singleSig ? 48 : 30 }}>
-          <div style={{ textAlign: "center", fontSize: 11, width: 186 }}>
+        {/* Three-zone attestation band -- Authorised Signature | Company Stamp |
+            Certificate Verification. Signature column(s) are content-width
+            (maxWidth caps them) rather than a fixed 186px, so an absent/short
+            signature no longer leaves a stranded empty column. Hairlines
+            (matching the record-strip dividers above) mark the zone
+            boundaries instead of leaving the grouping to gap-spacing alone --
+            there is no divider between Trainer/Training Manager since they're
+            one signature zone, only around it. */}
+        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "center", gap: singleSig ? 40 : 24 }}>
+          <div style={{ textAlign: "center", fontSize: 11, width: "auto", maxWidth: 160 }}>
+            {!config.signature_url && <AuthorisedSignatureLabel />}
             {/* Fixed-height signature well: the image sits ON the rule rather than
                 floating above it at whatever height the asset happens to be.
                 The extra headroom over the rule keeps a tall signature from
-                touching the metadata band above it. */}
+                touching the metadata band above it. Left visibly empty (no
+                fabricated mark) when there's no signature_url -- the label
+                above is guidance, not a substitute signature. */}
             <div style={{ height: 44, display: "flex", alignItems: "flex-end", justifyContent: "center", paddingBottom: 2 }}>
-              {config.signature_url && <img src={config.signature_url} alt="" style={{ maxHeight: 44, maxWidth: 168, objectFit: "contain" }} />}
+              {config.signature_url && <img src={config.signature_url} alt="" style={{ maxHeight: 44, maxWidth: 150, objectFit: "contain" }} />}
             </div>
-            <div style={{ borderTop: `1px solid ${navy}`, margin: "5px 0 6px" }} />
+            <div style={{ borderTop: `1px solid ${navy}`, margin: "4px 0 5px" }} />
             {config.signature_layout === "single" ? (
               <strong style={{ color: navy, letterSpacing: 0.3 }}>{config.signature_name || config.signature_title || "Director"}</strong>
             ) : (
@@ -496,16 +542,17 @@ export function CertificateDocument({ data, config }: { data: CertData; config: 
             )}
           </div>
           {config.signature_layout !== "single" && (
-            <div style={{ textAlign: "center", fontSize: 11, width: 186 }}>
+            <div style={{ textAlign: "center", fontSize: 11, width: "auto", maxWidth: 160 }}>
+              <AuthorisedSignatureLabel />
               <div style={{ height: 44 }} />
-              <div style={{ borderTop: `1px solid ${navy}`, margin: "5px 0 6px" }} />
+              <div style={{ borderTop: `1px solid ${navy}`, margin: "4px 0 5px" }} />
               <strong style={{ color: navy, letterSpacing: 0.3 }}>{config.signature_title || "Training Manager"}</strong>
               <div style={{ color: "#8a94a6", fontSize: 8.5, letterSpacing: 1.3, fontFamily: SANS, textTransform: "uppercase", marginTop: 3 }}>Training Manager</div>
             </div>
           )}
-          <div style={{ textAlign: "center", fontSize: 7, letterSpacing: 1.2, fontFamily: SANS, width: 66, height: 66, borderRadius: "50%", border: `1px dashed ${gold}`, opacity: 0.95, display: "flex", alignItems: "center", justifyContent: "center", color: "#9aa3b2", padding: 4, marginBottom: 4 }}>
-            COMPANY STAMP
-          </div>
+          <div style={{ width: 1, alignSelf: "stretch", background: "#e3e7ee" }} />
+          <StampSeal navy={navy} gold={gold} />
+          <div style={{ width: 1, alignSelf: "stretch", background: "#e3e7ee" }} />
           {config.show_qr !== false && data.qr_svg && <QrBlock svg={data.qr_svg} navy={navy} gold={gold} size={82} caption />}
         </div>
         </div>
