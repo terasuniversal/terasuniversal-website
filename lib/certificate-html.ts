@@ -73,15 +73,27 @@ function certificateFrame(navy: string, gold: string): string {
     .map(([key, box]) => {
       const vy = key[0] === "t" ? "top:0;" : "bottom:0;";
       const hx = key[1] === "l" ? "left:0;" : "right:0;";
-      return `<div style="position:absolute;width:34px;height:34px;pointer-events:none;${box}">
-        <div style="position:absolute;width:34px;height:1.5px;background:${gold};${vy}${hx}"></div>
-        <div style="position:absolute;width:1.5px;height:34px;background:${gold};${vy}${hx}"></div>
+      return `<div style="position:absolute;width:32px;height:32px;pointer-events:none;${box}">
+        <div style="position:absolute;width:32px;height:2px;background:${gold};${vy}${hx}"></div>
+        <div style="position:absolute;width:2px;height:32px;background:${gold};${vy}${hx}"></div>
+        <div style="position:absolute;width:6px;height:6px;background:${gold};${vy}${hx}"></div>
       </div>`;
     })
     .join("");
+  // Mid-edge registration marks — mirrors CertificateFrame in CertificateDocument.tsx.
+  const ticks = [
+    "top:14px;left:50%;width:1px;height:9px;transform:translateX(-50%);",
+    "bottom:14px;left:50%;width:1px;height:9px;transform:translateX(-50%);",
+    "left:14px;top:50%;width:9px;height:1px;transform:translateY(-50%);",
+    "right:14px;top:50%;width:9px;height:1px;transform:translateY(-50%);",
+  ]
+    .map((t) => `<div style="position:absolute;background:${gold};opacity:.45;pointer-events:none;${t}"></div>`)
+    .join("");
   return `
-  <div style="position:absolute;inset:10px;border:1px solid ${navy};pointer-events:none;"></div>
+  <div style="position:absolute;inset:9px;border:1.5px solid ${navy};pointer-events:none;"></div>
   <div style="position:absolute;inset:14px;border:1px solid ${gold};opacity:.4;pointer-events:none;"></div>
+  <div style="position:absolute;inset:19px;border:1px solid ${navy};opacity:.1;pointer-events:none;"></div>
+  ${ticks}
   ${brackets}`;
 }
 
@@ -109,7 +121,7 @@ function certificateWatermark(config: TemplateConfig, color: string, corner: boo
     : scaffoldWatermarkLines(config.watermark_level ?? "intermediate");
   // Mirrors WatermarkLayer's placement in CertificateDocument.tsx — both bleed
   // past the page edge so the page's own overflow:hidden crops them.
-  const pos = corner ? "bottom:-28px;right:-44px;width:320px;height:230px;" : "bottom:86px;right:-70px;width:560px;height:390px;";
+  const pos = corner ? "bottom:-28px;right:-44px;width:320px;height:230px;" : "bottom:78px;right:-56px;width:600px;height:420px;";
   const primaryG = renderWatermarkSet(shapes.primary, color, 1.8, 0.06);
   const secondaryG = corner ? "" : renderWatermarkSet(shapes.secondary, color, 1.1, 0.04);
   // Drafting grid + corner registration ticks, front placement only — mirrors
@@ -180,32 +192,32 @@ export function renderCertificateFront(data: CertData, config: TemplateConfig): 
   const gold = config.accent_color || "#D4AF37";
   const dateRange = formatDateRange(data.training_date, data.training_end_date);
   const duration = data.programme_duration || config.duration_label;
-  const nameSize = fitHolderNameSize(data.holder_name) + 4;
+  const nameSize = fitHolderNameSize(data.holder_name) + 8;
   const bgImage = config.background_url ? `background-image:url('${esc(config.background_url)}');background-size:cover;background-position:center;` : "";
 
   const motif = !config.background_url ? certificateWatermark(config, navy, false) : "";
-  const logo = config.logo_url ? `<img src="${esc(config.logo_url)}" alt="" style="width:105px;height:74px;object-fit:contain;display:block;margin:0 auto 11px;"/>` : "";
-  const icBlock = data.ic_passport ? `<p style="font-size:9.5px;color:#8a94a6;margin:11px 0 0;letter-spacing:.6px;font-family:${SANS};">Passport / IC No: ${esc(data.ic_passport)}</p>` : "";
+  const logo = config.logo_url ? `<img src="${esc(config.logo_url)}" alt="" style="width:105px;height:74px;object-fit:contain;display:block;margin:0 auto 6px;"/>` : "";
+  const icBlock = data.ic_passport ? `<p style="font-size:9.5px;color:#8a94a6;margin:10px 0 0;letter-spacing:.6px;font-family:${SANS};">Passport / IC No: ${esc(data.ic_passport)}</p>` : "";
   const durationBlock = duration
-    ? ribbonBanner(`<span style="font-size:9px;font-weight:600;letter-spacing:2.4px;font-family:${SANS};text-indent:2.4px;">${esc(duration)}</span>`, navy, gold, "margin:16px auto 0;display:block;width:fit-content;")
+    ? ribbonBanner(`<span style="font-size:9px;font-weight:600;letter-spacing:2.4px;font-family:${SANS};text-indent:2.4px;">${esc(duration)}</span>`, navy, gold, "margin:19px auto 0;display:block;width:fit-content;")
     : "";
   const dateBlock = dateRange
     ? `<p style="font-size:11px;color:#4b5563;margin:16px 0 0;"><span style="color:#8a94a6;letter-spacing:1.3px;font-size:8.5px;font-family:${SANS};text-transform:uppercase;">Conducted from </span>${esc(dateRange)}</p>`
     : "";
   const qrHtml = config.show_qr !== false && data.qr_svg ? qrBlock(data.qr_svg, navy, gold, 82, true) : "";
   const signatureImg = config.signature_url ? `<img src="${esc(config.signature_url)}" alt="" style="max-height:44px;max-width:168px;object-fit:contain;"/>` : "";
-  const signatureWell = `<div style="height:46px;display:flex;align-items:flex-end;justify-content:center;padding-bottom:2px;">${signatureImg}</div>`;
+  const signatureWell = `<div style="height:44px;display:flex;align-items:flex-end;justify-content:center;padding-bottom:2px;">${signatureImg}</div>`;
   const roleLine = (text: string) => `<div style="color:#8a94a6;font-size:8.5px;letter-spacing:1.3px;font-family:${SANS};text-transform:uppercase;margin-top:3px;">${esc(text)}</div>`;
 
   const isSingleSignature = config.signature_layout === "single";
   const primarySignatureBlock = isSingleSignature
-    ? `<div style="text-align:center;font-size:11px;width:196px;">
+    ? `<div style="text-align:center;font-size:11px;width:186px;">
         ${signatureWell}
         <div style="border-top:1px solid ${navy};margin:5px 0 6px;"></div>
         <strong style="color:${navy};letter-spacing:.3px;">${esc(config.signature_name || config.signature_title || "Director")}</strong>
         ${config.signature_name ? roleLine(config.signature_title || "Director") : ""}
       </div>`
-    : `<div style="text-align:center;font-size:11px;width:196px;">
+    : `<div style="text-align:center;font-size:11px;width:186px;">
         ${signatureWell}
         <div style="border-top:1px solid ${navy};margin:5px 0 6px;"></div>
         <strong style="color:${navy};letter-spacing:.3px;">${esc(config.signature_name || "Trainer")}</strong>
@@ -213,8 +225,8 @@ export function renderCertificateFront(data: CertData, config: TemplateConfig): 
       </div>`;
   const secondarySignatureBlock = isSingleSignature
     ? ""
-    : `<div style="text-align:center;font-size:11px;width:196px;">
-        <div style="height:46px;"></div>
+    : `<div style="text-align:center;font-size:11px;width:186px;">
+        <div style="height:44px;"></div>
         <div style="border-top:1px solid ${navy};margin:5px 0 6px;"></div>
         <strong style="color:${navy};letter-spacing:.3px;">${esc(config.signature_title || "Training Manager")}</strong>
         ${roleLine("Training Manager")}
@@ -226,25 +238,27 @@ export function renderCertificateFront(data: CertData, config: TemplateConfig): 
   <div style="position:relative;height:100%;box-sizing:border-box;padding:30px 40px;display:flex;flex-direction:column;text-align:center;">
     ${logo}
     <div style="letter-spacing:3.4px;font-size:13px;color:${navy};font-weight:700;">TERAS UNIVERSAL SDN. BHD.</div>
-    <div style="font-size:8px;color:#8a94a6;margin-top:4px;letter-spacing:1px;font-family:${SANS};">${REG_NO}</div>
-    <div style="width:44px;height:1px;background:${gold};margin:12px auto 0;"></div>
-    <h1 style="font-size:44px;margin:16px 0 0;letter-spacing:14px;color:${navy};font-weight:700;line-height:1;text-indent:14px;">CERTIFICATE</h1>
+    <div style="font-size:8px;color:#8a94a6;margin-top:3px;letter-spacing:1px;font-family:${SANS};">${REG_NO}</div>
+    <div style="width:52px;height:1px;background:${gold};margin:11px auto 0;"></div>
+    <h1 style="font-size:44px;margin:19px 0 0;letter-spacing:14px;color:${navy};font-weight:700;line-height:1;text-indent:14px;">CERTIFICATE</h1>
     <div style="font-size:8.5px;color:#8a94a6;letter-spacing:5px;font-weight:600;font-family:${SANS};text-indent:5px;margin-top:10px;">OF SUCCESSFUL COMPLETION</div>
-    <p style="font-size:9.5px;margin:26px 0 10px;color:#8a94a6;letter-spacing:1.8px;font-family:${SANS};text-transform:uppercase;text-indent:1.8px;">This certificate is proudly presented to</p>
+    <p style="font-size:9.5px;margin:24px 0 9px;color:#8a94a6;letter-spacing:1.8px;font-family:${SANS};text-transform:uppercase;text-indent:1.8px;">This certificate is proudly presented to</p>
     <div style="position:relative;display:inline-block;margin:0 auto;max-width:660px;">
-      <div style="font-size:${nameSize}px;font-weight:700;color:${navy};padding:0 24px 13px;word-break:break-word;line-height:1.25;letter-spacing:.5px;">${esc(data.holder_name)}</div>
+      <div style="font-size:${nameSize}px;font-weight:700;color:${navy};padding:0 26px 14px;word-break:break-word;line-height:1.22;letter-spacing:.8px;">${esc(data.holder_name)}</div>
       <div style="position:relative;height:1px;background:#d3d9e2;">
-        <span style="position:absolute;top:-0.5px;left:50%;transform:translateX(-50%);width:92px;height:1.5px;background:${gold};"></span>
+        <span style="position:absolute;top:-0.5px;left:50%;transform:translateX(-50%);width:130px;height:2px;background:${gold};"></span>
       </div>
+      <div style="height:1px;width:46%;margin:4px auto 0;background:#d3d9e2;opacity:.55;"></div>
     </div>
     ${icBlock}
-    <p style="font-size:9px;margin:22px 0 0;color:#8a94a6;letter-spacing:1.8px;font-family:${SANS};text-transform:uppercase;text-indent:1.8px;">For successfully completing the</p>
-    <div style="width:26px;height:1px;background:${gold};margin:9px auto 11px;"></div>
+    <p style="font-size:9px;margin:18px 0 0;color:#8a94a6;letter-spacing:1.8px;font-family:${SANS};text-transform:uppercase;text-indent:1.8px;">For successfully completing the</p>
+    <div style="width:30px;height:1px;background:${gold};margin:8px auto 10px;"></div>
     <div style="font-size:23px;font-weight:700;color:${navy};text-transform:uppercase;line-height:1.38;max-width:600px;margin:0 auto;letter-spacing:1.4px;">${esc(data.course_name ?? "")}</div>
+    <div style="width:150px;height:1px;background:${navy};opacity:.22;margin:11px auto 0;"></div>
     ${durationBlock}
     ${dateBlock}
     <p style="font-size:10.5px;line-height:1.85;max-width:520px;margin:17px auto 0;color:#6b7280;">${esc(config.body_text || DEFAULT_BODY_TEXT)}</p>
-    <div style="margin:auto 0 0;background:#F7F9FB;border-top:1px solid #e3e7ee;border-bottom:1px solid #e3e7ee;padding:15px 20px;display:flex;gap:20px;text-align:left;align-items:flex-start;">
+    <div style="margin:auto 0 0;border-top:1px solid ${navy};border-bottom:1px solid #e3e7ee;padding:16px 4px 15px;display:flex;gap:22px;text-align:left;align-items:flex-start;">
       ${metaTile("calendar", "Date of Completion", data.issue_date || "—", navy, gold)}
       <div style="width:1px;background:#e3e7ee;align-self:stretch;"></div>
       ${metaTile("refresh", "Skills Update", config.skills_update_recommendation || "Within Three (3) Years", navy, gold)}
@@ -253,11 +267,14 @@ export function renderCertificateFront(data: CertData, config: TemplateConfig): 
       <div style="width:1px;background:#e3e7ee;align-self:stretch;"></div>
       ${metaTile("id", "Participant ID", data.participant_id || "—", navy, gold)}
     </div>
-    <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:26px;margin-top:26px;">
+    <div style="position:relative;margin-top:18px;padding-top:18px;border-top:1px solid #e3e7ee;">
+    <span style="position:absolute;top:-1px;left:50%;transform:translateX(-50%);width:48px;height:2px;background:${gold};"></span>
+    <div style="display:flex;align-items:flex-end;justify-content:center;gap:${isSingleSignature ? 48 : 30}px;">
       ${primarySignatureBlock}
       ${secondarySignatureBlock}
-      <div style="text-align:center;font-size:7px;letter-spacing:1.2px;font-family:${SANS};width:66px;height:66px;border-radius:50%;border:1px dashed ${gold};opacity:.95;display:flex;align-items:center;justify-content:center;color:#9aa3b2;padding:4px;margin-bottom:6px;">COMPANY STAMP</div>
+      <div style="text-align:center;font-size:7px;letter-spacing:1.2px;font-family:${SANS};width:66px;height:66px;border-radius:50%;border:1px dashed ${gold};opacity:.95;display:flex;align-items:center;justify-content:center;color:#9aa3b2;padding:4px;margin-bottom:4px;">COMPANY STAMP</div>
       ${qrHtml}
+    </div>
     </div>
   </div>
 </div>`;
@@ -276,20 +293,23 @@ export function renderCertificateBack(data: CertData, config: TemplateConfig): s
   const skillsRecord = config.skills_record?.length ? config.skills_record : DEFAULT_SKILLS_RECORD;
   const noticeParagraphs = config.important_notice ? config.important_notice.split(/\n{2,}/).filter(Boolean) : DEFAULT_NOTICE_PARAGRAPHS;
 
-  const section = (icon: IconKind, title: string, body: string) =>
-    `<div style="margin-bottom:15px;">
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:7px;">
+  /** Mirrors SectionHead in CertificateDocument.tsx — one head treatment for every block on this page. */
+  const sectionHead = (icon: IconKind, title: string) =>
+    `<div style="display:flex;align-items:center;gap:6px;margin-bottom:7px;">
         ${glyph(icon, gold, 11)}<span style="font-size:8.5px;font-weight:700;color:${navy};letter-spacing:1.6px;font-family:${SANS};">${esc(title)}</span>
       </div>
-      <div style="display:flex;margin-bottom:8px;">
+      <div style="display:flex;margin-bottom:7px;">
         <span style="width:22px;height:1.5px;background:${gold};"></span>
         <span style="flex:1;height:1px;background:#e3e7ee;align-self:center;"></span>
-      </div>${body}
+      </div>`;
+  const section = (icon: IconKind, title: string, body: string) =>
+    `<div style="margin-bottom:13px;">
+      ${sectionHead(icon, title)}${body}
     </div>`;
   /** Mirrors BulletList in CertificateDocument.tsx — one gold-square bullet treatment for every list on this page. */
   const bulletList = (items: string[]) =>
-    `<ul style="margin:0;padding:0;list-style:none;font-size:10px;line-height:1.7;color:#374151;">${items
-      .map((it) => `<li style="display:flex;gap:8px;margin-bottom:5px;"><span style="width:6px;height:1px;background:${gold};margin-top:8px;flex-shrink:0;"></span><span>${esc(it)}</span></li>`)
+    `<ul style="margin:0;padding:0;list-style:none;font-size:10px;line-height:1.65;color:#374151;">${items
+      .map((it) => `<li style="display:flex;gap:8px;margin-bottom:4px;"><span style="width:6px;height:1px;background:${gold};margin-top:8px;flex-shrink:0;"></span><span>${esc(it)}</span></li>`)
       .join("")}</ul>`;
   const colDivider = `<div style="width:1px;align-self:stretch;background:#edf0f4;"></div>`;
   const thStyle = `text-align:left;font-weight:700;color:#8a94a6;font-family:${SANS};font-size:7.5px;letter-spacing:1.1px;text-transform:uppercase;border-bottom:1px solid ${gold};`;
@@ -327,11 +347,14 @@ export function renderCertificateBack(data: CertData, config: TemplateConfig): s
   ${certificateFrame(navy, gold)}
   <div style="position:relative;height:100%;box-sizing:border-box;padding:30px 40px;display:flex;flex-direction:column;">
     ${ribbonBanner(`<span style="font-size:9px;font-weight:700;letter-spacing:2.8px;font-family:${SANS};text-indent:2.8px;">PROGRAMME INFORMATION</span>`, navy, gold, "align-self:center;display:block;width:fit-content;margin:0 auto;")}
-    <div style="text-align:center;font-size:18px;font-weight:700;color:${navy};text-transform:uppercase;margin:15px 0 0;line-height:1.3;letter-spacing:1px;">${esc(config.programme_title || data.course_name || "")}</div>
-    <div style="width:44px;height:1px;background:${gold};margin:10px auto 17px;"></div>
+    <div style="text-align:center;font-size:18px;font-weight:700;color:${navy};text-transform:uppercase;margin:13px 0 0;line-height:1.3;letter-spacing:1px;">${esc(config.programme_title || data.course_name || "")}</div>
+    <div style="display:flex;margin:10px 0 15px;">
+      <span style="width:28px;height:1.5px;background:${gold};"></span>
+      <span style="flex:1;height:1px;background:#e3e7ee;align-self:center;"></span>
+    </div>
     <div style="display:flex;gap:26px;flex:1;">
       <div style="flex:1;">
-        ${section("target", "PROGRAMME OBJECTIVES", `<p style="margin:0;font-size:10px;line-height:1.75;color:#374151;">${esc(config.objectives_text || DEFAULT_OBJECTIVES)}</p>`)}
+        ${section("target", "PROGRAMME OBJECTIVES", `<p style="margin:0;font-size:10px;line-height:1.7;color:#374151;">${esc(config.objectives_text || DEFAULT_OBJECTIVES)}</p>`)}
         ${section("book", "PROGRAMME COVERAGE", bulletList(coverage))}
       </div>
       ${colDivider}
@@ -349,16 +372,12 @@ export function renderCertificateBack(data: CertData, config: TemplateConfig): s
         ${skillsTable}
       </div>
     </div>
-    <div style="position:relative;border:1px solid #e3e7ee;border-left:2px solid ${gold};padding:13px 16px;margin-top:8px;overflow:hidden;">
-      <div style="position:relative;display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-        ${glyph("warning", gold, 11)}<span style="font-size:9px;font-weight:700;color:${navy};letter-spacing:1.5px;font-family:${SANS};">IMPORTANT NOTICE</span>
-      </div>
+    <div style="position:relative;border:1px solid #e3e7ee;padding:13px 16px;margin-top:8px;overflow:hidden;background:#FCFDFE;">
+      ${sectionHead("warning", "IMPORTANT NOTICE")}
       ${noticeHtml}
     </div>
-    <div style="margin-top:12px;padding-top:12px;border-top:1px solid #e3e7ee;">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:11px;">
-        ${glyph("shield", gold, 11)}<span style="font-size:9px;font-weight:700;color:${navy};letter-spacing:1.5px;font-family:${SANS};">VERIFICATION</span>
-      </div>
+    <div style="margin-top:14px;">
+      ${sectionHead("shield", "VERIFICATION")}
       <div style="display:flex;align-items:center;justify-content:space-between;gap:22px;">
         <div style="flex:1;display:grid;grid-template-columns:1fr 1fr;row-gap:9px;column-gap:24px;font-size:9.5px;color:#374151;">
           ${verifyRow("Certificate No.", data.certificate_number)}
