@@ -325,6 +325,29 @@ export async function loadCertificateRender(id: string): Promise<
     ? null
     : await buildParticipantSkillsRecord(supabase, c.schedule_id, c.participant_id);
 
+  // Single resolution point for every renderer (generic React/HTML and
+  // Template A React/HTML alike -- see components/admin/CertificateDocument.tsx's
+  // CertData.effective_skills_record). Previously each renderer computed its
+  // own precedence independently; the two generic ones only ever looked at
+  // config.skills_record, so a real certificate_skill_results/
+  // participant_skill_results row could never surface on a Standard
+  // Scaffold/Working at Height certificate even though this file was already
+  // loading it. Resolving it once here, after config's own merges (Standard
+  // Scaffold's programme.skills_record fill) have already run, means every
+  // renderer sees the same answer without duplicating the ternary. Read-only
+  // derivation -- does not mutate certificateSkillsRecord/participantSkillsRecord/
+  // config.skills_record themselves. null (not a fallback array) when none of
+  // the three sources has anything, so each renderer's own DEFAULT_SKILLS_RECORD
+  // still supplies the final fallback content exactly as before.
+  const effectiveSkillsRecord: { area: string; status: string }[] | null =
+    certificateSkillsRecord?.length
+      ? certificateSkillsRecord
+      : participantSkillsRecord?.length
+        ? participantSkillsRecord
+        : config.skills_record?.length
+          ? config.skills_record
+          : null;
+
   const data: CertData = {
     certificate_number: certificateNumber,
     holder_name: c.holder_name || c.participant_name,
@@ -345,6 +368,7 @@ export async function loadCertificateRender(id: string): Promise<
     qr_svg: qrSvg,
     certificate_skills_record: certificateSkillsRecord,
     participant_skills_record: participantSkillsRecord,
+    effective_skills_record: effectiveSkillsRecord,
   };
   return { cert, data, config };
 }
