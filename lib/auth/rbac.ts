@@ -67,6 +67,12 @@ export const MODULE_CATALOG: ModuleDefinition[] = [
   ["companies", "Companies", "Training Operations", "editor"],
   ["attendance", "Attendance", "Training Operations", "trainer"],
   ["assessment", "Assessment", "Training Operations", "trainer"],
+  // Live in production's staff_module_catalog (min_role: admin) with a
+  // working, DB-guarded route (app/admin/(protected)/assessors/*, every
+  // page/action calls requireModuleAccess("assessors")) but was missing from
+  // this catalog -- reconciled here, not newly introduced. min_role matches
+  // the live catalog row exactly (re-verified 2026-08-23).
+  ["assessors", "Assessors", "Training Operations", "admin"],
   ["certificates", "Certificates", "Certification", "trainer"],
   ["certificate_templates", "Certificate Templates", "Certification", "admin"],
   ["sales", "Sales Dashboard", "Sales", "editor"],

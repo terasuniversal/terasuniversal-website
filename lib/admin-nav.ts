@@ -40,6 +40,11 @@ export const NAV: NavGroup[] = [
       { key: "companies", label: "Companies", href: "/admin/companies", icon: "companies", minRole: "editor" },
       { key: "attendance", label: "Attendance", href: "/admin/attendance", icon: "attendance", minRole: "trainer" },
       { key: "assessment", label: "Assessment", href: "/admin/assessment", icon: "assessment", minRole: "trainer" },
+      // Reconciled 2026-08-23: this module and its routes already existed
+      // and were already DB-guarded (requireModuleAccess("assessors")) --
+      // only the nav entry and the MODULE_CATALOG row (lib/auth/rbac.ts)
+      // were missing, making it unreachable/ungrantable through this UI.
+      { key: "assessors", label: "Assessors", href: "/admin/assessors", icon: "assessors", minRole: "admin" },
     ],
   },
   {
