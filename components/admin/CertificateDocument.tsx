@@ -1,6 +1,15 @@
 import type { CSSProperties, ReactNode } from "react";
 import { fitHolderNameSize, formatDateRange, isAffirmativeStatus } from "../../lib/certificate-format";
-import { scaffoldWatermarkLines, type ScaffoldWatermarkLevel, inspectorWatermarkShapes, type InspectorWatermarkLevel, workingAtHeightWatermarkShapes } from "../../lib/certificate-watermarks";
+import {
+  scaffoldWatermarkLines,
+  type ScaffoldWatermarkLevel,
+  inspectorWatermarkShapes,
+  type InspectorWatermarkLevel,
+  workingAtHeightWatermarkShapes,
+  type LayeredWatermark,
+  BLUEPRINT_GRID,
+  REGISTRATION_TICKS,
+} from "../../lib/certificate-watermarks";
 
 /**
  * Template-driven certificate renderer (server component, no client JS).
@@ -95,6 +104,13 @@ export interface TemplateConfig {
 const PAGE_W = 794;
 const PAGE_H = 1123;
 const REG_NO = "202201038223 (1477529-X)";
+/**
+ * Micro-typography stack for eyebrows/labels/table headers. The display type
+ * stays Georgia (serif) — pairing it with a tracked-out sans for the small
+ * supporting type is what separates a corporate competency document from a
+ * single-serif "template default" look. Mirrored in lib/certificate-html.ts.
+ */
+const SANS = "'Helvetica Neue', Helvetica, Arial, sans-serif";
 
 const DEFAULT_BODY_TEXT =
   "This programme focuses on developing practical knowledge, safety awareness and safe working practices through structured learning and practical activities.";
@@ -125,126 +141,114 @@ const DEFAULT_NOTICE_PARAGRAPHS = [
   "It does not represent or replace any statutory competency certification, licence, registration or authorisation that may be required under applicable laws, regulations or project-specific requirements.",
 ];
 
-/** A rotated-band corner ribbon (the standard CSS "corner ribbon" technique) plus a thin gold trim and parallel accent line. */
-function CornerRibbon({ corner, navy, gold }: { corner: "tl" | "br"; navy: string; gold: string }) {
-  const isTl = corner === "tl";
-  const place: CSSProperties = isTl ? { top: 26, left: -54 } : { bottom: 26, right: -54 };
-  const rotate = "rotate(-45deg)";
+/**
+ * Restrained corporate frame: one thin navy rule, one inset gold hairline,
+ * and fine L-brackets at all four corners. Replaces the previous
+ * folded-ribbon + triple-border treatment — two heavy rotated navy/gold
+ * bands across opposite corners plus three stacked borders is the single
+ * strongest "decorative certificate template" signal on the page, and it
+ * competes with the content for attention. Symmetric corner brackets read
+ * as deliberate technical framing instead.
+ */
+function CertificateFrame({ navy, gold }: { navy: string; gold: string }) {
+  const corners: { key: string; box: CSSProperties }[] = [
+    { key: "tl", box: { top: 18, left: 18 } },
+    { key: "tr", box: { top: 18, right: 18 } },
+    { key: "bl", box: { bottom: 18, left: 18 } },
+    { key: "br", box: { bottom: 18, right: 18 } },
+  ];
   return (
     <>
-      <div style={{ position: "absolute", width: 200, height: 25, background: navy, transform: rotate, transformOrigin: "center", ...place }} />
-      <div style={{ position: "absolute", width: 200, height: 3, background: gold, transform: rotate, transformOrigin: "center", ...(isTl ? { top: 26 + 11, left: -54 } : { bottom: 26 + 11, right: -54 }) }} />
-      <div style={{ position: "absolute", width: 200, height: 1, background: gold, opacity: 0.55, transform: rotate, transformOrigin: "center", ...(isTl ? { top: 26 - 8, left: -54 } : { bottom: 26 - 8, right: -54 }) }} />
-    </>
-  );
-}
-
-/** Shared corner ornamentation — folded-ribbon emphasis on top-left / bottom-right, fine line-work on the other two. */
-function OrnateBorder({ navy, gold }: { navy: string; gold: string }) {
-  const bracket = (corner: "tr" | "bl", size: number) => {
-    const base: CSSProperties = { position: "absolute", background: gold };
-    const h: CSSProperties =
-      corner === "tr" ? { top: 12, right: 12, width: size, height: 2 } : { bottom: 12, left: 12, width: size, height: 2 };
-    const v: CSSProperties =
-      corner === "tr" ? { top: 12, right: 12, width: 2, height: size } : { bottom: 12, left: 12, width: 2, height: size };
-    const h2: CSSProperties =
-      corner === "tr" ? { top: 18, right: 18, width: size * 0.6, height: 1 } : { bottom: 18, left: 18, width: size * 0.6, height: 1 };
-    const v2: CSSProperties =
-      corner === "tr" ? { top: 18, right: 18, width: 1, height: size * 0.6 } : { bottom: 18, left: 18, width: 1, height: size * 0.6 };
-    return (
-      <>
-        <div style={{ ...base, ...h }} />
-        <div style={{ ...base, ...v }} />
-        <div style={{ ...base, ...h2, opacity: 0.6 }} />
-        <div style={{ ...base, ...v2, opacity: 0.6 }} />
-      </>
-    );
-  };
-  return (
-    <>
-      <CornerRibbon corner="tl" navy={navy} gold={gold} />
-      <CornerRibbon corner="br" navy={navy} gold={gold} />
-      {bracket("tr", 38)}
-      {bracket("bl", 38)}
-      <div style={{ position: "absolute", inset: 4, border: `2px solid ${navy}`, pointerEvents: "none" }} />
-      <div style={{ position: "absolute", inset: 9, border: `1px solid ${gold}`, pointerEvents: "none" }} />
-      <div style={{ position: "absolute", inset: 13, border: `1px solid ${navy}`, opacity: 0.25, pointerEvents: "none" }} />
+      <div style={{ position: "absolute", inset: 10, border: `1px solid ${navy}`, pointerEvents: "none" }} />
+      <div style={{ position: "absolute", inset: 14, border: `1px solid ${gold}`, opacity: 0.4, pointerEvents: "none" }} />
+      {corners.map(({ key, box }) => {
+        const vy: CSSProperties = key[0] === "t" ? { top: 0 } : { bottom: 0 };
+        const hx: CSSProperties = key[1] === "l" ? { left: 0 } : { right: 0 };
+        return (
+          <div key={key} style={{ position: "absolute", width: 34, height: 34, pointerEvents: "none", ...box }}>
+            <div style={{ position: "absolute", width: 34, height: 1.5, background: gold, ...vy, ...hx }} />
+            <div style={{ position: "absolute", width: 1.5, height: 34, background: gold, ...vy, ...hx }} />
+          </div>
+        );
+      })}
     </>
   );
 }
 
 /**
- * Minimal, original scaffold-pole motif — plain SVG lines, not a photo or
- * third-party asset — used as a very low-opacity watermark so the page
- * doesn't read as unfinished in its whitespace. `corner` shifts it for page
- * 2's lower-right placement (larger, spanning behind the notice panel too).
- * `level` (Standard Scaffold Erector only, via config.watermark_level; see
- * lib/certificate-watermarks.ts) swaps in a denser/sparser line set for
- * Basic/Intermediate/Advanced -- "intermediate" is the same geometry this
- * component always rendered, so every certificate without a level (every
- * other template, including Standard Scaffold Inspector and Working at
- * Height) renders byte-for-byte as before.
+ * Shared renderer for every certificate-watermark family (see
+ * lib/certificate-watermarks.ts) — plain SVG lines/rects/circles, not a
+ * photo or third-party asset. Renders the `primary` shape set at a higher
+ * weight/opacity and, when `showSecondary` is true, layers the lighter
+ * `secondary` set on top — the "primary motif + supporting detail"
+ * hierarchy the geometry functions are designed around. `corner` shifts and
+ * shrinks it for the single back-page placement, which passes
+ * `showSecondary={false}` so the back mark reads as a genuinely smaller,
+ * partial version of the front motif rather than a second full copy.
  */
-function ScaffoldMotif({ color, corner = false, level }: { color: string; corner?: boolean; level?: ScaffoldWatermarkLevel }) {
-  const size = corner ? { width: 460, height: 340, style: { bottom: -10, right: -30 } } : { width: 460, height: 320, style: { bottom: 150, left: "50%", transform: "translateX(-50%)" } };
-  const lines = scaffoldWatermarkLines(level ?? "intermediate");
+function WatermarkLayer({ shapes, color, corner = false, showSecondary = true }: { shapes: LayeredWatermark; color: string; corner?: boolean; showSecondary?: boolean }) {
+  // Both placements deliberately bleed past the page edge so the page's own
+  // `overflow: hidden` crops them. A fully-contained, centred drawing reads
+  // as a separate illustration floating on the page; a cropped one reads as
+  // a blueprint underlay the layout sits on top of.
+  const size = corner
+    ? { width: 320, height: 230, style: { bottom: -28, right: -44 } }
+    : { width: 560, height: 390, style: { bottom: 86, right: -70 } };
+  const renderSet = (set: LayeredWatermark["primary"], keyPrefix: string) => (
+    <>
+      {set.lines.map(([x1, y1, x2, y2], i) => <line key={`${keyPrefix}l${i}`} x1={x1} y1={y1} x2={x2} y2={y2} />)}
+      {set.rects.map(([x, y, w, h], i) => <rect key={`${keyPrefix}r${i}`} x={x} y={y} width={w} height={h} />)}
+      {set.circles.map(([cx, cy, r], i) => <circle key={`${keyPrefix}c${i}`} cx={cx} cy={cy} r={r} />)}
+    </>
+  );
   return (
-    <svg viewBox="0 0 320 240" style={{ position: "absolute", width: size.width, height: size.height, opacity: 0.055, pointerEvents: "none", ...size.style }}>
-      <g stroke={color} strokeWidth="2.5" fill="none">
-        {lines.verticals.map(([x, y1, y2], i) => <line key={`v${i}`} x1={x} y1={y1} x2={x} y2={y2} />)}
-        {lines.horizontals.map(([x1, x2, y], i) => <line key={`h${i}`} x1={x1} y1={y} x2={x2} y2={y} />)}
-        {lines.braces.map(([x1, y1, x2, y2], i) => <line key={`b${i}`} x1={x1} y1={y1} x2={x2} y2={y2} />)}
-      </g>
+    <svg viewBox="0 0 320 240" style={{ position: "absolute", width: size.width, height: size.height, pointerEvents: "none", ...size.style }}>
+      {/* Drafting-grid + corner registration ticks, front placement only. This
+          is what turns the motif from "a drawing placed on the page" into a
+          blueprint underlay the layout sits on — the motif geometry itself is
+          untouched, so each family keeps its own identity. */}
+      {showSecondary && (
+        <g stroke={color} strokeWidth="0.6" fill="none" opacity={0.032}>
+          {BLUEPRINT_GRID.map(([x1, y1, x2, y2], i) => <line key={`g${i}`} x1={x1} y1={y1} x2={x2} y2={y2} />)}
+        </g>
+      )}
+      {showSecondary && (
+        <g stroke={color} strokeWidth="0.9" fill="none" opacity={0.055}>
+          {REGISTRATION_TICKS.map(([x1, y1, x2, y2], i) => <line key={`t${i}`} x1={x1} y1={y1} x2={x2} y2={y2} />)}
+        </g>
+      )}
+      {/* Primary sits a clear step above the grid so the family motif still
+          reads as the subject and the grid stays background — raising both by
+          the same amount would have kept it flat and muddy. */}
+      <g stroke={color} strokeWidth="1.8" fill="none" opacity={0.06}>{renderSet(shapes.primary, "p")}</g>
+      {showSecondary && (
+        <g stroke={color} strokeWidth="1.1" fill="none" opacity={0.04}>{renderSet(shapes.secondary, "s")}</g>
+      )}
     </svg>
   );
 }
 
 /**
- * Scaffold Inspector watermark — clipboard/checklist + magnifier + tagged
- * scaffold inspection points, a distinct visual theme from ScaffoldMotif
- * above (Standard Scaffold Inspector only, via config.inspector_watermark_level;
- * see lib/certificate-watermarks.ts). Same positioning/opacity/placement
- * pattern as ScaffoldMotif so it drops into the identical layout slot.
+ * Resolves which watermark family a template renders and dispatches to
+ * WatermarkLayer. inspector_watermark_level takes precedence over
+ * wah_watermark, which takes precedence over the Scaffold Erector
+ * geometry (config.watermark_level, defaulting to "intermediate") — the
+ * same precedence every certificate using this generic renderer has always
+ * had, now expressed once instead of duplicated at each of the 2 call
+ * sites below.
  */
-function InspectorWatermark({ color, corner = false, level }: { color: string; corner?: boolean; level: InspectorWatermarkLevel }) {
-  const size = corner ? { width: 460, height: 340, style: { bottom: -10, right: -30 } } : { width: 460, height: 320, style: { bottom: 150, left: "50%", transform: "translateX(-50%)" } };
-  const shapes = inspectorWatermarkShapes(level);
-  return (
-    <svg viewBox="0 0 320 240" style={{ position: "absolute", width: size.width, height: size.height, opacity: 0.055, pointerEvents: "none", ...size.style }}>
-      <g stroke={color} strokeWidth="2.5" fill="none">
-        {shapes.lines.map(([x1, y1, x2, y2], i) => <line key={`l${i}`} x1={x1} y1={y1} x2={x2} y2={y2} />)}
-        {shapes.rects.map(([x, y, w, h], i) => <rect key={`r${i}`} x={x} y={y} width={w} height={h} />)}
-        {shapes.circles.map(([cx, cy, r], i) => <circle key={`c${i}`} cx={cx} cy={cy} r={r} />)}
-      </g>
-    </svg>
-  );
+function CertificateWatermark({ config, color, corner = false }: { config: TemplateConfig; color: string; corner?: boolean }) {
+  const shapes = config.inspector_watermark_level
+    ? inspectorWatermarkShapes(config.inspector_watermark_level)
+    : config.wah_watermark
+    ? workingAtHeightWatermarkShapes()
+    : scaffoldWatermarkLines(config.watermark_level ?? "intermediate");
+  return <WatermarkLayer shapes={shapes} color={color} corner={corner} showSecondary={!corner} />;
 }
 
-/**
- * Working at Height watermark — full-body harness silhouette + twin-leg
- * lanyard + overhead anchorage/fall-arrest line, a third distinct visual
- * theme from ScaffoldMotif/InspectorWatermark above (Working at Height only,
- * via config.wah_watermark; see lib/certificate-watermarks.ts). Same
- * positioning/opacity/placement pattern as the other two so it drops into
- * the identical layout slot.
- */
-function WorkingAtHeightWatermark({ color, corner = false }: { color: string; corner?: boolean }) {
-  const size = corner ? { width: 460, height: 340, style: { bottom: -10, right: -30 } } : { width: 460, height: 320, style: { bottom: 150, left: "50%", transform: "translateX(-50%)" } };
-  const shapes = workingAtHeightWatermarkShapes();
-  return (
-    <svg viewBox="0 0 320 240" style={{ position: "absolute", width: size.width, height: size.height, opacity: 0.055, pointerEvents: "none", ...size.style }}>
-      <g stroke={color} strokeWidth="2.5" fill="none">
-        {shapes.lines.map(([x1, y1, x2, y2], i) => <line key={`l${i}`} x1={x1} y1={y1} x2={x2} y2={y2} />)}
-        {shapes.rects.map(([x, y, w, h], i) => <rect key={`r${i}`} x={x} y={y} width={w} height={h} />)}
-        {shapes.circles.map(([cx, cy, r], i) => <circle key={`c${i}`} cx={cx} cy={cy} r={r} />)}
-      </g>
-    </svg>
-  );
-}
-
-type IconKind = "calendar" | "refresh" | "doc" | "id" | "target" | "book" | "bulb" | "clipboard" | "warning" | "shield" | "globe" | "phone" | "mail" | "qrMini";
+type IconKind = "calendar" | "refresh" | "doc" | "id" | "target" | "book" | "bulb" | "clipboard" | "warning" | "shield" | "qrMini";
 function iconGlyph(kind: IconKind, color: string, strokeWidth = 1.7) {
-  const common = { width: "58%", height: "58%", viewBox: "0 0 24 24", fill: "none", stroke: color, strokeWidth, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+  const common = { width: "100%", height: "100%", viewBox: "0 0 24 24", fill: "none", stroke: color, strokeWidth, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
   switch (kind) {
     case "calendar": return <svg {...common}><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /></svg>;
     case "refresh": return <svg {...common}><path d="M21 12a9 9 0 1 1-3-6.7" /><path d="M21 3v5h-5" /></svg>;
@@ -256,53 +260,81 @@ function iconGlyph(kind: IconKind, color: string, strokeWidth = 1.7) {
     case "clipboard": return <svg {...common}><rect x="5" y="4" width="14" height="17" rx="2" /><rect x="9" y="2.5" width="6" height="3" rx="1" /><path d="M8.5 11l2 2 4-4.5M8.5 17h7" /></svg>;
     case "warning": return <svg {...common}><path d="M12 3.5 21.5 20h-19z" /><path d="M12 9.5v4.2M12 17h.01" /></svg>;
     case "shield": return <svg {...common}><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z" /><path d="M9 12l2 2 4-4.5" /></svg>;
-    case "globe": return <svg {...common}><circle cx="12" cy="12" r="8.5" /><path d="M3.5 12h17M12 3.5c2.5 2.4 3.8 5.4 3.8 8.5s-1.3 6.1-3.8 8.5c-2.5-2.4-3.8-5.4-3.8-8.5S9.5 5.9 12 3.5z" /></svg>;
-    case "phone": return <svg {...common}><path d="M5 4h3l1.5 4.5L7.5 10a12 12 0 0 0 6.5 6.5l1.5-2L20 16v3a1.5 1.5 0 0 1-1.6 1.5A16 16 0 0 1 3.5 5.6 1.5 1.5 0 0 1 5 4z" /></svg>;
-    case "mail": return <svg {...common}><rect x="3" y="5.5" width="18" height="13" rx="2" /><path d="M3.5 6.5 12 13l8.5-6.5" /></svg>;
     default: return <svg {...common}><rect x="4" y="4" width="6" height="6" /><rect x="14" y="4" width="6" height="6" /><rect x="4" y="14" width="6" height="6" /><rect x="14" y="14" width="2.5" height="2.5" fill={color} stroke="none" /><rect x="17.5" y="17.5" width="2.5" height="2.5" fill={color} stroke="none" /></svg>;
   }
 }
 
-/** Circular navy badge with a white icon and a thin gold ring accent — the reference's icon style, used on both pages. */
-function CircleIcon({ kind, navy, gold, size = 30 }: { kind: IconKind; navy: string; gold: string; size?: number }) {
+/**
+ * Bare icon glyph at a fixed box size. Dropping the ring/disc entirely is the
+ * last step away from the "badge" language: a chip repeated at every heading
+ * and every metadata row still reads as UI chrome, while an unboxed hairline
+ * glyph reads as an editorial marker. Used at one size per context, gold on
+ * the front metadata strip and on back-page headings.
+ */
+function Glyph({ kind, color, size = 12 }: { kind: IconKind; color: string; size?: number }) {
   return (
-    <div style={{ width: size, height: size, minWidth: size, borderRadius: "50%", background: navy, border: `1.5px solid ${gold}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      {iconGlyph(kind, "#fff")}
-    </div>
+    <span style={{ width: size, height: size, minWidth: size, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+      {iconGlyph(kind, color, 1.8)}
+    </span>
   );
 }
 
+/**
+ * One cell of the front-page record strip. Label and value share a left edge
+ * (the glyph sits inline with the label, not beside the pair) so four cells
+ * across form clean columns — the previous icon-beside-a-stacked-pair layout
+ * indented every value differently and read as a form field.
+ */
 function MetaTile({ icon, label, value, navy, gold }: { icon: IconKind; label: string; value: string; navy: string; gold: string }) {
   return (
-    <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-      <CircleIcon kind={icon} navy={navy} gold={gold} size={34} />
-      <div>
-        <div style={{ fontSize: 9.5, textTransform: "uppercase", letterSpacing: 0.6, color: "#6b7280" }}>{label}</div>
-        <div style={{ fontSize: 13.5, fontWeight: 700, color: navy, fontFamily: "Georgia, serif" }}>{value}</div>
+    <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 4 }}>
+        <Glyph kind={icon} color={gold} size={10} />
+        <span style={{ fontSize: 7, textTransform: "uppercase", letterSpacing: 1.1, color: "#8a94a6", fontFamily: SANS }}>{label}</span>
       </div>
+      <div style={{ fontSize: 11.5, fontWeight: 700, color: navy, fontFamily: "Georgia, serif", lineHeight: 1.35, wordBreak: "break-word" }}>{value}</div>
     </div>
   );
 }
 
-/** Inline QR — see generateQrSvg's comment for why this isn't an <img src="https://..."> anymore. */
+/**
+ * Inline QR — see generateQrSvg's comment for why this isn't an
+ * <img src="https://..."> anymore. Presented as a bordered plate with a
+ * tracked-out caption rather than the previous rounded gold-outlined card,
+ * which read as a utility widget bolted onto the layout.
+ */
 function QrBlock({ svg, navy, gold, size, caption }: { svg: string; navy: string; gold: string; size: number; caption: boolean }) {
   return (
-    <div style={{ width: size + 34, border: `1.5px solid ${gold}`, borderRadius: 6, padding: "12px 9px", textAlign: "center", background: "#fff" }}>
-      <div style={{ fontSize: 10, fontWeight: 700, color: navy, letterSpacing: 0.6, marginBottom: 7 }}>QR VERIFICATION</div>
-      <div style={{ width: size, height: size, margin: "0 auto", padding: 4, background: "#fff", border: "1px solid #eee" }} dangerouslySetInnerHTML={{ __html: svg }} />
-      {caption && <div style={{ fontSize: 8.5, color: "#6b7280", marginTop: 7, lineHeight: 1.35 }}>Scan to verify this certificate at Teras Universal Database</div>}
+    <div style={{ width: size + 22, textAlign: "center" }}>
+      <div style={{ fontSize: 7, fontWeight: 700, color: navy, letterSpacing: 1.6, marginBottom: 2, fontFamily: SANS }}>QR VERIFICATION</div>
+      <div style={{ width: 22, height: 1, background: gold, margin: "0 auto 7px" }} />
+      {/* Navy plate inside an offset gold hairline — the same frame language as
+          the duration banner, so the QR reads as an issued verification seal
+          rather than a bolted-on utility square. */}
+      <div style={{ position: "relative", width: size + 8, height: size + 8, margin: "0 auto" }}>
+        <div style={{ position: "absolute", inset: -3, border: `1px solid ${gold}`, opacity: 0.7 }} />
+        <div style={{ position: "absolute", inset: 0, padding: 4, background: "#fff", border: `1px solid ${navy}`, boxSizing: "border-box" }} dangerouslySetInnerHTML={{ __html: svg }} />
+      </div>
+      {caption && (
+        <div style={{ fontSize: 7, color: "#8a94a6", marginTop: 8, lineHeight: 1.5, fontFamily: SANS, letterSpacing: 0.2 }}>Scan to verify this certificate at Teras Universal Database</div>
+      )}
     </div>
   );
 }
 
-/** Ribbon-shaped banner (pointed ends, like the reference's duration/section banners). */
+/**
+ * Flat navy label plate ruled top and bottom in gold. Two earlier shapes were
+ * rejected on the way here: a pointed-end "ribbon" (decorative award look) and
+ * a navy block inside a fully offset gold rectangle — the offset ring reads
+ * exactly like a focus ring around a UI button, which is the last thing a
+ * printed credential should suggest. Hairlines on two edges only keep the
+ * navy/gold emphasis while sitting flat in the page, like type printed into
+ * the document rather than a control placed on top of it.
+ */
 function RibbonBanner({ children, navy, gold, style }: { children: ReactNode; navy: string; gold: string; style?: CSSProperties }) {
   return (
-    <div style={{ position: "relative", display: "inline-block", ...style }}>
-      <div style={{ position: "absolute", inset: -3, background: gold, clipPath: "polygon(2% 0%, 98% 0%, 100% 50%, 98% 100%, 2% 100%, 0% 50%)" }} />
-      <div style={{ position: "relative", background: navy, color: "#fff", clipPath: "polygon(2% 0%, 98% 0%, 100% 50%, 98% 100%, 2% 100%, 0% 50%)", padding: "8px 34px" }}>
-        {children}
-      </div>
+    <div style={{ display: "inline-block", background: navy, color: "#fff", padding: "5px 30px", borderTop: `1px solid ${gold}`, borderBottom: `1px solid ${gold}`, ...style }}>
+      {children}
     </div>
   );
 }
@@ -323,93 +355,108 @@ export function CertificateDocument({ data, config }: { data: CertData; config: 
         backgroundSize: "cover", backgroundPosition: "center",
       }}
     >
-      {!config.background_url && (
-        config.inspector_watermark_level
-          ? <InspectorWatermark color={navy} level={config.inspector_watermark_level} />
-          : config.wah_watermark
-          ? <WorkingAtHeightWatermark color={navy} />
-          : <ScaffoldMotif color={navy} level={config.watermark_level} />
-      )}
-      <OrnateBorder navy={navy} gold={gold} />
+      {!config.background_url && <CertificateWatermark config={config} color={navy} />}
+      <CertificateFrame navy={navy} gold={gold} />
 
-      <div style={{ position: "relative", height: "100%", padding: "26px 34px", display: "flex", flexDirection: "column", textAlign: "center" }}>
-        {config.logo_url && <img src={config.logo_url} alt="" style={{ width: 104, height: 104, objectFit: "contain", margin: "0 auto 6px" }} />}
-        <div style={{ letterSpacing: 2, fontSize: 15, color: navy, fontWeight: 700 }}>TERAS UNIVERSAL SDN. BHD.</div>
-        <div style={{ fontSize: 9.5, color: "#6b7280", marginTop: 2 }}>{REG_NO}</div>
+      <div style={{ position: "relative", height: "100%", boxSizing: "border-box", padding: "30px 40px", display: "flex", flexDirection: "column", textAlign: "center" }}>
+        {/* 105x74 is the asset's own 1144x806 aspect at the requested ~105px
+            width — an explicit pair rather than a square box, because a square
+            box with objectFit:contain padded ~15px of dead space above and
+            below the mark and made the header rhythm read as loose. */}
+        {config.logo_url && <img src={config.logo_url} alt="" style={{ width: 105, height: 74, objectFit: "contain", display: "block", margin: "0 auto 11px" }} />}
+        <div style={{ letterSpacing: 3.4, fontSize: 13, color: navy, fontWeight: 700 }}>TERAS UNIVERSAL SDN. BHD.</div>
+        <div style={{ fontSize: 8, color: "#8a94a6", marginTop: 4, letterSpacing: 1, fontFamily: SANS }}>{REG_NO}</div>
+        <div style={{ width: 44, height: 1, background: gold, margin: "12px auto 0" }} />
 
-        <h1 style={{ fontSize: 56, margin: "18px 0 0", letterSpacing: 2, color: gold, fontWeight: 700, lineHeight: 1 }}>CERTIFICATE</h1>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginTop: 8 }}>
-          <span style={{ width: 46, height: 1.5, background: gold, display: "inline-block" }} />
-          <span style={{ fontSize: 14, color: navy, letterSpacing: 3, fontWeight: 600 }}>OF SUCCESSFUL COMPLETION</span>
-          <span style={{ width: 46, height: 1.5, background: gold, display: "inline-block" }} />
-        </div>
+        <h1 style={{ fontSize: 44, margin: "16px 0 0", letterSpacing: 14, color: navy, fontWeight: 700, lineHeight: 1, textIndent: 14 }}>CERTIFICATE</h1>
+        <div style={{ fontSize: 8.5, color: "#8a94a6", letterSpacing: 5, fontWeight: 600, fontFamily: SANS, textIndent: 5, marginTop: 10 }}>OF SUCCESSFUL COMPLETION</div>
 
-        <p style={{ fontSize: 13.5, margin: "22px 0 6px", color: "#4b5563" }}>This certificate is proudly presented to</p>
-        <div style={{ position: "relative", display: "inline-block", margin: "0 auto" }}>
-          <div style={{ fontSize: nameSize, fontWeight: 700, color: navy, display: "inline-block", padding: "0 24px 8px", maxWidth: 660, wordBreak: "break-word" }}>
+        <p style={{ fontSize: 9.5, margin: "26px 0 10px", color: "#8a94a6", letterSpacing: 1.8, fontFamily: SANS, textTransform: "uppercase", textIndent: 1.8 }}>This certificate is proudly presented to</p>
+        <div style={{ position: "relative", display: "inline-block", margin: "0 auto", maxWidth: 660 }}>
+          <div style={{ fontSize: nameSize, fontWeight: 700, color: navy, padding: "0 24px 13px", wordBreak: "break-word", lineHeight: 1.25, letterSpacing: 0.5 }}>
             {data.holder_name}
           </div>
-          <div style={{ borderTop: `2px solid ${gold}`, position: "relative" }}>
-            <span style={{ position: "absolute", top: -4, left: "50%", transform: "translateX(-50%) rotate(45deg)", width: 7, height: 7, background: gold }} />
+          {/* Hairline rule with a short gold centre segment — replaces the
+              rotated gold diamond, which read as award/wedding ornamentation. */}
+          <div style={{ position: "relative", height: 1, background: "#d3d9e2" }}>
+            <span style={{ position: "absolute", top: -0.5, left: "50%", transform: "translateX(-50%)", width: 92, height: 1.5, background: gold }} />
           </div>
         </div>
-        {data.ic_passport && <p style={{ fontSize: 12.5, color: "#6b7280", margin: "10px 0 0" }}>Passport / IC No: {data.ic_passport}</p>}
+        {data.ic_passport && <p style={{ fontSize: 9.5, color: "#8a94a6", margin: "11px 0 0", letterSpacing: 0.6, fontFamily: SANS }}>Passport / IC No: {data.ic_passport}</p>}
 
-        <p style={{ fontSize: 13.5, margin: "20px 0 4px", color: "#4b5563" }}>For successfully completing the</p>
-        <div style={{ fontSize: 20, fontWeight: 700, color: navy, textTransform: "uppercase", lineHeight: 1.35, maxWidth: 640, margin: "0 auto" }}>
+        <p style={{ fontSize: 9, margin: "22px 0 0", color: "#8a94a6", letterSpacing: 1.8, fontFamily: SANS, textTransform: "uppercase", textIndent: 1.8 }}>For successfully completing the</p>
+        <div style={{ width: 26, height: 1, background: gold, margin: "9px auto 11px" }} />
+        <div style={{ fontSize: 23, fontWeight: 700, color: navy, textTransform: "uppercase", lineHeight: 1.38, maxWidth: 600, margin: "0 auto", letterSpacing: 1.4 }}>
           {data.course_name}
         </div>
         {duration && (
-          <RibbonBanner navy={navy} gold={gold} style={{ margin: "14px auto 0" }}>
-            <span style={{ fontSize: 12.5, fontWeight: 600, letterSpacing: 0.5 }}>{duration}</span>
+          <RibbonBanner navy={navy} gold={gold} style={{ margin: "16px auto 0" }}>
+            <span style={{ fontSize: 9, fontWeight: 600, letterSpacing: 2.4, fontFamily: SANS, textIndent: 2.4 }}>{duration}</span>
           </RibbonBanner>
         )}
-        {dateRange && <p style={{ fontSize: 12.5, color: "#4b5563", margin: "13px 0 0" }}><strong style={{ color: navy }}>Conducted from</strong> {dateRange}</p>}
+        {dateRange && (
+          <p style={{ fontSize: 11, color: "#4b5563", margin: "16px 0 0" }}>
+            <span style={{ color: "#8a94a6", letterSpacing: 1.3, fontSize: 8.5, fontFamily: SANS, textTransform: "uppercase" }}>Conducted from </span>
+            {dateRange}
+          </p>
+        )}
 
-        <p style={{ fontSize: 12.5, lineHeight: 1.65, maxWidth: 590, margin: "16px auto 0", color: "#4b5563" }}>
+        <p style={{ fontSize: 10.5, lineHeight: 1.85, maxWidth: 520, margin: "17px auto 0", color: "#6b7280" }}>
           {config.body_text || DEFAULT_BODY_TEXT}
         </p>
 
-        {/* Metadata grid + QR */}
-        <div style={{ display: "flex", gap: 20, margin: "auto 0 0", paddingTop: 20, textAlign: "left", position: "relative" }}>
-          <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", rowGap: 20, columnGap: 14, alignContent: "center" }}>
-            <MetaTile icon="calendar" label="Date of Completion" value={data.issue_date || "—"} navy={navy} gold={gold} />
-            <MetaTile icon="refresh" label="Recommended Skills Update" value={config.skills_update_recommendation || "Within Three (3) Years"} navy={navy} gold={gold} />
-            <MetaTile icon="doc" label="Certificate No." value={data.certificate_number} navy={navy} gold={gold} />
-            <MetaTile icon="id" label="Participant ID" value={data.participant_id || "—"} navy={navy} gold={gold} />
-          </div>
-          {config.show_qr !== false && data.qr_svg && <QrBlock svg={data.qr_svg} navy={navy} gold={gold} size={104} caption />}
+        {/* Record strip: four data cells across a tinted band, hairline-separated.
+            A single horizontal strip on its own ground reads as the data block of
+            an issued document; the previous 2x2 icon-badge grid read as a form. */}
+        <div style={{ margin: "auto 0 0", background: "#F7F9FB", borderTop: "1px solid #e3e7ee", borderBottom: "1px solid #e3e7ee", padding: "15px 20px", display: "flex", gap: 20, textAlign: "left", alignItems: "flex-start" }}>
+          <MetaTile icon="calendar" label="Date of Completion" value={data.issue_date || "—"} navy={navy} gold={gold} />
+          <div style={{ width: 1, background: "#e3e7ee", alignSelf: "stretch" }} />
+          <MetaTile icon="refresh" label="Skills Update" value={config.skills_update_recommendation || "Within Three (3) Years"} navy={navy} gold={gold} />
+          <div style={{ width: 1, background: "#e3e7ee", alignSelf: "stretch" }} />
+          <MetaTile icon="doc" label="Certificate No." value={data.certificate_number} navy={navy} gold={gold} />
+          <div style={{ width: 1, background: "#e3e7ee", alignSelf: "stretch" }} />
+          <MetaTile icon="id" label="Participant ID" value={data.participant_id || "—"} navy={navy} gold={gold} />
         </div>
 
-        {/* Signatures. "single" = one signatory (e.g. Director) beside the stamp only.
-            "dual" (default) = Trainer (left), Training Manager (middle), Company Stamp (right). */}
-        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginTop: 28, paddingTop: 4 }}>
-          <div style={{ textAlign: "center", fontSize: 11.5, width: 180 }}>
-            {config.signature_url && <img src={config.signature_url} alt="" style={{ height: 38, objectFit: "contain" }} />}
-            <div style={{ borderTop: `1px solid ${navy}`, margin: "4px 0 4px" }} />
+        {/* Attestation zone: signatory | stamp | verification, baseline-aligned on
+            one row. The QR moved out of the record strip so signing and verifying
+            sit together as one act of issuance, and so neither side is lopsided.
+            "single" = one signatory (e.g. Director) beside the stamp only.
+            "dual" (default) = Trainer + Training Manager. */}
+        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 26, marginTop: 26 }}>
+          <div style={{ textAlign: "center", fontSize: 11, width: 196 }}>
+            {/* Fixed-height signature well: the image sits ON the rule rather than
+                floating above it at whatever height the asset happens to be.
+                The extra headroom over the rule keeps a tall signature from
+                touching the metadata band above it. */}
+            <div style={{ height: 46, display: "flex", alignItems: "flex-end", justifyContent: "center", paddingBottom: 2 }}>
+              {config.signature_url && <img src={config.signature_url} alt="" style={{ maxHeight: 44, maxWidth: 168, objectFit: "contain" }} />}
+            </div>
+            <div style={{ borderTop: `1px solid ${navy}`, margin: "5px 0 6px" }} />
             {config.signature_layout === "single" ? (
-              <strong style={{ color: navy }}>{config.signature_name || config.signature_title || "Director"}</strong>
+              <strong style={{ color: navy, letterSpacing: 0.3 }}>{config.signature_name || config.signature_title || "Director"}</strong>
             ) : (
               <>
-                <strong style={{ color: navy }}>{config.signature_name || "Trainer"}</strong>
-                <div style={{ color: "#6b7280" }}>Trainer Signature</div>
+                <strong style={{ color: navy, letterSpacing: 0.3 }}>{config.signature_name || "Trainer"}</strong>
+                <div style={{ color: "#8a94a6", fontSize: 8.5, letterSpacing: 1.3, fontFamily: SANS, textTransform: "uppercase", marginTop: 3 }}>Trainer Signature</div>
               </>
             )}
             {config.signature_layout === "single" && config.signature_name && (
-              <div style={{ color: "#6b7280" }}>{config.signature_title || "Director"}</div>
+              <div style={{ color: "#8a94a6", fontSize: 8.5, letterSpacing: 1.3, fontFamily: SANS, textTransform: "uppercase", marginTop: 3 }}>{config.signature_title || "Director"}</div>
             )}
           </div>
           {config.signature_layout !== "single" && (
-            <div style={{ textAlign: "center", fontSize: 11.5, width: 180 }}>
-              <div style={{ height: 38 }} />
-              <div style={{ borderTop: `1px solid ${navy}`, margin: "4px 0 4px" }} />
-              <strong style={{ color: navy }}>{config.signature_title || "Training Manager"}</strong>
-              <div style={{ color: "#6b7280" }}>Training Manager</div>
+            <div style={{ textAlign: "center", fontSize: 11, width: 196 }}>
+              <div style={{ height: 46 }} />
+              <div style={{ borderTop: `1px solid ${navy}`, margin: "5px 0 6px" }} />
+              <strong style={{ color: navy, letterSpacing: 0.3 }}>{config.signature_title || "Training Manager"}</strong>
+              <div style={{ color: "#8a94a6", fontSize: 8.5, letterSpacing: 1.3, fontFamily: SANS, textTransform: "uppercase", marginTop: 3 }}>Training Manager</div>
             </div>
           )}
-          <div style={{ textAlign: "center", fontSize: 10.5, width: 66, height: 66, borderRadius: "50%", border: `1px dashed ${gold}`, display: "flex", alignItems: "center", justifyContent: "center", color: "#9ca3af", padding: 4 }}>
+          <div style={{ textAlign: "center", fontSize: 7, letterSpacing: 1.2, fontFamily: SANS, width: 66, height: 66, borderRadius: "50%", border: `1px dashed ${gold}`, opacity: 0.95, display: "flex", alignItems: "center", justifyContent: "center", color: "#9aa3b2", padding: 4, marginBottom: 6 }}>
             COMPANY STAMP
           </div>
+          {config.show_qr !== false && data.qr_svg && <QrBlock svg={data.qr_svg} navy={navy} gold={gold} size={82} caption />}
         </div>
       </div>
     </div>
@@ -430,80 +477,91 @@ export function CertificateBackPage({ data, config }: { data: CertData; config: 
     ? config.important_notice.split(/\n{2,}/).filter(Boolean)
     : DEFAULT_NOTICE_PARAGRAPHS;
 
+  /**
+   * Editorial section head: gold glyph, tracked navy label, and a two-tone rule
+   * (a short gold segment running into a long hairline) rather than a single
+   * full-width gold underline. The two-tone rule gives each column a defined
+   * start point, which is what makes three stacked sections scan as a designed
+   * grid instead of three same-weight bars.
+   */
   const Section = ({ icon, title, children }: { icon: IconKind; title: string; children: ReactNode }) => (
-    <div style={{ marginBottom: 18 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, borderBottom: `2px solid ${gold}`, paddingBottom: 6, marginBottom: 9 }}>
-        <CircleIcon kind={icon} navy={navy} gold={gold} size={24} />
-        <span style={{ fontSize: 12.5, fontWeight: 700, color: navy, letterSpacing: 0.4 }}>{title}</span>
+    <div style={{ marginBottom: 15 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 7 }}>
+        <Glyph kind={icon} color={gold} size={11} />
+        <span style={{ fontSize: 8.5, fontWeight: 700, color: navy, letterSpacing: 1.6, fontFamily: SANS }}>{title}</span>
+      </div>
+      <div style={{ display: "flex", marginBottom: 8 }}>
+        <span style={{ width: 22, height: 1.5, background: gold }} />
+        <span style={{ flex: 1, height: 1, background: "#e3e7ee", alignSelf: "center" }} />
       </div>
       {children}
     </div>
   );
-  const CheckList = ({ items }: { items: string[] }) => (
-    <ul style={{ margin: 0, padding: 0, listStyle: "none", fontSize: 11.5, lineHeight: 1.9, color: "#374151" }}>
+  /**
+   * One bullet treatment for every list on this page — a short gold dash.
+   * Coverage/assessment previously used a "✓" glyph while learning outcomes
+   * used browser disc bullets, so three adjacent columns each announced their
+   * items differently. A dash sits quieter than a square at this size and
+   * matches the rule language used by the section heads.
+   */
+  const BulletList = ({ items }: { items: string[] }) => (
+    <ul style={{ margin: 0, padding: 0, listStyle: "none", fontSize: 10, lineHeight: 1.7, color: "#374151" }}>
       {items.map((it, i) => (
-        <li key={i} style={{ display: "flex", gap: 6 }}><span style={{ color: gold, fontWeight: 700 }}>✓</span>{it}</li>
+        <li key={i} style={{ display: "flex", gap: 8, marginBottom: 5 }}>
+          <span style={{ width: 6, height: 1, background: gold, marginTop: 8, flexShrink: 0 }} />
+          <span>{it}</span>
+        </li>
       ))}
     </ul>
   );
-  const ColumnDivider = () => <div style={{ width: 1, alignSelf: "stretch", background: `linear-gradient(${gold}, ${gold})`, backgroundSize: "1px 6px", backgroundRepeat: "repeat-y", opacity: 0.55 }} />;
+  const ColumnDivider = () => <div style={{ width: 1, alignSelf: "stretch", background: "#edf0f4" }} />;
 
   return (
     <div style={{ width: PAGE_W, height: PAGE_H, margin: "0 auto", position: "relative", background: "#fff", boxSizing: "border-box", padding: 34, fontFamily: "Georgia, 'Times New Roman', serif", color: "#1F2937", overflow: "hidden" }}>
-      {config.inspector_watermark_level
-        ? <InspectorWatermark color={navy} corner level={config.inspector_watermark_level} />
-        : config.wah_watermark
-        ? <WorkingAtHeightWatermark color={navy} corner />
-        : <ScaffoldMotif color={navy} corner level={config.watermark_level} />}
-      <OrnateBorder navy={navy} gold={gold} />
-      <div style={{ position: "relative", height: "100%", padding: "28px 34px", display: "flex", flexDirection: "column" }}>
+      <CertificateWatermark config={config} color={navy} corner />
+      <CertificateFrame navy={navy} gold={gold} />
+      <div style={{ position: "relative", height: "100%", boxSizing: "border-box", padding: "30px 40px", display: "flex", flexDirection: "column" }}>
         <RibbonBanner navy={navy} gold={gold} style={{ alignSelf: "center" }}>
-          <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: 2 }}>PROGRAMME INFORMATION</span>
+          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2.8, fontFamily: SANS, textIndent: 2.8 }}>PROGRAMME INFORMATION</span>
         </RibbonBanner>
-        <div style={{ textAlign: "center", fontSize: 20, fontWeight: 700, color: navy, textTransform: "uppercase", margin: "16px 0 6px", lineHeight: 1.3 }}>
+        <div style={{ textAlign: "center", fontSize: 18, fontWeight: 700, color: navy, textTransform: "uppercase", margin: "15px 0 0", lineHeight: 1.3, letterSpacing: 1 }}>
           {config.programme_title || data.course_name}
         </div>
-        <div style={{ display: "flex", justifyContent: "center", margin: "0 0 20px" }}>
-          <span style={{ width: 6, height: 6, background: gold, transform: "rotate(45deg)", display: "inline-block" }} />
-        </div>
+        <div style={{ width: 44, height: 1, background: gold, margin: "10px auto 17px" }} />
 
-        <div style={{ display: "flex", gap: 22, flex: 1 }}>
+        <div style={{ display: "flex", gap: 26, flex: 1 }}>
           <div style={{ flex: 1 }}>
             <Section icon="target" title="PROGRAMME OBJECTIVES">
-              <p style={{ margin: 0, fontSize: 11.5, lineHeight: 1.75, color: "#374151" }}>{config.objectives_text || DEFAULT_OBJECTIVES}</p>
+              <p style={{ margin: 0, fontSize: 10, lineHeight: 1.75, color: "#374151" }}>{config.objectives_text || DEFAULT_OBJECTIVES}</p>
             </Section>
-            <Section icon="book" title="PROGRAMME COVERAGE"><CheckList items={coverage} /></Section>
+            <Section icon="book" title="PROGRAMME COVERAGE"><BulletList items={coverage} /></Section>
           </div>
           <ColumnDivider />
           <div style={{ flex: 1 }}>
             <Section icon="bulb" title="LEARNING OUTCOMES">
-              <p style={{ margin: "0 0 8px", fontSize: 11.5, color: "#374151" }}>Upon successful completion, participants should be able to:</p>
-              <ul style={{ margin: 0, paddingLeft: 18, fontSize: 11.5, lineHeight: 1.9, color: "#374151" }}>
-                {outcomes.map((o, i) => <li key={i}>{o}</li>)}
-              </ul>
+              <p style={{ margin: "0 0 9px", fontSize: 10, lineHeight: 1.65, color: "#6b7280" }}>Upon successful completion, participants should be able to:</p>
+              <BulletList items={outcomes} />
             </Section>
           </div>
           <ColumnDivider />
           <div style={{ flex: 1 }}>
-            <Section icon="clipboard" title="ASSESSMENT METHOD"><CheckList items={assessment} /></Section>
+            <Section icon="clipboard" title="ASSESSMENT METHOD"><BulletList items={assessment} /></Section>
             {showSkillsRecord && (
               <Section icon="doc" title="PARTICIPANT SKILLS RECORD">
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 9.5 }}>
                   <thead>
-                    <tr style={{ background: navy, color: "#fff" }}>
-                      <th style={{ textAlign: "left", padding: "5px 6px", fontWeight: 600 }}>Assessment Area</th>
-                      <th style={{ textAlign: "left", padding: "5px 6px", fontWeight: 600 }}>Status</th>
+                    <tr>
+                      <th style={{ textAlign: "left", padding: "0 6px 5px 0", fontWeight: 700, color: "#8a94a6", fontFamily: SANS, fontSize: 7.5, letterSpacing: 1.1, textTransform: "uppercase", borderBottom: `1px solid ${gold}` }}>Assessment Area</th>
+                      <th style={{ textAlign: "left", padding: "0 0 5px 6px", fontWeight: 700, color: "#8a94a6", fontFamily: SANS, fontSize: 7.5, letterSpacing: 1.1, textTransform: "uppercase", borderBottom: `1px solid ${gold}` }}>Status</th>
                     </tr>
                   </thead>
                   <tbody>
                     {skillsRecord.map((r, i) => {
                       const affirmative = isAffirmativeStatus(r.status);
                       return (
-                        <tr key={i} style={{ borderBottom: "1px solid #e5e7eb" }}>
-                          <td style={{ padding: "5px 6px", color: "#374151" }}>{r.area}</td>
-                          <td style={{ padding: "5px 6px", color: affirmative ? gold : "#6b7280", fontWeight: affirmative ? 700 : 400 }}>
-                            {affirmative ? "✓ " : ""}{r.status}
-                          </td>
+                        <tr key={i} style={{ borderBottom: "1px solid #eef1f5" }}>
+                          <td style={{ padding: "5px 6px 5px 0", color: "#374151" }}>{r.area}</td>
+                          <td style={{ padding: "5px 0 5px 6px", color: affirmative ? navy : "#8a94a6", fontWeight: affirmative ? 700 : 400 }}>{r.status}</td>
                         </tr>
                       );
                     })}
@@ -514,36 +572,42 @@ export function CertificateBackPage({ data, config }: { data: CertData; config: 
           </div>
         </div>
 
-        <div style={{ position: "relative", border: `1.5px solid ${gold}`, borderRadius: 6, padding: "14px 18px", marginTop: 10, overflow: "hidden" }}>
-          {config.inspector_watermark_level
-            ? <InspectorWatermark color={navy} corner level={config.inspector_watermark_level} />
-            : config.wah_watermark
-            ? <WorkingAtHeightWatermark color={navy} corner />
-            : <ScaffoldMotif color={navy} corner level={config.watermark_level} />}
+        <div style={{ position: "relative", border: "1px solid #e3e7ee", borderLeft: `2px solid ${gold}`, padding: "13px 16px", marginTop: 8, overflow: "hidden" }}>
           <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-            <CircleIcon kind="warning" navy={navy} gold={gold} size={24} />
-            <span style={{ fontSize: 12.5, fontWeight: 700, color: navy }}>IMPORTANT NOTICE</span>
+            <Glyph kind="warning" color={gold} size={11} />
+            <span style={{ fontSize: 9, fontWeight: 700, color: navy, letterSpacing: 1.5, fontFamily: SANS }}>IMPORTANT NOTICE</span>
           </div>
           {noticeParagraphs.map((p, i) => (
-            <p key={i} style={{ position: "relative", margin: i === 0 ? 0 : "7px 0 0", fontSize: 10.5, lineHeight: 1.7, color: "#4b5563" }}>
+            <p key={i} style={{ position: "relative", margin: i === 0 ? 0 : "6px 0 0", fontSize: 9.5, lineHeight: 1.65, color: "#6b7280" }}>
               {p.replace("{{PROGRAMME_NAME}}", data.course_name || "this programme")}
             </p>
           ))}
         </div>
 
-        <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1.5px solid ${gold}` }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-            <CircleIcon kind="shield" navy={navy} gold={gold} size={24} />
-            <span style={{ fontSize: 12.5, fontWeight: 700, color: navy, letterSpacing: 0.5 }}>VERIFICATION</span>
+        <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #e3e7ee" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 11 }}>
+            <Glyph kind="shield" color={gold} size={11} />
+            <span style={{ fontSize: 9, fontWeight: 700, color: navy, letterSpacing: 1.5, fontFamily: SANS }}>VERIFICATION</span>
           </div>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", rowGap: 8, columnGap: 28, fontSize: 10.5, color: "#374151" }}>
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}><CircleIcon kind="doc" navy={navy} gold={gold} size={20} /><span><strong style={{ color: navy }}>Certificate No.</strong> {data.certificate_number}</span></div>
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}><CircleIcon kind="phone" navy={navy} gold={gold} size={20} /><span><strong style={{ color: navy }}>Contact Number</strong> {config.contact_phone || "019-519 3834"}</span></div>
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}><CircleIcon kind="globe" navy={navy} gold={gold} size={20} /><span><strong style={{ color: navy }}>Website</strong> {config.contact_website || "www.terasuniversal.com.my"}</span></div>
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}><CircleIcon kind="mail" navy={navy} gold={gold} size={20} /><span><strong style={{ color: navy }}>Email</strong> {config.contact_email || "admin@terasuniversal.com.my"}</span></div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 22 }}>
+            <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", rowGap: 9, columnGap: 24, fontSize: 9.5, color: "#374151" }}>
+              {[
+                { label: "Certificate No.", value: data.certificate_number },
+                { label: "Contact Number", value: config.contact_phone || "019-519 3834" },
+                { label: "Website", value: config.contact_website || "www.terasuniversal.com.my" },
+                { label: "Email", value: config.contact_email || "admin@terasuniversal.com.my" },
+              ].map((row) => (
+                <div key={row.label} style={{ borderLeft: "1px solid #e3e7ee", paddingLeft: 10 }}>
+                  <div style={{ fontSize: 7.5, letterSpacing: 1.1, color: "#8a94a6", fontFamily: SANS, textTransform: "uppercase" }}>{row.label}</div>
+                  <div style={{ color: navy, fontWeight: 700, marginTop: 2 }}>{row.value}</div>
+                </div>
+              ))}
             </div>
-            {config.show_qr !== false && data.qr_svg && <QrBlock svg={data.qr_svg} navy={navy} gold={gold} size={58} caption={false} />}
+            {config.show_qr !== false && data.qr_svg && (
+              <div style={{ borderLeft: "1px solid #e3e7ee", paddingLeft: 20 }}>
+                <QrBlock svg={data.qr_svg} navy={navy} gold={gold} size={56} caption={false} />
+              </div>
+            )}
           </div>
         </div>
       </div>

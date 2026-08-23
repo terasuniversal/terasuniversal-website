@@ -1,7 +1,16 @@
 import type { CertData, TemplateConfig } from "../components/admin/CertificateDocument";
 import { fitHolderNameSize, formatDateRange, isAffirmativeStatus } from "./certificate-format";
 import { renderProfessionalScaffoldCertificateDocument } from "./professional-scaffold-certificate-html";
-import { scaffoldWatermarkLines, type ScaffoldWatermarkLevel, inspectorWatermarkShapes, type InspectorWatermarkLevel, workingAtHeightWatermarkShapes } from "./certificate-watermarks";
+import {
+  scaffoldWatermarkLines,
+  type ScaffoldWatermarkLevel,
+  inspectorWatermarkShapes,
+  type InspectorWatermarkLevel,
+  workingAtHeightWatermarkShapes,
+  type WatermarkPrimitives,
+  BLUEPRINT_GRID,
+  REGISTRATION_TICKS,
+} from "./certificate-watermarks";
 
 /**
  * Standalone HTML string renderer for a certificate — no React / no
@@ -15,6 +24,8 @@ import { scaffoldWatermarkLines, type ScaffoldWatermarkLevel, inspectorWatermark
 const PAGE_W = 794;
 const PAGE_H = 1123;
 const REG_NO = "202201038223 (1477529-X)";
+/** Mirrors SANS in CertificateDocument.tsx — see that constant's comment. */
+const SANS = "'Helvetica Neue',Helvetica,Arial,sans-serif";
 
 const DEFAULT_BODY_TEXT =
   "This programme focuses on developing practical knowledge, safety awareness and safe working practices through structured learning and practical activities.";
@@ -50,93 +61,71 @@ function esc(v: unknown): string {
     .replace(/"/g, "&quot;");
 }
 
-/** Mirrors CornerRibbon in CertificateDocument.tsx — the standard rotated-band CSS corner-ribbon technique. */
-function cornerRibbon(corner: "tl" | "br", navy: string, gold: string): string {
-  const isTl = corner === "tl";
-  const place = isTl ? "top:26px;left:-54px;" : "bottom:26px;right:-54px;";
-  const placeTrim = isTl ? "top:37px;left:-54px;" : "bottom:37px;right:-54px;";
-  const placeLine = isTl ? "top:18px;left:-54px;" : "bottom:18px;right:-54px;";
+/** Mirrors CertificateFrame in CertificateDocument.tsx — see that component's comment for why the ribbon/triple-border treatment was dropped. */
+function certificateFrame(navy: string, gold: string): string {
+  const corners: [string, string][] = [
+    ["tl", "top:18px;left:18px;"],
+    ["tr", "top:18px;right:18px;"],
+    ["bl", "bottom:18px;left:18px;"],
+    ["br", "bottom:18px;right:18px;"],
+  ];
+  const brackets = corners
+    .map(([key, box]) => {
+      const vy = key[0] === "t" ? "top:0;" : "bottom:0;";
+      const hx = key[1] === "l" ? "left:0;" : "right:0;";
+      return `<div style="position:absolute;width:34px;height:34px;pointer-events:none;${box}">
+        <div style="position:absolute;width:34px;height:1.5px;background:${gold};${vy}${hx}"></div>
+        <div style="position:absolute;width:1.5px;height:34px;background:${gold};${vy}${hx}"></div>
+      </div>`;
+    })
+    .join("");
   return `
-  <div style="position:absolute;width:200px;height:25px;background:${navy};transform:rotate(-45deg);transform-origin:center;${place}"></div>
-  <div style="position:absolute;width:200px;height:3px;background:${gold};transform:rotate(-45deg);transform-origin:center;${placeTrim}"></div>
-  <div style="position:absolute;width:200px;height:1px;background:${gold};opacity:.55;transform:rotate(-45deg);transform-origin:center;${placeLine}"></div>`;
+  <div style="position:absolute;inset:10px;border:1px solid ${navy};pointer-events:none;"></div>
+  <div style="position:absolute;inset:14px;border:1px solid ${gold};opacity:.4;pointer-events:none;"></div>
+  ${brackets}`;
 }
 
-function ornateBorder(navy: string, gold: string): string {
-  const bracket = (corner: "tr" | "bl", size: number) => {
-    const h = corner === "tr" ? `top:12px;right:12px;width:${size}px;height:2px;` : `bottom:12px;left:12px;width:${size}px;height:2px;`;
-    const v = corner === "tr" ? `top:12px;right:12px;width:2px;height:${size}px;` : `bottom:12px;left:12px;width:2px;height:${size}px;`;
-    const h2 = corner === "tr" ? `top:18px;right:18px;width:${size * 0.6}px;height:1px;` : `bottom:18px;left:18px;width:${size * 0.6}px;height:1px;`;
-    const v2 = corner === "tr" ? `top:18px;right:18px;width:1px;height:${size * 0.6}px;` : `bottom:18px;left:18px;width:1px;height:${size * 0.6}px;`;
-    return `<div style="position:absolute;background:${gold};${h}"></div><div style="position:absolute;background:${gold};${v}"></div>
-      <div style="position:absolute;background:${gold};opacity:.6;${h2}"></div><div style="position:absolute;background:${gold};opacity:.6;${v2}"></div>`;
-  };
-  return `
-  ${cornerRibbon("tl", navy, gold)}
-  ${cornerRibbon("br", navy, gold)}
-  ${bracket("tr", 38)}
-  ${bracket("bl", 38)}
-  <div style="position:absolute;inset:4px;border:2px solid ${navy};pointer-events:none;"></div>
-  <div style="position:absolute;inset:9px;border:1px solid ${gold};pointer-events:none;"></div>
-  <div style="position:absolute;inset:13px;border:1px solid ${navy};opacity:.25;pointer-events:none;"></div>`;
+/** Mirrors WatermarkLayer's renderSet in CertificateDocument.tsx — maps one shape set to an SVG `<g>` string at the given stroke weight/opacity. */
+function renderWatermarkSet(set: WatermarkPrimitives, color: string, strokeWidth: number, opacity: number): string {
+  const lines = set.lines.map(([x1, y1, x2, y2]) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`).join("");
+  const rects = set.rects.map(([x, y, w, h]) => `<rect x="${x}" y="${y}" width="${w}" height="${h}"/>`).join("");
+  const circles = set.circles.map(([cx, cy, r]) => `<circle cx="${cx}" cy="${cy}" r="${r}"/>`).join("");
+  return `<g stroke="${color}" stroke-width="${strokeWidth}" fill="none" opacity="${opacity}">${lines}${rects}${circles}</g>`;
 }
 
 /**
- * Mirrors ScaffoldMotif in CertificateDocument.tsx — original SVG pole/brace
- * lines, not a photo/third-party asset. `level` (Standard Scaffold Erector
- * only, via config.watermark_level) sources its geometry from the same
- * lib/certificate-watermarks.ts helper the React renderer uses — "intermediate"
- * is the geometry this function always rendered, so every certificate
- * without a level renders byte-for-byte as before.
+ * Mirrors CertificateWatermark in CertificateDocument.tsx — resolves which
+ * watermark family a template renders (inspector_watermark_level takes
+ * precedence over wah_watermark, which takes precedence over the Scaffold
+ * Erector geometry defaulting to "intermediate") and renders its `primary`
+ * layer, plus the lighter `secondary` layer when this isn't the smaller
+ * back-page corner placement.
  */
-function scaffoldMotif(color: string, corner: boolean, level?: ScaffoldWatermarkLevel): string {
-  const pos = corner ? "bottom:-10px;right:-30px;width:460px;height:340px;" : "bottom:150px;left:50%;transform:translateX(-50%);width:460px;height:320px;";
-  const lines = scaffoldWatermarkLines(level ?? "intermediate");
-  const verticals = lines.verticals.map(([x, y1, y2]) => `<line x1="${x}" y1="${y1}" x2="${x}" y2="${y2}"/>`).join("");
-  const horizontals = lines.horizontals.map(([x1, x2, y]) => `<line x1="${x1}" y1="${y}" x2="${x2}" y2="${y}"/>`).join("");
-  const braces = lines.braces.map(([x1, y1, x2, y2]) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`).join("");
-  return `<svg viewBox="0 0 320 240" style="position:absolute;${pos}opacity:.055;pointer-events:none;">
-    <g stroke="${color}" stroke-width="2.5" fill="none">${verticals}${horizontals}${braces}</g>
-  </svg>`;
+function certificateWatermark(config: TemplateConfig, color: string, corner: boolean): string {
+  const shapes = config.inspector_watermark_level
+    ? inspectorWatermarkShapes(config.inspector_watermark_level)
+    : config.wah_watermark
+    ? workingAtHeightWatermarkShapes()
+    : scaffoldWatermarkLines(config.watermark_level ?? "intermediate");
+  // Mirrors WatermarkLayer's placement in CertificateDocument.tsx — both bleed
+  // past the page edge so the page's own overflow:hidden crops them.
+  const pos = corner ? "bottom:-28px;right:-44px;width:320px;height:230px;" : "bottom:86px;right:-70px;width:560px;height:390px;";
+  const primaryG = renderWatermarkSet(shapes.primary, color, 1.8, 0.06);
+  const secondaryG = corner ? "" : renderWatermarkSet(shapes.secondary, color, 1.1, 0.04);
+  // Drafting grid + corner registration ticks, front placement only — mirrors
+  // WatermarkLayer in CertificateDocument.tsx.
+  const strokes = (set: [number, number, number, number][]) =>
+    set.map(([x1, y1, x2, y2]) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`).join("");
+  const underlayG = corner
+    ? ""
+    : `<g stroke="${color}" stroke-width="0.6" fill="none" opacity="0.032">${strokes(BLUEPRINT_GRID)}</g>` +
+      `<g stroke="${color}" stroke-width="0.9" fill="none" opacity="0.055">${strokes(REGISTRATION_TICKS)}</g>`;
+  return `<svg viewBox="0 0 320 240" style="position:absolute;${pos}pointer-events:none;">${underlayG}${primaryG}${secondaryG}</svg>`;
 }
 
-/**
- * Mirrors InspectorWatermark in CertificateDocument.tsx — clipboard/checklist
- * + magnifier + tagged scaffold inspection points, a distinct visual theme
- * from scaffoldMotif above (Standard Scaffold Inspector only, via
- * config.inspector_watermark_level).
- */
-function inspectorWatermark(color: string, corner: boolean, level: InspectorWatermarkLevel): string {
-  const pos = corner ? "bottom:-10px;right:-30px;width:460px;height:340px;" : "bottom:150px;left:50%;transform:translateX(-50%);width:460px;height:320px;";
-  const shapes = inspectorWatermarkShapes(level);
-  const lines = shapes.lines.map(([x1, y1, x2, y2]) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`).join("");
-  const rects = shapes.rects.map(([x, y, w, h]) => `<rect x="${x}" y="${y}" width="${w}" height="${h}"/>`).join("");
-  const circles = shapes.circles.map(([cx, cy, r]) => `<circle cx="${cx}" cy="${cy}" r="${r}"/>`).join("");
-  return `<svg viewBox="0 0 320 240" style="position:absolute;${pos}opacity:.055;pointer-events:none;">
-    <g stroke="${color}" stroke-width="2.5" fill="none">${lines}${rects}${circles}</g>
-  </svg>`;
-}
-
-/**
- * Mirrors WorkingAtHeightWatermark in CertificateDocument.tsx — full-body
- * harness silhouette + twin-leg lanyard + overhead anchorage/fall-arrest
- * line, a third distinct visual theme from scaffoldMotif/inspectorWatermark
- * above (Working at Height only, via config.wah_watermark).
- */
-function workingAtHeightWatermark(color: string, corner: boolean): string {
-  const pos = corner ? "bottom:-10px;right:-30px;width:460px;height:340px;" : "bottom:150px;left:50%;transform:translateX(-50%);width:460px;height:320px;";
-  const shapes = workingAtHeightWatermarkShapes();
-  const lines = shapes.lines.map(([x1, y1, x2, y2]) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`).join("");
-  const rects = shapes.rects.map(([x, y, w, h]) => `<rect x="${x}" y="${y}" width="${w}" height="${h}"/>`).join("");
-  const circles = shapes.circles.map(([cx, cy, r]) => `<circle cx="${cx}" cy="${cy}" r="${r}"/>`).join("");
-  return `<svg viewBox="0 0 320 240" style="position:absolute;${pos}opacity:.055;pointer-events:none;">
-    <g stroke="${color}" stroke-width="2.5" fill="none">${lines}${rects}${circles}</g>
-  </svg>`;
-}
-
-type IconKind = "calendar" | "refresh" | "doc" | "id" | "target" | "book" | "bulb" | "clipboard" | "warning" | "shield" | "globe" | "phone" | "mail";
+type IconKind = "calendar" | "refresh" | "doc" | "id" | "target" | "book" | "bulb" | "clipboard" | "warning" | "shield";
 function iconGlyph(kind: IconKind, color: string): string {
-  const a = `width="58%" height="58%" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"`;
+  const a = `width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"`;
   switch (kind) {
     case "calendar": return `<svg ${a}><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>`;
     case "refresh": return `<svg ${a}><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v5h-5"/></svg>`;
@@ -148,42 +137,41 @@ function iconGlyph(kind: IconKind, color: string): string {
     case "clipboard": return `<svg ${a}><rect x="5" y="4" width="14" height="17" rx="2"/><rect x="9" y="2.5" width="6" height="3" rx="1"/><path d="M8.5 11l2 2 4-4.5M8.5 17h7"/></svg>`;
     case "warning": return `<svg ${a}><path d="M12 3.5 21.5 20h-19z"/><path d="M12 9.5v4.2M12 17h.01"/></svg>`;
     case "shield": return `<svg ${a}><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4.5"/></svg>`;
-    case "globe": return `<svg ${a}><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.5 2.4 3.8 5.4 3.8 8.5s-1.3 6.1-3.8 8.5c-2.5-2.4-3.8-5.4-3.8-8.5S9.5 5.9 12 3.5z"/></svg>`;
-    case "phone": return `<svg ${a}><path d="M5 4h3l1.5 4.5L7.5 10a12 12 0 0 0 6.5 6.5l1.5-2L20 16v3a1.5 1.5 0 0 1-1.6 1.5A16 16 0 0 1 3.5 5.6 1.5 1.5 0 0 1 5 4z"/></svg>`;
-    case "mail": return `<svg ${a}><rect x="3" y="5.5" width="18" height="13" rx="2"/><path d="M3.5 6.5 12 13l8.5-6.5"/></svg>`;
   }
 }
 
-function circleIcon(kind: IconKind, navy: string, gold: string, size = 30): string {
-  return `<div style="width:${size}px;height:${size}px;min-width:${size}px;border-radius:50%;background:${navy};border:1.5px solid ${gold};display:flex;align-items:center;justify-content:center;">${iconGlyph(kind, "#fff")}</div>`;
+/** Mirrors Glyph in CertificateDocument.tsx — bare icon at a fixed box size, no ring/disc. */
+function glyph(kind: IconKind, color: string, size = 12): string {
+  return `<span style="width:${size}px;height:${size}px;min-width:${size}px;display:inline-flex;align-items:center;justify-content:center;">${iconGlyph(kind, color)}</span>`;
 }
 
+/** Mirrors MetaTile in CertificateDocument.tsx — one cell of the front-page record strip. */
 function metaTile(icon: IconKind, label: string, value: string, navy: string, gold: string): string {
-  return `<div style="display:flex;gap:10px;align-items:center;">
-    ${circleIcon(icon, navy, gold, 34)}
-    <div>
-      <div style="font-size:9.5px;text-transform:uppercase;letter-spacing:.6px;color:#6b7280;">${esc(label)}</div>
-      <div style="font-size:13.5px;font-weight:700;color:${navy};font-family:Georgia,serif;">${esc(value)}</div>
+  return `<div style="flex:1;min-width:0;">
+    <div style="display:flex;align-items:center;gap:5px;margin-bottom:4px;">
+      ${glyph(icon, gold, 10)}
+      <span style="font-size:7px;text-transform:uppercase;letter-spacing:1.1px;color:#8a94a6;font-family:${SANS};">${esc(label)}</span>
     </div>
+    <div style="font-size:11.5px;font-weight:700;color:${navy};font-family:Georgia,serif;line-height:1.35;word-break:break-word;">${esc(value)}</div>
   </div>`;
 }
 
 /** Mirrors QrBlock in CertificateDocument.tsx — svg is pre-generated inline markup, not an <img src>. */
 function qrBlock(svg: string, navy: string, gold: string, size: number, caption: boolean): string {
-  return `<div style="width:${size + 34}px;border:1.5px solid ${gold};border-radius:6px;padding:12px 9px;text-align:center;background:#fff;">
-    <div style="font-size:10px;font-weight:700;color:${navy};letter-spacing:.6px;margin-bottom:7px;">QR VERIFICATION</div>
-    <div style="width:${size}px;height:${size}px;margin:0 auto;padding:4px;background:#fff;border:1px solid #eee;">${svg}</div>
-    ${caption ? `<div style="font-size:8.5px;color:#6b7280;margin-top:7px;line-height:1.35;">Scan to verify this certificate at Teras Universal Database</div>` : ""}
+  return `<div style="width:${size + 22}px;text-align:center;">
+    <div style="font-size:7px;font-weight:700;color:${navy};letter-spacing:1.6px;margin-bottom:2px;font-family:${SANS};">QR VERIFICATION</div>
+    <div style="width:22px;height:1px;background:${gold};margin:0 auto 7px;"></div>
+    <div style="position:relative;width:${size + 8}px;height:${size + 8}px;margin:0 auto;">
+      <div style="position:absolute;inset:-3px;border:1px solid ${gold};opacity:.7;"></div>
+      <div style="position:absolute;inset:0;padding:4px;background:#fff;border:1px solid ${navy};box-sizing:border-box;">${svg}</div>
+    </div>
+    ${caption ? `<div style="font-size:7px;color:#8a94a6;margin-top:8px;line-height:1.5;font-family:${SANS};letter-spacing:.2px;">Scan to verify this certificate at Teras Universal Database</div>` : ""}
   </div>`;
 }
 
-/** Mirrors RibbonBanner in CertificateDocument.tsx — pointed-end banner shape via clip-path. */
+/** Mirrors RibbonBanner in CertificateDocument.tsx — flat navy label plate ruled top and bottom in gold; see that component's comment for why the offset ring was dropped. */
 function ribbonBanner(inner: string, navy: string, gold: string, wrapStyle = ""): string {
-  const clip = "clip-path:polygon(2% 0%,98% 0%,100% 50%,98% 100%,2% 100%,0% 50%);";
-  return `<div style="position:relative;display:inline-block;${wrapStyle}">
-    <div style="position:absolute;inset:-3px;background:${gold};${clip}"></div>
-    <div style="position:relative;background:${navy};color:#fff;${clip}padding:8px 34px;">${inner}</div>
-  </div>`;
+  return `<div style="display:inline-block;background:${navy};color:#fff;padding:5px 30px;border-top:1px solid ${gold};border-bottom:1px solid ${gold};${wrapStyle}">${inner}</div>`;
 }
 
 /** Render the certificate front (page 1, the A4 card) as an HTML string. */
@@ -195,84 +183,81 @@ export function renderCertificateFront(data: CertData, config: TemplateConfig): 
   const nameSize = fitHolderNameSize(data.holder_name) + 4;
   const bgImage = config.background_url ? `background-image:url('${esc(config.background_url)}');background-size:cover;background-position:center;` : "";
 
-  const motif = !config.background_url
-    ? config.inspector_watermark_level
-      ? inspectorWatermark(navy, false, config.inspector_watermark_level)
-      : config.wah_watermark
-      ? workingAtHeightWatermark(navy, false)
-      : scaffoldMotif(navy, false, config.watermark_level)
-    : "";
-  const logo = config.logo_url ? `<img src="${esc(config.logo_url)}" alt="" style="width:104px;height:104px;object-fit:contain;margin:0 auto 6px;display:block;"/>` : "";
-  const icBlock = data.ic_passport ? `<p style="font-size:12.5px;color:#6b7280;margin:10px 0 0;">Passport / IC No: ${esc(data.ic_passport)}</p>` : "";
+  const motif = !config.background_url ? certificateWatermark(config, navy, false) : "";
+  const logo = config.logo_url ? `<img src="${esc(config.logo_url)}" alt="" style="width:105px;height:74px;object-fit:contain;display:block;margin:0 auto 11px;"/>` : "";
+  const icBlock = data.ic_passport ? `<p style="font-size:9.5px;color:#8a94a6;margin:11px 0 0;letter-spacing:.6px;font-family:${SANS};">Passport / IC No: ${esc(data.ic_passport)}</p>` : "";
   const durationBlock = duration
-    ? ribbonBanner(`<span style="font-size:12.5px;font-weight:600;letter-spacing:.5px;">${esc(duration)}</span>`, navy, gold, "margin:14px auto 0;display:block;width:fit-content;")
+    ? ribbonBanner(`<span style="font-size:9px;font-weight:600;letter-spacing:2.4px;font-family:${SANS};text-indent:2.4px;">${esc(duration)}</span>`, navy, gold, "margin:16px auto 0;display:block;width:fit-content;")
     : "";
-  const dateBlock = dateRange ? `<p style="font-size:12.5px;color:#4b5563;margin:13px 0 0;"><strong style="color:${navy};">Conducted from</strong> ${esc(dateRange)}</p>` : "";
-  const qrHtml = config.show_qr !== false && data.qr_svg ? qrBlock(data.qr_svg, navy, gold, 104, true) : "";
-  const signatureImg = config.signature_url ? `<img src="${esc(config.signature_url)}" alt="" style="height:38px;object-fit:contain;"/>` : "";
+  const dateBlock = dateRange
+    ? `<p style="font-size:11px;color:#4b5563;margin:16px 0 0;"><span style="color:#8a94a6;letter-spacing:1.3px;font-size:8.5px;font-family:${SANS};text-transform:uppercase;">Conducted from </span>${esc(dateRange)}</p>`
+    : "";
+  const qrHtml = config.show_qr !== false && data.qr_svg ? qrBlock(data.qr_svg, navy, gold, 82, true) : "";
+  const signatureImg = config.signature_url ? `<img src="${esc(config.signature_url)}" alt="" style="max-height:44px;max-width:168px;object-fit:contain;"/>` : "";
+  const signatureWell = `<div style="height:46px;display:flex;align-items:flex-end;justify-content:center;padding-bottom:2px;">${signatureImg}</div>`;
+  const roleLine = (text: string) => `<div style="color:#8a94a6;font-size:8.5px;letter-spacing:1.3px;font-family:${SANS};text-transform:uppercase;margin-top:3px;">${esc(text)}</div>`;
 
   const isSingleSignature = config.signature_layout === "single";
   const primarySignatureBlock = isSingleSignature
-    ? `<div style="text-align:center;font-size:11.5px;width:180px;">
-        ${signatureImg}
-        <div style="border-top:1px solid ${navy};margin:4px 0;"></div>
-        <strong style="color:${navy};">${esc(config.signature_name || config.signature_title || "Director")}</strong>
-        ${config.signature_name ? `<div style="color:#6b7280;">${esc(config.signature_title || "Director")}</div>` : ""}
+    ? `<div style="text-align:center;font-size:11px;width:196px;">
+        ${signatureWell}
+        <div style="border-top:1px solid ${navy};margin:5px 0 6px;"></div>
+        <strong style="color:${navy};letter-spacing:.3px;">${esc(config.signature_name || config.signature_title || "Director")}</strong>
+        ${config.signature_name ? roleLine(config.signature_title || "Director") : ""}
       </div>`
-    : `<div style="text-align:center;font-size:11.5px;width:180px;">
-        ${signatureImg}
-        <div style="border-top:1px solid ${navy};margin:4px 0;"></div>
-        <strong style="color:${navy};">${esc(config.signature_name || "Trainer")}</strong>
-        <div style="color:#6b7280;">Trainer Signature</div>
+    : `<div style="text-align:center;font-size:11px;width:196px;">
+        ${signatureWell}
+        <div style="border-top:1px solid ${navy};margin:5px 0 6px;"></div>
+        <strong style="color:${navy};letter-spacing:.3px;">${esc(config.signature_name || "Trainer")}</strong>
+        ${roleLine("Trainer Signature")}
       </div>`;
   const secondarySignatureBlock = isSingleSignature
     ? ""
-    : `<div style="text-align:center;font-size:11.5px;width:180px;">
-        <div style="height:38px;"></div>
-        <div style="border-top:1px solid ${navy};margin:4px 0;"></div>
-        <strong style="color:${navy};">${esc(config.signature_title || "Training Manager")}</strong>
-        <div style="color:#6b7280;">Training Manager</div>
+    : `<div style="text-align:center;font-size:11px;width:196px;">
+        <div style="height:46px;"></div>
+        <div style="border-top:1px solid ${navy};margin:5px 0 6px;"></div>
+        <strong style="color:${navy};letter-spacing:.3px;">${esc(config.signature_title || "Training Manager")}</strong>
+        ${roleLine("Training Manager")}
       </div>`;
 
   return `<div style="width:${PAGE_W}px;height:${PAGE_H}px;margin:0 auto;position:relative;background:#fff;box-sizing:border-box;padding:34px;font-family:Georgia,'Times New Roman',serif;color:#1F2937;overflow:hidden;${bgImage}">
   ${motif}
-  ${ornateBorder(navy, gold)}
-  <div style="position:relative;height:100%;padding:26px 34px;display:flex;flex-direction:column;text-align:center;">
+  ${certificateFrame(navy, gold)}
+  <div style="position:relative;height:100%;box-sizing:border-box;padding:30px 40px;display:flex;flex-direction:column;text-align:center;">
     ${logo}
-    <div style="letter-spacing:2px;font-size:15px;color:${navy};font-weight:700;">TERAS UNIVERSAL SDN. BHD.</div>
-    <div style="font-size:9.5px;color:#6b7280;margin-top:2px;">${REG_NO}</div>
-    <h1 style="font-size:56px;margin:18px 0 0;letter-spacing:2px;color:${gold};font-weight:700;line-height:1;">CERTIFICATE</h1>
-    <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-top:8px;">
-      <span style="width:46px;height:1.5px;background:${gold};display:inline-block;"></span>
-      <span style="font-size:14px;color:${navy};letter-spacing:3px;font-weight:600;">OF SUCCESSFUL COMPLETION</span>
-      <span style="width:46px;height:1.5px;background:${gold};display:inline-block;"></span>
-    </div>
-    <p style="font-size:13.5px;margin:22px 0 6px;color:#4b5563;">This certificate is proudly presented to</p>
-    <div style="position:relative;display:inline-block;margin:0 auto;">
-      <div style="font-size:${nameSize}px;font-weight:700;color:${navy};display:inline-block;padding:0 24px 8px;max-width:660px;word-break:break-word;">${esc(data.holder_name)}</div>
-      <div style="border-top:2px solid ${gold};position:relative;">
-        <span style="position:absolute;top:-4px;left:50%;transform:translateX(-50%) rotate(45deg);width:7px;height:7px;background:${gold};"></span>
+    <div style="letter-spacing:3.4px;font-size:13px;color:${navy};font-weight:700;">TERAS UNIVERSAL SDN. BHD.</div>
+    <div style="font-size:8px;color:#8a94a6;margin-top:4px;letter-spacing:1px;font-family:${SANS};">${REG_NO}</div>
+    <div style="width:44px;height:1px;background:${gold};margin:12px auto 0;"></div>
+    <h1 style="font-size:44px;margin:16px 0 0;letter-spacing:14px;color:${navy};font-weight:700;line-height:1;text-indent:14px;">CERTIFICATE</h1>
+    <div style="font-size:8.5px;color:#8a94a6;letter-spacing:5px;font-weight:600;font-family:${SANS};text-indent:5px;margin-top:10px;">OF SUCCESSFUL COMPLETION</div>
+    <p style="font-size:9.5px;margin:26px 0 10px;color:#8a94a6;letter-spacing:1.8px;font-family:${SANS};text-transform:uppercase;text-indent:1.8px;">This certificate is proudly presented to</p>
+    <div style="position:relative;display:inline-block;margin:0 auto;max-width:660px;">
+      <div style="font-size:${nameSize}px;font-weight:700;color:${navy};padding:0 24px 13px;word-break:break-word;line-height:1.25;letter-spacing:.5px;">${esc(data.holder_name)}</div>
+      <div style="position:relative;height:1px;background:#d3d9e2;">
+        <span style="position:absolute;top:-0.5px;left:50%;transform:translateX(-50%);width:92px;height:1.5px;background:${gold};"></span>
       </div>
     </div>
     ${icBlock}
-    <p style="font-size:13.5px;margin:20px 0 4px;color:#4b5563;">For successfully completing the</p>
-    <div style="font-size:20px;font-weight:700;color:${navy};text-transform:uppercase;line-height:1.35;max-width:640px;margin:0 auto;">${esc(data.course_name ?? "")}</div>
+    <p style="font-size:9px;margin:22px 0 0;color:#8a94a6;letter-spacing:1.8px;font-family:${SANS};text-transform:uppercase;text-indent:1.8px;">For successfully completing the</p>
+    <div style="width:26px;height:1px;background:${gold};margin:9px auto 11px;"></div>
+    <div style="font-size:23px;font-weight:700;color:${navy};text-transform:uppercase;line-height:1.38;max-width:600px;margin:0 auto;letter-spacing:1.4px;">${esc(data.course_name ?? "")}</div>
     ${durationBlock}
     ${dateBlock}
-    <p style="font-size:12.5px;line-height:1.65;max-width:590px;margin:16px auto 0;color:#4b5563;">${esc(config.body_text || DEFAULT_BODY_TEXT)}</p>
-    <div style="display:flex;gap:20px;margin:auto 0 0;padding-top:20px;text-align:left;position:relative;">
-      <div style="flex:1;display:grid;grid-template-columns:1fr 1fr;row-gap:20px;column-gap:14px;align-content:center;">
-        ${metaTile("calendar", "Date of Completion", data.issue_date || "—", navy, gold)}
-        ${metaTile("refresh", "Recommended Skills Update", config.skills_update_recommendation || "Within Three (3) Years", navy, gold)}
-        ${metaTile("doc", "Certificate No.", data.certificate_number, navy, gold)}
-        ${metaTile("id", "Participant ID", data.participant_id || "—", navy, gold)}
-      </div>
-      ${qrHtml}
+    <p style="font-size:10.5px;line-height:1.85;max-width:520px;margin:17px auto 0;color:#6b7280;">${esc(config.body_text || DEFAULT_BODY_TEXT)}</p>
+    <div style="margin:auto 0 0;background:#F7F9FB;border-top:1px solid #e3e7ee;border-bottom:1px solid #e3e7ee;padding:15px 20px;display:flex;gap:20px;text-align:left;align-items:flex-start;">
+      ${metaTile("calendar", "Date of Completion", data.issue_date || "—", navy, gold)}
+      <div style="width:1px;background:#e3e7ee;align-self:stretch;"></div>
+      ${metaTile("refresh", "Skills Update", config.skills_update_recommendation || "Within Three (3) Years", navy, gold)}
+      <div style="width:1px;background:#e3e7ee;align-self:stretch;"></div>
+      ${metaTile("doc", "Certificate No.", data.certificate_number, navy, gold)}
+      <div style="width:1px;background:#e3e7ee;align-self:stretch;"></div>
+      ${metaTile("id", "Participant ID", data.participant_id || "—", navy, gold)}
     </div>
-    <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-top:28px;padding-top:4px;">
+    <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:26px;margin-top:26px;">
       ${primarySignatureBlock}
       ${secondarySignatureBlock}
-      <div style="text-align:center;font-size:10.5px;width:66px;height:66px;border-radius:50%;border:1px dashed ${gold};display:flex;align-items:center;justify-content:center;color:#9ca3af;padding:4px;">COMPANY STAMP</div>
+      <div style="text-align:center;font-size:7px;letter-spacing:1.2px;font-family:${SANS};width:66px;height:66px;border-radius:50%;border:1px dashed ${gold};opacity:.95;display:flex;align-items:center;justify-content:center;color:#9aa3b2;padding:4px;margin-bottom:6px;">COMPANY STAMP</div>
+      ${qrHtml}
     </div>
   </div>
 </div>`;
@@ -283,11 +268,7 @@ export function renderCertificateBack(data: CertData, config: TemplateConfig): s
   if (config.show_back_page === false) return "";
   const navy = config.primary_color || "#0B3A63";
   const gold = config.accent_color || "#D4AF37";
-  const backMotif = config.inspector_watermark_level
-    ? inspectorWatermark(navy, true, config.inspector_watermark_level)
-    : config.wah_watermark
-    ? workingAtHeightWatermark(navy, true)
-    : scaffoldMotif(navy, true, config.watermark_level);
+  const backMotif = certificateWatermark(config, navy, true);
   const coverage = config.coverage_items?.length ? config.coverage_items : DEFAULT_COVERAGE;
   const outcomes = config.learning_outcomes?.length ? config.learning_outcomes : DEFAULT_OUTCOMES;
   const assessment = config.assessment_methods?.length ? config.assessment_methods : DEFAULT_ASSESSMENT;
@@ -296,83 +277,94 @@ export function renderCertificateBack(data: CertData, config: TemplateConfig): s
   const noticeParagraphs = config.important_notice ? config.important_notice.split(/\n{2,}/).filter(Boolean) : DEFAULT_NOTICE_PARAGRAPHS;
 
   const section = (icon: IconKind, title: string, body: string) =>
-    `<div style="margin-bottom:18px;">
-      <div style="display:flex;align-items:center;gap:8px;border-bottom:2px solid ${gold};padding-bottom:6px;margin-bottom:9px;">
-        ${circleIcon(icon, navy, gold, 24)}<span style="font-size:12.5px;font-weight:700;color:${navy};letter-spacing:.4px;">${esc(title)}</span>
+    `<div style="margin-bottom:15px;">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:7px;">
+        ${glyph(icon, gold, 11)}<span style="font-size:8.5px;font-weight:700;color:${navy};letter-spacing:1.6px;font-family:${SANS};">${esc(title)}</span>
+      </div>
+      <div style="display:flex;margin-bottom:8px;">
+        <span style="width:22px;height:1.5px;background:${gold};"></span>
+        <span style="flex:1;height:1px;background:#e3e7ee;align-self:center;"></span>
       </div>${body}
     </div>`;
-  const checklist = (items: string[]) =>
-    `<ul style="margin:0;padding:0;list-style:none;font-size:11.5px;line-height:1.9;color:#374151;">${items.map((it) => `<li style="display:flex;gap:6px;"><span style="color:${gold};font-weight:700;">✓</span>${esc(it)}</li>`).join("")}</ul>`;
-  const colDivider = `<div style="width:1px;align-self:stretch;background:linear-gradient(${gold},${gold});background-size:1px 6px;background-repeat:repeat-y;opacity:.55;"></div>`;
+  /** Mirrors BulletList in CertificateDocument.tsx — one gold-square bullet treatment for every list on this page. */
+  const bulletList = (items: string[]) =>
+    `<ul style="margin:0;padding:0;list-style:none;font-size:10px;line-height:1.7;color:#374151;">${items
+      .map((it) => `<li style="display:flex;gap:8px;margin-bottom:5px;"><span style="width:6px;height:1px;background:${gold};margin-top:8px;flex-shrink:0;"></span><span>${esc(it)}</span></li>`)
+      .join("")}</ul>`;
+  const colDivider = `<div style="width:1px;align-self:stretch;background:#edf0f4;"></div>`;
+  const thStyle = `text-align:left;font-weight:700;color:#8a94a6;font-family:${SANS};font-size:7.5px;letter-spacing:1.1px;text-transform:uppercase;border-bottom:1px solid ${gold};`;
 
   const skillsTable = showSkillsRecord
     ? section(
         "doc",
         "PARTICIPANT SKILLS RECORD",
-        `<table style="width:100%;border-collapse:collapse;font-size:11px;">
-          <thead><tr style="background:${navy};color:#fff;"><th style="text-align:left;padding:5px 6px;font-weight:600;">Assessment Area</th><th style="text-align:left;padding:5px 6px;font-weight:600;">Status</th></tr></thead>
+        `<table style="width:100%;border-collapse:collapse;font-size:9.5px;">
+          <thead><tr><th style="${thStyle}padding:0 6px 5px 0;">Assessment Area</th><th style="${thStyle}padding:0 0 5px 6px;">Status</th></tr></thead>
           <tbody>${skillsRecord.map((r) => {
             const affirmative = isAffirmativeStatus(r.status);
-            const color = affirmative ? gold : "#6b7280";
+            const color = affirmative ? navy : "#8a94a6";
             const weight = affirmative ? 700 : 400;
-            const mark = affirmative ? "✓ " : "";
-            return `<tr style="border-bottom:1px solid #e5e7eb;"><td style="padding:5px 6px;color:#374151;">${esc(r.area)}</td><td style="padding:5px 6px;color:${color};font-weight:${weight};">${mark}${esc(r.status)}</td></tr>`;
+            return `<tr style="border-bottom:1px solid #eef1f5;"><td style="padding:5px 6px 5px 0;color:#374151;">${esc(r.area)}</td><td style="padding:5px 0 5px 6px;color:${color};font-weight:${weight};">${esc(r.status)}</td></tr>`;
           }).join("")}</tbody>
         </table>`
       )
     : "";
 
   const noticeHtml = noticeParagraphs
-    .map((p, i) => `<p style="position:relative;margin:${i === 0 ? 0 : "7px 0 0"};font-size:10.5px;line-height:1.7;color:#4b5563;">${esc(p.replace("{{PROGRAMME_NAME}}", data.course_name || "this programme"))}</p>`)
+    .map((p, i) => `<p style="position:relative;margin:${i === 0 ? 0 : "6px 0 0"};font-size:9.5px;line-height:1.65;color:#6b7280;">${esc(p.replace("{{PROGRAMME_NAME}}", data.course_name || "this programme"))}</p>`)
     .join("");
-  const qrHtml = config.show_qr !== false && data.qr_svg ? qrBlock(data.qr_svg, navy, gold, 58, false) : "";
+  const verifyRow = (label: string, value: string) =>
+    `<div style="border-left:1px solid #e3e7ee;padding-left:10px;">
+      <div style="font-size:7.5px;letter-spacing:1.1px;color:#8a94a6;font-family:${SANS};text-transform:uppercase;">${esc(label)}</div>
+      <div style="color:${navy};font-weight:700;margin-top:2px;">${esc(value)}</div>
+    </div>`;
+  const qrHtml = config.show_qr !== false && data.qr_svg
+    ? `<div style="border-left:1px solid #e3e7ee;padding-left:20px;">${qrBlock(data.qr_svg, navy, gold, 56, false)}</div>`
+    : "";
 
   return `<div style="width:${PAGE_W}px;height:${PAGE_H}px;margin:0 auto;position:relative;background:#fff;box-sizing:border-box;padding:34px;font-family:Georgia,'Times New Roman',serif;color:#1F2937;overflow:hidden;">
   ${backMotif}
-  ${ornateBorder(navy, gold)}
-  <div style="position:relative;height:100%;padding:28px 34px;display:flex;flex-direction:column;">
-    ${ribbonBanner(`<span style="font-size:15px;font-weight:700;letter-spacing:2px;">PROGRAMME INFORMATION</span>`, navy, gold, "align-self:center;display:block;width:fit-content;margin:0 auto;")}
-    <div style="text-align:center;font-size:20px;font-weight:700;color:${navy};text-transform:uppercase;margin:16px 0 6px;line-height:1.3;">${esc(config.programme_title || data.course_name || "")}</div>
-    <div style="display:flex;justify-content:center;margin:0 0 20px;">
-      <span style="width:6px;height:6px;background:${gold};transform:rotate(45deg);display:inline-block;"></span>
-    </div>
-    <div style="display:flex;gap:22px;flex:1;">
+  ${certificateFrame(navy, gold)}
+  <div style="position:relative;height:100%;box-sizing:border-box;padding:30px 40px;display:flex;flex-direction:column;">
+    ${ribbonBanner(`<span style="font-size:9px;font-weight:700;letter-spacing:2.8px;font-family:${SANS};text-indent:2.8px;">PROGRAMME INFORMATION</span>`, navy, gold, "align-self:center;display:block;width:fit-content;margin:0 auto;")}
+    <div style="text-align:center;font-size:18px;font-weight:700;color:${navy};text-transform:uppercase;margin:15px 0 0;line-height:1.3;letter-spacing:1px;">${esc(config.programme_title || data.course_name || "")}</div>
+    <div style="width:44px;height:1px;background:${gold};margin:10px auto 17px;"></div>
+    <div style="display:flex;gap:26px;flex:1;">
       <div style="flex:1;">
-        ${section("target", "PROGRAMME OBJECTIVES", `<p style="margin:0;font-size:11.5px;line-height:1.75;color:#374151;">${esc(config.objectives_text || DEFAULT_OBJECTIVES)}</p>`)}
-        ${section("book", "PROGRAMME COVERAGE", checklist(coverage))}
+        ${section("target", "PROGRAMME OBJECTIVES", `<p style="margin:0;font-size:10px;line-height:1.75;color:#374151;">${esc(config.objectives_text || DEFAULT_OBJECTIVES)}</p>`)}
+        ${section("book", "PROGRAMME COVERAGE", bulletList(coverage))}
       </div>
       ${colDivider}
       <div style="flex:1;">
         ${section(
           "bulb",
           "LEARNING OUTCOMES",
-          `<p style="margin:0 0 8px;font-size:11.5px;color:#374151;">Upon successful completion, participants should be able to:</p>
-           <ul style="margin:0;padding-left:18px;font-size:11.5px;line-height:1.9;color:#374151;">${outcomes.map((o) => `<li>${esc(o)}</li>`).join("")}</ul>`
+          `<p style="margin:0 0 9px;font-size:10px;line-height:1.65;color:#6b7280;">Upon successful completion, participants should be able to:</p>
+           ${bulletList(outcomes)}`
         )}
       </div>
       ${colDivider}
       <div style="flex:1;">
-        ${section("clipboard", "ASSESSMENT METHOD", checklist(assessment))}
+        ${section("clipboard", "ASSESSMENT METHOD", bulletList(assessment))}
         ${skillsTable}
       </div>
     </div>
-    <div style="position:relative;border:1.5px solid ${gold};border-radius:6px;padding:14px 18px;margin-top:10px;overflow:hidden;">
-      ${backMotif}
+    <div style="position:relative;border:1px solid #e3e7ee;border-left:2px solid ${gold};padding:13px 16px;margin-top:8px;overflow:hidden;">
       <div style="position:relative;display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-        ${circleIcon("warning", navy, gold, 24)}<span style="font-size:12.5px;font-weight:700;color:${navy};">IMPORTANT NOTICE</span>
+        ${glyph("warning", gold, 11)}<span style="font-size:9px;font-weight:700;color:${navy};letter-spacing:1.5px;font-family:${SANS};">IMPORTANT NOTICE</span>
       </div>
       ${noticeHtml}
     </div>
-    <div style="margin-top:14px;padding-top:12px;border-top:1.5px solid ${gold};">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
-        ${circleIcon("shield", navy, gold, 24)}<span style="font-size:12.5px;font-weight:700;color:${navy};letter-spacing:.5px;">VERIFICATION</span>
+    <div style="margin-top:12px;padding-top:12px;border-top:1px solid #e3e7ee;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:11px;">
+        ${glyph("shield", gold, 11)}<span style="font-size:9px;font-weight:700;color:${navy};letter-spacing:1.5px;font-family:${SANS};">VERIFICATION</span>
       </div>
-      <div style="display:flex;align-items:center;justify-content:space-between;">
-        <div style="display:grid;grid-template-columns:1fr 1fr;row-gap:8px;column-gap:28px;font-size:10.5px;color:#374151;">
-          <div style="display:flex;gap:8px;align-items:center;">${circleIcon("doc", navy, gold, 20)}<span><strong style="color:${navy};">Certificate No.</strong> ${esc(data.certificate_number)}</span></div>
-          <div style="display:flex;gap:8px;align-items:center;">${circleIcon("phone", navy, gold, 20)}<span><strong style="color:${navy};">Contact Number</strong> ${esc(config.contact_phone || "019-519 3834")}</span></div>
-          <div style="display:flex;gap:8px;align-items:center;">${circleIcon("globe", navy, gold, 20)}<span><strong style="color:${navy};">Website</strong> ${esc(config.contact_website || "www.terasuniversal.com.my")}</span></div>
-          <div style="display:flex;gap:8px;align-items:center;">${circleIcon("mail", navy, gold, 20)}<span><strong style="color:${navy};">Email</strong> ${esc(config.contact_email || "admin@terasuniversal.com.my")}</span></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:22px;">
+        <div style="flex:1;display:grid;grid-template-columns:1fr 1fr;row-gap:9px;column-gap:24px;font-size:9.5px;color:#374151;">
+          ${verifyRow("Certificate No.", data.certificate_number)}
+          ${verifyRow("Contact Number", config.contact_phone || "019-519 3834")}
+          ${verifyRow("Website", config.contact_website || "www.terasuniversal.com.my")}
+          ${verifyRow("Email", config.contact_email || "admin@terasuniversal.com.my")}
         </div>
         ${qrHtml}
       </div>
