@@ -226,12 +226,15 @@ export async function loadCertificateRender(id: string): Promise<
   // lib/standard-scaffold-programmes.ts's header) -- it's merged in here by the
   // certificate's own course_id, filling only fields the template row didn't
   // already set so a future per-template override still wins. Re-verified live
-  // 2026-08-23: the "TERAS Standard Scaffold Certificate" template row itself
-  // does exist and is active (design_variant set, show_skills_record:false) --
-  // this branch is reachable in principle -- but none of the 7 programme
-  // course_ids have a certificate_template_id bound to it yet and zero
-  // certificates have ever been issued for any of them, so it has never
-  // actually executed against real data.
+  // 2026-08-23: the "TERAS Standard Scaffold Certificate" template row exists,
+  // is active (design_variant set, show_skills_record:false), and all 6
+  // Erector/Inspection course rows have their certificate_template_id bound to
+  // it -- this branch IS reachable today, not merely "in principle". Scaffold
+  // Awareness has no live course row at all, so it can never bind. Course-level
+  // certificate_generation_enabled remains independently programme-specific
+  // (only Basic and Advanced Erector have it on as of this check) and is
+  // untouched by this merge -- binding a template is separate from enabling
+  // generation from it.
   if (config.design_variant === "standard_scaffold_certificate") {
     const programme = findStandardScaffoldProgrammeByCourseId(c.course_id);
     if (programme) {
