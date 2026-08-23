@@ -225,10 +225,16 @@ export async function loadCertificateRender(id: string): Promise<
   // holds no per-programme content of its own (see
   // lib/standard-scaffold-programmes.ts's header) -- it's merged in here by the
   // certificate's own course_id, filling only fields the template row didn't
-  // already set so a future per-template override still wins. Inert today: no
-  // live certificate_templates row has this design_variant yet (deferred
-  // pending business sign-off -- see supabase/post_baseline_drafts/README.md),
-  // so this branch never executes against real data until that row exists.
+  // already set so a future per-template override still wins. Re-verified live
+  // 2026-08-23: the "TERAS Standard Scaffold Certificate" template row exists,
+  // is active (design_variant set, show_skills_record:false), and all 6
+  // Erector/Inspection course rows have their certificate_template_id bound to
+  // it -- this branch IS reachable today, not merely "in principle". Scaffold
+  // Awareness has no live course row at all, so it can never bind. Course-level
+  // certificate_generation_enabled remains independently programme-specific
+  // (only Basic and Advanced Erector have it on as of this check) and is
+  // untouched by this merge -- binding a template is separate from enabling
+  // generation from it.
   if (config.design_variant === "standard_scaffold_certificate") {
     const programme = findStandardScaffoldProgrammeByCourseId(c.course_id);
     if (programme) {
@@ -246,6 +252,26 @@ export async function loadCertificateRender(id: string): Promise<
       // exclusive per lib/standard-scaffold-programmes.ts's own comment.
       config.watermark_level ??= programme.watermark_level;
       config.inspector_watermark_level ??= programme.inspector_watermark_level;
+      // Skills Record Phase 1 (approved 2026-08-23): only the 6
+      // Erector/Inspector programmes carry a skills_record (derived from
+      // their own coverage_items -- see standard-scaffold-programmes.ts),
+      // so this is gated on that rather than running unconditionally --
+      // Scaffold Awareness has none and must stay untouched.
+      //
+      // show_skills_record needs a direct assignment here, not ??=: the
+      // single shared certificate_templates row sets show_skills_record:false
+      // explicitly for all 7 programmes alike (re-verified live 2026-08-23),
+      // so ??= against an already-false value would be a no-op and could
+      // never turn display on per-programme. This does not touch
+      // data.certificate_skills_record / data.participant_skills_record
+      // (tiers 1-2, built independently below from certificate_skill_results /
+      // participant_skill_results) -- the renderer's own precedence ternary
+      // always checks those first, so a real recorded result can never be
+      // masked by this static fallback.
+      if (programme.skills_record) {
+        config.skills_record ??= programme.skills_record;
+        config.show_skills_record = true;
+      }
     }
   }
 
