@@ -181,6 +181,22 @@ function qrBlock(svg: string, navy: string, gold: string, size: number, caption:
   </div>`;
 }
 
+/** Mirrors AuthorisedSignatureLabel in CertificateDocument.tsx — shown only when there's no signature_url, guidance above the still-empty well, never a substitute mark. */
+function authorisedSignatureLabel(): string {
+  return `<div style="color:#9aa3b2;font-size:6.5px;letter-spacing:1.3px;font-family:${SANS};text-transform:uppercase;margin-bottom:3px;">Authorised Signature</div>`;
+}
+
+/** Mirrors StampSeal in CertificateDocument.tsx — neutral double-ring authentication placeholder; no approved company stamp asset exists, so this stays unbranded. */
+function stampSeal(navy: string, gold: string): string {
+  return `<div style="position:relative;width:74px;height:74px;margin-bottom:4px;">
+    <div style="position:absolute;inset:0;border-radius:50%;border:1px solid ${navy};opacity:.55;"></div>
+    <div style="position:absolute;inset:5px;border-radius:50%;border:1px solid ${gold};opacity:.6;"></div>
+    <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:8px;">
+      <span style="font-size:7px;letter-spacing:1.2px;font-family:${SANS};color:#9aa3b2;text-align:center;text-transform:uppercase;">Company Stamp</span>
+    </div>
+  </div>`;
+}
+
 /** Mirrors RibbonBanner in CertificateDocument.tsx — flat navy label plate ruled top and bottom in gold; see that component's comment for why the offset ring was dropped. */
 function ribbonBanner(inner: string, navy: string, gold: string, wrapStyle = ""): string {
   return `<div style="display:inline-block;background:${navy};color:#fff;padding:5px 30px;border-top:1px solid ${gold};border-bottom:1px solid ${gold};${wrapStyle}">${inner}</div>`;
@@ -205,29 +221,35 @@ export function renderCertificateFront(data: CertData, config: TemplateConfig): 
     ? `<p style="font-size:11px;color:#4b5563;margin:16px 0 0;"><span style="color:#8a94a6;letter-spacing:1.3px;font-size:8.5px;font-family:${SANS};text-transform:uppercase;">Conducted from </span>${esc(dateRange)}</p>`
     : "";
   const qrHtml = config.show_qr !== false && data.qr_svg ? qrBlock(data.qr_svg, navy, gold, 82, true) : "";
-  const signatureImg = config.signature_url ? `<img src="${esc(config.signature_url)}" alt="" style="max-height:44px;max-width:168px;object-fit:contain;"/>` : "";
+  const signatureImg = config.signature_url ? `<img src="${esc(config.signature_url)}" alt="" style="max-height:44px;max-width:150px;object-fit:contain;"/>` : "";
   const signatureWell = `<div style="height:44px;display:flex;align-items:flex-end;justify-content:center;padding-bottom:2px;">${signatureImg}</div>`;
   const roleLine = (text: string) => `<div style="color:#8a94a6;font-size:8.5px;letter-spacing:1.3px;font-family:${SANS};text-transform:uppercase;margin-top:3px;">${esc(text)}</div>`;
+  // Structural guidance only when there's no signature_url -- the well stays
+  // visibly empty either way; see authorisedSignatureLabel's own comment.
+  const primarySigLabel = config.signature_url ? "" : authorisedSignatureLabel();
 
   const isSingleSignature = config.signature_layout === "single";
   const primarySignatureBlock = isSingleSignature
-    ? `<div style="text-align:center;font-size:11px;width:186px;">
+    ? `<div style="text-align:center;font-size:11px;width:auto;max-width:160px;">
+        ${primarySigLabel}
         ${signatureWell}
-        <div style="border-top:1px solid ${navy};margin:5px 0 6px;"></div>
+        <div style="border-top:1px solid ${navy};margin:4px 0 5px;"></div>
         <strong style="color:${navy};letter-spacing:.3px;">${esc(config.signature_name || config.signature_title || "Director")}</strong>
         ${config.signature_name ? roleLine(config.signature_title || "Director") : ""}
       </div>`
-    : `<div style="text-align:center;font-size:11px;width:186px;">
+    : `<div style="text-align:center;font-size:11px;width:auto;max-width:160px;">
+        ${primarySigLabel}
         ${signatureWell}
-        <div style="border-top:1px solid ${navy};margin:5px 0 6px;"></div>
+        <div style="border-top:1px solid ${navy};margin:4px 0 5px;"></div>
         <strong style="color:${navy};letter-spacing:.3px;">${esc(config.signature_name || "Trainer")}</strong>
         ${roleLine("Trainer Signature")}
       </div>`;
   const secondarySignatureBlock = isSingleSignature
     ? ""
-    : `<div style="text-align:center;font-size:11px;width:186px;">
+    : `<div style="text-align:center;font-size:11px;width:auto;max-width:160px;">
+        ${authorisedSignatureLabel()}
         <div style="height:44px;"></div>
-        <div style="border-top:1px solid ${navy};margin:5px 0 6px;"></div>
+        <div style="border-top:1px solid ${navy};margin:4px 0 5px;"></div>
         <strong style="color:${navy};letter-spacing:.3px;">${esc(config.signature_title || "Training Manager")}</strong>
         ${roleLine("Training Manager")}
       </div>`;
@@ -269,10 +291,12 @@ export function renderCertificateFront(data: CertData, config: TemplateConfig): 
     </div>
     <div style="position:relative;margin-top:18px;padding-top:18px;border-top:1px solid #e3e7ee;">
     <span style="position:absolute;top:-1px;left:50%;transform:translateX(-50%);width:48px;height:2px;background:${gold};"></span>
-    <div style="display:flex;align-items:flex-end;justify-content:center;gap:${isSingleSignature ? 48 : 30}px;">
+    <div style="display:flex;align-items:flex-end;justify-content:center;gap:${isSingleSignature ? 40 : 24}px;">
       ${primarySignatureBlock}
       ${secondarySignatureBlock}
-      <div style="text-align:center;font-size:7px;letter-spacing:1.2px;font-family:${SANS};width:66px;height:66px;border-radius:50%;border:1px dashed ${gold};opacity:.95;display:flex;align-items:center;justify-content:center;color:#9aa3b2;padding:4px;margin-bottom:4px;">COMPANY STAMP</div>
+      <div style="width:1px;align-self:stretch;background:#e3e7ee;"></div>
+      ${stampSeal(navy, gold)}
+      <div style="width:1px;align-self:stretch;background:#e3e7ee;"></div>
       ${qrHtml}
     </div>
     </div>
