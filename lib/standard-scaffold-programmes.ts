@@ -67,6 +67,26 @@ export interface StandardScaffoldProgramme {
    * programme -- Erector and Inspection are mutually exclusive families.
    */
   inspector_watermark_level?: "basic" | "intermediate" | "advanced";
+  /**
+   * PARTICIPANT SKILLS RECORD rows for this programme's back page, each
+   * starting "Not Recorded" — merged into the render config by certData.ts,
+   * which also enables the section's display only when this is present (see
+   * that file's own comment). A real per-participant result, when one
+   * exists, is resolved independently and always takes precedence over this
+   * static fallback; see certData.ts's 4-tier precedence chain.
+   *
+   * Never hand-authored: set only via deriveSkillsRecord(coverage_items)
+   * below, for exactly the 6 Erector/Inspector programmes, so this table's
+   * wording can never drift from the verified coverage_items it's derived
+   * from. Deliberately absent on Scaffold Awareness — draft content has no
+   * verified competency breakdown to derive rows from.
+   */
+  skills_record?: { area: string; status: string }[];
+}
+
+/** Derives Skills Record rows from a programme's own coverage_items — the single source of truth for this wording, so the back-page table can never drift from the coverage list it's built from. Every row starts "Not Recorded"; see certData.ts for how a real recorded result overrides this per-certificate. */
+function deriveSkillsRecord(coverageItems: string[]): { area: string; status: string }[] {
+  return coverageItems.map((area) => ({ area, status: "Not Recorded" }));
 }
 
 export const standardScaffoldProgrammes: Record<string, StandardScaffoldProgramme> = {
@@ -286,6 +306,22 @@ export const standardScaffoldProgrammes: Record<string, StandardScaffoldProgramm
     source: "DRAFT — no verified spec sheet exists in this repo for Scaffold Awareness; authored for this task, pending business approval",
   },
 };
+
+// Skills Record Phase 1 (approved 2026-08-23): derive rows from each
+// programme's own coverage_items rather than hand-authoring a parallel list,
+// so the two can never say different things. Applied to exactly the 6
+// Erector/Inspector programmes — never to scaffold_awareness, which has no
+// verified content to derive from.
+for (const key of [
+  "basic_erection",
+  "intermediate_erection",
+  "advanced_erection",
+  "basic_inspection",
+  "intermediate_inspection",
+  "advanced_inspection",
+] as const) {
+  standardScaffoldProgrammes[key].skills_record = deriveSkillsRecord(standardScaffoldProgrammes[key].coverage_items);
+}
 
 /** Looks up a programme config by the certificate's own course_id — null/undefined-safe, returns undefined for a course with no mapping (e.g. any course outside this family). */
 export function findStandardScaffoldProgrammeByCourseId(courseId: string | null | undefined): StandardScaffoldProgramme | undefined {
