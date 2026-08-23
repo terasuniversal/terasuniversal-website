@@ -57,6 +57,17 @@ export interface CertData {
    * professional-scaffold-certificate-html.ts for the full fallback chain.
    */
   participant_skills_record?: { area: string; status: string }[] | null;
+  /**
+   * Resolved once by certData.ts::loadCertificateRender as
+   * certificate_skills_record ?? participant_skills_record ?? config.skills_record
+   * ?? null -- the single answer every renderer (this file, certificate-html.ts,
+   * ProfessionalScaffoldCertificateDocument.tsx, professional-scaffold-certificate-html.ts)
+   * should read instead of re-deriving its own precedence. null means none of
+   * the three sources had anything; the renderer's own DEFAULT_SKILLS_RECORD
+   * supplies the final fallback content in that case, same as before this
+   * field existed.
+   */
+  effective_skills_record?: { area: string; status: string }[] | null;
 }
 
 export interface TemplateConfig {
@@ -512,7 +523,7 @@ export function CertificateBackPage({ data, config }: { data: CertData; config: 
   const outcomes = config.learning_outcomes?.length ? config.learning_outcomes : DEFAULT_OUTCOMES;
   const assessment = config.assessment_methods?.length ? config.assessment_methods : DEFAULT_ASSESSMENT;
   const showSkillsRecord = config.show_skills_record !== false;
-  const skillsRecord = config.skills_record?.length ? config.skills_record : DEFAULT_SKILLS_RECORD;
+  const skillsRecord = data.effective_skills_record?.length ? data.effective_skills_record : DEFAULT_SKILLS_RECORD;
   const noticeParagraphs = config.important_notice
     ? config.important_notice.split(/\n{2,}/).filter(Boolean)
     : DEFAULT_NOTICE_PARAGRAPHS;

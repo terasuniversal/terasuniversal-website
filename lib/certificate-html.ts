@@ -290,7 +290,7 @@ export function renderCertificateBack(data: CertData, config: TemplateConfig): s
   const outcomes = config.learning_outcomes?.length ? config.learning_outcomes : DEFAULT_OUTCOMES;
   const assessment = config.assessment_methods?.length ? config.assessment_methods : DEFAULT_ASSESSMENT;
   const showSkillsRecord = config.show_skills_record !== false;
-  const skillsRecord = config.skills_record?.length ? config.skills_record : DEFAULT_SKILLS_RECORD;
+  const skillsRecord = data.effective_skills_record?.length ? data.effective_skills_record : DEFAULT_SKILLS_RECORD;
   const noticeParagraphs = config.important_notice ? config.important_notice.split(/\n{2,}/).filter(Boolean) : DEFAULT_NOTICE_PARAGRAPHS;
 
   /** Mirrors SectionHead in CertificateDocument.tsx — one head treatment for every block on this page. */

@@ -673,16 +673,12 @@ export function ProfessionalScaffoldCertificateBackPage({ data, config }: { data
   const coverage = config.coverage_items?.length ? config.coverage_items : DEFAULT_COVERAGE;
   const outcomes = config.learning_outcomes?.length ? config.learning_outcomes : DEFAULT_OUTCOMES;
   const assessment = config.assessment_methods?.length ? config.assessment_methods : DEFAULT_ASSESSMENT;
-  // Precedence: the immutable issuance snapshot (certificate_skills_record)
-  // wins whole, never merged row-by-row with the live fallback below it —
-  // then the live participant fallback (schedule-linked certs issued before
-  // Phase 2C), then the template's own config default, then the hardcoded
-  // "Not Recorded" rows.
-  const skillsRecord = data.certificate_skills_record?.length
-    ? data.certificate_skills_record
-    : data.participant_skills_record?.length
-      ? data.participant_skills_record
-      : config.skills_record?.length ? config.skills_record : DEFAULT_SKILLS_RECORD;
+  // Precedence (certificate_skills_record -> participant_skills_record ->
+  // config.skills_record) is now resolved once, identically for every
+  // renderer, by certData.ts::loadCertificateRender -- see CertData.
+  // effective_skills_record's own comment. Only the terminal "Not Recorded"
+  // default stays local to this renderer.
+  const skillsRecord = data.effective_skills_record?.length ? data.effective_skills_record : DEFAULT_SKILLS_RECORD;
   const noticeParagraphs = config.important_notice ? config.important_notice.split(/\n{2,}/).filter(Boolean) : DEFAULT_NOTICE_PARAGRAPHS;
 
   const Section = ({ icon, title, children }: { icon: IconKind; title: string; children: ReactNode }) => (
