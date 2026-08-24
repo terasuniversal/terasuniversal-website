@@ -20,7 +20,8 @@ export const dynamic = "force-dynamic";
 function fmt(n: number) {
   return `RM ${Number(n).toLocaleString("en-MY", { minimumFractionDigits: 2 })}`;
 }
-function fmtDate(d: string) {
+function fmtDate(d: string | null) {
+  if (!d) return "—";
   return new Date(d).toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric" });
 }
 
@@ -31,6 +32,19 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
   const { id } = await params;
   const supabase = await createSupabaseServerClient();
 
+  // Phase 2B production-visibility guard. Computed server-side from a
+  // server-only env var (never NEXT_PUBLIC_*) -- only this single boolean
+  // crosses into the client component's props, never the underlying
+  // TOYYIBPAY_ENV/TOYYIBPAY_USER_SECRET_KEY/TOYYIBPAY_CATEGORY_CODE
+  // values. Production (or any deployment missing this exact value) gets
+  // no ToyyibPay card at all -- not a disabled one, not a dead-end button,
+  // simply absent -- until ToyyibPay production integration is
+  // deliberately activated in a later phase. The Server Action's own hard
+  // `TOYYIBPAY_ENV === "sandbox"` gate (lib/payments/toyyibpay.ts) stays as
+  // defense-in-depth regardless of what this flag renders -- this flag is
+  // a UX guard, not the actual security boundary.
+  const toyyibpayEnabled = process.env.TOYYIBPAY_ENV === "sandbox";
+
   const { data: invoice } = await supabase.from("invoices").select("*").eq("id", id).maybeSingle();
   if (!invoice) notFound();
   const inv = invoice as InvoiceRow;
@@ -39,7 +53,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
   const { data: opportunity } = await supabase.from("sales_opportunities").select("id, opportunity_no, company_name").eq("id", inv.opportunity_id).maybeSingle();
   const { data: itemRows } = await supabase.from("invoice_items").select("*").eq("invoice_id", id).order("sort_order");
   const items = (itemRows ?? []) as InvoiceItemRow[];
-  const { data: paymentRows } = await supabase.from("invoice_payments").select("*").eq("invoice_id", id).order("paid_at", { ascending: false });
+  const { data: paymentRows } = await supabase.from("invoice_payments").select("*").eq("invoice_id", id).order("created_at", { ascending: false });
   const payments = (paymentRows ?? []) as InvoicePaymentRow[];
 
   return (
@@ -138,14 +152,24 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
             {payments.length > 0 ? (
               <div className="ta-table-wrap">
                 <table className="ta-table">
-                  <thead><tr><th>Date</th><th>Method</th><th>Amount</th><th>Reference</th><th>Status</th></tr></thead>
+                  <thead><tr><th>Paid</th><th>Method</th><th>Amount</th><th>Reference</th><th>Status</th></tr></thead>
                   <tbody>
                     {payments.map((p) => (
                       <tr key={p.id}>
                         <td>{fmtDate(p.paid_at)}</td>
                         <td>{PAYMENT_PROVIDER_LABELS[p.payment_provider]}{p.payment_method ? ` — ${p.payment_method}` : ""}</td>
                         <td>{fmt(p.amount)}</td>
-                        <td>{p.payment_reference ?? "—"}</td>
+                        <td>
+                          {p.payment_reference ?? p.provider_bill_code ?? "—"}
+                          {p.payment_provider === "toyyibpay" && p.status === "pending" && p.payment_url && (
+                            <>
+                              {" "}
+                              <a href={p.payment_url} target="_blank" rel="noreferrer" style={{ fontSize: 12 }}>
+                                (open sandbox link ↗)
+                              </a>
+                            </>
+                          )}
+                        </td>
                         <td><Badge status={p.status} /></td>
                       </tr>
                     ))}
@@ -159,7 +183,14 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          <InvoiceActionsPanel invoiceId={id} status={inv.status} balanceDue={Number(inv.balance_due)} amountPaid={Number(inv.amount_paid)} canManage={canManage} />
+          <InvoiceActionsPanel
+            invoiceId={id}
+            status={inv.status}
+            balanceDue={Number(inv.balance_due)}
+            amountPaid={Number(inv.amount_paid)}
+            canManage={canManage}
+            toyyibpayEnabled={toyyibpayEnabled}
+          />
         </div>
       </div>
     </>

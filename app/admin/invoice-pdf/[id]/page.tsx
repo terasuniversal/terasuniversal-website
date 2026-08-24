@@ -13,7 +13,8 @@ const SANS = "'Helvetica Neue',Helvetica,Arial,sans-serif";
 function fmt(n: number) {
   return `RM ${Number(n).toLocaleString("en-MY", { minimumFractionDigits: 2 })}`;
 }
-function fmtDate(d: string) {
+function fmtDate(d: string | null) {
+  if (!d) return "—";
   return new Date(d).toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric" });
 }
 
@@ -39,8 +40,12 @@ export default async function InvoicePdfPage({ params }: { params: Promise<{ id:
   const { data: quotation } = await supabase.from("sales_quotations").select("quotation_no").eq("id", inv.quotation_id).maybeSingle();
   const { data: itemRows } = await supabase.from("invoice_items").select("*").eq("invoice_id", id).order("sort_order");
   const items = (itemRows ?? []) as InvoiceItemRow[];
-  const { data: paymentRows } = await supabase.from("invoice_payments").select("*").eq("invoice_id", id).order("paid_at", { ascending: true });
-  const payments = (paymentRows ?? []) as InvoicePaymentRow[];
+  const { data: paymentRows } = await supabase.from("invoice_payments").select("*").eq("invoice_id", id).order("created_at", { ascending: true });
+  // "Payments Received" must only ever list successful payments -- a
+  // pending ToyyibPay attempt (paid_at is null, per Phase 2A's corrected
+  // semantics) has not been received and must never appear on a printed
+  // invoice as if it had.
+  const payments = ((paymentRows ?? []) as InvoicePaymentRow[]).filter((p) => p.status === "successful");
 
   return (
     <div className="inv-pdf-shell" style={{ background: "#eef1f6", minHeight: "100vh", padding: 20, fontFamily: SANS }}>

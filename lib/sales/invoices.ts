@@ -32,7 +32,7 @@ export const PAYMENT_PROVIDER_LABELS: Record<InvoicePaymentProvider, string> = {
   other: "Other",
 };
 
-export type InvoicePaymentStatus = "pending" | "successful" | "failed" | "cancelled" | "refunded";
+export type InvoicePaymentStatus = "pending" | "successful" | "failed" | "cancelled" | "refunded" | "superseded";
 
 export type InvoiceItemUnit = "pax" | "session" | "day" | "lot" | "unit";
 
@@ -100,8 +100,15 @@ export interface InvoicePaymentRow {
   provider_reference: string | null;
   payment_reference: string | null;
   notes: string | null;
-  paid_at: string;
+  /** Nullable since Phase 2A: means "the payment actually succeeded" -- a pending ToyyibPay attempt has none yet. */
+  paid_at: string | null;
   verified_at: string | null;
+  /** Phase 2B: the ToyyibPay-hosted payment page URL for a pending attempt. */
+  payment_url: string | null;
+  /** Phase 2A: provider-confirmed amount, set only on successful finalization -- distinct from `amount` (the requested amount). */
+  verified_amount: number | null;
+  /** Phase 2A: set only when TERAS actually received a ToyyibPay callback POST -- never Get Bill Transactions/reconciliation. */
+  callback_received_at: string | null;
   metadata: Record<string, unknown>;
   created_at: string;
   updated_at: string;
