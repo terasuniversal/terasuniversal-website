@@ -222,7 +222,10 @@ function WatermarkLayer({ shapes, color, corner = false, showSecondary = true }:
   // a blueprint underlay the layout sits on top of.
   const size = corner
     ? { width: 320, height: 230, style: { bottom: -28, right: -44 } }
-    : { width: 600, height: 420, style: { bottom: 78, right: -56 } };
+    // Lift the front watermark into the certificate body, behind the course
+    // name and explanatory text, rather than leaving it stranded in the
+    // metadata/footer area.
+    : { width: 600, height: 420, style: { bottom: 210, right: -56 } };
   const renderSet = (set: LayeredWatermark["primary"], keyPrefix: string) => (
     <>
       {set.lines.map(([x1, y1, x2, y2], i) => <line key={`${keyPrefix}l${i}`} x1={x1} y1={y1} x2={x2} y2={y2} />)}
@@ -249,9 +252,9 @@ function WatermarkLayer({ shapes, color, corner = false, showSecondary = true }:
       {/* Primary sits a clear step above the grid so the family motif still
           reads as the subject and the grid stays background — raising both by
           the same amount would have kept it flat and muddy. */}
-      <g stroke={color} strokeWidth="1.5" fill="none" opacity={0.035}>{renderSet(shapes.primary, "p")}</g>
+      <g stroke={color} strokeWidth="1.5" fill="none" opacity={0.05}>{renderSet(shapes.primary, "p")}</g>
       {showSecondary && (
-        <g stroke={color} strokeWidth="0.9" fill="none" opacity={0.022}>{renderSet(shapes.secondary, "s")}</g>
+        <g stroke={color} strokeWidth="0.9" fill="none" opacity={0.03}>{renderSet(shapes.secondary, "s")}</g>
       )}
     </svg>
   );
