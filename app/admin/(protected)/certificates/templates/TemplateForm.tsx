@@ -108,6 +108,7 @@ export function TemplateForm({
             onChange={(e) => upd("design_variant", e.target.value || undefined)}
           >
             <option value="">TERAS Standard</option>
+            <option value="standard_scaffold_certificate">TERAS Standard Scaffold</option>
             <option value="professional_scaffold_erection_skills">Premium Scaffold</option>
           </select>
         </Field>
