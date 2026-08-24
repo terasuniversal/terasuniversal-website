@@ -122,8 +122,11 @@ function certificateWatermark(config: TemplateConfig, color: string, corner: boo
   // Mirrors WatermarkLayer's placement in CertificateDocument.tsx — both bleed
   // past the page edge so the page's own overflow:hidden crops them.
   const pos = corner ? "bottom:-28px;right:-44px;width:320px;height:230px;" : "bottom:78px;right:-56px;width:600px;height:420px;";
-  const primaryG = renderWatermarkSet(shapes.primary, color, 1.8, 0.06);
-  const secondaryG = corner ? "" : renderWatermarkSet(shapes.secondary, color, 1.1, 0.04);
+  // Keep the exported certificate just as restrained as the live preview:
+  // it is a background watermark, never a graphic competing with the name
+  // or programme title.
+  const primaryG = renderWatermarkSet(shapes.primary, color, 1.5, 0.035);
+  const secondaryG = corner ? "" : renderWatermarkSet(shapes.secondary, color, 0.9, 0.022);
   // Drafting grid + corner registration ticks, front placement only — mirrors
   // WatermarkLayer in CertificateDocument.tsx.
   const strokes = (set: [number, number, number, number][]) =>

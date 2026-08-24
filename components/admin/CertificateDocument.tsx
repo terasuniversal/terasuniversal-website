@@ -249,9 +249,9 @@ function WatermarkLayer({ shapes, color, corner = false, showSecondary = true }:
       {/* Primary sits a clear step above the grid so the family motif still
           reads as the subject and the grid stays background — raising both by
           the same amount would have kept it flat and muddy. */}
-      <g stroke={color} strokeWidth="1.8" fill="none" opacity={0.06}>{renderSet(shapes.primary, "p")}</g>
+      <g stroke={color} strokeWidth="1.5" fill="none" opacity={0.035}>{renderSet(shapes.primary, "p")}</g>
       {showSecondary && (
-        <g stroke={color} strokeWidth="1.1" fill="none" opacity={0.04}>{renderSet(shapes.secondary, "s")}</g>
+        <g stroke={color} strokeWidth="0.9" fill="none" opacity={0.022}>{renderSet(shapes.secondary, "s")}</g>
       )}
     </svg>
   );
