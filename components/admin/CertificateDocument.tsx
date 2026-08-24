@@ -408,6 +408,10 @@ export function CertificateDocument({ data, config }: { data: CertData; config: 
   const gold = config.accent_color || "#D4AF37";
   const dateRange = formatDateRange(data.training_date, data.training_end_date);
   const duration = data.programme_duration || config.duration_label;
+  // Standard Scaffold keeps the established TERAS Standard hierarchy: the
+  // course name and date range are the focal content, without the banner that
+  // belongs to the newer certificate families.
+  const showDurationRibbon = config.design_variant !== "standard_scaffold_certificate";
   // +8 rather than +4: at +4 the holder name sat only ~4pt above the
   // programme title, so the eye had no single landing point. Scale is the
   // one lever that makes a centrepiece read as ceremonial.
@@ -465,7 +469,7 @@ export function CertificateDocument({ data, config }: { data: CertData; config: 
           {data.course_name}
         </div>
         <div style={{ width: 150, height: 1, background: navy, opacity: 0.22, margin: "11px auto 0" }} />
-        {duration && (
+        {showDurationRibbon && duration && (
           <RibbonBanner navy={navy} gold={gold} style={{ margin: "19px auto 0" }}>
             <span style={{ fontSize: 9, fontWeight: 600, letterSpacing: 2.4, fontFamily: SANS, textIndent: 2.4 }}>{duration}</span>
           </RibbonBanner>
