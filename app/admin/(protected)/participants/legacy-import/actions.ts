@@ -414,6 +414,13 @@ export async function approveBatch(batchId: string) {
 
 // -- Phase 3: Approved Merge execution -----------------------------------
 
+const CHECKPOINT_ERROR_MESSAGES: Record<string, string> = {
+  not_authorized: "You are not authorized to execute this merge.",
+  batch_not_found: "Batch not found.",
+  dry_run_required: "Run a dry run before executing the merge -- this batch has never been previewed.",
+  DRY_RUN_STALE: "The approved data has changed since the last dry run (a participant decision, course mapping, row approval, certificate number, or training date). Run Dry Run again to review the current plan before executing.",
+};
+
 /**
  * Executes the merge for every currently-approved row in the batch, one
  * atomic RPC call per row (legacy_merge_execute_row) -- never a chain of
@@ -427,6 +434,15 @@ export async function approveBatch(batchId: string) {
  * Requires an explicit confirmation checkbox (native `required` attribute
  * on the form -- the browser refuses to submit without it, no JS needed)
  * and only proceeds if the batch is currently 'approved'.
+ *
+ * Server-verifiable Dry Run -> Execute gate (not just ?dryrun=1 / button
+ * visibility / the confirmation checkbox): legacy_merge_verify_checkpoint
+ * is called first and must succeed before a single row is processed. It
+ * fails closed if this batch has never been dry-run, or if the approved
+ * rows' merge-relevant fields have drifted from what the last dry run
+ * reviewed (DRY_RUN_STALE) -- see 20260824150000 for exactly what's
+ * covered and why a retry after a partial failure doesn't require a new
+ * dry run.
  */
 export async function executeMerge(batchId: string, formData: FormData) {
   await guard();
@@ -444,11 +460,21 @@ export async function executeMerge(batchId: string, formData: FormData) {
   if (!batch) backTo(batchId, "Batch not found.");
   if (batch!.status !== "approved") backTo(batchId, "Batch must be approved before merge execution can run.");
 
+  const { error: checkpointErr } = await supabase.rpc("legacy_merge_verify_checkpoint", { p_batch_id: batchId });
+  if (checkpointErr) {
+    backTo(batchId, CHECKPOINT_ERROR_MESSAGES[checkpointErr.message] ?? "Could not verify the dry-run checkpoint.");
+  }
+
+  // Same order dry run simulates (source_row_number, id tie-breaker) --
+  // required for a duplicate-identity batch to actually converge on
+  // CREATE-then-REUSE in the sequence the plan predicted.
   const { data: rows } = await supabase
     .from("legacy_participant_staging")
     .select("id")
     .eq("batch_id", batchId)
-    .eq("review_status", "approved");
+    .eq("review_status", "approved")
+    .order("source_row_number", { ascending: true })
+    .order("id", { ascending: true });
 
   let succeeded = 0;
   let failed = 0;

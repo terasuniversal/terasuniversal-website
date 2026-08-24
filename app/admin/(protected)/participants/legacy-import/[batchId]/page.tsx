@@ -23,19 +23,26 @@ const CLOSED_REVIEW = new Set(["approved", "rejected", "merged"]);
 const DRY_RUN_LABELS: Record<string, string> = {
   LINK_EXISTING: "Link to existing participant",
   CREATE_NEW: "Create new participant",
+  REUSE_PLANNED_NEW: "Reuse participant created earlier in this batch",
   BLOCKED_NOT_APPROVED: "Blocked — row not approved",
   BLOCKED_VALIDATION_ERROR: "Blocked — validation error",
   BLOCKED_IDENTITY_UNRESOLVED: "Blocked — identity unresolved",
   ALREADY_MERGED: "Already merged",
   REUSE_EXISTING_HISTORICAL: "Reuse existing historical schedule",
+  REUSE_PLANNED_HISTORICAL: "Reuse schedule created earlier in this batch",
   CREATE_HISTORICAL: "Create new historical schedule",
   NO_SCHEDULE_POSSIBLE: "No schedule possible — no evidenced date",
   NO_SCHEDULE_COURSE_UNMAPPED: "No schedule — course not mapped",
   CREATE_OR_REUSE_ACTIVE: "Create or reuse active enrollment",
+  CREATE_ENROLLMENT: "Create enrollment",
+  REUSE_EXISTING_ENROLLMENT: "Reuse existing active enrollment",
+  REUSE_PLANNED_ENROLLMENT: "Reuse enrollment created earlier in this batch",
   SKIP_NOT_EVIDENCED: "Skip — not evidenced",
   NOT_CREATED_NO_EVIDENCE: "Not created — no evidence in source",
   NO_CERTIFICATE_NO_NUMBER: "No certificate — source gave no number",
   CONFLICT_CERT_NUMBER_EXISTS: "Conflict — certificate number already exists",
+  CONFLICT_CERT_NUMBER_DUPLICATE_IN_BATCH: "Conflict — duplicate certificate number elsewhere in this batch",
+  BLOCKED_CERTIFICATE_DATE_REQUIRED: "Blocked — certificate number given but no evidenced training date",
   CREATE_PRESERVE_NUMBER: "Create — preserve source certificate number",
 };
 
@@ -166,10 +173,15 @@ export default async function LegacyImportBatchPage({
             historical schedules, and enrollments for every currently-approved row — never attendance or assessment records,
             and never a certificate unless the source gave a real certificate number.
           </p>
-          <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
+          <div style={{ display: "flex", gap: 10, marginBottom: 14, alignItems: "center" }}>
             <Link href={`/admin/participants/legacy-import/${batchId}?dryrun=1`} className="ta-btn ta-btn-outline ta-btn-sm">
               Run Dry Run
             </Link>
+            <span className="ta-cell-sub">
+              {batch.dry_run_at
+                ? `Last dry run: ${formatMalaysiaDate(batch.dry_run_at)}. Execute re-verifies this is still current — if any approved row changed since, it's rejected as stale and a new dry run is required.`
+                : "No dry run has been recorded yet for this batch. Execute will refuse to run until one has."}
+            </span>
           </div>
 
           {dryRun && (
@@ -188,7 +200,13 @@ export default async function LegacyImportBatchPage({
                       <td>{DRY_RUN_LABELS[r.participant_action] ?? r.participant_action}</td>
                       <td>{DRY_RUN_LABELS[r.schedule_action] ?? r.schedule_action}</td>
                       <td>{DRY_RUN_LABELS[r.enrollment_action] ?? r.enrollment_action}</td>
-                      <td style={r.certificate_action === "CONFLICT_CERT_NUMBER_EXISTS" ? { color: "var(--ta-danger)", fontWeight: 700 } : undefined}>
+                      <td style={
+                        r.certificate_action === "CONFLICT_CERT_NUMBER_EXISTS" ||
+                        r.certificate_action === "CONFLICT_CERT_NUMBER_DUPLICATE_IN_BATCH" ||
+                        r.certificate_action === "BLOCKED_CERTIFICATE_DATE_REQUIRED"
+                          ? { color: "var(--ta-danger)", fontWeight: 700 }
+                          : undefined
+                      }>
                         {DRY_RUN_LABELS[r.certificate_action] ?? r.certificate_action}
                       </td>
                     </tr>
