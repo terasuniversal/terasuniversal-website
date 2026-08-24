@@ -218,6 +218,22 @@ export async function assignParticipants(scheduleId: string, _prev: ScheduleForm
   if (ids.length === 0) return {};
   const supabase = await createSupabaseServerClient();
 
+  // A legacy-import-created historical schedule is a read-only container
+  // after merge -- it wasn't evidenced as an operational class the source
+  // proves anyone else attended, so ordinary manual enrollment must not be
+  // able to add to it. Checked here, not just hidden in the UI: capacity
+  // being NULL would otherwise make this silently look "full" (0 seats)
+  // via the Number(capacity) || 0 check further down, which is a
+  // confusing, wrong message for what's actually a scope violation.
+  const { data: legacyCheck } = await supabase
+    .from("course_schedules")
+    .select("legacy_batch_id")
+    .eq("id", scheduleId)
+    .maybeSingle();
+  if (legacyCheck?.legacy_batch_id) {
+    return { message: "This is an imported legacy historical schedule and is read-only after merge. Participant assignment is not available." };
+  }
+
   // Every non-deleted row (active or cancelled) for the selected participants
   // on this schedule, fetched once so the three buckets above can be sorted
   // out in memory instead of a per-participant round trip.
@@ -286,6 +302,18 @@ export async function removeParticipant(scheduleId: string, assignmentId: string
   await requireRole("admin");
   await requireModuleAccess("schedules");
   const supabase = await createSupabaseServerClient();
+
+  // Same read-only-after-merge rule as assignParticipants -- an ordinary
+  // "remove" must not be able to cancel a legacy-merged historical
+  // enrollment either. Checked server-side, not left to the UI to hide
+  // the button.
+  const { data: legacyCheck } = await supabase
+    .from("course_schedules")
+    .select("legacy_batch_id")
+    .eq("id", scheduleId)
+    .maybeSingle();
+  if (legacyCheck?.legacy_batch_id) return;
+
   await supabase.from("schedule_participants").update({ registration_status: "cancelled" }).eq("id", assignmentId);
   revalidatePath(`/admin/schedules/${scheduleId}`);
 }
@@ -551,6 +579,18 @@ export async function assignParticipantGroup(scheduleId: string, assignmentId: s
   await requireModuleAccess("schedules");
   const groupId = String(formData.get("schedule_group_id") ?? "").trim();
   const supabase = await createSupabaseServerClient();
+
+  // Same read-only-after-merge rule as assignParticipants/removeParticipant
+  // -- reshuffling which group a historical attendee belonged to isn't
+  // evidenced by the legacy source either.
+  const { data: legacyCheck } = await supabase
+    .from("course_schedules")
+    .select("legacy_batch_id")
+    .eq("id", scheduleId)
+    .maybeSingle();
+  if (legacyCheck?.legacy_batch_id) {
+    return { message: "This is an imported legacy historical schedule and is read-only after merge. Group assignment is not available." };
+  }
 
   const { data: assignment } = await supabase
     .from("schedule_participants")

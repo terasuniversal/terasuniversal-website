@@ -411,3 +411,62 @@ export async function approveBatch(batchId: string) {
   revalidatePath("/admin/participants/legacy-import");
   redirect(`/admin/participants/legacy-import/${batchId}`);
 }
+
+// -- Phase 3: Approved Merge execution -----------------------------------
+
+/**
+ * Executes the merge for every currently-approved row in the batch, one
+ * atomic RPC call per row (legacy_merge_execute_row) -- never a chain of
+ * raw writes from this action itself. Every call's result is checked; a
+ * per-row failure is tallied, not swallowed. The batch is only finalized
+ * (legacy_merge_finalize_batch) if zero rows failed -- a partial failure
+ * leaves the batch 'approved' with the failed row(s) still 'approved' and
+ * carrying merge_error, safe to inspect and retry by re-running this same
+ * action (already-merged rows are no-ops, per the RPC's own idempotency).
+ *
+ * Requires an explicit confirmation checkbox (native `required` attribute
+ * on the form -- the browser refuses to submit without it, no JS needed)
+ * and only proceeds if the batch is currently 'approved'.
+ */
+export async function executeMerge(batchId: string, formData: FormData) {
+  await guard();
+  if (formData.get("confirm") !== "on") {
+    backTo(batchId, "You must confirm before executing the merge.");
+  }
+
+  const supabase = await createSupabaseServerClient();
+
+  const { data: batch } = await supabase
+    .from("legacy_import_batches")
+    .select("id, status")
+    .eq("id", batchId)
+    .maybeSingle();
+  if (!batch) backTo(batchId, "Batch not found.");
+  if (batch!.status !== "approved") backTo(batchId, "Batch must be approved before merge execution can run.");
+
+  const { data: rows } = await supabase
+    .from("legacy_participant_staging")
+    .select("id")
+    .eq("batch_id", batchId)
+    .eq("review_status", "approved");
+
+  let succeeded = 0;
+  let failed = 0;
+  for (const row of rows ?? []) {
+    const { data, error } = await supabase.rpc("legacy_merge_execute_row", { p_batch_id: batchId, p_row_id: row.id });
+    if (error || (data as any)?.status === "failed") failed += 1;
+    else succeeded += 1;
+  }
+
+  if (failed > 0) {
+    backTo(batchId, `Merge ran: ${succeeded} row(s) merged, ${failed} row(s) failed and were left approved with an error recorded. Review the failed row(s), then run merge again to retry -- already-merged rows are not re-run.`);
+  }
+
+  const { error: finalizeErr } = await supabase.rpc("legacy_merge_finalize_batch", { p_batch_id: batchId });
+  if (finalizeErr) {
+    backTo(batchId, `Merged ${succeeded} row(s) but could not finalize the batch: ${finalizeErr.message}`);
+  }
+
+  revalidatePath(`/admin/participants/legacy-import/${batchId}`);
+  redirect(`/admin/participants/legacy-import/${batchId}`);
+}

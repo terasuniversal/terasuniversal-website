@@ -12,6 +12,7 @@ import {
   approveRow,
   approveCourseMapping,
   approveBatch,
+  executeMerge,
 } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -19,12 +20,31 @@ export const dynamic = "force-dynamic";
 const UNRESOLVED_MATCH = new Set(["conflict", "probable_duplicate"]);
 const CLOSED_REVIEW = new Set(["approved", "rejected", "merged"]);
 
+const DRY_RUN_LABELS: Record<string, string> = {
+  LINK_EXISTING: "Link to existing participant",
+  CREATE_NEW: "Create new participant",
+  BLOCKED_NOT_APPROVED: "Blocked — row not approved",
+  BLOCKED_VALIDATION_ERROR: "Blocked — validation error",
+  BLOCKED_IDENTITY_UNRESOLVED: "Blocked — identity unresolved",
+  ALREADY_MERGED: "Already merged",
+  REUSE_EXISTING_HISTORICAL: "Reuse existing historical schedule",
+  CREATE_HISTORICAL: "Create new historical schedule",
+  NO_SCHEDULE_POSSIBLE: "No schedule possible — no evidenced date",
+  NO_SCHEDULE_COURSE_UNMAPPED: "No schedule — course not mapped",
+  CREATE_OR_REUSE_ACTIVE: "Create or reuse active enrollment",
+  SKIP_NOT_EVIDENCED: "Skip — not evidenced",
+  NOT_CREATED_NO_EVIDENCE: "Not created — no evidence in source",
+  NO_CERTIFICATE_NO_NUMBER: "No certificate — source gave no number",
+  CONFLICT_CERT_NUMBER_EXISTS: "Conflict — certificate number already exists",
+  CREATE_PRESERVE_NUMBER: "Create — preserve source certificate number",
+};
+
 export default async function LegacyImportBatchPage({
   params,
   searchParams,
 }: {
   params: Promise<{ batchId: string }>;
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; dryrun?: string }>;
 }) {
   await requireRole("admin");
   await requireModuleAccess("legacy_import");
@@ -86,6 +106,18 @@ export default async function LegacyImportBatchPage({
   const pendingCourseMaps = (courseMaps ?? []).filter((c: any) => c.status === "pending");
   const canApproveBatch = batch.status === "review" && unresolvedRows === 0 && unresolvedIdentity === 0 && unresolvedCourse === 0;
 
+  // Dry run is read-only and only meaningful once the batch is approved --
+  // fetched directly here (not via a mutating action) so a page refresh
+  // just re-renders the current plan. legacy_merge_dry_run() itself is the
+  // single source of truth for what execution would do; this page never
+  // recomputes the plan independently.
+  let dryRun: { rows: any[] } | null = null;
+  if (batch.status === "approved" && sp.dryrun === "1") {
+    const { data: dryRunData, error: dryRunError } = await supabase.rpc("legacy_merge_dry_run", { p_batch_id: batchId });
+    if (dryRunError) console.error("LegacyImportBatchPage: dry run failed", { message: dryRunError.message, batchId });
+    else dryRun = dryRunData as { rows: any[] };
+  }
+
   return (
     <>
       <PageHead
@@ -120,9 +152,67 @@ export default async function LegacyImportBatchPage({
           </button>
         </form>
         <p className="ta-cell-sub" style={{ marginTop: 10 }}>
-          Approving a batch does not merge any data into the Participant Master. Merge execution is a separate, not-yet-built phase.
+          Approving a batch does not merge any data by itself — it only unlocks the merge step below.
         </p>
       </Card>
+
+      {batch.status === "approved" && (
+        <Card title="Merge Execution">
+          <p style={{ marginTop: 0, fontWeight: 700, color: "var(--ta-danger)" }}>
+            This writes historical legacy data into CRM.
+          </p>
+          <p className="ta-cell-sub">
+            Preview exactly what will happen before executing. Dry run makes no writes. Execution creates/reuses participants,
+            historical schedules, and enrollments for every currently-approved row — never attendance or assessment records,
+            and never a certificate unless the source gave a real certificate number.
+          </p>
+          <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
+            <Link href={`/admin/participants/legacy-import/${batchId}?dryrun=1`} className="ta-btn ta-btn-outline ta-btn-sm">
+              Run Dry Run
+            </Link>
+          </div>
+
+          {dryRun && (
+            <div className="ta-table-wrap" style={{ marginBottom: 14 }}>
+              <table className="ta-table ta-table-compact">
+                <thead>
+                  <tr>
+                    <th>#</th><th>Name</th><th>Participant</th><th>Schedule</th><th>Enrollment</th><th>Certificate</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dryRun.rows.map((r: any) => (
+                    <tr key={r.row_id} className={r.eligible ? undefined : "ta-row-deleted"}>
+                      <td>{r.source_row_number}</td>
+                      <td>{r.raw_name}</td>
+                      <td>{DRY_RUN_LABELS[r.participant_action] ?? r.participant_action}</td>
+                      <td>{DRY_RUN_LABELS[r.schedule_action] ?? r.schedule_action}</td>
+                      <td>{DRY_RUN_LABELS[r.enrollment_action] ?? r.enrollment_action}</td>
+                      <td style={r.certificate_action === "CONFLICT_CERT_NUMBER_EXISTS" ? { color: "var(--ta-danger)", fontWeight: 700 } : undefined}>
+                        {DRY_RUN_LABELS[r.certificate_action] ?? r.certificate_action}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="ta-cell-sub" style={{ marginTop: 8 }}>
+                Attendance and assessment are never created by this engine for any row — no currently-supported source proves
+                either, so both are always skipped, never inferred from presence in the source.
+              </p>
+            </div>
+          )}
+
+          <form action={executeMerge.bind(null, batchId)}>
+            <label style={{ display: "flex", gap: 8, alignItems: "flex-start", marginBottom: 10 }}>
+              <input type="checkbox" name="confirm" required style={{ marginTop: 3 }} />
+              <span>I understand this writes historical legacy data into CRM and cannot be undone through this screen.</span>
+            </label>
+            <button className="ta-btn ta-btn-primary" type="submit">
+              Execute Approved Merge
+            </button>
+          </form>
+        </Card>
+      )}
 
       {pendingCourseMaps.length > 0 && (
         <Card title="Course Mapping">
