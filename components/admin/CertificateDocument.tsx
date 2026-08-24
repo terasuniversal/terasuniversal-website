@@ -408,6 +408,10 @@ export function CertificateDocument({ data, config }: { data: CertData; config: 
   const gold = config.accent_color || "#D4AF37";
   const dateRange = formatDateRange(data.training_date, data.training_end_date);
   const duration = data.programme_duration || config.duration_label;
+  // Standard Scaffold keeps the established TERAS Standard hierarchy: the
+  // course name and date range are the focal content, without the banner that
+  // belongs to the newer certificate families.
+  const showDurationRibbon = config.design_variant !== "standard_scaffold_certificate";
   // +8 rather than +4: at +4 the holder name sat only ~4pt above the
   // programme title, so the eye had no single landing point. Scale is the
   // one lever that makes a centrepiece read as ceremonial.
@@ -415,7 +419,10 @@ export function CertificateDocument({ data, config }: { data: CertData; config: 
   // The attestation trio is centred rather than justified edge-to-edge, so the
   // gap has to come down when a second signatory is present — otherwise four
   // blocks at the single-signatory gap overrun the content width.
-  const singleSig = config.signature_layout === "single";
+  // The Standard Scaffold family is formally issued by the Director only.
+  // Keep that single-signatory rule even for legacy rows that predate the
+  // signature_layout setting.
+  const singleSig = config.signature_layout === "single" || config.design_variant === "standard_scaffold_certificate";
 
   return (
     <div
@@ -465,7 +472,7 @@ export function CertificateDocument({ data, config }: { data: CertData; config: 
           {data.course_name}
         </div>
         <div style={{ width: 150, height: 1, background: navy, opacity: 0.22, margin: "11px auto 0" }} />
-        {duration && (
+        {showDurationRibbon && duration && (
           <RibbonBanner navy={navy} gold={gold} style={{ margin: "19px auto 0" }}>
             <span style={{ fontSize: 9, fontWeight: 600, letterSpacing: 2.4, fontFamily: SANS, textIndent: 2.4 }}>{duration}</span>
           </RibbonBanner>
@@ -529,7 +536,7 @@ export function CertificateDocument({ data, config }: { data: CertData; config: 
               {config.signature_url && <img src={config.signature_url} alt="" style={{ maxHeight: 44, maxWidth: 150, objectFit: "contain" }} />}
             </div>
             <div style={{ borderTop: `1px solid ${navy}`, margin: "4px 0 5px" }} />
-            {config.signature_layout === "single" ? (
+            {singleSig ? (
               <strong style={{ color: navy, letterSpacing: 0.3 }}>{config.signature_name || config.signature_title || "Director"}</strong>
             ) : (
               <>
@@ -537,11 +544,11 @@ export function CertificateDocument({ data, config }: { data: CertData; config: 
                 <div style={{ color: "#8a94a6", fontSize: 8.5, letterSpacing: 1.3, fontFamily: SANS, textTransform: "uppercase", marginTop: 3 }}>Trainer Signature</div>
               </>
             )}
-            {config.signature_layout === "single" && config.signature_name && (
+            {singleSig && config.signature_name && (
               <div style={{ color: "#8a94a6", fontSize: 8.5, letterSpacing: 1.3, fontFamily: SANS, textTransform: "uppercase", marginTop: 3 }}>{config.signature_title || "Director"}</div>
             )}
           </div>
-          {config.signature_layout !== "single" && (
+          {!singleSig && (
             <div style={{ textAlign: "center", fontSize: 11, width: "auto", maxWidth: 160 }}>
               <AuthorisedSignatureLabel />
               <div style={{ height: 44 }} />

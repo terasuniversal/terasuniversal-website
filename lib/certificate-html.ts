@@ -211,13 +211,14 @@ export function renderCertificateFront(data: CertData, config: TemplateConfig): 
   const gold = config.accent_color || "#D4AF37";
   const dateRange = formatDateRange(data.training_date, data.training_end_date);
   const duration = data.programme_duration || config.duration_label;
+  const showDurationRibbon = config.design_variant !== "standard_scaffold_certificate";
   const nameSize = fitHolderNameSize(data.holder_name) + 8;
   const bgImage = config.background_url ? `background-image:url('${esc(config.background_url)}');background-size:cover;background-position:center;` : "";
 
   const motif = !config.background_url ? certificateWatermark(config, navy, false) : "";
   const logo = config.logo_url ? `<img src="${esc(config.logo_url)}" alt="" style="width:105px;height:74px;object-fit:contain;display:block;margin:0 auto 6px;"/>` : "";
   const icBlock = data.ic_passport ? `<p style="font-size:9.5px;color:#8a94a6;margin:10px 0 0;letter-spacing:.6px;font-family:${SANS};">Passport / IC No: ${esc(data.ic_passport)}</p>` : "";
-  const durationBlock = duration
+  const durationBlock = showDurationRibbon && duration
     ? ribbonBanner(`<span style="font-size:9px;font-weight:600;letter-spacing:2.4px;font-family:${SANS};text-indent:2.4px;">${esc(duration)}</span>`, navy, gold, "margin:19px auto 0;display:block;width:fit-content;")
     : "";
   const dateBlock = dateRange
@@ -231,7 +232,9 @@ export function renderCertificateFront(data: CertData, config: TemplateConfig): 
   // visibly empty either way; see authorisedSignatureLabel's own comment.
   const primarySigLabel = config.signature_url ? "" : authorisedSignatureLabel();
 
-  const isSingleSignature = config.signature_layout === "single";
+  // Mirrors CertificateDocument: Standard Scaffold is issued by the Director
+  // only, including legacy configs without an explicit signature_layout.
+  const isSingleSignature = config.signature_layout === "single" || config.design_variant === "standard_scaffold_certificate";
   const primarySignatureBlock = isSingleSignature
     ? `<div style="text-align:center;font-size:11px;width:auto;max-width:160px;">
         ${primarySigLabel}
