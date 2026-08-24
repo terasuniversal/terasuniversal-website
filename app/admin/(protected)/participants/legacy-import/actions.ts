@@ -11,6 +11,13 @@ import {
   legacyCourseMappingSchema,
 } from "../../../../../lib/validation/schemas";
 
+/** Row states that are final for Phase 2 purposes -- no participant-match
+ *  or approve/reject action may touch a row in any of these. `merged` is
+ *  reserved for a future merge phase and must stay terminal even though
+ *  nothing in Phase 2 can produce it yet. */
+const CLOSED_REVIEW = new Set(["approved", "rejected", "merged"]);
+const UNRESOLVED_MATCH = new Set(["conflict", "probable_duplicate"]);
+
 /**
  * Admin-only, write-level gate. requireRole("admin") + the module's own
  * "admin" access level (module min_role is already 'admin' in
@@ -84,15 +91,21 @@ export async function linkParticipant(batchId: string, formData: FormData) {
   const supabase = await createSupabaseServerClient();
 
   // Re-verify against the database, never the submitted values alone: the
-  // row must actually belong to this batch, and the participant id must be
-  // a real, currently-accessible row -- a tampered <select> value fails here.
+  // row must belong to this batch, must not already have a closed decision
+  // (approved/rejected/merged), and must currently be an unresolved
+  // identity conflict -- a crafted resubmission against an already-resolved
+  // row (including a replayed double-submit after the first one already
+  // flipped match_status to exact_match) is rejected here, not silently
+  // re-applied.
   const { data: row } = await supabase
     .from("legacy_participant_staging")
-    .select("id, raw_name")
+    .select("id, raw_name, review_status, match_status")
     .eq("id", row_id)
     .eq("batch_id", batchId)
     .maybeSingle();
   if (!row) backTo(batchId, "Row not found in this batch.");
+  if (CLOSED_REVIEW.has(row!.review_status)) backTo(batchId, "This row already has a final decision and cannot be changed.");
+  if (!UNRESOLVED_MATCH.has(row!.match_status)) backTo(batchId, "This row does not have an unresolved participant-identity conflict.");
 
   const { data: participant } = await supabase
     .from("participants")
@@ -126,11 +139,13 @@ export async function markAsNewParticipant(batchId: string, rowId: string) {
 
   const { data: row } = await supabase
     .from("legacy_participant_staging")
-    .select("id, raw_name")
+    .select("id, raw_name, review_status, match_status")
     .eq("id", rowId)
     .eq("batch_id", batchId)
     .maybeSingle();
   if (!row) backTo(batchId, "Row not found in this batch.");
+  if (CLOSED_REVIEW.has(row!.review_status)) backTo(batchId, "This row already has a final decision and cannot be changed.");
+  if (!UNRESOLVED_MATCH.has(row!.match_status)) backTo(batchId, "This row does not have an unresolved participant-identity conflict.");
 
   const { error } = await supabase
     .from("legacy_participant_staging")
@@ -162,6 +177,9 @@ export async function markRowReviewed(batchId: string, rowId: string) {
     .eq("batch_id", batchId)
     .maybeSingle();
   if (!row) backTo(batchId, "Row not found in this batch.");
+  // Only a genuinely untouched row can be marked reviewed -- this also
+  // means a closed row (approved/rejected/merged) can never be pulled back
+  // to 'reviewed'.
   if (row!.review_status !== "pending") backTo(batchId);
 
   const { error } = await supabase
@@ -196,7 +214,10 @@ export async function rejectRow(batchId: string, formData: FormData) {
     .eq("batch_id", batchId)
     .maybeSingle();
   if (!row) backTo(batchId, "Row not found in this batch.");
-  if (row!.review_status === "approved") backTo(batchId, "An approved row cannot be rejected directly.");
+  // A row already approved or merged cannot be rejected out from under
+  // that decision; re-rejecting an already-rejected row is blocked too --
+  // once closed, a row is closed.
+  if (CLOSED_REVIEW.has(row!.review_status)) backTo(batchId, "This row already has a final decision and cannot be changed.");
 
   const { error } = await supabase
     .from("legacy_participant_staging")
@@ -230,13 +251,15 @@ export async function approveRow(batchId: string, rowId: string) {
     .eq("batch_id", batchId)
     .maybeSingle();
   if (!row) backTo(batchId, "Row not found in this batch.");
-  if (row!.review_status === "approved" || row!.review_status === "merged") backTo(batchId, "Row is already approved.");
+  // Blocks re-approving an already-approved/merged row AND approving a
+  // row that was already rejected -- a rejected row stays rejected.
+  if (CLOSED_REVIEW.has(row!.review_status)) backTo(batchId, "This row already has a final decision and cannot be changed.");
 
   // Every condition re-checked against fresh DB state -- this is the actual
   // enforcement point, not a mirror of client-side UI state.
   const blockers: string[] = [];
   if (row!.validation_error) blockers.push("has a validation error");
-  if (!row!.match_status || row!.match_status === "conflict" || row!.match_status === "probable_duplicate") {
+  if (!row!.match_status || UNRESOLVED_MATCH.has(row!.match_status)) {
     blockers.push("participant identity is not yet resolved");
   }
   if (row!.raw_course_name && !row!.mapped_course_id) blockers.push("course is not yet mapped");
@@ -259,6 +282,26 @@ export async function approveRow(batchId: string, rowId: string) {
 
 // -- Course mapping (task section 5) -------------------------------------
 
+const COURSE_MAP_ERROR_MESSAGES: Record<string, string> = {
+  not_authorized: "You are not authorized to approve this mapping.",
+  batch_not_found: "Batch not found.",
+  mapping_not_found: "Course mapping not found.",
+  mapping_source_mismatch: "That mapping belongs to a different source and cannot be approved from this batch.",
+  mapping_already_mapped: "This course name is already mapped and cannot be changed here. Mapping is immutable once approved.",
+  course_not_found: "Selected course does not exist.",
+  course_deleted: "Selected course has been deleted and cannot be used.",
+};
+
+/**
+ * Approves a legacy_course_map row and cascades mapped_course_id to every
+ * affected staging row as a single atomic DB operation
+ * (legacy_course_map_approve, 20260824120000). Previously this was two
+ * separate client-side writes -- update the mapping, then a best-effort
+ * cascade update whose failure only logged an error -- which could leave
+ * status='mapped' with staging rows still unmapped. That window no longer
+ * exists: the RPC's plpgsql function body is one implicit transaction, so
+ * either both writes land or neither does.
+ */
 export async function approveCourseMapping(batchId: string, formData: FormData) {
   const profile = await guard();
   const parsed = legacyCourseMappingSchema.safeParse({
@@ -270,46 +313,24 @@ export async function approveCourseMapping(batchId: string, formData: FormData) 
 
   const supabase = await createSupabaseServerClient();
 
+  // Read only for the audit summary text -- the RPC itself re-validates
+  // everything (batch/source scoping, already-mapped, course existence and
+  // deleted_at) against fresh state; nothing read here is trusted for
+  // authorization.
   const { data: mapping } = await supabase
     .from("legacy_course_map")
-    .select("id, source_label, normalized_course_name")
+    .select("normalized_course_name")
     .eq("id", course_map_id)
     .maybeSingle();
-  if (!mapping) backTo(batchId, "Course mapping not found.");
+  const { data: course } = await supabase.from("courses").select("title").eq("id", course_id).maybeSingle();
 
-  const { data: course } = await supabase.from("courses").select("id, title").eq("id", course_id).maybeSingle();
-  if (!course) backTo(batchId, "Selected course does not exist.");
-
-  const { error: mapErr } = await supabase
-    .from("legacy_course_map")
-    .update({ course_id, status: "mapped" })
-    .eq("id", course_map_id);
-  if (mapErr) backTo(batchId, "Could not save the course mapping.");
-
-  // Cascade to every staging row sharing this exact source + normalized
-  // course name -- the mapping is source-level (legacy_course_map's own
-  // unique key), not batch-level, so it also applies to any other batch
-  // already imported from the same source. Scoped to that source's own
-  // batches only, so an identically-named course from a different source
-  // is never affected by this approval.
-  const { data: sourceBatches, error: batchesErr } = await supabase
-    .from("legacy_import_batches")
-    .select("id")
-    .eq("source_label", mapping!.source_label);
-  if (batchesErr) {
-    console.error("approveCourseMapping: source batch lookup failed", { message: batchesErr.message, course_map_id });
-  }
-  const batchIds = (sourceBatches ?? []).map((b: { id: string }) => b.id);
-  if (batchIds.length > 0) {
-    const { error: rowsErr } = await supabase
-      .from("legacy_participant_staging")
-      .update({ mapped_course_id: course_id })
-      .is("mapped_course_id", null)
-      .eq("normalized_course_name", mapping!.normalized_course_name)
-      .in("batch_id", batchIds);
-    if (rowsErr) {
-      console.error("approveCourseMapping: staging cascade update failed", { message: rowsErr.message, course_map_id });
-    }
+  const { data: updatedCount, error } = await supabase.rpc("legacy_course_map_approve", {
+    p_batch_id: batchId,
+    p_course_map_id: course_map_id,
+    p_course_id: course_id,
+  });
+  if (error) {
+    backTo(batchId, COURSE_MAP_ERROR_MESSAGES[error.message] ?? "Could not approve the course mapping.");
   }
 
   await logAudit(
@@ -317,8 +338,8 @@ export async function approveCourseMapping(batchId: string, formData: FormData) 
     "update",
     "legacy_course_map",
     course_map_id,
-    `Legacy course "${mapping!.normalized_course_name}" mapped to ${course!.title}`,
-    { course_map_id, course_id, source_label: mapping!.source_label }
+    `Legacy course "${mapping?.normalized_course_name ?? course_map_id}" mapped to ${course?.title ?? course_id} (${updatedCount ?? 0} staging row(s) updated)`,
+    { course_map_id, course_id, batch_id: batchId, rows_updated: updatedCount }
   );
 
   revalidatePath(`/admin/participants/legacy-import/${batchId}`);
@@ -339,14 +360,37 @@ export async function approveBatch(batchId: string) {
   if (!batch) backTo(batchId, "Batch not found.");
   if (batch!.status !== "review") backTo(batchId, "Only a batch in review can be approved.");
 
+  // Recomputed fresh from current DB state -- never trust a client-supplied
+  // readiness flag. Three independent conditions, all required:
+  //   1. no row left pending/reviewed (every row has a final decision)
+  //   2. no non-rejected row still has an unresolved identity conflict
+  //   3. no non-rejected row that named a course is still unmapped
+  // Rejected rows are exempt from 2 and 3 -- they will never merge, so an
+  // unresolved conflict or unmapped course on a rejected row must not block
+  // the batch.
   const { data: rows } = await supabase
     .from("legacy_participant_staging")
-    .select("review_status")
+    .select("review_status, match_status, raw_course_name, mapped_course_id")
     .eq("batch_id", batchId);
-  const unresolved = (rows ?? []).filter((r: { review_status: string }) => r.review_status === "pending" || r.review_status === "reviewed").length;
-  if (unresolved > 0) backTo(batchId, `${unresolved} row(s) still need an approve/reject decision before the batch can be approved.`);
+  const rowList = rows ?? [];
 
-  const approvedCount = (rows ?? []).filter((r: { review_status: string }) => r.review_status === "approved").length;
+  const unresolvedRows = rowList.filter((r: any) => r.review_status === "pending" || r.review_status === "reviewed").length;
+  const unresolvedIdentity = rowList.filter(
+    (r: any) => r.review_status !== "rejected" && UNRESOLVED_MATCH.has(r.match_status)
+  ).length;
+  const unresolvedCourse = rowList.filter(
+    (r: any) => r.review_status !== "rejected" && r.raw_course_name && !r.mapped_course_id
+  ).length;
+
+  if (unresolvedRows > 0 || unresolvedIdentity > 0 || unresolvedCourse > 0) {
+    const parts: string[] = [];
+    if (unresolvedRows > 0) parts.push(`${unresolvedRows} row(s) without a final decision`);
+    if (unresolvedIdentity > 0) parts.push(`${unresolvedIdentity} unresolved identity conflict(s)`);
+    if (unresolvedCourse > 0) parts.push(`${unresolvedCourse} row(s) missing a required course mapping`);
+    backTo(batchId, `Cannot approve batch: ${parts.join("; ")}.`);
+  }
+
+  const approvedCount = rowList.filter((r: any) => r.review_status === "approved").length;
 
   const { error } = await supabase
     .from("legacy_import_batches")

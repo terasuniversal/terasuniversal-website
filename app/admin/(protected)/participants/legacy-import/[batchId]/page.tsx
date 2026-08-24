@@ -17,7 +17,7 @@ import {
 export const dynamic = "force-dynamic";
 
 const UNRESOLVED_MATCH = new Set(["conflict", "probable_duplicate"]);
-const CLOSED_REVIEW = new Set(["approved", "rejected"]);
+const CLOSED_REVIEW = new Set(["approved", "rejected", "merged"]);
 
 export default async function LegacyImportBatchPage({
   params,
@@ -77,8 +77,14 @@ export default async function LegacyImportBatchPage({
   const rejectedRows = rowList.filter((r) => r.review_status === "rejected").length;
   const unresolvedRows = rowList.filter((r) => r.review_status === "pending" || r.review_status === "reviewed").length;
   const conflictsPending = rowList.filter((r) => UNRESOLVED_MATCH.has(r.match_status) && !CLOSED_REVIEW.has(r.review_status)).length;
+  // Mirrors approveBatch()'s server-side readiness rule exactly (display
+  // only -- the server re-derives this from fresh DB state and is
+  // authoritative, this is not relied on for enforcement). Rejected rows
+  // are exempt from the identity/course conditions since they never merge.
+  const unresolvedIdentity = rowList.filter((r) => r.review_status !== "rejected" && UNRESOLVED_MATCH.has(r.match_status)).length;
+  const unresolvedCourse = rowList.filter((r) => r.review_status !== "rejected" && r.raw_course_name && !r.mapped_course_id).length;
   const pendingCourseMaps = (courseMaps ?? []).filter((c: any) => c.status === "pending");
-  const canApproveBatch = batch.status === "review" && unresolvedRows === 0;
+  const canApproveBatch = batch.status === "review" && unresolvedRows === 0 && unresolvedIdentity === 0 && unresolvedCourse === 0;
 
   return (
     <>
@@ -103,9 +109,9 @@ export default async function LegacyImportBatchPage({
 
       <Card title="Batch readiness">
         <p style={{ marginTop: 0 }}>
-          {unresolvedRows === 0
-            ? "Every row has been approved or rejected. This batch can be marked Approved."
-            : `${unresolvedRows} row(s) still need an approve/reject decision. ${conflictsPending} of those are unresolved participant-identity conflicts.`}
+          {canApproveBatch
+            ? "Every row has a final decision, no unresolved identity conflicts, and no required course mapping is missing. This batch can be marked Approved."
+            : `${unresolvedRows} row(s) still need an approve/reject decision. ${unresolvedIdentity} unresolved identity conflict(s) and ${unresolvedCourse} row(s) missing a required course mapping (rejected rows are exempt from both).`}
           {pendingCourseMaps.length > 0 && ` ${pendingCourseMaps.length} course name(s) still need canonical mapping.`}
         </p>
         <form action={approveBatch.bind(null, batchId)}>
