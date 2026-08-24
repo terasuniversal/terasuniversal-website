@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
 import { requireModuleAccess, requireCertificate } from "../../../../../../lib/auth/session";
 import { PageHead, Card, Badge, EmptyState } from "../../../../../../components/admin/ui";
@@ -39,10 +39,17 @@ function reasonText(r: EligibilityRow): string {
   return REASON_LABEL[r.ineligibility_reason ?? ""] ?? r.ineligibility_reason ?? "Not eligible";
 }
 
-export default async function GenerateForSchedulePage({ params }: { params: Promise<{ scheduleId: string }> }) {
+export default async function GenerateForSchedulePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ scheduleId: string }>;
+  searchParams: Promise<{ generated?: string; skipped?: string }>;
+}) {
 await requireModuleAccess("certificates");
   await requireCertificate(true);
   const { scheduleId } = await params;
+  const query = await searchParams;
   const supabase = await createSupabaseServerClient();
 
   const { data: scheduleRow } = await supabase.from("course_schedules").select("id, schedule_code, trainer_name, start_date, courses(course_name)").eq("id", scheduleId).single();
@@ -55,8 +62,13 @@ await requireModuleAccess("certificates");
 
   const boundBulk = async () => {
     "use server";
-    await bulkGenerate(scheduleId);
+    const result = await bulkGenerate(scheduleId);
+    redirect(`/admin/certificates/generate/${scheduleId}?generated=${result.generated}&skipped=${result.skipped}`);
   };
+
+  const generated = Number.parseInt(query.generated ?? "", 10);
+  const skipped = Number.parseInt(query.skipped ?? "", 10);
+  const hasGenerationResult = Number.isFinite(generated) && Number.isFinite(skipped);
 
   return (
     <>
@@ -76,6 +88,21 @@ await requireModuleAccess("certificates");
         A certificate can only be generated once the schedule is <strong>Completed</strong> and the participant meets the course&apos;s configured attendance minimum and assessment/competency requirements.
       </div>
 
+      {hasGenerationResult ? (
+        <div
+          className="ta-alert"
+          role="status"
+          style={{
+            background: generated > 0 ? "rgba(27, 148, 90, .10)" : "rgba(218, 158, 20, .12)",
+            color: generated > 0 ? "var(--ta-success)" : "var(--ta-warning)",
+            marginBottom: 16,
+          }}
+        >
+          {generated > 0 ? <><strong>{generated} certificate{generated === 1 ? "" : "s"} generated successfully.</strong> </> : <strong>No certificates were generated. </strong>}
+          {skipped > 0 ? `${skipped} participant${skipped === 1 ? " was" : "s were"} skipped because their eligibility changed or a certificate already exists.` : "All eligible participants have been processed."}
+        </div>
+      ) : null}
+
       <Card>
         {rows.length > 0 ? (
           <div className="ta-table-wrap">
@@ -87,7 +114,10 @@ await requireModuleAccess("certificates");
                   const canGen = r.eligible;
                   const boundGen = async () => {
                     "use server";
-                    await generateCertificate(scheduleId, r.participant_id);
+                    const result = await generateCertificate(scheduleId, r.participant_id);
+                    const generatedCount = result === "ok" ? 1 : 0;
+                    const skippedCount = result === "ok" ? 0 : 1;
+                    redirect(`/admin/certificates/generate/${scheduleId}?generated=${generatedCount}&skipped=${skippedCount}`);
                   };
                   return (
                     <tr key={r.participant_id}>
