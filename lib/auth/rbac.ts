@@ -84,6 +84,12 @@ export const MODULE_CATALOG: ModuleDefinition[] = [
   ["sales_leads", "Leads", "Sales", "editor"],
   ["sales_opportunities", "Opportunities", "Sales", "editor"],
   ["sales_quotations", "Quotations", "Sales", "editor"],
+  // Invoice Module V1. View = editor+ (matches sales_quotations); creating a
+  // draft, issuing, recording a payment, and cancelling all additionally
+  // require app.is_admin() via RLS/the RPCs -- same two-layer gate as
+  // Quotations. No separate "payments" module key -- payments have no
+  // list/detail page of their own, always viewed inside an invoice.
+  ["invoices", "Invoices", "Sales", "editor"],
   ["sales_followups", "Follow-ups", "Sales", "editor"],
   ["sales_tasks", "Tasks", "Sales", "editor"],
   ["sales_reports", "Sales Reports", "Sales", "editor"],
@@ -113,6 +119,7 @@ export const SALES_MODULE_KEYS = [
   "sales_leads",
   "sales_opportunities",
   "sales_quotations",
+  "invoices",
   "sales_followups",
   "sales_tasks",
   "sales_reports",

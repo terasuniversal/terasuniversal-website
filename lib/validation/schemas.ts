@@ -511,6 +511,44 @@ export const quotationRejectSchema = z.object({
 export type QuotationRejectInput = z.infer<typeof quotationRejectSchema>;
 
 /**
+ * Invoice Module V1. Draft editing is deliberately narrow — invoice_date,
+ * due_date, the billing snapshot fields, notes, and payment_terms only.
+ * Commercial fields (items, subtotal/tax/total) are copied once from the
+ * accepted quotation at creation and stay non-editable even while draft, to
+ * avoid an invoice ever silently diverging from the quotation it was
+ * created from (see architecture audit section 8 / task section 8).
+ */
+export const invoiceDraftEditSchema = z.object({
+  invoice_date: z.string().trim().min(1, "Invoice date is required"),
+  due_date: z.string().trim().min(1, "Due date is required"),
+  billing_name: z.string().trim().min(1, "Billing name is required").max(200),
+  billing_company: z.string().trim().max(200).optional().or(z.literal("")),
+  billing_registration_no: z.string().trim().max(100).optional().or(z.literal("")),
+  billing_address: z.string().trim().max(1000).optional().or(z.literal("")),
+  billing_email: z.string().trim().email("Invalid email").max(200).optional().or(z.literal("")),
+  billing_phone: z.string().trim().max(50).optional().or(z.literal("")),
+  notes: z.string().trim().max(3000).optional().or(z.literal("")),
+  payment_terms: z.string().trim().max(3000).optional().or(z.literal("")),
+});
+export type InvoiceDraftEditInput = z.infer<typeof invoiceDraftEditSchema>;
+
+/** V1 manual-payment providers only — 'toyyibpay' is Phase 2, never reachable here. */
+export const recordManualPaymentSchema = z.object({
+  payment_provider: z.enum(["cash", "bank_transfer", "cheque", "other"]),
+  payment_method: z.string().trim().max(100).optional().or(z.literal("")),
+  amount: z.coerce.number().positive("Amount must be greater than 0"),
+  payment_date: z.string().trim().min(1, "Payment date is required"),
+  payment_reference: z.string().trim().max(200).optional().or(z.literal("")),
+  notes: z.string().trim().max(1000).optional().or(z.literal("")),
+});
+export type RecordManualPaymentInput = z.infer<typeof recordManualPaymentSchema>;
+
+export const cancelInvoiceSchema = z.object({
+  reason: z.string().trim().max(500).optional().or(z.literal("")),
+});
+export type CancelInvoiceInput = z.infer<typeof cancelInvoiceSchema>;
+
+/**
  * Sales CRM Phase 4B — sales_tasks mutations. Priority reuses the same
  * low/medium/high family as salesLeadFollowUpSchema (see
  * 20260814250000_sales_tasks.sql's comment — this is deliberate, not an
