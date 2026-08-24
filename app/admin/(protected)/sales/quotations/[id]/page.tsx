@@ -26,6 +26,7 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
   const { data: opportunity } = await supabase.from("sales_opportunities").select("id, opportunity_no, company_name").eq("id", q.opportunity_id).maybeSingle();
   const { data: itemRows } = await supabase.from("sales_quotation_items").select("*").eq("quotation_id", id).order("sort_order");
   const items = (itemRows ?? []) as SalesQuotationItemRow[];
+  const { data: existingInvoice } = await supabase.from("invoices").select("id").eq("quotation_id", id).maybeSingle();
 
   let chain: { id: string; revision_no: number; status: string }[] = [];
   if (q.quotation_no) {
@@ -121,7 +122,7 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          <QuotationActionsPanel quotationId={id} status={q.status} canManage={canManage} />
+          <QuotationActionsPanel quotationId={id} status={q.status} canManage={canManage} existingInvoiceId={existingInvoice?.id ?? null} />
         </div>
       </div>
     </>

@@ -65,6 +65,7 @@ export const NAV: NavGroup[] = [
       { key: "sales_leads", label: "Leads", href: "/admin/sales/leads", icon: "leads", minRole: "editor" },
       { key: "sales_opportunities", label: "Opportunities", href: "/admin/sales/opportunities", icon: "opportunities", minRole: "editor" },
       { key: "sales_quotations", label: "Quotations", href: "/admin/sales/quotations", icon: "quotations", minRole: "editor" },
+      { key: "invoices", label: "Invoices", href: "/admin/invoices", icon: "quotations", minRole: "editor" },
       { key: "sales_followups", label: "Follow-ups", href: "/admin/sales/follow-ups", icon: "followups", minRole: "editor" },
       { key: "sales_tasks", label: "Tasks", href: "/admin/sales/tasks", icon: "tasks", minRole: "editor" },
       { key: "sales_reports", label: "Reports", href: "/admin/sales/reports", icon: "sales-reports", minRole: "editor" },

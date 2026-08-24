@@ -1,17 +1,31 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 import { Card, Field } from "../../../../../../components/admin/ui";
 import { markQuotationSent, acceptQuotationAction, rejectQuotationAction, createRevision, type SalesActionState } from "../actions";
 import type { SalesQuotationStatus } from "../../../../../../lib/sales/crm";
+import { createInvoiceFromQuotationAction, type InvoiceActionState } from "../../../invoices/actions";
 
 const INITIAL: SalesActionState = {};
+const INVOICE_INITIAL: InvoiceActionState = {};
 
-export function QuotationActionsPanel({ quotationId, status, canManage }: { quotationId: string; status: SalesQuotationStatus; canManage: boolean }) {
+export function QuotationActionsPanel({
+  quotationId,
+  status,
+  canManage,
+  existingInvoiceId,
+}: {
+  quotationId: string;
+  status: SalesQuotationStatus;
+  canManage: boolean;
+  existingInvoiceId: string | null;
+}) {
   const [sentState, sentAction, sentPending] = useActionState(markQuotationSent.bind(null, quotationId), INITIAL);
   const [acceptState, acceptAction, acceptPending] = useActionState(acceptQuotationAction.bind(null, quotationId), INITIAL);
   const [rejectState, rejectAction, rejectPending] = useActionState(rejectQuotationAction.bind(null, quotationId), INITIAL);
   const [revisionState, revisionAction, revisionPending] = useActionState(createRevision.bind(null, quotationId), INITIAL);
+  const [invoiceState, invoiceAction, invoicePending] = useActionState(createInvoiceFromQuotationAction.bind(null, quotationId), INVOICE_INITIAL);
 
   if (!canManage) {
     return (
@@ -82,11 +96,32 @@ export function QuotationActionsPanel({ quotationId, status, canManage }: { quot
         </Card>
       )}
 
-      {(status === "accepted" || status === "superseded") && (
+      {status === "accepted" && (
+        <Card title="Invoice">
+          {existingInvoiceId ? (
+            <div className="ta-card-pad" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <p style={{ margin: 0, fontSize: 13, color: "var(--ta-muted)" }}>An invoice already exists for this quotation.</p>
+              <Link href={`/admin/invoices/${existingInvoiceId}`} className="ta-btn ta-btn-outline ta-btn-sm">View Invoice</Link>
+            </div>
+          ) : canManage ? (
+            <form action={invoiceAction} className="ta-card-pad" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {invoiceState.message && <div className="ta-alert ta-alert-error">{invoiceState.message}</div>}
+              <p style={{ margin: 0, fontSize: 13, color: "var(--ta-muted)" }}>
+                Creates a Draft Invoice, snapshotting this quotation's items and totals. The invoice will not change if this quotation is edited afterward.
+              </p>
+              <button type="submit" className="ta-btn ta-btn-primary ta-btn-sm" disabled={invoicePending}>
+                {invoicePending ? "Creating…" : "🧾 Create Invoice"}
+              </button>
+            </form>
+          ) : (
+            <div className="ta-card-pad" style={{ color: "var(--ta-muted)", fontSize: 13 }}>No invoice has been created yet — creating one requires Admin access.</div>
+          )}
+        </Card>
+      )}
+
+      {status === "superseded" && (
         <Card title="Status">
-          <div className="ta-card-pad" style={{ color: "var(--ta-muted)", fontSize: 13 }}>
-            {status === "accepted" ? "This quotation was accepted — no further changes possible." : "This quotation has been superseded by a later revision."}
-          </div>
+          <div className="ta-card-pad" style={{ color: "var(--ta-muted)", fontSize: 13 }}>This quotation has been superseded by a later revision.</div>
         </Card>
       )}
     </>
