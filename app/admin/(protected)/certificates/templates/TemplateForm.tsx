@@ -23,6 +23,14 @@ const PREVIEW_DATA_BASE: Omit<CertData, "qr_svg"> = {
   verification_url: "https://www.terasuniversal.com.my/verify/TU-SESP-2026-0001",
 };
 
+const STANDARD_SCAFFOLD_PREVIEW_DATA: Omit<CertData, "qr_svg"> = {
+  ...PREVIEW_DATA_BASE,
+  certificate_number: "TU-SCF-2026-0001",
+  course_name: "TERAS BASIC SCAFFOLD ERECTION PROGRAMME",
+  programme_duration: "10-Day Practical Training",
+  verification_url: "https://www.terasuniversal.com.my/verify/TU-SCF-2026-0001",
+};
+
 export function TemplateForm({
   action,
   template,
@@ -71,7 +79,17 @@ export function TemplateForm({
     });
     return () => { cancelled = true; };
   }, [preview.primary_color]);
-  const previewData: CertData = { ...PREVIEW_DATA_BASE, qr_svg: qrSvg };
+  // The form must preview the same certificate family the administrator is
+  // editing. The old universal sample made Standard Scaffold look like the
+  // unrelated Professional Scaffold programme and hid its level-specific
+  // watermark from the preview.
+  const previewBase = preview.design_variant === "standard_scaffold_certificate"
+    ? STANDARD_SCAFFOLD_PREVIEW_DATA
+    : PREVIEW_DATA_BASE;
+  const previewData: CertData = { ...previewBase, qr_svg: qrSvg };
+  const previewConfig = preview.design_variant === "standard_scaffold_certificate"
+    ? { ...preview, watermark_level: "basic" as const }
+    : preview;
   const upd = (k: string, v: any) => setPreview((p) => ({ ...p, [k]: v }));
   const updLines = (k: string, raw: string) => upd(k, raw.split("\n").map((s) => s.trim()).filter(Boolean));
   const updSkillsRecord = (raw: string) =>
@@ -227,7 +245,7 @@ export function TemplateForm({
         <div style={{ fontWeight: 700, color: "var(--ta-navy)", marginBottom: 8 }}>Live preview — Front</div>
         <div style={{ overflow: "hidden", border: "1px solid var(--ta-line)", borderRadius: 10, background: "#eef1f6", padding: 10, marginBottom: 16 }}>
           <div style={{ transform: "scale(0.42)", transformOrigin: "top left", height: 480 }}>
-            <CertificateFront config={preview} data={previewData} />
+            <CertificateFront config={previewConfig} data={previewData} />
           </div>
         </div>
         {preview.show_back_page && (
@@ -235,7 +253,7 @@ export function TemplateForm({
             <div style={{ fontWeight: 700, color: "var(--ta-navy)", marginBottom: 8 }}>Live preview — Back</div>
             <div style={{ overflow: "hidden", border: "1px solid var(--ta-line)", borderRadius: 10, background: "#eef1f6", padding: 10 }}>
               <div style={{ transform: "scale(0.42)", transformOrigin: "top left", height: 480 }}>
-                <CertificateBack config={preview} data={previewData} />
+                <CertificateBack config={previewConfig} data={previewData} />
               </div>
             </div>
           </>
