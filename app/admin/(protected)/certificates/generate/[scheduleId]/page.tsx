@@ -44,7 +44,7 @@ export default async function GenerateForSchedulePage({
   searchParams,
 }: {
   params: Promise<{ scheduleId: string }>;
-  searchParams: Promise<{ generated?: string; skipped?: string }>;
+  searchParams: Promise<{ generated?: string; skipped?: string; reason?: string }>;
 }) {
 await requireModuleAccess("certificates");
   await requireCertificate(true);
@@ -63,7 +63,8 @@ await requireModuleAccess("certificates");
   const boundBulk = async () => {
     "use server";
     const result = await bulkGenerate(scheduleId);
-    redirect(`/admin/certificates/generate/${scheduleId}?generated=${result.generated}&skipped=${result.skipped}`);
+    const reason = result.failureReasons[0] ? `&reason=${encodeURIComponent(result.failureReasons[0])}` : "";
+    redirect(`/admin/certificates/generate/${scheduleId}?generated=${result.generated}&skipped=${result.skipped}${reason}`);
   };
 
   const generated = Number.parseInt(query.generated ?? "", 10);
@@ -99,7 +100,8 @@ await requireModuleAccess("certificates");
           }}
         >
           {generated > 0 ? <><strong>{generated} certificate{generated === 1 ? "" : "s"} generated successfully.</strong> </> : <strong>No certificates were generated. </strong>}
-          {skipped > 0 ? `${skipped} participant${skipped === 1 ? " was" : "s were"} skipped because their eligibility changed or a certificate already exists.` : "All eligible participants have been processed."}
+          {skipped > 0 ? `${skipped} participant${skipped === 1 ? " was" : "s were"} skipped because their eligibility changed, a certificate already exists, or the system rejected the request.` : "All eligible participants have been processed."}
+          {query.reason ? <><br />System reason: <strong>{query.reason}</strong></> : null}
         </div>
       ) : null}
 
@@ -117,7 +119,8 @@ await requireModuleAccess("certificates");
                     const result = await generateCertificate(scheduleId, r.participant_id);
                     const generatedCount = result === "ok" ? 1 : 0;
                     const skippedCount = result === "ok" ? 0 : 1;
-                    redirect(`/admin/certificates/generate/${scheduleId}?generated=${generatedCount}&skipped=${skippedCount}`);
+                    const reason = result === "ok" ? "" : `&reason=${encodeURIComponent(result)}`;
+                    redirect(`/admin/certificates/generate/${scheduleId}?generated=${generatedCount}&skipped=${skippedCount}${reason}`);
                   };
                   return (
                     <tr key={r.participant_id}>

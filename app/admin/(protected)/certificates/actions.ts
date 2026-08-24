@@ -146,7 +146,7 @@ export async function generateCertificate(scheduleId: string, participantId: str
  * so correctness requires one insert per row here rather than a batched
  * multi-row insert.
  */
-export async function bulkGenerate(scheduleId: string): Promise<{ generated: number; skipped: number }> {
+export async function bulkGenerate(scheduleId: string): Promise<{ generated: number; skipped: number; failureReasons: string[] }> {
   await requireCertificate(true);
   await requireModuleAccess("certificates");
   const supabase = await createSupabaseServerClient();
@@ -155,13 +155,20 @@ export async function bulkGenerate(scheduleId: string): Promise<{ generated: num
   const eligibleRows = ((rows ?? []) as EligibilityRow[]).filter((r) => r.eligible);
 
   let generated = 0, skipped = 0;
+  const failureReasons = new Set<string>();
   for (const row of eligibleRows) {
     const result = await insertEligibleCertificate(supabase, row);
-    if (result === "ok") generated++; else skipped++;
+    if (result === "ok") {
+      generated++;
+    } else {
+      skipped++;
+      failureReasons.add(result);
+      console.error("Certificate generation failed", { scheduleId, participantId: row.participant_id, result });
+    }
   }
 
   revalidatePath("/admin/certificates");
-  return { generated, skipped };
+  return { generated, skipped, failureReasons: [...failureReasons].slice(0, 3) };
 }
 
 export async function revokeCertificate(id: string, formData?: FormData) {
