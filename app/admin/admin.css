@@ -203,6 +203,10 @@
 .ta-badge-pill.client, .ta-badge-pill.participant, .ta-badge-pill.inactive { background: rgba(102,112,133,.14); color: var(--ta-muted); }
 .ta-badge-pill.attention, .ta-badge-pill.overdue { background: rgba(214,69,69,.12); color: var(--ta-danger); }
 .ta-badge-pill.unknown { background: rgba(102,112,133,.14); color: var(--ta-muted); }
+.ta-badge-pill.conflict, .ta-badge-pill.rejected, .ta-badge-pill.failed { background: rgba(214,69,69,.12); color: var(--ta-danger); }
+.ta-badge-pill.exact_match, .ta-badge-pill.approved, .ta-badge-pill.mapped { background: rgba(46,158,91,.12); color: var(--ta-success); }
+.ta-badge-pill.probable_duplicate, .ta-badge-pill.review, .ta-badge-pill.reviewed { background: rgba(212,175,55,.16); color: #a9791a; }
+.ta-badge-pill.new_participant, .ta-badge-pill.uploaded, .ta-badge-pill.normalized { background: rgba(47,111,237,.12); color: var(--ta-info); }
 
 /* --- Buttons ------------------------------------------------------- */
 .ta-btn { display: inline-flex; align-items: center; gap: 7px; padding: 9px 16px; border-radius: 9px; font-weight: 700; font-size: 13.5px; border: 1px solid transparent; cursor: pointer; transition: background .15s, border-color .15s, box-shadow .15s; font-family: inherit; line-height: 1.4; }
@@ -356,6 +360,7 @@
 .ta-nowrap { white-space: nowrap; }
 .ta-row-actions { text-align: right; white-space: nowrap; }
 .ta-row-deleted td { opacity: .55; }
+.ta-row-conflict td { background: rgba(214,69,69,.05); }
 .ta-link { color: var(--ta-info); }
 .ta-link:hover { text-decoration: underline; }
 .ta-date-range { font-weight: 600; color: var(--ta-ink); }

@@ -625,6 +625,24 @@ export const feedbackActionAssignSchema = z.object({
 });
 export type FeedbackActionAssignInput = z.infer<typeof feedbackActionAssignSchema>;
 
+export const legacyLinkParticipantSchema = z.object({
+  row_id: z.string().uuid(),
+  participant_id: z.string().uuid(),
+});
+export type LegacyLinkParticipantInput = z.infer<typeof legacyLinkParticipantSchema>;
+
+export const legacyRejectRowSchema = z.object({
+  row_id: z.string().uuid(),
+  reason: z.string().trim().max(500).optional().or(z.literal("")),
+});
+export type LegacyRejectRowInput = z.infer<typeof legacyRejectRowSchema>;
+
+export const legacyCourseMappingSchema = z.object({
+  course_map_id: z.string().uuid(),
+  course_id: z.string().uuid(),
+});
+export type LegacyCourseMappingInput = z.infer<typeof legacyCourseMappingSchema>;
+
 /** Helper to flatten Zod errors into a { field: message } map for forms. */
 export function fieldErrors(error: z.ZodError): Record<string, string> {
   const out: Record<string, string> = {};

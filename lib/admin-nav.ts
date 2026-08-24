@@ -45,6 +45,7 @@ export const NAV: NavGroup[] = [
       // only the nav entry and the MODULE_CATALOG row (lib/auth/rbac.ts)
       // were missing, making it unreachable/ungrantable through this UI.
       { key: "assessors", label: "Assessors", href: "/admin/assessors", icon: "assessors", minRole: "admin" },
+      { key: "legacy_import", label: "Legacy Import", href: "/admin/participants/legacy-import", icon: "legacy_import", minRole: "admin" },
     ],
   },
   {
