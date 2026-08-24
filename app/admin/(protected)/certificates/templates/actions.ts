@@ -35,6 +35,7 @@ function buildConfig(formData: FormData) {
     .filter((r): r is { area: string; status: string } => r !== null);
 
   return {
+    design_variant: v("design_variant") || undefined,
     logo_url: v("logo_url") || "/teras-universal-logo.png",
     background_url: v("background_url") || undefined,
     primary_color: v("primary_color") || "#0B3A63",

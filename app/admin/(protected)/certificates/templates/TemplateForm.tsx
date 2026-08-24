@@ -100,6 +100,17 @@ export function TemplateForm({
         <Field label="Description" name="description">
           <input id="description" name="description" defaultValue={template?.description ?? ""} />
         </Field>
+        <Field label="Certificate design" name="design_variant">
+          <select
+            id="design_variant"
+            name="design_variant"
+            value={preview.design_variant ?? ""}
+            onChange={(e) => upd("design_variant", e.target.value || undefined)}
+          >
+            <option value="">TERAS Standard</option>
+            <option value="professional_scaffold_erection_skills">Premium Scaffold</option>
+          </select>
+        </Field>
         <div className="ta-field-row">
           <Field label="Logo URL" name="logo_url">
             <input id="logo_url" name="logo_url" defaultValue={preview.logo_url} onChange={(e) => upd("logo_url", e.target.value)} />
