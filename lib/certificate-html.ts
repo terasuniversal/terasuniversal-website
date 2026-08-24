@@ -232,7 +232,9 @@ export function renderCertificateFront(data: CertData, config: TemplateConfig): 
   // visibly empty either way; see authorisedSignatureLabel's own comment.
   const primarySigLabel = config.signature_url ? "" : authorisedSignatureLabel();
 
-  const isSingleSignature = config.signature_layout === "single";
+  // Mirrors CertificateDocument: Standard Scaffold is issued by the Director
+  // only, including legacy configs without an explicit signature_layout.
+  const isSingleSignature = config.signature_layout === "single" || config.design_variant === "standard_scaffold_certificate";
   const primarySignatureBlock = isSingleSignature
     ? `<div style="text-align:center;font-size:11px;width:auto;max-width:160px;">
         ${primarySigLabel}

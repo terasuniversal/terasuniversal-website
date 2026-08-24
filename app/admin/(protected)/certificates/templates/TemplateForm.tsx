@@ -88,7 +88,7 @@ export function TemplateForm({
     : PREVIEW_DATA_BASE;
   const previewData: CertData = { ...previewBase, qr_svg: qrSvg };
   const previewConfig = preview.design_variant === "standard_scaffold_certificate"
-    ? { ...preview, watermark_level: "basic" as const }
+    ? { ...preview, watermark_level: "basic" as const, signature_layout: "single" as const }
     : preview;
   const upd = (k: string, v: any) => setPreview((p) => ({ ...p, [k]: v }));
   const updLines = (k: string, raw: string) => upd(k, raw.split("\n").map((s) => s.trim()).filter(Boolean));

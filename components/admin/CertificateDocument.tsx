@@ -419,7 +419,10 @@ export function CertificateDocument({ data, config }: { data: CertData; config: 
   // The attestation trio is centred rather than justified edge-to-edge, so the
   // gap has to come down when a second signatory is present — otherwise four
   // blocks at the single-signatory gap overrun the content width.
-  const singleSig = config.signature_layout === "single";
+  // The Standard Scaffold family is formally issued by the Director only.
+  // Keep that single-signatory rule even for legacy rows that predate the
+  // signature_layout setting.
+  const singleSig = config.signature_layout === "single" || config.design_variant === "standard_scaffold_certificate";
 
   return (
     <div
@@ -533,7 +536,7 @@ export function CertificateDocument({ data, config }: { data: CertData; config: 
               {config.signature_url && <img src={config.signature_url} alt="" style={{ maxHeight: 44, maxWidth: 150, objectFit: "contain" }} />}
             </div>
             <div style={{ borderTop: `1px solid ${navy}`, margin: "4px 0 5px" }} />
-            {config.signature_layout === "single" ? (
+            {singleSig ? (
               <strong style={{ color: navy, letterSpacing: 0.3 }}>{config.signature_name || config.signature_title || "Director"}</strong>
             ) : (
               <>
@@ -541,11 +544,11 @@ export function CertificateDocument({ data, config }: { data: CertData; config: 
                 <div style={{ color: "#8a94a6", fontSize: 8.5, letterSpacing: 1.3, fontFamily: SANS, textTransform: "uppercase", marginTop: 3 }}>Trainer Signature</div>
               </>
             )}
-            {config.signature_layout === "single" && config.signature_name && (
+            {singleSig && config.signature_name && (
               <div style={{ color: "#8a94a6", fontSize: 8.5, letterSpacing: 1.3, fontFamily: SANS, textTransform: "uppercase", marginTop: 3 }}>{config.signature_title || "Director"}</div>
             )}
           </div>
-          {config.signature_layout !== "single" && (
+          {!singleSig && (
             <div style={{ textAlign: "center", fontSize: 11, width: "auto", maxWidth: 160 }}>
               <AuthorisedSignatureLabel />
               <div style={{ height: 44 }} />
