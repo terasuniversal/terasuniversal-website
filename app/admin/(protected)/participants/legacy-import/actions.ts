@@ -411,3 +411,88 @@ export async function approveBatch(batchId: string) {
   revalidatePath("/admin/participants/legacy-import");
   redirect(`/admin/participants/legacy-import/${batchId}`);
 }
+
+// -- Phase 3: Approved Merge execution -----------------------------------
+
+const CHECKPOINT_ERROR_MESSAGES: Record<string, string> = {
+  not_authorized: "You are not authorized to execute this merge.",
+  batch_not_found: "Batch not found.",
+  dry_run_required: "Run a dry run before executing the merge -- this batch has never been previewed.",
+  DRY_RUN_STALE: "The approved data has changed since the last dry run (a participant decision, course mapping, row approval, certificate number, or training date). Run Dry Run again to review the current plan before executing.",
+};
+
+/**
+ * Executes the merge for every currently-approved row in the batch, one
+ * atomic RPC call per row (legacy_merge_execute_row) -- never a chain of
+ * raw writes from this action itself. Every call's result is checked; a
+ * per-row failure is tallied, not swallowed. The batch is only finalized
+ * (legacy_merge_finalize_batch) if zero rows failed -- a partial failure
+ * leaves the batch 'approved' with the failed row(s) still 'approved' and
+ * carrying merge_error, safe to inspect and retry by re-running this same
+ * action (already-merged rows are no-ops, per the RPC's own idempotency).
+ *
+ * Requires an explicit confirmation checkbox (native `required` attribute
+ * on the form -- the browser refuses to submit without it, no JS needed)
+ * and only proceeds if the batch is currently 'approved'.
+ *
+ * Server-verifiable Dry Run -> Execute gate (not just ?dryrun=1 / button
+ * visibility / the confirmation checkbox): legacy_merge_verify_checkpoint
+ * is called first and must succeed before a single row is processed. It
+ * fails closed if this batch has never been dry-run, or if the approved
+ * rows' merge-relevant fields have drifted from what the last dry run
+ * reviewed (DRY_RUN_STALE) -- see 20260824150000 for exactly what's
+ * covered and why a retry after a partial failure doesn't require a new
+ * dry run.
+ */
+export async function executeMerge(batchId: string, formData: FormData) {
+  await guard();
+  if (formData.get("confirm") !== "on") {
+    backTo(batchId, "You must confirm before executing the merge.");
+  }
+
+  const supabase = await createSupabaseServerClient();
+
+  const { data: batch } = await supabase
+    .from("legacy_import_batches")
+    .select("id, status")
+    .eq("id", batchId)
+    .maybeSingle();
+  if (!batch) backTo(batchId, "Batch not found.");
+  if (batch!.status !== "approved") backTo(batchId, "Batch must be approved before merge execution can run.");
+
+  const { error: checkpointErr } = await supabase.rpc("legacy_merge_verify_checkpoint", { p_batch_id: batchId });
+  if (checkpointErr) {
+    backTo(batchId, CHECKPOINT_ERROR_MESSAGES[checkpointErr.message] ?? "Could not verify the dry-run checkpoint.");
+  }
+
+  // Same order dry run simulates (source_row_number, id tie-breaker) --
+  // required for a duplicate-identity batch to actually converge on
+  // CREATE-then-REUSE in the sequence the plan predicted.
+  const { data: rows } = await supabase
+    .from("legacy_participant_staging")
+    .select("id")
+    .eq("batch_id", batchId)
+    .eq("review_status", "approved")
+    .order("source_row_number", { ascending: true })
+    .order("id", { ascending: true });
+
+  let succeeded = 0;
+  let failed = 0;
+  for (const row of rows ?? []) {
+    const { data, error } = await supabase.rpc("legacy_merge_execute_row", { p_batch_id: batchId, p_row_id: row.id });
+    if (error || (data as any)?.status === "failed") failed += 1;
+    else succeeded += 1;
+  }
+
+  if (failed > 0) {
+    backTo(batchId, `Merge ran: ${succeeded} row(s) merged, ${failed} row(s) failed and were left approved with an error recorded. Review the failed row(s), then run merge again to retry -- already-merged rows are not re-run.`);
+  }
+
+  const { error: finalizeErr } = await supabase.rpc("legacy_merge_finalize_batch", { p_batch_id: batchId });
+  if (finalizeErr) {
+    backTo(batchId, `Merged ${succeeded} row(s) but could not finalize the batch: ${finalizeErr.message}`);
+  }
+
+  revalidatePath(`/admin/participants/legacy-import/${batchId}`);
+  redirect(`/admin/participants/legacy-import/${batchId}`);
+}
