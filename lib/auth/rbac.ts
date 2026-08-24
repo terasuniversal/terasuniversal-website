@@ -73,6 +73,11 @@ export const MODULE_CATALOG: ModuleDefinition[] = [
   // this catalog -- reconciled here, not newly introduced. min_role matches
   // the live catalog row exactly (re-verified 2026-08-23).
   ["assessors", "Assessors", "Training Operations", "admin"],
+  // Legacy Participant Migration Phase 2 review UI -- raw legacy PII and
+  // participant-identity decisions, admin-only by design (see
+  // LEGACY_IMPORT_PHASE2 review). Matches the live
+  // staff_module_catalog row (min_role: admin).
+  ["legacy_import", "Legacy Import", "Training Operations", "admin"],
   ["certificates", "Certificates", "Certification", "trainer"],
   ["certificate_templates", "Certificate Templates", "Certification", "admin"],
   ["sales", "Sales Dashboard", "Sales", "editor"],
