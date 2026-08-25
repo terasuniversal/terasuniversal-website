@@ -82,7 +82,28 @@ async function logCallbackEvent(
   }
 }
 
-export async function POST(req: NextRequest) {
+/**
+ * Top-level safe exception boundary: every code path below this point
+ * already returns genericResponse() explicitly, but a small number of
+ * calls (e.g. verifyCallbackHash() -> getCredentials() throwing when
+ * TOYYIBPAY_ENV/credentials aren't configured -- the exact bare-500 defect
+ * this boundary was added to close) can throw before reaching their own
+ * try/catch. Nothing here changes parsing, hash, Get Bill Transactions,
+ * finalization, or RPC logic -- this only guarantees that ANY unexpected
+ * throw still ends in the same generic response, after logging the real
+ * reason server-side only (message text, never a full error object that
+ * could carry a stack trace or secret value).
+ */
+export async function POST(req: NextRequest): Promise<NextResponse> {
+  try {
+    return await handleCallback(req);
+  } catch (err) {
+    console.error("[toyyibpay-callback] unexpected error", { message: err instanceof Error ? err.message : String(err) });
+    return genericResponse();
+  }
+}
+
+async function handleCallback(req: NextRequest): Promise<NextResponse> {
   const callbackReceivedAt = new Date().toISOString();
   const supabase = createSupabaseServiceClient();
 
