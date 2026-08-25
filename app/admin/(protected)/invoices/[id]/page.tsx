@@ -160,7 +160,9 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
                         <td>{PAYMENT_PROVIDER_LABELS[p.payment_provider]}{p.payment_method ? ` — ${p.payment_method}` : ""}</td>
                         <td>{fmt(p.amount)}</td>
                         <td>
-                          {p.payment_reference ?? p.provider_bill_code ?? "—"}
+                          {p.payment_provider === "toyyibpay" && p.status === "successful"
+                            ? (p.provider_transaction_id ?? p.provider_bill_code ?? "—")
+                            : (p.payment_reference ?? p.provider_bill_code ?? "—")}
                           {p.payment_provider === "toyyibpay" && p.status === "pending" && p.payment_url && (
                             <>
                               {" "}
@@ -168,6 +170,12 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
                                 (open sandbox link ↗)
                               </a>
                             </>
+                          )}
+                          {p.payment_provider === "toyyibpay" && p.status === "successful" && p.verified_amount !== null && (
+                            <div style={{ fontSize: 11, color: "var(--ta-muted)" }}>
+                              ✓ Provider-verified RM {Number(p.verified_amount).toLocaleString("en-MY", { minimumFractionDigits: 2 })}
+                              {p.callback_received_at ? " · via callback" : " · via return-page verification"}
+                            </div>
                           )}
                         </td>
                         <td><Badge status={p.status} /></td>
