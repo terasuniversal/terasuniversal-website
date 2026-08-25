@@ -220,16 +220,16 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
         action={<Link href="/admin/sales/opportunities" className="ta-btn ta-btn-outline">← Back to Opportunities</Link>}
       />
 
-      <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 16, flexWrap: "wrap" }}>
+      <div className="ta-lead-meta">
         <Badge status={opp.stage} />
-        {leadRow && <span style={{ color: "var(--ta-muted)", fontSize: 13 }}>Source: {SOURCE_LABELS[leadRow.lead_source as "enquiry" | "proposal_request"]}</span>}
-        <span style={{ color: "var(--ta-muted)", fontSize: 13 }}>
+        {leadRow && <span className="ta-lead-meta-time">Source: {SOURCE_LABELS[leadRow.lead_source as "enquiry" | "proposal_request"]}</span>}
+        <span className="ta-lead-meta-time">
           Created {formatMalaysiaDateTime(opp.created_at)}
         </span>
-        {opp.lost_reason && <span style={{ color: "var(--ta-muted)", fontSize: 13 }}>Lost reason: {opp.lost_reason.replace(/_/g, " ")}</span>}
+        {opp.lost_reason && <span className="ta-lead-meta-time">Lost reason: {opp.lost_reason.replace(/_/g, " ")}</span>}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 20, alignItems: "start" }}>
+      <div className="ta-lead-detail-grid">
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           <Card title="Opportunity Information">
             <div className="ta-card-pad">

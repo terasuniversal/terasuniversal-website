@@ -119,10 +119,10 @@ export function LeadActionsPanel({
               {statusPending ? "Saving…" : "Update Status"}
             </button>
             <div className="ta-status-action-row">
-              <button type="button" className="ta-btn ta-btn-outline ta-btn-sm" disabled={statusPending} onClick={() => quickSetStatus("won")}>
+              <button type="button" className="ta-btn ta-btn-success ta-btn-sm" disabled={statusPending} onClick={() => quickSetStatus("won")}>
                 Mark Won
               </button>
-              <button type="button" className="ta-btn ta-btn-outline ta-btn-sm" disabled={statusPending} onClick={() => quickSetStatus("lost")}>
+              <button type="button" className="ta-btn ta-btn-danger ta-btn-sm" disabled={statusPending} onClick={() => quickSetStatus("lost")}>
                 Mark Lost
               </button>
             </div>

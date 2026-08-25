@@ -59,7 +59,7 @@ export function QuotationActionsPanel({
               <p style={{ margin: 0, fontSize: 13, color: "var(--ta-muted)" }}>Marks this quotation accepted, the opportunity won, and the source lead won.</p>
               <button
                 type="submit"
-                className="ta-btn ta-btn-primary ta-btn-sm"
+                className="ta-btn ta-btn-success ta-btn-sm"
                 disabled={acceptPending}
                 onClick={(e) => { if (!confirm("Accept this quotation? The opportunity and lead will both be marked Won.")) e.preventDefault(); }}
               >
@@ -74,7 +74,7 @@ export function QuotationActionsPanel({
               <Field label="Rejection reason" name="reason" error={rejectState.errors?.reason}>
                 <textarea name="reason" rows={3} placeholder="Why did the client reject this quotation?" />
               </Field>
-              <button type="submit" className="ta-btn ta-btn-outline ta-btn-sm" disabled={rejectPending}>
+              <button type="submit" className="ta-btn ta-btn-danger ta-btn-sm" disabled={rejectPending}>
                 {rejectPending ? "Saving…" : "Reject Quotation"}
               </button>
             </form>

@@ -46,12 +46,12 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
         action={opportunity ? <Link href={`/admin/sales/opportunities/${opportunity.id}`} className="ta-btn ta-btn-outline">← Back to Opportunity</Link> : undefined}
       />
 
-      <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 16, flexWrap: "wrap" }}>
+      <div className="ta-lead-meta">
         <Badge status={q.status} />
-        <span style={{ color: "var(--ta-muted)", fontSize: 13 }}>
+        <span className="ta-lead-meta-time">
           Issued {new Date(q.issue_date).toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric" })}
         </span>
-        {q.rejection_reason && <span style={{ color: "var(--ta-muted)", fontSize: 13 }}>Rejected — {q.rejection_reason}</span>}
+        {q.rejection_reason && <span className="ta-lead-meta-time">Rejected — {q.rejection_reason}</span>}
       </div>
 
       {chain.length > 1 && (
@@ -71,7 +71,7 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
         </Card>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 20, alignItems: "start", marginTop: 16 }}>
+      <div className="ta-lead-detail-grid" style={{ marginTop: 16 }}>
         <div>
           {q.status === "draft" && canManage ? (
             <QuotationItemsEditor
