@@ -19,6 +19,30 @@ const VIEWS = ["overdue", "today", "upcoming"] as const;
 type View = (typeof VIEWS)[number];
 const VIEW_LABELS: Record<View, string> = { overdue: "Overdue", today: "Due Today", upcoming: "Upcoming" };
 
+function FollowUpInlineForm({ leadMetadataId, followUpAt }: { leadMetadataId: string; followUpAt: string | null }) {
+  return (
+    <>
+      <form action={saveFollowUp.bind(null, leadMetadataId)} style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+        <input
+          type="datetime-local"
+          name="follow_up_at"
+          defaultValue={followUpAt ? followUpAt.slice(0, 16) : ""}
+          style={{ fontSize: 12, padding: "4px 6px", maxWidth: "100%", width: 170 }}
+        />
+        <button type="submit" className="ta-btn ta-btn-outline ta-btn-sm" title="Set / reschedule">
+          Save
+        </button>
+      </form>
+      <form action={saveFollowUp.bind(null, leadMetadataId)} style={{ marginTop: 4 }}>
+        <input type="hidden" name="follow_up_at" value="" />
+        <button type="submit" className="ta-btn ta-btn-outline ta-btn-sm" title="Clear follow-up">
+          Clear
+        </button>
+      </form>
+    </>
+  );
+}
+
 /**
  * Sales CRM Phase 4B — real Follow-up Queue, sourced entirely from
  * sales_lead_metadata.follow_up_at/priority (Task 1/5: no second follow-up
@@ -115,74 +139,93 @@ export default async function FollowUpsPage({
 
       <Card title={VIEW_LABELS[view]}>
         {leads.length > 0 ? (
-          <div className="ta-table-wrap">
-            <table className="ta-table">
-              <thead>
-                <tr>
-                  <th>Reference</th>
-                  <th>Company / Contact</th>
-                  <th>Owner</th>
-                  <th>Priority</th>
-                  <th>Follow-up</th>
-                  <th>Stage</th>
-                  <th>Last Activity</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {leads.map((l) => {
-                  const opp = oppByLead.get(l.lead_metadata_id);
-                  const lastActivity = lastActivityByLead.get(l.lead_metadata_id);
-                  const href = opp ? `/admin/sales/opportunities/${opp.id}` : `/admin/sales/leads/${l.lead_metadata_id}`;
-                  return (
-                    <tr key={l.lead_metadata_id}>
-                      <td>
-                        <Link href={href}>{opp ? opp.opportunity_no : "Lead"}</Link>
-                      </td>
-                      <td>
-                        <strong>{l.company ?? "—"}</strong>
-                        <div style={{ color: "var(--ta-muted)", fontSize: 12 }}>{l.contact_name ?? "—"}</div>
-                      </td>
-                      <td>{l.assigned_to ? staffNames.get(l.assigned_to) ?? "—" : "Unassigned"}</td>
-                      <td>
-                        <Badge status={l.priority} />
-                      </td>
-                      <td style={{ fontSize: 12.5 }}>
-                        <form action={saveFollowUp.bind(null, l.lead_metadata_id)} style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                          <input
-                            type="datetime-local"
-                            name="follow_up_at"
-                            defaultValue={l.follow_up_at ? l.follow_up_at.slice(0, 16) : ""}
-                            style={{ fontSize: 12, padding: "4px 6px", maxWidth: 170 }}
-                          />
-                          <button type="submit" className="ta-btn ta-btn-outline ta-btn-sm" title="Set / reschedule">
-                            Save
-                          </button>
-                        </form>
-                        <form action={saveFollowUp.bind(null, l.lead_metadata_id)} style={{ marginTop: 4 }}>
-                          <input type="hidden" name="follow_up_at" value="" />
-                          <button type="submit" className="ta-btn ta-btn-outline ta-btn-sm" title="Clear follow-up">
-                            Clear
-                          </button>
-                        </form>
-                      </td>
-                      <td>
-                        <Badge status={l.status} />
-                      </td>
-                      <td style={{ color: "var(--ta-muted)", fontSize: 12 }}>
-                        {lastActivity ? `${lastActivity.type.replace(/_/g, " ")} — ${formatMalaysiaDate(lastActivity.created_at)}` : "—"}
-                      </td>
-                      <td style={{ textAlign: "right" }}>
-                        <Link href={href} className="ta-btn ta-btn-outline ta-btn-sm">
-                          View
-                        </Link>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <>
+            <div className="ta-table-wrap ta-followups-table">
+              <table className="ta-table">
+                <thead>
+                  <tr>
+                    <th>Reference</th>
+                    <th>Company / Contact</th>
+                    <th>Owner</th>
+                    <th>Priority</th>
+                    <th>Follow-up</th>
+                    <th>Stage</th>
+                    <th>Last Activity</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {leads.map((l) => {
+                    const opp = oppByLead.get(l.lead_metadata_id);
+                    const lastActivity = lastActivityByLead.get(l.lead_metadata_id);
+                    const href = opp ? `/admin/sales/opportunities/${opp.id}` : `/admin/sales/leads/${l.lead_metadata_id}`;
+                    return (
+                      <tr key={l.lead_metadata_id}>
+                        <td>
+                          <Link href={href}>{opp ? opp.opportunity_no : "Lead"}</Link>
+                        </td>
+                        <td>
+                          <strong>{l.company ?? "—"}</strong>
+                          <div style={{ color: "var(--ta-muted)", fontSize: 12 }}>{l.contact_name ?? "—"}</div>
+                        </td>
+                        <td>{l.assigned_to ? staffNames.get(l.assigned_to) ?? "—" : "Unassigned"}</td>
+                        <td>
+                          <Badge status={l.priority} />
+                        </td>
+                        <td style={{ fontSize: 12.5 }}>
+                          <FollowUpInlineForm leadMetadataId={l.lead_metadata_id} followUpAt={l.follow_up_at} />
+                        </td>
+                        <td>
+                          <Badge status={l.status} />
+                        </td>
+                        <td style={{ color: "var(--ta-muted)", fontSize: 12 }}>
+                          {lastActivity ? `${lastActivity.type.replace(/_/g, " ")} — ${formatMalaysiaDate(lastActivity.created_at)}` : "—"}
+                        </td>
+                        <td style={{ textAlign: "right" }}>
+                          <Link href={href} className="ta-btn ta-btn-outline ta-btn-sm">
+                            View
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <ul className="ta-lead-cards">
+              {leads.map((l) => {
+                const opp = oppByLead.get(l.lead_metadata_id);
+                const lastActivity = lastActivityByLead.get(l.lead_metadata_id);
+                const href = opp ? `/admin/sales/opportunities/${opp.id}` : `/admin/sales/leads/${l.lead_metadata_id}`;
+                return (
+                  <li className="ta-card ta-lead-card" key={l.lead_metadata_id}>
+                    <div className="ta-lead-card-top">
+                      <Link href={href}>{opp ? opp.opportunity_no : "Lead"}</Link>
+                      <Badge status={l.status} />
+                    </div>
+                    <div className="ta-lead-card-company">
+                      <strong>{l.company ?? "—"}</strong>
+                      <div className="ta-lead-sub">{l.contact_name ?? "—"}</div>
+                    </div>
+                    <div className="ta-lead-card-grid">
+                      <span>Owner</span>
+                      <span>{l.assigned_to ? staffNames.get(l.assigned_to) ?? "—" : "Unassigned"}</span>
+                      <span>Priority</span>
+                      <span><Badge status={l.priority} /></span>
+                      <span>Follow-up</span>
+                      <span><FollowUpInlineForm leadMetadataId={l.lead_metadata_id} followUpAt={l.follow_up_at} /></span>
+                      <span>Last Activity</span>
+                      <span>{lastActivity ? `${lastActivity.type.replace(/_/g, " ")} — ${formatMalaysiaDate(lastActivity.created_at)}` : "—"}</span>
+                    </div>
+                    <div className="ta-lead-card-action">
+                      <Link href={href} className="ta-btn ta-btn-outline ta-btn-sm">View →</Link>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
         ) : (
           <EmptyState icon="🗓" message="No follow-ups in this view." />
         )}
