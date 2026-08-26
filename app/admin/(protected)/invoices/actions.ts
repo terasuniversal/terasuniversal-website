@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { requireRole, requireModuleAccess } from "../../../../lib/auth/session";
+import { inactivateBill } from "../../../../lib/payments/toyyibpay";
 import {
   invoiceDraftEditSchema,
   recordManualPaymentSchema,
@@ -155,6 +156,20 @@ export async function issueInvoiceAction(invoiceId: string, _prev: InvoiceAction
  * staff have no path to call this: requireRole("admin") redirects to
  * /admin/no-access before the RPC (which also independently re-checks
  * app.is_admin()) is ever reached.
+ *
+ * Phase 2E fix (MANUAL_PAYMENT_ACTIVE_TOYYIBPAY_ORCHESTRATION_MISSING):
+ * before this action ever calls record_manual_payment(), it must resolve
+ * any active pending ToyyibPay attempt on the invoice, exactly per the
+ * design note in the Phase 2A migration -- get_active_toyyibpay_attempt to
+ * detect it, inactivateBill() (provider HTTP call, Next.js-side, never
+ * inside Postgres) to deactivate it server-to-server, and only on a
+ * CONFIRMED provider success does mark_toyyibpay_attempt_superseded()
+ * flip the local row before the manual payment proceeds. If the provider
+ * call fails, times out, or its result can't be confirmed, this action
+ * returns without ever calling record_manual_payment() -- the invoice's
+ * financial state is untouched and the still-active bill remains payable,
+ * exactly as before. The previous Phase 2D UI warning banner was
+ * informational only; this is the actual enforcement.
  */
 export async function recordManualPaymentAction(
   invoiceId: string,
@@ -176,6 +191,52 @@ export async function recordManualPaymentAction(
 
   const supabase = await createSupabaseServerClient();
   const { data: existing } = await supabase.from("invoices").select("opportunity_id, quotation_id").eq("id", invoiceId).maybeSingle();
+
+  const { data: activeCheck, error: activeError } = await supabase.rpc("get_active_toyyibpay_attempt", {
+    p_invoice_id: invoiceId,
+  });
+  if (activeError) return { message: "Could not check for an active ToyyibPay payment link before recording this payment. Please try again." };
+  const active = activeCheck as { has_active_attempt: boolean; attempt_id?: string; billcode?: string } | null;
+
+  if (active?.has_active_attempt && active.attempt_id && active.billcode) {
+    let inactivateSucceeded = false;
+    try {
+      const result = await inactivateBill(active.billcode);
+      inactivateSucceeded = result.success;
+    } catch {
+      inactivateSucceeded = false;
+    }
+
+    if (!inactivateSucceeded) {
+      await supabase.rpc("log_toyyibpay_conflict", {
+        p_invoice_id: invoiceId,
+        p_attempt_id: active.attempt_id,
+        p_conflict_type: "in_progress",
+      });
+      return {
+        message: "A ToyyibPay payment link is currently active for this invoice and could not be safely deactivated. The manual payment was NOT recorded — please try again shortly, or reconcile the existing ToyyibPay attempt before retrying.",
+      };
+    }
+
+    const { error: supersedeError } = await supabase.rpc("mark_toyyibpay_attempt_superseded", {
+      p_attempt_id: active.attempt_id,
+    });
+    if (supersedeError) {
+      // Provider confirmed deactivation but the local row could not be
+      // updated to match -- a real inconsistency, not a retryable "in
+      // progress" state. Never proceed to record_manual_payment while the
+      // two are out of sync.
+      await supabase.rpc("log_toyyibpay_conflict", {
+        p_invoice_id: invoiceId,
+        p_attempt_id: active.attempt_id,
+        p_conflict_type: "reconciliation_required",
+      });
+      return {
+        message: "The ToyyibPay payment link was deactivated on ToyyibPay's side, but its local status could not be updated. The manual payment was NOT recorded — please contact an administrator before retrying.",
+      };
+    }
+  }
+
   const { error } = await supabase.rpc("record_manual_payment", {
     p_invoice_id: invoiceId,
     p_payment_provider: d.payment_provider,
