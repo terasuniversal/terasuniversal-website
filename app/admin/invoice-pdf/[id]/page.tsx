@@ -19,6 +19,26 @@ function fmtDate(d: string | null) {
 }
 
 /**
+ * Phase 2E fix: the amount actually received for a payment row -- `amount`
+ * for manual payments (there is no separate verified concept for those),
+ * but `verified_amount` for a successful ToyyibPay row, since `amount` is
+ * only ever the originally-requested bill amount and can legitimately
+ * differ from what the provider actually confirmed (see the underpayment
+ * defect this was written to fix). enforce_toyyibpay_attempt_transition
+ * already guarantees verified_amount is non-null on every successful
+ * toyyibpay row, so the null branch below should be unreachable -- if it
+ * ever fires, that's a real data-integrity problem, not a missing amount
+ * to paper over by falling back to the unverified requested amount.
+ */
+function receivedAmount(p: InvoicePaymentRow): number {
+  if (p.payment_provider !== "toyyibpay") return p.amount;
+  if (p.verified_amount === null) {
+    throw new Error(`Invoice PDF data-integrity error: successful ToyyibPay payment ${p.id} has no verified_amount.`);
+  }
+  return p.verified_amount;
+}
+
+/**
  * Print / PDF view — same architecture as /admin/cert-pdf/[id]: outside the
  * (protected) shell (no sidebar) but still under /admin (middleware-
  * protected) and module-gated. Server-rendered HTML + browser print-to-PDF,
@@ -132,7 +152,7 @@ export default async function InvoicePdfPage({ params }: { params: Promise<{ id:
                   <tr key={p.id} style={{ borderBottom: "1px solid #eef1f6" }}>
                     <td style={{ padding: "4px 0" }}>{fmtDate(p.paid_at)}</td>
                     <td style={{ padding: "4px 0" }}>{PAYMENT_PROVIDER_LABELS[p.payment_provider]}{p.payment_reference ? ` (${p.payment_reference})` : ""}</td>
-                    <td style={{ padding: "4px 0", textAlign: "right" }}>{fmt(p.amount)}</td>
+                    <td style={{ padding: "4px 0", textAlign: "right" }}>{fmt(receivedAmount(p))}</td>
                   </tr>
                 ))}
               </tbody>

@@ -53,6 +53,19 @@ function sanitizeToyyibpayText(input: string, maxLen: number): string {
   return cleaned.slice(0, maxLen);
 }
 
+/**
+ * Thrown when a 2xx ToyyibPay response body isn't valid JSON. Carries the
+ * raw text so a caller can recognize a specific known-shape plain-text
+ * response (e.g. getBillTransactions' "No data found!") without this
+ * generic helper having to guess at every endpoint's quirks itself.
+ */
+export class ToyyibPayNonJsonResponseError extends Error {
+  constructor(path: string, public readonly rawText: string) {
+    super(`ToyyibPay request to ${path} returned a non-JSON response.`);
+    this.name = "ToyyibPayNonJsonResponseError";
+  }
+}
+
 async function postForm(path: string, params: Record<string, string>): Promise<unknown> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -77,10 +90,11 @@ async function postForm(path: string, params: Record<string, string>): Promise<u
     throw new Error(`ToyyibPay request to ${path} returned HTTP ${response.status}.`);
   }
 
+  const text = await response.text();
   try {
-    return await response.json();
+    return JSON.parse(text);
   } catch {
-    throw new Error(`ToyyibPay request to ${path} returned a non-JSON response.`);
+    throw new ToyyibPayNonJsonResponseError(path, text);
   }
 }
 
@@ -169,8 +183,15 @@ export async function inactivateBill(billCode: string): Promise<InactivateBillRe
     throw new Error("ToyyibPay inactivateBill: billCode is required.");
   }
 
+  // Phase 2E fix: confirmed live against the real sandbox that this
+  // endpoint (unlike createBill/getBillTransactions, which both use
+  // "userSecretKey") expects the credential field named "secretKey" --
+  // sending "userSecretKey" here gets rejected with "secretKey parameter
+  // is empty!" and this call has never actually inactivated a bill before
+  // this fix. Do not rename the field for createBill/getBillTransactions --
+  // their "userSecretKey" naming is independently confirmed correct.
   const raw = await postForm("/index.php/api/inactiveBill", {
-    userSecretKey,
+    secretKey: userSecretKey,
     billCode,
   });
 
@@ -402,10 +423,26 @@ export async function getBillTransactions(billCode: string): Promise<ProviderBil
     throw new Error("ToyyibPay getBillTransactions: billCode is required.");
   }
 
-  const raw = await postForm("/index.php/api/getBillTransactions", {
-    userSecretKey,
-    billCode,
-  });
+  let raw: unknown;
+  try {
+    raw = await postForm("/index.php/api/getBillTransactions", {
+      userSecretKey,
+      billCode,
+    });
+  } catch (err) {
+    // ToyyibPay's real, confirmed-live contract for a bill with zero
+    // transactions is a plain-text "No data found!" 200 response, not an
+    // empty JSON array (Phase 2E QA, reproduced against the real
+    // sandbox). Treat that EXACT known response as "no transactions yet",
+    // not as a verification failure -- a still-untouched pending bill must
+    // read as pending, not as "could not verify". Any other non-JSON body
+    // is still a real error and continues to propagate; this is not a
+    // blanket "ignore non-JSON" fallback.
+    if (err instanceof ToyyibPayNonJsonResponseError && err.rawText.trim() === "No data found!") {
+      return [];
+    }
+    throw err;
+  }
 
   const rows = Array.isArray(raw) ? raw : raw ? [raw] : [];
 
