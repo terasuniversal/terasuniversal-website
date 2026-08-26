@@ -1,9 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createSupabaseServerClient } from "../../../../lib/supabase/server";
+import { createSupabaseServerClient, createSupabaseServiceClient } from "../../../../lib/supabase/server";
 import { requireRole, requireModuleAccess } from "../../../../lib/auth/session";
-import { createBill, inactivateBill, ringgitStringToSen } from "../../../../lib/payments/toyyibpay";
+import { createBill, inactivateBill, ringgitStringToSen, getBillTransactions, parseToyyibpayTransactionDate } from "../../../../lib/payments/toyyibpay";
 import { canonicalSiteOrigin } from "../../../../lib/site-origin";
 
 /**
@@ -169,4 +169,89 @@ export async function generateToyyibpayPaymentLinkAction(
 
   revalidatePath(`/admin/invoices/${invoiceId}`);
   return { billcode: billResult.billCode, paymentUrl: billResult.paymentUrl, amount: balanceDue, reused: false };
+}
+
+/**
+ * Phase 2D: admin-triggered "Refresh Payment Status" for a pending
+ * ToyyibPay attempt. Reuses the EXACT same verification path the callback
+ * route and public return page already use -- Get Bill Transactions, then
+ * the same two narrowly-scoped callback RPCs -- never a new financial
+ * architecture. Those RPCs are revoked from `authenticated` by design
+ * (Phase 2C), so this call site uses the service-role client, exactly like
+ * the public return page's own justified exception: narrow, server-only,
+ * reached only after requireRole("admin") has already run. p_callback_received_at
+ * is null -- this is an admin-triggered recheck, not a real callback arrival,
+ * and must never be recorded as one.
+ */
+export type ToyyibpayRefreshState = { message?: string };
+
+export async function refreshToyyibpayStatusAction(
+  attemptId: string,
+  _prev: ToyyibpayRefreshState,
+  _formData: FormData
+): Promise<ToyyibpayRefreshState> {
+  await requireRole("admin");
+  await requireModuleAccess("invoices");
+
+  const supabase = await createSupabaseServerClient();
+  const { data: attempt, error: attemptError } = await supabase
+    .from("invoice_payments")
+    .select("id, invoice_id, status, provider_bill_code")
+    .eq("id", attemptId)
+    .eq("payment_provider", "toyyibpay")
+    .maybeSingle();
+  if (attemptError) return { message: "Could not load this payment attempt." };
+  if (!attempt) return { message: "Payment attempt not found." };
+  if (attempt.status !== "pending" || !attempt.provider_bill_code) {
+    // Nothing to refresh -- not an error, just a no-op the caller doesn't need to see.
+    return {};
+  }
+
+  let transactions;
+  try {
+    transactions = await getBillTransactions(attempt.provider_bill_code);
+  } catch {
+    return { message: "Could not reach ToyyibPay to check this payment's status. Please try again shortly." };
+  }
+  const tx = transactions.find((t) => t.billCode === attempt.provider_bill_code) ?? transactions[0];
+  if (!tx || (tx.providerStatus !== "successful" && tx.providerStatus !== "unsuccessful")) {
+    // Still pending on ToyyibPay's side, or an unrecognized transaction --
+    // nothing to change locally.
+    revalidatePath(`/admin/invoices/${attempt.invoice_id}`);
+    return {};
+  }
+
+  const service = createSupabaseServiceClient();
+
+  if (tx.providerStatus === "successful") {
+    if (!tx.providerTransactionId || !tx.amount) {
+      return { message: "ToyyibPay reports this payment as successful but did not return a transaction reference -- please try again shortly." };
+    }
+    const parsedTime = tx.transactionTime ? parseToyyibpayTransactionDate(tx.transactionTime) : null;
+    const rawResponseWithEvidence = {
+      ...(tx.raw as object),
+      _teras_provider_time_evidence: parsedTime ?? { raw: tx.transactionTime, parseFailed: true },
+    };
+    const { error: finalizeError } = await service.rpc("finalize_toyyibpay_payment_from_callback", {
+      p_attempt_id: attempt.id,
+      p_billcode: attempt.provider_bill_code,
+      p_verified_amount: tx.amount,
+      p_provider_transaction_id: tx.providerTransactionId,
+      p_provider_transaction_time: null,
+      p_callback_received_at: null,
+      p_raw_response: rawResponseWithEvidence,
+    });
+    if (finalizeError) return { message: "Could not confirm this payment. Please try again shortly." };
+  } else {
+    const { error: markFailedError } = await service.rpc("mark_toyyibpay_attempt_failed_from_callback", {
+      p_attempt_id: attempt.id,
+      p_billcode: attempt.provider_bill_code,
+      p_callback_received_at: null,
+      p_reason: "confirmed unsuccessful via admin-triggered status refresh",
+    });
+    if (markFailedError) return { message: "Could not update this payment's status. Please try again shortly." };
+  }
+
+  revalidatePath(`/admin/invoices/${attempt.invoice_id}`);
+  return {};
 }

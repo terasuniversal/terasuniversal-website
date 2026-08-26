@@ -24,6 +24,10 @@ function fmtDate(d: string | null) {
   if (!d) return "—";
   return new Date(d).toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric" });
 }
+function fmtDateTime(d: string | null) {
+  if (!d) return "—";
+  return new Date(d).toLocaleString("en-MY", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
 
 export default async function InvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const profile = await requireRole("editor");
@@ -55,6 +59,13 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
   const items = (itemRows ?? []) as InvoiceItemRow[];
   const { data: paymentRows } = await supabase.from("invoice_payments").select("*").eq("invoice_id", id).order("created_at", { ascending: false });
   const payments = (paymentRows ?? []) as InvoicePaymentRow[];
+  // Most recent row already first (query is ordered desc) -- the ToyyibPay
+  // card reflects this persisted state directly rather than re-deriving it,
+  // so it shows correctly on first load, not just right after a Generate
+  // click. Next.js's revalidatePath (already called by every ToyyibPay
+  // Server Action) refreshes this prop automatically once an action
+  // completes -- no separate client-side sync logic needed.
+  const latestToyyibpayAttempt = payments.find((p) => p.payment_provider === "toyyibpay") ?? null;
 
   return (
     <>
@@ -77,7 +88,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
         <span style={{ color: "var(--ta-muted)", fontSize: 13 }}>Invoice date {fmtDate(inv.invoice_date)} · Due {fmtDate(inv.due_date)}</span>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 20, alignItems: "start" }}>
+      <div className="ta-invoice-detail-grid">
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           {inv.status === "draft" && canManage && (
             <InvoiceDraftForm
@@ -169,6 +180,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
                               <a href={p.payment_url} target="_blank" rel="noreferrer" style={{ fontSize: 12 }}>
                                 (open sandbox link ↗)
                               </a>
+                              <div style={{ fontSize: 11, color: "var(--ta-muted)" }}>Requested {fmtDateTime(p.created_at)}</div>
                             </>
                           )}
                           {p.payment_provider === "toyyibpay" && p.status === "successful" && p.verified_amount !== null && (
@@ -198,6 +210,8 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
             amountPaid={Number(inv.amount_paid)}
             canManage={canManage}
             toyyibpayEnabled={toyyibpayEnabled}
+            latestToyyibpayAttempt={latestToyyibpayAttempt}
+            invoiceNo={inv.invoice_no}
           />
         </div>
       </div>

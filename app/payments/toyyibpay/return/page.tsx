@@ -29,19 +29,19 @@ export default async function ToyyibpayReturnPage({
   const attemptId = params.attempt ?? params.order_id ?? null;
 
   if (!attemptId) {
-    return <StatusShell state="failed" message="We could not find this payment attempt. Please contact the invoice issuer." />;
+    return <StatusShell state="unknown" message="We could not confirm this payment." />;
   }
 
   const supabase = createSupabaseServiceClient();
   const { data: attempt } = await supabase
     .from("invoice_payments")
-    .select("id, status, amount, provider_bill_code, invoice_id")
+    .select("id, status, amount, provider_bill_code, provider_transaction_id, verified_amount, invoice_id")
     .eq("id", attemptId)
     .eq("payment_provider", "toyyibpay")
     .maybeSingle();
 
   if (!attempt) {
-    return <StatusShell state="failed" message="We could not find this payment attempt. Please contact the invoice issuer." />;
+    return <StatusShell state="unknown" message="We could not confirm this payment." />;
   }
 
   let finalStatus: string = attempt.status;
@@ -106,42 +106,96 @@ export default async function ToyyibpayReturnPage({
   }
 
   const { data: invoice } = await supabase.from("invoices").select("invoice_no").eq("id", attempt.invoice_id).maybeSingle();
+  const invoiceNo = invoice?.invoice_no ?? "";
 
   if (finalStatus === "successful") {
     return (
       <StatusShell
         state="successful"
-        message={`Payment received for invoice ${invoice?.invoice_no ?? ""}. Thank you.`}
-        amount={attempt.amount}
+        heading="Payment Successful"
+        message="Thank you. Your payment has been received and verified."
+        invoiceNo={invoiceNo}
+        amount={attempt.verified_amount ?? attempt.amount}
+        reference={attempt.provider_transaction_id ?? undefined}
       />
     );
   }
   if (finalStatus === "failed") {
-    return <StatusShell state="failed" message={`This payment attempt for invoice ${invoice?.invoice_no ?? ""} was not successful.`} amount={attempt.amount} />;
+    return (
+      <StatusShell
+        state="failed"
+        heading="Payment Unsuccessful"
+        message="The payment was not completed. Please return to the payment link or contact TERAS if you need assistance."
+        invoiceNo={invoiceNo}
+      />
+    );
   }
   if (finalStatus === "superseded") {
-    return <StatusShell state="failed" message="This payment link is no longer active. Please request a new payment link." />;
+    return (
+      <StatusShell
+        state="failed"
+        heading="Payment Unsuccessful"
+        message="This payment link is no longer active. Please request a new payment link from TERAS."
+        invoiceNo={invoiceNo}
+      />
+    );
   }
-  return <StatusShell state="pending" message={`We are still confirming your payment for invoice ${invoice?.invoice_no ?? ""}. This page will not mark anything paid on its own -- please check back shortly.`} amount={attempt.amount} />;
+  return (
+    <StatusShell
+      state="pending"
+      heading="Payment Pending"
+      message="ToyyibPay has not confirmed the payment yet. Please check again shortly."
+      invoiceNo={invoiceNo}
+      amount={attempt.amount}
+      checkAgainHref={`/payments/toyyibpay/return?attempt=${attempt.id}`}
+    />
+  );
 }
 
-function StatusShell({ state, message, amount }: { state: "verifying" | "successful" | "pending" | "failed"; message: string; amount?: number }) {
+function StatusShell({
+  state,
+  heading,
+  message,
+  invoiceNo,
+  amount,
+  reference,
+  checkAgainHref,
+}: {
+  state: "successful" | "pending" | "failed" | "unknown";
+  heading?: string;
+  message: string;
+  invoiceNo?: string;
+  amount?: number;
+  reference?: string;
+  checkAgainHref?: string;
+}) {
   const palette: Record<typeof state, { bg: string; fg: string; label: string }> = {
-    verifying: { bg: "#eff6ff", fg: "#1d4ed8", label: "Verifying" },
     successful: { bg: "#f0fdf4", fg: "#15803d", label: "Payment Successful" },
     pending: { bg: "#fefce8", fg: "#a16207", label: "Payment Pending" },
-    failed: { bg: "#fef2f2", fg: "#b91c1c", label: "Payment Failed" },
+    failed: { bg: "#fef2f2", fg: "#b91c1c", label: "Payment Unsuccessful" },
+    unknown: { bg: "#f1f5f9", fg: "#475569", label: "Unable to Confirm" },
   };
   const c = palette[state];
   return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f8fafc", fontFamily: "'Helvetica Neue',Helvetica,Arial,sans-serif" }}>
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f8fafc", fontFamily: "'Helvetica Neue',Helvetica,Arial,sans-serif", padding: 16 }}>
       <div style={{ maxWidth: 420, width: "100%", background: "#fff", borderRadius: 12, boxShadow: "0 1px 3px rgba(0,0,0,.1)", padding: 32, textAlign: "center" }}>
         <div style={{ display: "inline-block", background: c.bg, color: c.fg, fontSize: 12, fontWeight: 700, letterSpacing: 0.5, borderRadius: 999, padding: "6px 14px", marginBottom: 16 }}>
           {c.label.toUpperCase()}
         </div>
-        <p style={{ fontSize: 15, color: "#1a2233", lineHeight: 1.6, margin: 0 }}>{message}</p>
+        <h1 style={{ fontSize: 19, fontWeight: 700, color: "#1a2233", margin: "0 0 8px" }}>{heading ?? c.label}</h1>
+        {invoiceNo && <p style={{ fontSize: 13, color: "#64748b", margin: "0 0 8px" }}>Invoice {invoiceNo}</p>}
+        <p style={{ fontSize: 15, color: "#1a2233", lineHeight: 1.6, margin: 0, wordBreak: "break-word" }}>{message}</p>
         {typeof amount === "number" && (
           <p style={{ fontSize: 20, fontWeight: 700, marginTop: 16, color: "#1a2233" }}>RM {amount.toLocaleString("en-MY", { minimumFractionDigits: 2 })}</p>
+        )}
+        {reference && <p style={{ fontSize: 12, color: "#64748b", marginTop: 8, wordBreak: "break-all" }}>Reference: {reference}</p>}
+        {checkAgainHref && (
+          <a
+            href={checkAgainHref}
+            style={{ display: "inline-block", marginTop: 20, fontSize: 13, fontWeight: 700, color: "#0b3a63", textDecoration: "none", border: "1px solid #d7dde5", borderRadius: 8, padding: "8px 16px" }}
+          >
+            Check Payment Status
+          </a>
         )}
       </div>
     </div>
