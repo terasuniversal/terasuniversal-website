@@ -63,26 +63,53 @@ export default async function QuotationsPage({
 
       <Card>
         {rows && rows.length > 0 ? (
-          <div className="ta-table-wrap">
-            <table className="ta-table">
-              <thead>
-                <tr><th>Quotation No</th><th>Revision</th><th>Company</th><th>Status</th><th>Total</th><th>Valid Until</th><th></th></tr>
-              </thead>
-              <tbody>
-                {(rows as (SalesQuotationRow & { sales_opportunities: { opportunity_no: string; company_name: string | null } | null })[]).map((q) => (
-                  <tr key={q.id}>
-                    <td><code style={{ fontSize: 12 }}>{q.quotation_no}</code></td>
-                    <td>{revisionLabel(q.revision_no)}</td>
-                    <td>{q.sales_opportunities?.company_name ?? "—"}</td>
-                    <td><Badge status={q.status} /></td>
-                    <td>RM {Number(q.total).toLocaleString("en-MY", { minimumFractionDigits: 2 })}</td>
-                    <td>{q.valid_until ? new Date(q.valid_until).toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric" }) : "—"}</td>
-                    <td style={{ textAlign: "right" }}><Link href={`/admin/sales/quotations/${q.id}`} className="ta-btn ta-btn-outline ta-btn-sm">View</Link></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <>
+            <div className="ta-table-wrap ta-q-table">
+              <table className="ta-table">
+                <thead>
+                  <tr><th>Quotation No</th><th>Revision</th><th>Company</th><th>Status</th><th>Total</th><th>Valid Until</th><th></th></tr>
+                </thead>
+                <tbody>
+                  {(rows as (SalesQuotationRow & { sales_opportunities: { opportunity_no: string; company_name: string | null } | null })[]).map((q) => (
+                    <tr key={q.id}>
+                      <td><code style={{ fontSize: 12 }}>{q.quotation_no}</code></td>
+                      <td>{revisionLabel(q.revision_no)}</td>
+                      <td>{q.sales_opportunities?.company_name ?? "—"}</td>
+                      <td><Badge status={q.status} /></td>
+                      <td>RM {Number(q.total).toLocaleString("en-MY", { minimumFractionDigits: 2 })}</td>
+                      <td>{q.valid_until ? new Date(q.valid_until).toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric" }) : "—"}</td>
+                      <td style={{ textAlign: "right" }}><Link href={`/admin/sales/quotations/${q.id}`} className="ta-btn ta-btn-outline ta-btn-sm">View</Link></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <ul className="ta-lead-cards">
+              {(rows as (SalesQuotationRow & { sales_opportunities: { opportunity_no: string; company_name: string | null } | null })[]).map((q) => (
+                <li className="ta-card ta-lead-card" key={q.id}>
+                  <div className="ta-lead-card-top">
+                    <code style={{ fontSize: 12 }}>{q.quotation_no}</code>
+                    <Badge status={q.status} />
+                  </div>
+                  <div className="ta-lead-card-company">
+                    <strong>{q.sales_opportunities?.company_name ?? "—"}</strong>
+                  </div>
+                  <div className="ta-lead-card-grid">
+                    <span>Revision</span>
+                    <span>{revisionLabel(q.revision_no)}</span>
+                    <span>Total</span>
+                    <span>RM {Number(q.total).toLocaleString("en-MY", { minimumFractionDigits: 2 })}</span>
+                    <span>Valid Until</span>
+                    <span>{q.valid_until ? new Date(q.valid_until).toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric" }) : "—"}</span>
+                  </div>
+                  <div className="ta-lead-card-action">
+                    <Link href={`/admin/sales/quotations/${q.id}`} className="ta-btn ta-btn-outline ta-btn-sm">View quotation →</Link>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </>
         ) : (
           <EmptyState icon="📄" message="No quotations yet. Create one from an Opportunity's detail page." />
         )}

@@ -221,6 +221,8 @@
 .ta-btn-outline:hover { border-color: rgba(11,58,99,.3); background: var(--ta-soft); }
 .ta-btn-danger { background: rgba(214,69,69,.1); color: var(--ta-danger); }
 .ta-btn-danger:hover { background: rgba(214,69,69,.16); }
+.ta-btn-success { background: rgba(46,158,91,.1); color: var(--ta-success); }
+.ta-btn-success:hover { background: rgba(46,158,91,.16); }
 .ta-btn-sm { padding: 6px 11px; font-size: 12.5px; }
 .ta-btn:disabled { opacity: .55; cursor: not-allowed; box-shadow: none; transform: none; }
 
@@ -437,6 +439,27 @@
 /* Lead detail Gï¿½ï¿½ replace inline styles with classes */
 .ta-lead-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
 .ta-lead-meta-time { color: var(--ta-muted); font-size: 13px; }
+
+/* Lead/Opportunity/Quotation detail pages — responsive two-column layout,
+   collapsing at the same 900px breakpoint the sidebar already uses. */
+.ta-lead-detail-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 20px; align-items: start; }
+@media (max-width: 900px) {
+  .ta-lead-detail-grid { grid-template-columns: 1fr; }
+}
+
+/* Mobile card fallback for the Leads/Opportunities/Quotations/Tasks/Follow-ups
+   list tables — hidden on desktop, shown under the same 900px breakpoint. */
+.ta-lead-cards { display: none; list-style: none; margin: 0; padding: 0; gap: 12px; }
+.ta-lead-card { padding: 14px 16px; }
+.ta-lead-card-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.ta-lead-card-company { margin: 8px 0 10px; }
+.ta-lead-card-grid { display: grid; grid-template-columns: 108px 1fr; gap: 7px 14px; font-size: 13px; }
+.ta-lead-card-grid > span:nth-child(odd) { color: var(--ta-muted); font-weight: 600; }
+.ta-lead-card-action { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
+@media (max-width: 900px) {
+  .ta-lead-table, .ta-opp-table, .ta-q-table, .ta-tasks-table, .ta-followups-table { display: none; }
+  .ta-lead-cards { display: grid; }
+}
 .ta-stack { display: flex; flex-direction: column; gap: 10px; }
 .ta-subhead { margin: 16px 0 6px; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--ta-muted); }
 .ta-pre-wrap { margin: 0; white-space: pre-wrap; color: var(--ta-ink); font-size: 13.5px; line-height: 1.6; }

@@ -105,7 +105,7 @@ export function OpportunityActionsPanel({
             </Field>
             <button
               type="submit"
-              className="ta-btn ta-btn-outline ta-btn-sm"
+              className="ta-btn ta-btn-danger ta-btn-sm"
               disabled={lostPending}
               onClick={(e) => { if (!confirm("Mark this opportunity as lost? The linked lead will also be marked lost.")) e.preventDefault(); }}
             >
