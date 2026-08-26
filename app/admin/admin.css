@@ -159,6 +159,8 @@
 .ta-grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
 .ta-grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
 .ta-grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
+.ta-invoice-detail-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 20px; align-items: start; }
+.ta-invoice-detail-grid > div { min-width: 0; }
 .ta-card { background: var(--ta-white); border: 1px solid var(--ta-line); border-radius: var(--ta-radius); box-shadow: var(--ta-shadow); overflow: hidden; }
 .ta-card-pad { padding: 18px 20px; }
 
@@ -191,10 +193,10 @@
 
 /* --- Badges -------------------------------------------------------- */
 .ta-badge-pill { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 700; text-transform: capitalize; }
-.ta-badge-pill.published, .ta-badge-pill.won, .ta-badge-pill.issued, .ta-badge-pill.attended, .ta-badge-pill.open, .ta-badge-pill.completed, .ta-badge-pill.competent, .ta-badge-pill.pass, .ta-badge-pill.submitted, .ta-badge-pill.paid { background: rgba(46,158,91,.12); color: var(--ta-success); }
+.ta-badge-pill.published, .ta-badge-pill.won, .ta-badge-pill.issued, .ta-badge-pill.attended, .ta-badge-pill.open, .ta-badge-pill.completed, .ta-badge-pill.competent, .ta-badge-pill.pass, .ta-badge-pill.submitted, .ta-badge-pill.paid, .ta-badge-pill.successful { background: rgba(46,158,91,.12); color: var(--ta-success); }
 .ta-badge-pill.draft, .ta-badge-pill.new, .ta-badge-pill.registered, .ta-badge-pill.pending, .ta-badge-pill.today { background: rgba(47,111,237,.12); color: var(--ta-info); }
 .ta-badge-pill.scheduled, .ta-badge-pill.in_review, .ta-badge-pill.assigned, .ta-badge-pill.quoted, .ta-badge-pill.closing_soon, .ta-badge-pill.full, .ta-badge-pill.confirmed, .ta-badge-pill.qualified, .ta-badge-pill.in_progress, .ta-badge-pill.partially_paid { background: rgba(212,175,55,.16); color: #a9791a; }
-.ta-badge-pill.archived, .ta-badge-pill.closed, .ta-badge-pill.lost, .ta-badge-pill.cancelled, .ta-badge-pill.revoked, .ta-badge-pill.no_show, .ta-badge-pill.not_yet_competent, .ta-badge-pill.medical_leave, .ta-badge-pill.excused { background: rgba(102,112,133,.14); color: var(--ta-muted); }
+.ta-badge-pill.archived, .ta-badge-pill.closed, .ta-badge-pill.lost, .ta-badge-pill.cancelled, .ta-badge-pill.revoked, .ta-badge-pill.no_show, .ta-badge-pill.not_yet_competent, .ta-badge-pill.medical_leave, .ta-badge-pill.excused, .ta-badge-pill.superseded, .ta-badge-pill.refunded { background: rgba(102,112,133,.14); color: var(--ta-muted); }
 .ta-badge-pill.pending_review, .ta-badge-pill.late { background: rgba(212,175,55,.16); color: #a9791a; }
 .ta-badge-pill.fail, .ta-badge-pill.absent { background: rgba(214,69,69,.12); color: var(--ta-danger); }
 .ta-badge-pill.healthy, .ta-badge-pill.provider-managed { background: rgba(46,158,91,.12); color: var(--ta-success); }
@@ -312,6 +314,7 @@
   .ta-main { margin-left: 0; }
   .ta-hamburger { display: block; }
   .ta-grid.cols-3, .ta-grid.cols-2 { grid-template-columns: 1fr; }
+  .ta-invoice-detail-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 620px) {
   .ta-grid.cols-4 { grid-template-columns: 1fr; }
