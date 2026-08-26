@@ -149,8 +149,8 @@ export default async function HomePage() {
               the demands of real workplaces.
             </p>
             <div className="hero-actions">
-              <a className="btn btn-primary" href="/training">Explore Training <span aria-hidden="true">&rarr;</span></a>
-              <a className="btn btn-outline" href="/request-proposal">Request Proposal</a>
+              <a className="btn btn-primary" href="/training">View Training <span aria-hidden="true">&rarr;</span></a>
+              <a className="btn btn-outline" href="/request-proposal?source=homepage-hero">Request Corporate Training</a>
             </div>
             <div className="hero-proof" aria-label="TERAS UNIVERSAL strengths">
               <span><strong>2012</strong> Established</span>
@@ -229,7 +229,7 @@ export default async function HomePage() {
                     <p>{[session.delivery_mode, session.venue].filter(Boolean).join(" · ") || "Venue to be confirmed"}</p>
                   </div>
                   <span className={`upcoming-status is-${session.status}`}>{scheduleStatusLabel(session.status)}</span>
-                  <a className="btn btn-outline upcoming-link" href={session.slug ? `/training/${session.slug}` : "/request-proposal"}>{session.slug ? "View course" : "Enquire"}</a>
+                  <a className="btn btn-outline upcoming-link" href={session.slug ? `/training/${session.slug}` : `/request-proposal?source=homepage-schedule&session=${encodeURIComponent(session.start_date)}`}>{session.slug ? "View Course Details" : "Enquire About This Session"}</a>
                 </article>
               ))}
             </div>
@@ -301,9 +301,9 @@ export default async function HomePage() {
 
       <section id="training" className="soft-section">
         <div className="container">
-          <div className="section-heading split-heading"><div><span className="eyebrow">Featured Training Programmes</span><h2>Practical programmes for safer and stronger workplaces.</h2></div><p>Programme scope and duration can be tailored to participant profiles, site risks and operational objectives.</p></div>
-          <div className="programme-grid">{programmes.slice(0, 4).map(([number,title,text])=>{const href = programmeLink(title); const hasPage = href !== "/request-proposal"; return <article key={title}><span>{number}</span><h3>{title}</h3><p>{text}</p><a href={href}>{hasPage ? "View programme" : "Enquire now"} <span aria-hidden="true">&rarr;</span></a></article>;})}</div>
-          <p className="section-view-all"><a href="/training">View all training programmes <span aria-hidden="true">&rarr;</span></a></p>
+          <div className="section-heading split-heading"><div><span className="eyebrow">Featured Training Programmes</span><h2>Start with the right course.</h2></div><p>View a verified course page for available programme information, or enquire about a custom workforce arrangement.</p></div>
+          <div className="programme-grid">{programmes.slice(0, 4).map(([number,title,text])=>{const href = programmeLink(title); const hasPage = href !== "/request-proposal"; return <article key={title}><span>{number}</span><h3>{title}</h3><p>{text}</p><a href={hasPage ? href : `/request-proposal?source=homepage-training`}>{hasPage ? "View Course" : "Enquire About Training"} <span aria-hidden="true">&rarr;</span></a></article>;})}</div>
+          <p className="section-view-all"><a href="/training">View all training <span aria-hidden="true">&rarr;</span></a></p>
         </div>
       </section>
 

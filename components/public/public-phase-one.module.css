@@ -1,0 +1,20 @@
+.courseCard {
+  --teras-navy: #0B3A63;
+  --teras-gold: #D4AF37;
+  border-color: rgba(11, 58, 99, .16);
+  box-shadow: 0 12px 28px rgba(11, 58, 99, .08);
+}
+
+.courseCard:hover { border-color: rgba(212, 175, 55, .72); }
+.courseCard .courseLink { color: var(--teras-navy); }
+.courseCard .courseLink:hover { color: var(--teras-gold); }
+
+.ctaGroup .primaryAction {
+  background: #0B3A63;
+  border-color: #0B3A63;
+  color: #FFFFFF;
+}
+
+.ctaGroup .primaryAction:hover { background: #082E4E; border-color: #082E4E; }
+.ctaGroup .enquiryAction { border-color: #D4AF37; color: #0B3A63; }
+.ctaGroup .enquiryAction:hover { background: #FFFFFF; color: #0B3A63; }
