@@ -11,6 +11,7 @@ import {
   type InvoiceItemRow,
   type InvoicePaymentRow,
 } from "../../../../../lib/sales/invoices";
+import { getToyyibpayCapability } from "../../../../../lib/payments/toyyibpay";
 import { InvoiceDraftForm } from "./InvoiceDraftForm";
 import { InvoiceActionsPanel } from "./InvoiceActionsPanel";
 
@@ -36,18 +37,20 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
   const { id } = await params;
   const supabase = await createSupabaseServerClient();
 
-  // Phase 2B production-visibility guard. Computed server-side from a
-  // server-only env var (never NEXT_PUBLIC_*) -- only this single boolean
-  // crosses into the client component's props, never the underlying
-  // TOYYIBPAY_ENV/TOYYIBPAY_USER_SECRET_KEY/TOYYIBPAY_CATEGORY_CODE
-  // values. Production (or any deployment missing this exact value) gets
-  // no ToyyibPay card at all -- not a disabled one, not a dead-end button,
-  // simply absent -- until ToyyibPay production integration is
-  // deliberately activated in a later phase. The Server Action's own hard
-  // `TOYYIBPAY_ENV === "sandbox"` gate (lib/payments/toyyibpay.ts) stays as
-  // defense-in-depth regardless of what this flag renders -- this flag is
-  // a UX guard, not the actual security boundary.
-  const toyyibpayEnabled = process.env.TOYYIBPAY_ENV === "sandbox";
+  // Phase 2F production-visibility guard. Computed server-side via
+  // getToyyibpayCapability() (lib/payments/toyyibpay.ts), which reads only
+  // TOYYIBPAY_ENV (a mode string, never NEXT_PUBLIC_*) -- only the derived
+  // `enabled`/`isSandbox` booleans cross into the client component's props,
+  // never the raw env value and never TOYYIBPAY_USER_SECRET_KEY/
+  // TOYYIBPAY_CATEGORY_CODE. A deployment with TOYYIBPAY_ENV unset or set
+  // to anything other than "sandbox"/"production" gets no ToyyibPay card at
+  // all -- not a disabled one, not a dead-end button, simply absent. The
+  // resolver's own hard fail-closed gate (lib/payments/toyyibpay.ts) stays
+  // as defense-in-depth regardless of what this flag renders -- this flag
+  // is a UX guard, not the actual security boundary.
+  const toyyibpayCapability = getToyyibpayCapability();
+  const toyyibpayEnabled = toyyibpayCapability.enabled;
+  const toyyibpayIsSandbox = toyyibpayCapability.isSandbox;
 
   const { data: invoice } = await supabase.from("invoices").select("*").eq("id", id).maybeSingle();
   if (!invoice) notFound();
@@ -178,7 +181,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
                             <>
                               {" "}
                               <a href={p.payment_url} target="_blank" rel="noreferrer" style={{ fontSize: 12 }}>
-                                (open sandbox link ↗)
+                                {toyyibpayIsSandbox ? "(open sandbox link ↗)" : "(open payment link ↗)"}
                               </a>
                               <div style={{ fontSize: 11, color: "var(--ta-muted)" }}>Requested {fmtDateTime(p.created_at)}</div>
                             </>
@@ -210,6 +213,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
             amountPaid={Number(inv.amount_paid)}
             canManage={canManage}
             toyyibpayEnabled={toyyibpayEnabled}
+            toyyibpayIsSandbox={toyyibpayIsSandbox}
             latestToyyibpayAttempt={latestToyyibpayAttempt}
             invoiceNo={inv.invoice_no}
           />

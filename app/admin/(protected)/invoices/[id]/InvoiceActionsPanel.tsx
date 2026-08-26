@@ -26,6 +26,7 @@ export function InvoiceActionsPanel({
   amountPaid,
   canManage,
   toyyibpayEnabled,
+  toyyibpayIsSandbox,
   latestToyyibpayAttempt,
 }: {
   invoiceId: string;
@@ -34,8 +35,10 @@ export function InvoiceActionsPanel({
   balanceDue: number;
   amountPaid: number;
   canManage: boolean;
-  /** Server-derived capability flag (TOYYIBPAY_ENV === "sandbox") -- never a raw env var or secret, just this one boolean. Production (or any non-sandbox deployment) renders no ToyyibPay card at all. */
+  /** Server-derived capability flag (TOYYIBPAY_ENV is "sandbox" or "production") -- never a raw env var or secret, just this one boolean. A deployment with TOYYIBPAY_ENV unset/invalid renders no ToyyibPay card at all. */
   toyyibpayEnabled: boolean;
+  /** Server-derived, from the same capability check -- true only when TOYYIBPAY_ENV === "sandbox". Controls the SANDBOX/TEST PAYMENT badge and copy only; never the actual request routing (that's lib/payments/toyyibpay.ts's own resolver). */
+  toyyibpayIsSandbox: boolean;
   /** Most recent invoice_payments row for payment_provider='toyyibpay', or null -- persisted server state, so the card reflects reality on first load, not just right after a Generate click. */
   latestToyyibpayAttempt: InvoicePaymentRow | null;
 }) {
@@ -138,21 +141,23 @@ export function InvoiceActionsPanel({
       {(status === "issued" || status === "partially_paid") && toyyibpayEnabled && (
         <Card title="ToyyibPay Payment Link">
           <div className="ta-card-pad" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <span
-              style={{
-                alignSelf: "flex-start",
-                fontSize: 10,
-                fontWeight: 700,
-                letterSpacing: 0.5,
-                color: "#92400e",
-                background: "#fef3c7",
-                border: "1px solid #fde68a",
-                borderRadius: 4,
-                padding: "2px 6px",
-              }}
-            >
-              SANDBOX / TEST PAYMENT
-            </span>
+            {toyyibpayIsSandbox && (
+              <span
+                style={{
+                  alignSelf: "flex-start",
+                  fontSize: 10,
+                  fontWeight: 700,
+                  letterSpacing: 0.5,
+                  color: "#92400e",
+                  background: "#fef3c7",
+                  border: "1px solid #fde68a",
+                  borderRadius: 4,
+                  padding: "2px 6px",
+                }}
+              >
+                SANDBOX / TEST PAYMENT
+              </span>
+            )}
             {toyyibpayState.message && <div className="ta-alert ta-alert-error">{toyyibpayState.message}</div>}
             {refreshState.message && <div className="ta-alert ta-alert-error">{refreshState.message}</div>}
 
@@ -160,8 +165,9 @@ export function InvoiceActionsPanel({
             {!attempt && (
               <>
                 <p style={{ margin: 0, fontSize: 13, color: "var(--ta-muted)" }}>
-                  Creates a secure payment link for the current outstanding balance. This is a test payment link only — it
-                  does not connect to any real bank account and no real money moves.
+                  {toyyibpayIsSandbox
+                    ? "Creates a secure payment link for the current outstanding balance. This is a test payment link only — it does not connect to any real bank account and no real money moves."
+                    : "Creates a secure payment link for the current outstanding balance. This is a real ToyyibPay payment link — completing it moves real money."}
                 </p>
                 <p style={{ margin: 0, fontSize: 13 }}>
                   Balance due: <strong>{fmtRM(balanceDue)}</strong>
