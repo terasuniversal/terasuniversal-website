@@ -6,6 +6,7 @@
     "dev": "next dev",
     "lint": "node scripts/lint.mjs",
     "typecheck": "node scripts/typecheck.mjs",
+    "check:toyyibpay-env": "node --experimental-transform-types scripts/check-toyyibpay-env-resolver.mts",
     "build": "next build",
     "start": "next start"
   },

@@ -7,7 +7,8 @@ import { createBill, inactivateBill, ringgitStringToSen, getBillTransactions, pa
 import { canonicalSiteOrigin } from "../../../../lib/site-origin";
 
 /**
- * Phase 2B only: creates a ToyyibPay sandbox bill and records it as a
+ * Creates a ToyyibPay bill (sandbox or production, per TOYYIBPAY_ENV --
+ * see lib/payments/toyyibpay.ts's resolver, Phase 2F) and records it as a
  * pending invoice_payments row. Never marks anything paid -- that is
  * Phase 2C's callback-verified job, not this action's. Admin-only, same
  * gate as every other invoice mutation.

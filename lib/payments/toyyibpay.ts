@@ -11,35 +11,65 @@
 
 import { createHash, timingSafeEqual } from "crypto";
 
-const SANDBOX_BASE_URL = "https://dev.toyyibpay.com";
 const REQUEST_TIMEOUT_MS = 15000;
 
+/** The only two operational modes ToyyibPay integration supports. Nothing else -- see resolveToyyibpayEnv(). */
+export type ToyyibpayEnv = "sandbox" | "production";
+
+const TOYYIBPAY_BASE_URLS: Record<ToyyibpayEnv, string> = {
+  sandbox: "https://dev.toyyibpay.com",
+  production: "https://toyyibpay.com",
+};
+
 /**
- * Hard environment gate. TOYYIBPAY_ENV must be the literal string
- * "sandbox" -- never inferred from NODE_ENV (a production Vercel build can
- * still run with sandbox credentials, and a local dev server must never be
- * trusted to "figure out" it's safe). Phase 2B has no production code path
- * at all: any value other than exactly "sandbox" is a hard failure, not a
- * fallback to some other base URL.
+ * Phase 2F: explicit environment resolver, replacing Phase 2B's
+ * sandbox-only assertSandboxEnvironment(). TOYYIBPAY_ENV must be the
+ * literal string "sandbox" or "production" -- never inferred from
+ * NODE_ENV (a production Vercel build must not "figure out" its own
+ * payment-gateway mode), and never defaulted in either direction: an
+ * unset or misspelled value is a hard failure, not a silent fallback to
+ * sandbox (which would hide a misconfiguration) or to production (which
+ * would risk real money on a deployment that was never actually reviewed
+ * for production use).
  */
-function assertSandboxEnvironment(): void {
+function resolveToyyibpayEnv(): ToyyibpayEnv {
   const env = process.env.TOYYIBPAY_ENV;
-  if (env !== "sandbox") {
-    throw new Error(
-      "ToyyibPay: TOYYIBPAY_ENV must be exactly 'sandbox' for this build of the app. Refusing to make any ToyyibPay request."
-    );
-  }
+  if (env === "sandbox" || env === "production") return env;
+  throw new Error(
+    `ToyyibPay: TOYYIBPAY_ENV must be exactly "sandbox" or "production" (got ${env === undefined ? "unset" : JSON.stringify(env)}). Refusing to make any ToyyibPay request.`
+  );
 }
 
-function getCredentials(): { userSecretKey: string; categoryCode: string } {
-  assertSandboxEnvironment();
+/**
+ * Server-only capability check for UI gating -- reads only TOYYIBPAY_ENV
+ * (a mode string, not a secret) and never TOYYIBPAY_USER_SECRET_KEY /
+ * TOYYIBPAY_CATEGORY_CODE. Safe to call from a Server Component; the
+ * caller must still only pass the resulting booleans (not this object's
+ * `env` field, and never a raw env var) down into a "use client" component.
+ */
+export function getToyyibpayCapability():
+  | { enabled: true; env: ToyyibpayEnv; isSandbox: boolean }
+  | { enabled: false; env: null; isSandbox: false } {
+  const env = process.env.TOYYIBPAY_ENV;
+  if (env === "sandbox" || env === "production") {
+    return { enabled: true, env, isSandbox: env === "sandbox" };
+  }
+  return { enabled: false, env: null, isSandbox: false };
+}
+
+function getToyyibpayBaseUrl(): string {
+  return TOYYIBPAY_BASE_URLS[resolveToyyibpayEnv()];
+}
+
+function getCredentials(): { userSecretKey: string; categoryCode: string; baseUrl: string } {
+  const baseUrl = getToyyibpayBaseUrl();
   const userSecretKey = process.env.TOYYIBPAY_USER_SECRET_KEY;
   const categoryCode = process.env.TOYYIBPAY_CATEGORY_CODE;
   if (!userSecretKey || !categoryCode) {
     // Never include the actual (missing/empty) values in this message.
     throw new Error("ToyyibPay: TOYYIBPAY_USER_SECRET_KEY / TOYYIBPAY_CATEGORY_CODE are not configured on this server.");
   }
-  return { userSecretKey, categoryCode };
+  return { userSecretKey, categoryCode, baseUrl };
 }
 
 /**
@@ -66,12 +96,12 @@ export class ToyyibPayNonJsonResponseError extends Error {
   }
 }
 
-async function postForm(path: string, params: Record<string, string>): Promise<unknown> {
+async function postForm(baseUrl: string, path: string, params: Record<string, string>): Promise<unknown> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   let response: Response;
   try {
-    response = await fetch(`${SANDBOX_BASE_URL}${path}`, {
+    response = await fetch(`${baseUrl}${path}`, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams(params),
@@ -127,7 +157,7 @@ export interface CreateBillResult {
  * shape is treated as an error rather than assumed successful).
  */
 export async function createBill(input: CreateBillInput): Promise<CreateBillResult> {
-  const { userSecretKey, categoryCode } = getCredentials();
+  const { userSecretKey, categoryCode, baseUrl } = getCredentials();
 
   if (!Number.isInteger(input.amountSen) || input.amountSen <= 0) {
     throw new Error("ToyyibPay createBill: amountSen must be a positive integer.");
@@ -137,7 +167,7 @@ export async function createBill(input: CreateBillInput): Promise<CreateBillResu
   const billDescription = sanitizeToyyibpayText(input.description, 100) || billName;
   const billTo = sanitizeToyyibpayText(input.billTo, 100) || "Customer";
 
-  const raw = await postForm("/index.php/api/createBill", {
+  const raw = await postForm(baseUrl, "/index.php/api/createBill", {
     userSecretKey,
     categoryCode,
     billName,
@@ -162,7 +192,7 @@ export async function createBill(input: CreateBillInput): Promise<CreateBillResu
     throw new Error(`ToyyibPay createBill did not return a BillCode: ${msg}`);
   }
 
-  return { billCode, paymentUrl: `${SANDBOX_BASE_URL}/${billCode}` };
+  return { billCode, paymentUrl: `${baseUrl}/${billCode}` };
 }
 
 export interface InactivateBillResult {
@@ -178,7 +208,7 @@ export interface InactivateBillResult {
  * that isn't specifically that compensation flow.
  */
 export async function inactivateBill(billCode: string): Promise<InactivateBillResult> {
-  const { userSecretKey } = getCredentials();
+  const { userSecretKey, baseUrl } = getCredentials();
   if (!billCode || billCode.trim().length === 0) {
     throw new Error("ToyyibPay inactivateBill: billCode is required.");
   }
@@ -190,7 +220,7 @@ export async function inactivateBill(billCode: string): Promise<InactivateBillRe
   // is empty!" and this call has never actually inactivated a bill before
   // this fix. Do not rename the field for createBill/getBillTransactions --
   // their "userSecretKey" naming is independently confirmed correct.
-  const raw = await postForm("/index.php/api/inactiveBill", {
+  const raw = await postForm(baseUrl, "/index.php/api/inactiveBill", {
     secretKey: userSecretKey,
     billCode,
   });
@@ -418,14 +448,14 @@ function mapProviderStatus(rawStatus: unknown): ProviderPaymentStatus {
  * far.
  */
 export async function getBillTransactions(billCode: string): Promise<ProviderBillTransaction[]> {
-  const { userSecretKey } = getCredentials();
+  const { userSecretKey, baseUrl } = getCredentials();
   if (!billCode || billCode.trim().length === 0) {
     throw new Error("ToyyibPay getBillTransactions: billCode is required.");
   }
 
   let raw: unknown;
   try {
-    raw = await postForm("/index.php/api/getBillTransactions", {
+    raw = await postForm(baseUrl, "/index.php/api/getBillTransactions", {
       userSecretKey,
       billCode,
     });
