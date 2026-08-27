@@ -414,7 +414,9 @@ export function CertificateDocument({ data, config }: { data: CertData; config: 
   // Standard Scaffold keeps the established TERAS Standard hierarchy: the
   // course name and date range are the focal content, without the banner that
   // belongs to the newer certificate families.
-  const showDurationRibbon = config.design_variant !== "standard_scaffold_certificate";
+  // Working at Height follows the approved WAH artwork: the date range sits
+  // directly below the course title; the generic duration ribbon is omitted.
+  const showDurationRibbon = config.design_variant !== "standard_scaffold_certificate" && config.design_variant !== "working_at_height_certificate";
   // +8 rather than +4: at +4 the holder name sat only ~4pt above the
   // programme title, so the eye had no single landing point. Scale is the
   // one lever that makes a centrepiece read as ceremonial.
