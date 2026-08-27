@@ -335,6 +335,88 @@ function Invoke-ClaudeReadOnlyReview {
     }
 }
 
+function Get-ClaudeRepairDecision {
+    param([string]$Verdict, [int]$AttemptsUsed, [int]$MaximumAttempts = 2)
+
+    if ($Verdict -in @("PASS", "PASS_WITH_NOTES")) { return "NO_REPAIR" }
+    if ($Verdict -eq "CHANGES_REQUIRED" -and $AttemptsUsed -lt $MaximumAttempts) { return "REPAIR" }
+    if ($Verdict -eq "CHANGES_REQUIRED" -and $AttemptsUsed -ge $MaximumAttempts) { return "NEEDS_HUMAN_REVIEW" }
+    return "REVIEW_FAILED"
+}
+
+function Set-TaskStateProperty {
+    param($State, [string]$Name, $Value)
+
+    if ($State.PSObject.Properties.Name -contains $Name) {
+        $State.$Name = $Value
+    } else {
+        $State | Add-Member -MemberType NoteProperty -Name $Name -Value $Value
+    }
+}
+
+function Test-RepairMigrationGate {
+    param($State)
+
+    $allowed = @($State.AllowedFiles)
+    $migrationScoped = [bool]$State.DbRequired -or @($allowed | Where-Object { $_ -match '(?i)(^|/)(supabase/|.*\.sql$)' }).Count -gt 0
+    if ($migrationScoped) {
+        return [pscustomobject]@{
+            Allowed = $true
+            Mode = "EDIT_ONLY_NO_APPLY"
+            Reason = "Migration/high-risk repair is limited to approved files; apply, merge, and production release remain explicitly blocked."
+        }
+    }
+    return [pscustomobject]@{
+        Allowed = $true
+        Mode = "STANDARD"
+        Reason = "Repair is limited to the original approved implementation scope."
+    }
+}
+
+function New-CodexRepairHandoff {
+    param($State, [string]$ClaudeFindings, [int]$Attempt)
+
+    $path = Join-Path $AiDir "CODEX_REPAIR_HANDOFF.md"
+    $scopeText = if (@($State.AllowedFiles).Count -gt 0) { ($State.AllowedFiles | ForEach-Object { "- $_" }) -join "`n" } else { "- (no approved scope - stop)" }
+    $content = @"
+# CODEX_REPAIR_HANDOFF.md
+
+> Generated after Claude returned CHANGES_REQUIRED. This is bounded repair attempt $Attempt of 2. Codex remains the implementation agent.
+
+## ORIGINAL TASK
+
+Task ID: $($State.TaskId)
+Description: $($State.Description)
+Category: $($State.Category)
+Risk: $($State.Risk)
+
+## CLAUDE FINDINGS
+
+$ClaudeFindings
+
+## APPROVED FILES IN SCOPE
+
+$scopeText
+
+Codex may modify only files already listed above. Do not create or modify any other file.
+
+## PROHIBITED ACTIONS
+
+- Do not commit, push, merge, deploy, or apply a migration.
+- Do not modify CRM/application/auth/production files outside the approved scope.
+- Do not run destructive Git commands.
+- Do not invoke Claude, DeepSeek, or another agent.
+- For migration/high-risk scope, edit only the approved migration file; application to any environment remains blocked pending explicit human approval.
+
+## AFTER REPAIR
+
+Run relevant verification and report the exact files changed. The orchestrator will re-run scope validation and Claude read-only review. Do not start another repair loop yourself.
+"@
+
+    Set-Content -LiteralPath $path -Value $content -Encoding utf8
+    return $path
+}
+
 function Test-CodexImplementationAvailable {
     return $null -ne (Get-Command "codex" -ErrorAction SilentlyContinue)
 }
