@@ -229,7 +229,7 @@ function Invoke-ReviewStage {
     Invoke-ClaudeImplementation -HandoffPath $repairHandoffPath | Out-Null
 
     $afterRepair = Get-GitStatusSnapshot
-    $delta = Get-ChangedFilesDelta -Before $PreImplementationSnapshot -After $afterRepair
+    $delta = Get-ImplementationDelta -Before $PreImplementationSnapshot -After $afterRepair
     $State.PreExistingFiles = $delta.PreExisting
     $State.TaskGeneratedFiles = $delta.TaskGenerated
 
@@ -397,11 +397,27 @@ function Show-ApprovalScreen {
     Write-Host ""
 }
 
+function Get-ImplementationDelta {
+    param([string[]]$Before, [string[]]$After)
+
+    $delta = Get-ChangedFilesDelta -Before $Before -After $After
+    # These files are written by the orchestrator while it records the
+    # implementation result; they are not files changed by the agent and
+    # must not become scope violations or implementation outputs.
+    $orchestratorManaged = @(
+        ".ai/CURRENT_TASK.md",
+        ".ai/PROJECT_STATUS.md",
+        ".ai/task-state.json"
+    )
+    $delta.TaskGenerated = @($delta.TaskGenerated | Where-Object { $_ -notin $orchestratorManaged })
+    return $delta
+}
+
 function Invoke-PostImplementation {
     param($State, [string[]]$PreSnapshot)
 
     $postSnapshot = Get-GitStatusSnapshot
-    $delta = Get-ChangedFilesDelta -Before $PreSnapshot -After $postSnapshot
+    $delta = Get-ImplementationDelta -Before $PreSnapshot -After $postSnapshot
     $State.PreExistingFiles = $delta.PreExisting
     $State.TaskGeneratedFiles = $delta.TaskGenerated
 
@@ -817,7 +833,10 @@ function Invoke-Resume {
         return
     }
 
-    $preSnapshot = @($state.PreImplementationSnapshot)
+    # A JSON null becomes a one-element PowerShell array containing $null;
+    # normalize it before checking Count so a missing baseline is captured
+    # immediately before the implementation agent starts.
+    $preSnapshot = @($state.PreImplementationSnapshot | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
 
     if ($state.State -in @("CREATED", "ROUTED", "IMPLEMENTING")) {
         $isDeepSeek = ($state.Implementer -eq "DeepSeek")
