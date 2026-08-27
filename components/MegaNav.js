@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 
 const groups = [
   { label: "Training", links: [["View All Training", "/training"], ["Training Calendar", "/calendar"], ["Scaffolding Competency", "/training/scaffolding-competency"], ["Working at Height", "/training/working-at-height"], ["Confined Space Safety", "/training/confined-space-safety"]] },
-  { label: "Corporate Training", links: [["Request Corporate Training", "/request-proposal?source=mega-nav"], ["Industrial Safety", "/services#safety"], ["Technical Competency", "/services#technical"], ["Industrial Consultancy", "/services#consultancy"], ["Workforce Development", "/services#workforce"]] },
+  { label: "Corporate Training", links: [["Corporate Training Overview", "/corporate-training"], ["Request Corporate Training", "/request-proposal?source=mega-nav"], ["Industrial Safety", "/services#safety"], ["Technical Competency", "/services#technical"], ["Industrial Consultancy", "/services#consultancy"], ["Workforce Development", "/services#workforce"]] },
   { label: "Industries", links: [["All Industries", "/industries"], ["Oil & Gas", "/industries/oil-gas"], ["Construction", "/industries/construction"], ["Manufacturing", "/industries/manufacturing"], ["Government & GLC", "/industries/government-glc"]] },
   { label: "Resources", links: [["Search", "/search"], ["Resources Centre", "/resources"], ["News & Insights", "/insights"], ["FAQ Centre", "/faq"], ["Gallery", "/gallery"]] },
   { label: "About TERAS", links: [["About TERAS", "/about"], ["Testimonials & Stories", "/stories"], ["Verify Certificate", "/verify"], ["Contact", "/contact"]] },
