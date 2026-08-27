@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { randomBytes } from "crypto";
 import { createSupabaseServerClient, createSupabaseServiceClient } from "../../../../lib/supabase/server";
 import { requireRole, requireModuleAccess } from "../../../../lib/auth/session";
+import { writeAuditEvent } from "../../../../lib/audit/server";
 import {
   feedbackGenerateLinksSchema,
   feedbackReopenSchema,
@@ -65,19 +66,19 @@ export async function generateFeedbackLinks(
   }
 
   const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.rpc("feedback_generate_links" as never, { p_schedule_id: parsed.data.schedule_id } as never);
+  const { data, error } = await supabase.rpc("feedback_generate_links", { p_schedule_id: parsed.data.schedule_id });
   if (error) {
     console.error("generateFeedbackLinks: feedback_generate_links RPC failed", { scheduleId, code: error.code, message: error.message });
     return { ok: false, message: "Unable to generate feedback links. Please try again or contact an administrator." };
   }
 
-  const created = Number((data as any)?.[0]?.created_count ?? 0);
-  await supabase.rpc("log_event" as never, {
-    p_action: "create",
-    p_entity_type: "participant_feedback",
-    p_entity_id: scheduleId,
-    p_summary: `Generated ${created} participant feedback link(s)`,
-  } as never);
+  const created = Number(data?.[0]?.created_count ?? 0);
+  await writeAuditEvent({
+    action: "create",
+    entityType: "participant_feedback",
+    entityId: scheduleId,
+    summary: `Generated ${created} participant feedback link(s)`,
+  });
 
   revalidatePath(`/admin/feedback/${scheduleId}`);
   revalidatePath(`/admin/schedules/${scheduleId}`);
@@ -149,7 +150,7 @@ export async function reopenFeedback(feedbackId: string): Promise<void> {
   if (!parsed.success) return;
 
   const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.rpc("feedback_reopen" as never, { p_feedback_id: parsed.data.feedback_id } as never);
+  const { data, error } = await supabase.rpc("feedback_reopen", { p_feedback_id: parsed.data.feedback_id });
   if (error || data !== true) return;
 
   revalidatePath("/admin/feedback/responses");
@@ -182,17 +183,17 @@ export async function createIssue(_prev: FeedbackActionState, formData: FormData
       title: parsed.data.title,
       description: parsed.data.description || null,
       priority: parsed.data.priority,
-    } as never)
+    })
     .select("id")
     .single();
   if (error) return { message: "Could not create the issue." };
 
-  await supabase.rpc("log_event" as never, {
-    p_action: "create",
-    p_entity_type: "feedback_issues",
-    p_entity_id: (data as any)?.id,
-    p_summary: `Created feedback issue: ${parsed.data.title}`,
-  } as never);
+  await writeAuditEvent({
+    action: "create",
+    entityType: "feedback_issues",
+    entityId: data?.id,
+    summary: `Created feedback issue: ${parsed.data.title}`,
+  });
 
   revalidatePath("/admin/feedback/issues");
   revalidatePath("/admin/feedback");
@@ -208,18 +209,18 @@ export async function updateIssueStatus(issueId: string, formData: FormData): Pr
 
   const supabase = await createSupabaseServerClient();
   const { data: current } = await supabase.from("feedback_issues").select("status").eq("id", issueId).single();
-  if (!current || !ISSUE_TRANSITIONS[(current as any).status as string]?.includes(status)) return;
+  if (!current || !ISSUE_TRANSITIONS[current.status as string]?.includes(status)) return;
 
-  const { error } = await supabase.from("feedback_issues").update({ status } as never).eq("id", issueId);
+  const { error } = await supabase.from("feedback_issues").update({ status }).eq("id", issueId);
   if (error) return;
 
-  await supabase.rpc("log_event" as never, {
-    p_action: "update",
-    p_entity_type: "feedback_issues",
-    p_entity_id: issueId,
-    p_summary: `Feedback issue transitioned from ${(current as any).status} to ${status}`,
-    p_metadata: { previous_status: (current as any).status, new_status: status },
-  } as never);
+  await writeAuditEvent({
+    action: "update",
+    entityType: "feedback_issues",
+    entityId: issueId,
+    summary: `Feedback issue transitioned from ${current.status} to ${status}`,
+    metadata: { previous_status: current.status, new_status: status },
+  });
 
   revalidatePath("/admin/feedback/issues");
 }
@@ -254,26 +255,26 @@ export async function createAction(_prev: FeedbackActionState, formData: FormDat
       priority: parsed.data.priority,
       assigned_to: parsed.data.assigned_to,
       due_date: parsed.data.due_date || null,
-    } as never)
+    })
     .select("id")
     .single();
   if (error) return { message: "Could not create the improvement action." };
 
-  await supabase.rpc("log_event" as never, {
-    p_action: "create",
-    p_entity_type: "feedback_improvement_actions",
-    p_entity_id: (data as any)?.id,
-    p_summary: `Created improvement action: ${parsed.data.title}`,
-  } as never);
+  await writeAuditEvent({
+    action: "create",
+    entityType: "feedback_improvement_actions",
+    entityId: data?.id,
+    summary: `Created improvement action: ${parsed.data.title}`,
+  });
 
   if (parsed.data.assigned_to) {
-    await supabase.rpc("log_event" as never, {
-      p_action: "assign",
-      p_entity_type: "feedback_improvement_actions",
-      p_entity_id: (data as any)?.id,
-      p_summary: "Assigned improvement action on creation",
-      p_metadata: { assigned_to: parsed.data.assigned_to },
-    } as never);
+    await writeAuditEvent({
+      action: "assign",
+      entityType: "feedback_improvement_actions",
+      entityId: data?.id,
+      summary: "Assigned improvement action on creation",
+      metadata: { assigned_to: parsed.data.assigned_to },
+    });
   }
 
   revalidatePath("/admin/feedback/actions");
@@ -306,10 +307,10 @@ export async function transitionAction(
     .single();
   if (!current) return { message: "Improvement action not found." };
 
-  const allowed = ACTION_TRANSITIONS[(current as any).status as string];
+  const allowed = ACTION_TRANSITIONS[current.status as string];
   if (!allowed?.includes(parsed.data.status)) {
     return {
-      message: `Cannot move from ${(current as any).status.replace(/_/g, " ")} to ${parsed.data.status.replace(/_/g, " ")}. Resolved actions must be verified before they can be closed.`,
+      message: `Cannot move from ${current.status.replace(/_/g, " ")} to ${parsed.data.status.replace(/_/g, " ")}. Resolved actions must be verified before they can be closed.`,
     };
   }
 
@@ -317,16 +318,16 @@ export async function transitionAction(
   if (parsed.data.status === "resolved") patch.corrective_action = parsed.data.corrective_action || null;
   if (parsed.data.status === "verified") patch.verification_note = parsed.data.verification_note || null;
 
-  const { error } = await supabase.from("feedback_improvement_actions").update(patch as never).eq("id", parsed.data.action_id);
+  const { error } = await supabase.from("feedback_improvement_actions").update(patch).eq("id", parsed.data.action_id);
   if (error) return { message: error.message ?? "Could not update the improvement action." };
 
-  await supabase.rpc("log_event" as never, {
-    p_action: "update",
-    p_entity_type: "feedback_improvement_actions",
-    p_entity_id: parsed.data.action_id,
-    p_summary: `Improvement action transitioned to ${parsed.data.status}`,
-    p_metadata: { previous_status: (current as any).status, new_status: parsed.data.status },
-  } as never);
+  await writeAuditEvent({
+    action: "update",
+    entityType: "feedback_improvement_actions",
+    entityId: parsed.data.action_id,
+    summary: `Improvement action transitioned to ${parsed.data.status}`,
+    metadata: { previous_status: current.status, new_status: parsed.data.status },
+  });
 
   revalidatePath("/admin/feedback/actions");
   return { message: `Action moved to ${parsed.data.status.replace(/_/g, " ")}.` };
@@ -345,16 +346,16 @@ export async function assignAction(actionId: string, _prev: FeedbackActionState,
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase
     .from("feedback_improvement_actions")
-    .update({ assigned_to: parsed.data.assigned_to } as never)
+    .update({ assigned_to: parsed.data.assigned_to })
     .eq("id", parsed.data.action_id);
   if (error) return { message: "Could not assign the improvement action." };
 
-  await supabase.rpc("log_event" as never, {
-    p_action: "assign",
-    p_entity_type: "feedback_improvement_actions",
-    p_entity_id: parsed.data.action_id,
-    p_summary: parsed.data.assigned_to ? "Assigned improvement action" : "Cleared improvement action assignment",
-  } as never);
+  await writeAuditEvent({
+    action: "assign",
+    entityType: "feedback_improvement_actions",
+    entityId: parsed.data.action_id,
+    summary: parsed.data.assigned_to ? "Assigned improvement action" : "Cleared improvement action assignment",
+  });
 
   revalidatePath("/admin/feedback/actions");
   return {};

@@ -6,7 +6,17 @@ import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { requireModuleAccess, requireRole } from "../../../../lib/auth/session";
 import { scheduleSchema, scheduleGroupSchema, fieldErrors } from "../../../../lib/validation/schemas";
 
-export type ScheduleFormState = { errors?: Record<string, string>; message?: string };
+export type ScheduleConflictWarning = {
+  type: "trainer" | "venue";
+  message: string;
+};
+
+export type ScheduleFormState = {
+  errors?: Record<string, string>;
+  message?: string;
+  warnings?: ScheduleConflictWarning[];
+  conflictToken?: string;
+};
 
 function readForm(formData: FormData) {
   const v = (k: string) => {
@@ -47,16 +57,85 @@ function clean(data: any) {
   return out;
 }
 
-// TRAINER CONFLICT CHECK DEFERRED UNTIL TRAINERS ARE NORMALIZED.
-//
-// course_schedules only has a free-text trainer_name column today (no
-// trainers table, no trainer_id FK -- see SCHEDULES_ARCHITECTURE_DECISION.md
-// §F). A reliable double-booking check requires a stable trainer identity to
-// key on; matching on free-text names would silently misbehave on typos/name
-// variants and give staff false confidence in a check that isn't reliable.
-// createSchedule/updateSchedule below intentionally do NOT attempt a
-// trainer-conflict check -- do not add a free-text-matching version as a
-// stopgap; wait for a real trainers table.
+// The live canonical schema has trainer_name/venue as nullable text and no
+// trainers table. Until trainer IDs exist, warnings use normalized exact text
+// matching and never block an intentional overlap.
+
+function normalizedResource(value: string | null | undefined) {
+  return value?.trim().replace(/\s+/g, " ").toLocaleLowerCase("en-MY") ?? "";
+}
+
+function timeRangesOverlap(input: any, existing: any) {
+  const completeInput = Boolean(input.start_time && input.end_time);
+  const completeExisting = Boolean(existing.start_time && existing.end_time);
+  // Missing/partial times mean an unknown portion of every overlapping day.
+  // Warn conservatively instead of assuming the resource is available.
+  if (!completeInput || !completeExisting) return true;
+  const minutes = (value: string) => {
+    const [hours, mins] = value.split(":").map(Number);
+    return hours * 60 + mins;
+  };
+  return minutes(input.start_time) < minutes(existing.end_time)
+    && minutes(input.end_time) > minutes(existing.start_time);
+}
+
+async function scheduleConflicts(supabase: any, input: any, currentId?: string) {
+  if (!input.trainer_name && !input.venue) return { warnings: [] as ScheduleConflictWarning[], token: "" };
+
+  let query = supabase
+    .from("course_schedules")
+    .select("id, schedule_code, trainer_name, venue, start_date, end_date, start_time, end_time, courses(course_name)")
+    .is("deleted_at", null)
+    .neq("status", "cancelled")
+    .lte("start_date", input.end_date)
+    .gte("end_date", input.start_date)
+    .limit(500);
+  if (currentId) query = query.neq("id", currentId);
+
+  const { data, error } = await query;
+  if (error) throw new Error(error.message);
+
+  const trainer = normalizedResource(input.trainer_name);
+  const venue = normalizedResource(input.venue);
+  const trainerMatches: any[] = [];
+  const venueMatches: any[] = [];
+  for (const row of data ?? []) {
+    if (!timeRangesOverlap(input, row)) continue;
+    if (trainer && normalizedResource(row.trainer_name) === trainer) trainerMatches.push(row);
+    if (venue && normalizedResource(row.venue) === venue) venueMatches.push(row);
+  }
+
+  const describe = (rows: any[]) => rows.map((row) => {
+    const course = row.courses?.course_name ?? "another course";
+    const code = row.schedule_code ?? row.id;
+    const time = row.start_time ? ` at ${row.start_time.slice(0, 5)}-${(row.end_time ?? "").slice(0, 5)}` : "";
+    return `${code} (${course}, ${row.start_date} to ${row.end_date}${time})`;
+  }).join("; ");
+
+  const warnings: ScheduleConflictWarning[] = [];
+  if (trainerMatches.length) warnings.push({
+    type: "trainer",
+    message: `Trainer conflict: ${input.trainer_name} is already assigned to ${describe(trainerMatches)}.`,
+  });
+  if (venueMatches.length) warnings.push({
+    type: "venue",
+    message: `Venue conflict: ${input.venue} is already used by ${describe(venueMatches)}.`,
+  });
+
+  const token = warnings.length ? JSON.stringify({
+    input: [trainer, venue, input.start_date, input.end_date, input.start_time, input.end_time],
+    conflicts: [...trainerMatches.map((r) => `trainer:${r.id}`), ...venueMatches.map((r) => `venue:${r.id}`)].sort(),
+  }) : "";
+  return { warnings, token };
+}
+
+async function unconfirmedConflicts(supabase: any, input: any, submittedToken: string, currentId?: string) {
+  const result = await scheduleConflicts(supabase, input, currentId);
+  if (result.warnings.length && result.token !== submittedToken) {
+    return { warnings: result.warnings, conflictToken: result.token } satisfies ScheduleFormState;
+  }
+  return null;
+}
 
 export async function createSchedule(_prev: ScheduleFormState, formData: FormData): Promise<ScheduleFormState> {
   const profile = await requireRole("admin"); // Editors are read-only.
@@ -67,6 +146,12 @@ export async function createSchedule(_prev: ScheduleFormState, formData: FormDat
   const supabase = await createSupabaseServerClient();
   const { assessor_id, ...scheduleData } = parsed.data;
   const payload = clean(scheduleData);
+  try {
+    const warningState = await unconfirmedConflicts(supabase, payload, String(formData.get("conflict_token") ?? ""));
+    if (warningState) return warningState;
+  } catch (error) {
+    return { message: error instanceof Error ? error.message : "Unable to check schedule conflicts." };
+  }
   const { data: created, error } = await supabase
     .from("course_schedules")
     .insert(payload)
@@ -129,7 +214,14 @@ export async function updateSchedule(id: string, _prev: ScheduleFormState, formD
 
   const supabase = await createSupabaseServerClient();
   const { assessor_id, ...scheduleData } = parsed.data;
-  const { error } = await supabase.from("course_schedules").update(clean(scheduleData)).eq("id", id);
+  const payload = clean(scheduleData);
+  try {
+    const warningState = await unconfirmedConflicts(supabase, payload, String(formData.get("conflict_token") ?? ""), id);
+    if (warningState) return warningState;
+  } catch (error) {
+    return { message: error instanceof Error ? error.message : "Unable to check schedule conflicts." };
+  }
+  const { error } = await supabase.from("course_schedules").update(payload).eq("id", id);
   if (error) return { message: error.message };
   // Assignment is atomic via RPC; on failure the schedule update is already
   // committed, so surface the partial-success error on the edit form.
@@ -151,6 +243,7 @@ export async function duplicateSchedule(id: string) {
   await supabase.from("course_schedules").insert({
     course_id: s.course_id, trainer_name: s.trainer_name, venue: s.venue,
     training_mode: s.training_mode, start_date: s.start_date, end_date: s.end_date,
+    exam_date: s.exam_date,
     start_time: s.start_time, end_time: s.end_time, capacity: s.capacity,
     notes: s.notes, status: "open", is_published: false,
   });

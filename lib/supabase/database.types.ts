@@ -194,6 +194,105 @@ export interface CertificateSkillResult {
   created_at: string;
 }
 
+// Marketing CRM Phase 1A -- public.marketing_campaigns, live on production
+// as of supabase/migrations/20260827090000_create_marketing_campaigns_v1.sql.
+// channel/status are text + CHECK on the live table, not Postgres enums
+// (matches the sales_lead_metadata.status/sales_opportunities.stage
+// convention), so they are NOT added to Database.public.Enums below.
+export type MarketingCampaignChannel =
+  | "meta_ads"
+  | "facebook_organic"
+  | "instagram"
+  | "tiktok"
+  | "google"
+  | "whatsapp"
+  | "email"
+  | "website"
+  | "event"
+  | "referral"
+  | "other";
+export type MarketingCampaignStatus = "draft" | "active" | "completed" | "archived";
+
+export interface MarketingCampaign {
+  id: string;
+  campaign_number: string;
+  name: string;
+  channel: MarketingCampaignChannel;
+  status: MarketingCampaignStatus;
+  start_date: string | null;
+  end_date: string | null;
+  budget: number | null;
+  actual_spend: number | null;
+  owner_id: string | null;
+  course_id: string | null;
+  utm_campaign: string | null;
+  notes: string | null;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// Marketing CRM Phase 1B-A -- public.marketing_contacts /
+// public.marketing_contact_events, live on production as of
+// supabase/migrations/20260828090000_create_marketing_contacts_v1.sql.
+// status/source/consent_status/event_type are text + CHECK on the live
+// tables, not Postgres enums (same convention as MarketingCampaign above),
+// so none are added to Database.public.Enums below.
+export type MarketingContactStatus = "new" | "nurturing" | "sales_ready" | "promoted" | "archived";
+export type MarketingContactSource =
+  | "manual"
+  | "newsletter"
+  | "event"
+  | "referral"
+  | "import"
+  | "website"
+  | "other";
+export type MarketingContactConsentStatus = "not_set" | "opted_in" | "opted_out";
+export type MarketingContactEventType =
+  | "created"
+  | "status_changed"
+  | "note_added"
+  | "campaign_linked"
+  | "consent_changed"
+  | "unsubscribed"
+  | "promoted_to_sales";
+
+export interface MarketingContact {
+  id: string;
+  contact_number: string;
+  full_name: string | null;
+  email: string | null;
+  phone: string | null;
+  company: string | null;
+  status: MarketingContactStatus;
+  source: MarketingContactSource;
+  source_campaign_id: string | null;
+  consent_status: MarketingContactConsentStatus;
+  consent_source: string | null;
+  consented_at: string | null;
+  unsubscribed_at: string | null;
+  owner_id: string | null;
+  promoted_lead_metadata_id: string | null;
+  promoted_at: string | null;
+  next_follow_up_at: string | null;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MarketingContactEvent {
+  id: string;
+  contact_id: string;
+  event_type: MarketingContactEventType;
+  note: string | null;
+  campaign_id: string | null;
+  lead_metadata_id: string | null;
+  actor_id: string | null;
+  created_at: string;
+}
+
 /**
  * Minimal Database shape so `createServerClient<Database>()` is typed. Tables
  * not listed here fall back to `any` via the index signature, so nothing
@@ -221,6 +320,24 @@ export interface Database {
         Row: CertificateSkillResult;
         Insert: Partial<CertificateSkillResult>;
         Update: Partial<CertificateSkillResult>;
+        Relationships: [];
+      };
+      marketing_campaigns: {
+        Row: MarketingCampaign;
+        Insert: Partial<MarketingCampaign>;
+        Update: Partial<MarketingCampaign>;
+        Relationships: [];
+      };
+      marketing_contacts: {
+        Row: MarketingContact;
+        Insert: Partial<MarketingContact>;
+        Update: Partial<MarketingContact>;
+        Relationships: [];
+      };
+      marketing_contact_events: {
+        Row: MarketingContactEvent;
+        Insert: Partial<MarketingContactEvent>;
+        Update: Partial<MarketingContactEvent>;
         Relationships: [];
       };
       // New operational tables are added through migrations. This fallback

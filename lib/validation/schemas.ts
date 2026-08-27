@@ -317,7 +317,6 @@ export const assessorSchema = z.object({
 });
 export type AssessorInput = z.infer<typeof assessorSchema>;
 
-
 export const newUserSchema = z.object({
   email: z.string().email(),
   full_name: z.string().trim().min(2).max(120),
@@ -484,6 +483,16 @@ export const opportunityExpectedCloseSchema = z.object({
 });
 export type OpportunityExpectedCloseInput = z.infer<typeof opportunityExpectedCloseSchema>;
 
+/** Server-side stage guards decide which fields remain editable once Won. */
+export const opportunityEditSchema = z.object({
+  title: z.string().trim().min(2, "Title is required").max(200),
+  programme: z.string().trim().max(300).optional().or(z.literal("")),
+  expected_close_date: z.string().trim().optional().or(z.literal("")),
+  probability: z.coerce.number().min(0).max(100).optional().nullable(),
+  estimated_value: z.coerce.number().min(0, "Estimated value cannot be negative").optional().nullable(),
+});
+export type OpportunityEditInput = z.infer<typeof opportunityEditSchema>;
+
 const quotationItemInputSchema = z.object({
   description: z.string().trim().min(1, "Description is required").max(500),
   quantity: z.coerce.number().positive("Quantity must be greater than 0"),
@@ -566,6 +575,125 @@ export const salesTaskSchema = z.object({
   quotation_id: z.string().uuid().optional().or(z.literal("")),
 });
 export type SalesTaskInput = z.infer<typeof salesTaskSchema>;
+
+/**
+ * Marketing CRM Phase 1A -- public.marketing_campaigns mutations. Value
+ * lists mirror the live CHECK constraints exactly (supabase/migrations/
+ * 20260827090000_create_marketing_campaigns_v1.sql). campaign_number is
+ * intentionally absent -- the DB generates it via app.next_campaign_number().
+ */
+export const MARKETING_CAMPAIGN_CHANNELS = [
+  "meta_ads",
+  "facebook_organic",
+  "instagram",
+  "tiktok",
+  "google",
+  "whatsapp",
+  "email",
+  "website",
+  "event",
+  "referral",
+  "other",
+] as const;
+export const MARKETING_CAMPAIGN_STATUSES = ["draft", "active", "completed", "archived"] as const;
+
+export const marketingCampaignSchema = z
+  .object({
+    name: z.string().trim().min(1, "Campaign name is required").max(160),
+    channel: z.enum(MARKETING_CAMPAIGN_CHANNELS, { message: "Select a channel" }),
+    status: z.enum(MARKETING_CAMPAIGN_STATUSES).default("draft"),
+    start_date: z.string().date("Enter a valid start date").optional().or(z.literal("")),
+    end_date: z.string().date("Enter a valid end date").optional().or(z.literal("")),
+    budget: z.coerce.number().min(0, "Budget cannot be negative").optional().nullable(),
+    actual_spend: z.coerce.number().min(0, "Actual spend cannot be negative").optional().nullable(),
+    owner_id: z.string().uuid().optional().or(z.literal("")),
+    course_id: z.string().uuid().optional().or(z.literal("")),
+    utm_campaign: z.string().trim().max(160).optional().or(z.literal("")),
+    notes: z.string().trim().max(3000).optional().or(z.literal("")),
+  })
+  .refine((v) => !v.start_date || !v.end_date || v.end_date >= v.start_date, {
+    message: "End date must be on or after the start date",
+    path: ["end_date"],
+  });
+export type MarketingCampaignInput = z.infer<typeof marketingCampaignSchema>;
+
+/**
+ * Marketing CRM Phase 1B-B -- public.marketing_contacts mutations. Value
+ * lists mirror the live CHECK constraints exactly (supabase/migrations/
+ * 20260828090000_create_marketing_contacts_v1.sql). contact_number,
+ * promoted_lead_metadata_id, promoted_at, created_by/updated_by,
+ * created_at/updated_at are intentionally absent -- none are writable from
+ * the app layer (DB default / lifecycle-action / trigger territory).
+ */
+export const MARKETING_CONTACT_SOURCES = [
+  "manual", "newsletter", "event", "referral", "import", "website", "other",
+] as const;
+export const MARKETING_CONTACT_STATUSES = ["new", "nurturing", "sales_ready", "promoted", "archived"] as const;
+export const MARKETING_CONTACT_CONSENT_STATUSES = ["not_set", "opted_in", "opted_out"] as const;
+
+/**
+ * The live table permits full_name/email/phone all null (three legitimate
+ * entry paths: newsletter mirror, event capture, manual add -- see the
+ * Phase 1B schema decision report). This schema is deliberately STRICTER
+ * than the DB for the one entry path Phase 1B-B actually builds --
+ * manual staff entry -- because a staff-entered contact should always be
+ * identifiable by name. A future newsletter/import path (not built in this
+ * phase) would use its own, looser schema against the same permissive DB
+ * columns, the same "import path is looser than manual path" split
+ * participantImportRowSchema already uses relative to participantSchema.
+ */
+export const marketingContactSchema = z
+  .object({
+    full_name: z.string().trim().min(1, "Name is required").max(160),
+    email: z.string().trim().email("Enter a valid email").max(254).optional().or(z.literal("")),
+    phone: z.string().trim().max(40).optional().or(z.literal("")),
+    company: z.string().trim().max(160).optional().or(z.literal("")),
+    source: z.enum(MARKETING_CONTACT_SOURCES, { message: "Select a source" }),
+    source_campaign_id: z.string().uuid().optional().or(z.literal("")),
+    owner_id: z.string().uuid().optional().or(z.literal("")),
+    next_follow_up_at: z.string().trim().optional().or(z.literal("")),
+    // Create-time only (historical consent capture, e.g. a contact who
+    // already opted in at a past event) -- the edit form and the dedicated
+    // consent action never expose these three.
+    consent_status: z.enum(MARKETING_CONTACT_CONSENT_STATUSES).default("not_set"),
+    consent_source: z.string().trim().max(120).optional().or(z.literal("")),
+    consented_at: z.string().trim().optional().or(z.literal("")),
+  })
+  .refine((v) => Boolean(v.email) || Boolean(v.phone), {
+    message: "Provide at least an email or a phone number",
+    path: ["email"],
+  });
+export type MarketingContactInput = z.infer<typeof marketingContactSchema>;
+
+/**
+ * Dedicated consent action input -- consented_at/unsubscribed_at are NOT
+ * accepted here; the action stamps whichever is appropriate with now() at
+ * mutation time (this is a live status change, not historical data entry --
+ * see marketingContactSchema's consented_at for the historical-capture
+ * case). Keeps the opted_in-should-have-a-timestamp relationship correct by
+ * construction instead of a DB CHECK (the locked decision explicitly left
+ * this to the Server Action layer).
+ */
+export const marketingContactConsentSchema = z.object({
+  consent_status: z.enum(MARKETING_CONTACT_CONSENT_STATUSES),
+  consent_source: z.string().trim().max(120).optional().or(z.literal("")),
+});
+export type MarketingContactConsentInput = z.infer<typeof marketingContactConsentSchema>;
+
+export const marketingContactNoteSchema = z.object({
+  note: z.string().trim().min(1, "Note is required").max(3000),
+});
+export type MarketingContactNoteInput = z.infer<typeof marketingContactNoteSchema>;
+
+/** Helper to flatten Zod errors into a { field: message } map for forms. */
+export function fieldErrors(error: z.ZodError): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const issue of error.issues) {
+    const key = issue.path.join(".") || "_form";
+    if (!out[key]) out[key] = issue.message;
+  }
+  return out;
+}
 
 // ===== Participant Feedback (Phase 1) =================================
 
@@ -680,13 +808,3 @@ export const legacyCourseMappingSchema = z.object({
   course_id: z.string().uuid(),
 });
 export type LegacyCourseMappingInput = z.infer<typeof legacyCourseMappingSchema>;
-
-/** Helper to flatten Zod errors into a { field: message } map for forms. */
-export function fieldErrors(error: z.ZodError): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const issue of error.issues) {
-    const key = issue.path.join(".") || "_form";
-    if (!out[key]) out[key] = issue.message;
-  }
-  return out;
-}
