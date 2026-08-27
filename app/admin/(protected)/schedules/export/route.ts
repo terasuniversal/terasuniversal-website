@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { getCurrentProfile, hasModuleAccess } from "../../../../../lib/auth/session";
 import { isEditor } from "../../../../../lib/auth/rbac";
+import { writeAuditEvent } from "../../../../../lib/audit/server";
 
 /**
  * Export training schedules honouring the list filters.
@@ -12,12 +13,15 @@ import { isEditor } from "../../../../../lib/auth/rbac";
  */
 const COLUMNS: [string, string][] = [
   ["schedule_code", "Schedule ID"],
+  ["course_code", "Course Code"],
   ["course_name", "Course"],
   ["trainer_name", "Trainer"],
   ["venue", "Venue"],
   ["training_mode", "Mode"],
   ["start_date", "Start Date"],
   ["end_date", "End Date"],
+  ["duration_days", "Duration (Days)"],
+  ["exam_date", "Exam Date"],
   ["start_time", "Start Time"],
   ["end_time", "End Time"],
   ["capacity", "Capacity"],
@@ -37,7 +41,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from("course_schedules")
-    .select("schedule_code, trainer_name, venue, training_mode, start_date, end_date, start_time, end_time, capacity, seats_taken, status, courses(course_name)")
+    .select("schedule_code, trainer_name, venue, training_mode, start_date, end_date, exam_date, start_time, end_time, capacity, seats_taken, status, courses(course_code, course_name)")
     .is("deleted_at", null)
     .order("start_date", { ascending: true });
   if (p.get("q")) {
@@ -52,22 +56,24 @@ export async function GET(request: NextRequest) {
     const m = p.get("month") ? Number(p.get("month")) : null;
     const from = m ? `${y}-${String(m).padStart(2, "0")}-01` : `${y}-01-01`;
     const to = m ? `${y}-${String(m).padStart(2, "0")}-31` : `${y}-12-31`;
-    query = query.gte("start_date", from).lte("start_date", to);
+    query = query.lte("start_date", to).gte("end_date", from);
   }
 
   const { data, error } = await query;
   if (error) return new NextResponse(error.message, { status: 500 });
   const rows = ((data ?? []) as any[]).map((r) => ({
     ...r,
+    course_code: r.courses?.course_code ?? "",
     course_name: r.courses?.course_name ?? "",
+    duration_days: Math.floor((Date.parse(r.end_date) - Date.parse(r.start_date)) / 86_400_000) + 1,
     seats_remaining: Math.max((Number(r.capacity) || 0) - (Number(r.seats_taken) || 0), 0),
   }));
 
-  await supabase.rpc("log_event" as never, {
-    p_action: "export",
-    p_entity_type: "course_schedules",
-    p_summary: `Exported ${rows.length} schedules (${format})`,
-  } as never);
+  await writeAuditEvent({
+    action: "export",
+    entityType: "course_schedules",
+    summary: `Exported ${rows.length} schedules (${format})`,
+  });
 
   const stamp = new Date().toISOString().slice(0, 10);
   const escHtml = (v: unknown) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");

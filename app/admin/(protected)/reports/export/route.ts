@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
+import { writeAuditEvent } from "../../../../../lib/audit/server";
 import { getCurrentProfile, hasModuleAccess } from "../../../../../lib/auth/session";
 import { isEditor } from "../../../../../lib/auth/rbac";
 
@@ -39,7 +40,7 @@ export async function GET(request: NextRequest) {
   const stamp = new Date().toISOString().slice(0, 10);
   const esc = (v: unknown) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-  await supabase.rpc("log_event" as never, { p_action: "export", p_entity_type: "reports", p_summary: `Report export: ${report} (${format})` } as never);
+  await writeAuditEvent({ action: "export", entityType: "reports", summary: `Report export: ${report} (${format})` });
 
   // --- Executive summary (printable / PDF) ---
   if (report === "summary") {

@@ -5,6 +5,7 @@ import { isAdmin } from "../../../../../lib/auth/rbac";
 import { loadCertificateRender } from "../certData";
 import { renderCertificateDocument } from "../../../../../lib/certificate-html";
 import { createZip, safeFileName, type ZipEntry } from "../../../../../lib/zip";
+import { writeAuditEvent } from "../../../../../lib/audit/server";
 
 // The ZIP writer uses Node's Buffer — force the Node.js runtime (not Edge).
 export const runtime = "nodejs";
@@ -108,10 +109,10 @@ export async function GET(request: NextRequest) {
     params: { scope, scheduleId, ids_count: ids.length, capped: ids.length > MAX_CERTS },
     result: { failed },
   });
-  await supabase.rpc("log_event" as never, {
-    p_action: "export", p_entity_type: "certificates",
-    p_summary: `Bulk certificate ZIP: ${entries.length - 1} file(s) (${scope})`,
-  } as never);
+  await writeAuditEvent({
+    action: "export", entityType: "certificates",
+    summary: `Bulk certificate ZIP: ${entries.length - 1} file(s) (${scope})`,
+  });
 
   const filename = scheduleId ? `certificates-${safeFileName(scheduleId)}-${stamp}.zip` : `certificates-${stamp}.zip`;
   return new NextResponse(new Uint8Array(zip), {

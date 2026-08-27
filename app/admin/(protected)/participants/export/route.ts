@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { getCurrentProfile, hasModuleAccess } from "../../../../../lib/auth/session";
 import { isEditor } from "../../../../../lib/auth/rbac";
+import { writeAuditEvent } from "../../../../../lib/audit/server";
 
 /**
  * Export participants honouring the current list filters.
@@ -49,11 +50,7 @@ export async function GET(request: NextRequest) {
   const rows = (data ?? []) as any[];
 
   // Best-effort audit note.
-  await supabase.rpc("log_event" as never, {
-    p_action: "export",
-    p_entity_type: "participants",
-    p_summary: `Exported ${rows.length} participants (${format})`,
-  } as never);
+  await writeAuditEvent({ action: "export", entityType: "participants", summary: `Exported ${rows.length} participants (${format})` });
 
   const stamp = new Date().toISOString().slice(0, 10);
 
