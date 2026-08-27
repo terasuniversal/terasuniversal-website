@@ -171,14 +171,6 @@ function metaTile(icon: IconKind, label: string, value: string, navy: string, go
   </div>`;
 }
 
-function legacyWahMetaTile(icon: IconKind, label: string, value: string, navy: string, gold: string): string {
-  return `<div style="display:flex;gap:10px;align-items:center;"><div style="width:34px;height:34px;min-width:34px;border-radius:50%;background:${navy};border:1.5px solid ${gold};display:flex;align-items:center;justify-content:center;">${iconGlyph(icon, "#fff")}</div><div><div style="font-size:9.5px;text-transform:uppercase;letter-spacing:.6px;color:#6b7280;">${esc(label)}</div><div style="font-size:13.5px;font-weight:700;color:${navy};font-family:Georgia,serif;">${esc(value)}</div></div></div>`;
-}
-
-function legacyWahQr(svg: string, navy: string, gold: string): string {
-  return `<div style="width:138px;border:1.5px solid ${gold};border-radius:6px;padding:12px 9px;text-align:center;background:#fff;"><div style="font-size:10px;font-weight:700;color:${navy};letter-spacing:.6px;margin-bottom:7px;">QR VERIFICATION</div><div style="width:104px;height:104px;margin:0 auto;padding:4px;background:#fff;border:1px solid #eee;">${svg}</div><div style="font-size:8.5px;color:#6b7280;margin-top:7px;line-height:1.35;">Scan to verify this certificate at Teras Universal Database</div></div>`;
-}
-
 /** Mirrors QrBlock in CertificateDocument.tsx — svg is pre-generated inline markup, not an <img src>. */
 function qrBlock(svg: string, navy: string, gold: string, size: number, caption: boolean): string {
   return `<div style="width:${size + 22}px;text-align:center;">
@@ -220,20 +212,19 @@ export function renderCertificateFront(data: CertData, config: TemplateConfig): 
   const dateRange = formatDateRange(data.training_date, data.training_end_date);
   const duration = data.programme_duration || config.duration_label;
   const showDurationRibbon = config.design_variant !== "standard_scaffold_certificate";
-  const legacyWah = config.design_variant === "working_at_height_certificate";
   const nameSize = fitHolderNameSize(data.holder_name) + 8;
   const bgImage = config.background_url ? `background-image:url('${esc(config.background_url)}');background-size:cover;background-position:center;` : "";
 
   const motif = !config.background_url ? certificateWatermark(config, navy, false) : "";
-  const logo = config.logo_url ? `<img src="${esc(config.logo_url)}" alt="" style="width:${legacyWah ? 104 : 105}px;height:${legacyWah ? 104 : 74}px;object-fit:contain;display:block;margin:0 auto 6px;"/>` : "";
-  const icBlock = data.ic_passport ? `<p style="font-size:${legacyWah ? 12.5 : 9.5}px;color:${legacyWah ? "#6b7280" : "#8a94a6"};margin:10px 0 0;${legacyWah ? "" : `letter-spacing:.6px;font-family:${SANS};`}">Passport / IC No: ${esc(data.ic_passport)}</p>` : "";
+  const logo = config.logo_url ? `<img src="${esc(config.logo_url)}" alt="" style="width:105px;height:74px;object-fit:contain;display:block;margin:0 auto 6px;"/>` : "";
+  const icBlock = data.ic_passport ? `<p style="font-size:9.5px;color:#8a94a6;margin:10px 0 0;letter-spacing:.6px;font-family:${SANS};">Passport / IC No: ${esc(data.ic_passport)}</p>` : "";
   const durationBlock = showDurationRibbon && duration
-    ? ribbonBanner(`<span style="font-size:${legacyWah ? 12.5 : 9}px;font-weight:600;${legacyWah ? "" : `letter-spacing:2.4px;font-family:${SANS};text-indent:2.4px;`}">${esc(duration)}</span>`, navy, gold, `margin:${legacyWah ? 14 : 19}px auto 0;display:block;width:fit-content;`)
+    ? ribbonBanner(`<span style="font-size:9px;font-weight:600;letter-spacing:2.4px;font-family:${SANS};text-indent:2.4px;">${esc(duration)}</span>`, navy, gold, "margin:19px auto 0;display:block;width:fit-content;")
     : "";
   const dateBlock = dateRange
     ? `<p style="font-size:11px;color:#4b5563;margin:16px 0 0;"><span style="color:#8a94a6;letter-spacing:1.3px;font-size:8.5px;font-family:${SANS};text-transform:uppercase;">Conducted from </span>${esc(dateRange)}</p>`
     : "";
-  const qrHtml = config.show_qr !== false && data.qr_svg ? (legacyWah ? legacyWahQr(data.qr_svg, navy, gold) : qrBlock(data.qr_svg, navy, gold, 82, true)) : "";
+  const qrHtml = config.show_qr !== false && data.qr_svg ? qrBlock(data.qr_svg, navy, gold, 82, true) : "";
   const signatureImg = config.signature_url ? `<img src="${esc(config.signature_url)}" alt="" style="max-height:44px;max-width:150px;object-fit:contain;"/>` : "";
   const signatureWell = `<div style="height:44px;display:flex;align-items:flex-end;justify-content:center;padding-bottom:2px;">${signatureImg}</div>`;
   const roleLine = (text: string) => `<div style="color:#8a94a6;font-size:8.5px;letter-spacing:1.3px;font-family:${SANS};text-transform:uppercase;margin-top:3px;">${esc(text)}</div>`;
@@ -269,36 +260,33 @@ export function renderCertificateFront(data: CertData, config: TemplateConfig): 
         ${roleLine("Training Manager")}
       </div>`;
 
-  const legacyMeta = `<div style="display:flex;gap:20px;margin:auto 0 0;padding-top:20px;text-align:left;position:relative;"><div style="flex:1;display:grid;grid-template-columns:1fr 1fr;row-gap:20px;column-gap:14px;align-content:center;">${legacyWahMetaTile("calendar", "Date of Completion", data.issue_date || "—", navy, gold)}${legacyWahMetaTile("refresh", "Recommended Skills Update", config.skills_update_recommendation || "Within Three (3) Years", navy, gold)}${legacyWahMetaTile("doc", "Certificate No.", data.certificate_number, navy, gold)}${legacyWahMetaTile("id", "Participant ID", data.participant_id || "—", navy, gold)}</div>${qrHtml}</div>`;
-  const legacyAttestation = `<div style="display:flex;align-items:flex-end;justify-content:space-between;margin-top:28px;padding-top:4px;"><div style="text-align:center;font-size:11.5px;width:180px;">${signatureImg}<div style="border-top:1px solid ${navy};margin:4px 0 4px;"></div><strong style="color:${navy};">${esc(config.signature_name || "Trainer")}</strong><div style="color:#6b7280;">Trainer Signature</div></div><div style="text-align:center;font-size:10.5px;width:66px;height:66px;border-radius:50%;border:1px dashed ${gold};display:flex;align-items:center;justify-content:center;color:#9ca3af;padding:4px;">COMPANY STAMP</div></div>`;
-  const currentAttestation = `<div style="position:relative;margin-top:18px;padding-top:18px;border-top:1px solid #e3e7ee;"><span style="position:absolute;top:-1px;left:50%;transform:translateX(-50%);width:48px;height:2px;background:${gold};"></span><div style="display:flex;align-items:flex-end;justify-content:center;gap:${isSingleSignature ? 40 : 24}px;">${primarySignatureBlock}${secondarySignatureBlock}<div style="width:1px;align-self:stretch;background:#e3e7ee;"></div>${stampSeal(navy, gold)}<div style="width:1px;align-self:stretch;background:#e3e7ee;"></div>${qrHtml}</div></div>`;
   return `<div style="width:${PAGE_W}px;height:${PAGE_H}px;margin:0 auto;position:relative;background:#fff;box-sizing:border-box;padding:34px;font-family:Georgia,'Times New Roman',serif;color:#1F2937;overflow:hidden;${bgImage}">
   ${motif}
   ${certificateFrame(navy, gold)}
-  <div style="position:relative;height:100%;box-sizing:border-box;padding:${legacyWah ? "26px 34px" : "30px 40px"};display:flex;flex-direction:column;text-align:center;">
+  <div style="position:relative;height:100%;box-sizing:border-box;padding:30px 40px;display:flex;flex-direction:column;text-align:center;">
     ${logo}
-    <div style="letter-spacing:${legacyWah ? 2 : 3.4}px;font-size:${legacyWah ? 15 : 13}px;color:${navy};font-weight:700;">TERAS UNIVERSAL SDN. BHD.</div>
-    <div style="font-size:${legacyWah ? 9.5 : 8}px;color:${legacyWah ? "#6b7280" : "#8a94a6"};margin-top:${legacyWah ? 2 : 3}px;${legacyWah ? "" : `letter-spacing:1px;font-family:${SANS};`}">${REG_NO}</div>
-    ${legacyWah ? "" : `<div style="width:52px;height:1px;background:${gold};margin:11px auto 0;"></div>`}
-    <h1 style="font-size:${legacyWah ? 56 : 44}px;margin:${legacyWah ? "18px 0 0" : "19px 0 0"};letter-spacing:${legacyWah ? 2 : 14}px;color:${legacyWah ? gold : navy};font-weight:700;line-height:1;text-indent:${legacyWah ? 0 : 14}px;">CERTIFICATE</h1>
-    ${legacyWah ? `<div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-top:8px;"><span style="width:46px;height:1.5px;background:${gold};display:inline-block;"></span><span style="font-size:14px;color:${navy};letter-spacing:3px;font-weight:600;">OF SUCCESSFUL COMPLETION</span><span style="width:46px;height:1.5px;background:${gold};display:inline-block;"></span></div>` : `<div style="font-size:8.5px;color:#8a94a6;letter-spacing:5px;font-weight:600;font-family:${SANS};text-indent:5px;margin-top:10px;">OF SUCCESSFUL COMPLETION</div>`}
-    <p style="font-size:${legacyWah ? 13.5 : 9.5}px;margin:${legacyWah ? "22px 0 6px" : "24px 0 9px"};color:${legacyWah ? "#4b5563" : "#8a94a6"};${legacyWah ? "" : `letter-spacing:1.8px;font-family:${SANS};text-transform:uppercase;text-indent:1.8px;`}">This certificate is proudly presented to</p>
+    <div style="letter-spacing:3.4px;font-size:13px;color:${navy};font-weight:700;">TERAS UNIVERSAL SDN. BHD.</div>
+    <div style="font-size:8px;color:#8a94a6;margin-top:3px;letter-spacing:1px;font-family:${SANS};">${REG_NO}</div>
+    <div style="width:52px;height:1px;background:${gold};margin:11px auto 0;"></div>
+    <h1 style="font-size:44px;margin:19px 0 0;letter-spacing:14px;color:${navy};font-weight:700;line-height:1;text-indent:14px;">CERTIFICATE</h1>
+    <div style="font-size:8.5px;color:#8a94a6;letter-spacing:5px;font-weight:600;font-family:${SANS};text-indent:5px;margin-top:10px;">OF SUCCESSFUL COMPLETION</div>
+    <p style="font-size:9.5px;margin:24px 0 9px;color:#8a94a6;letter-spacing:1.8px;font-family:${SANS};text-transform:uppercase;text-indent:1.8px;">This certificate is proudly presented to</p>
     <div style="position:relative;display:inline-block;margin:0 auto;max-width:660px;">
-      <div style="font-size:${legacyWah ? fitHolderNameSize(data.holder_name) + 4 : nameSize}px;font-weight:700;color:${navy};padding:${legacyWah ? "0 24px 8px" : "0 26px 14px"};word-break:break-word;${legacyWah ? "" : "line-height:1.22;letter-spacing:.8px;"}">${esc(data.holder_name)}</div>
+      <div style="font-size:${nameSize}px;font-weight:700;color:${navy};padding:0 26px 14px;word-break:break-word;line-height:1.22;letter-spacing:.8px;">${esc(data.holder_name)}</div>
       <div style="position:relative;height:1px;background:#d3d9e2;">
-        ${legacyWah ? `<span style="position:absolute;top:-4px;left:50%;transform:translateX(-50%) rotate(45deg);width:7px;height:7px;background:${gold};"></span>` : `<span style="position:absolute;top:-0.5px;left:50%;transform:translateX(-50%);width:130px;height:2px;background:${gold};"></span>`}
+        <span style="position:absolute;top:-0.5px;left:50%;transform:translateX(-50%);width:130px;height:2px;background:${gold};"></span>
       </div>
-      ${legacyWah ? "" : `<div style="height:1px;width:46%;margin:4px auto 0;background:#d3d9e2;opacity:.55;"></div>`}
+      <div style="height:1px;width:46%;margin:4px auto 0;background:#d3d9e2;opacity:.55;"></div>
     </div>
     ${icBlock}
-    <p style="font-size:${legacyWah ? 13.5 : 9}px;margin:${legacyWah ? "20px 0 4px" : "18px 0 0"};color:${legacyWah ? "#4b5563" : "#8a94a6"};${legacyWah ? "" : `letter-spacing:1.8px;font-family:${SANS};text-transform:uppercase;text-indent:1.8px;`}">For successfully completing the</p>
-    ${legacyWah ? "" : `<div style="width:30px;height:1px;background:${gold};margin:8px auto 10px;"></div>`}
-    <div style="font-size:${legacyWah ? 20 : 23}px;font-weight:700;color:${navy};text-transform:uppercase;line-height:${legacyWah ? 1.35 : 1.38};max-width:${legacyWah ? 640 : 600}px;margin:0 auto;letter-spacing:${legacyWah ? 0 : 1.4}px;">${esc(data.course_name ?? "")}</div>
-    ${legacyWah ? "" : `<div style="width:150px;height:1px;background:${navy};opacity:.22;margin:11px auto 0;"></div>`}
+    <p style="font-size:9px;margin:18px 0 0;color:#8a94a6;letter-spacing:1.8px;font-family:${SANS};text-transform:uppercase;text-indent:1.8px;">For successfully completing the</p>
+    <div style="width:30px;height:1px;background:${gold};margin:8px auto 10px;"></div>
+    <div style="font-size:23px;font-weight:700;color:${navy};text-transform:uppercase;line-height:1.38;max-width:600px;margin:0 auto;letter-spacing:1.4px;">${esc(data.course_name ?? "")}</div>
+    <div style="width:150px;height:1px;background:${navy};opacity:.22;margin:11px auto 0;"></div>
     ${durationBlock}
     ${dateBlock}
-    <p style="font-size:${legacyWah ? 12.5 : 10.5}px;line-height:${legacyWah ? 1.65 : 1.85};max-width:${legacyWah ? 590 : 520}px;margin:${legacyWah ? "16px" : "17px"} auto 0;color:${legacyWah ? "#4b5563" : "#6b7280"};">${esc(config.body_text || DEFAULT_BODY_TEXT)}</p>
-    ${legacyWah ? legacyMeta : `<div style="margin:auto 0 0;border-top:1px solid ${navy};border-bottom:1px solid #e3e7ee;padding:16px 4px 15px;display:flex;gap:22px;text-align:left;align-items:flex-start;">
+    <p style="font-size:10.5px;line-height:1.85;max-width:520px;margin:17px auto 0;color:#6b7280;">${esc(config.body_text || DEFAULT_BODY_TEXT)}</p>
+    <div style="margin:auto 0 0;border-top:1px solid ${navy};border-bottom:1px solid #e3e7ee;padding:16px 4px 15px;display:flex;gap:22px;text-align:left;align-items:flex-start;">
       ${metaTile("calendar", "Date of Completion", data.issue_date || "—", navy, gold)}
       <div style="width:1px;background:#e3e7ee;align-self:stretch;"></div>
       ${metaTile("refresh", "Skills Update", config.skills_update_recommendation || "Within Three (3) Years", navy, gold)}
@@ -306,8 +294,18 @@ export function renderCertificateFront(data: CertData, config: TemplateConfig): 
       ${metaTile("doc", "Certificate No.", data.certificate_number, navy, gold)}
       <div style="width:1px;background:#e3e7ee;align-self:stretch;"></div>
       ${metaTile("id", "Participant ID", data.participant_id || "—", navy, gold)}
-    </div>`}
-    ${legacyWah ? legacyAttestation : currentAttestation}
+    </div>
+    <div style="position:relative;margin-top:18px;padding-top:18px;border-top:1px solid #e3e7ee;">
+    <span style="position:absolute;top:-1px;left:50%;transform:translateX(-50%);width:48px;height:2px;background:${gold};"></span>
+    <div style="display:flex;align-items:flex-end;justify-content:center;gap:${isSingleSignature ? 40 : 24}px;">
+      ${primarySignatureBlock}
+      ${secondarySignatureBlock}
+      <div style="width:1px;align-self:stretch;background:#e3e7ee;"></div>
+      ${stampSeal(navy, gold)}
+      <div style="width:1px;align-self:stretch;background:#e3e7ee;"></div>
+      ${qrHtml}
+    </div>
+    </div>
   </div>
 </div>`;
 }

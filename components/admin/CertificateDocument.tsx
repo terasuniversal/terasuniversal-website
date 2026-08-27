@@ -329,32 +329,6 @@ function MetaTile({ icon, label, value, navy, gold }: { icon: IconKind; label: s
   );
 }
 
-/** Historical WAH metadata treatment (pre-23a613f). Kept local to WAH so
- * Standard Scaffold retains the current TERAS Design System layout. */
-function LegacyWahMetaTile({ icon, label, value, navy, gold }: { icon: IconKind; label: string; value: string; navy: string; gold: string }) {
-  return (
-    <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-      <div style={{ width: 34, height: 34, minWidth: 34, borderRadius: "50%", background: navy, border: `1.5px solid ${gold}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        {iconGlyph(icon, "#fff")}
-      </div>
-      <div>
-        <div style={{ fontSize: 9.5, textTransform: "uppercase", letterSpacing: 0.6, color: "#6b7280" }}>{label}</div>
-        <div style={{ fontSize: 13.5, fontWeight: 700, color: navy, fontFamily: "Georgia, serif" }}>{value}</div>
-      </div>
-    </div>
-  );
-}
-
-function LegacyWahQr({ svg, navy, gold }: { svg: string; navy: string; gold: string }) {
-  return (
-    <div style={{ width: 138, border: `1.5px solid ${gold}`, borderRadius: 6, padding: "12px 9px", textAlign: "center", background: "#fff" }}>
-      <div style={{ fontSize: 10, fontWeight: 700, color: navy, letterSpacing: 0.6, marginBottom: 7 }}>QR VERIFICATION</div>
-      <div style={{ width: 104, height: 104, margin: "0 auto", padding: 4, background: "#fff", border: "1px solid #eee" }} dangerouslySetInnerHTML={{ __html: svg }} />
-      <div style={{ fontSize: 8.5, color: "#6b7280", marginTop: 7, lineHeight: 1.35 }}>Scan to verify this certificate at Teras Universal Database</div>
-    </div>
-  );
-}
-
 /**
  * Inline QR — see generateQrSvg's comment for why this isn't an
  * <img src="https://..."> anymore. Presented as a bordered plate with a
@@ -437,7 +411,6 @@ export function CertificateDocument({ data, config }: { data: CertData; config: 
   const gold = config.accent_color || "#D4AF37";
   const dateRange = formatDateRange(data.training_date, data.training_end_date);
   const duration = data.programme_duration || config.duration_label;
-  const legacyWah = config.design_variant === "working_at_height_certificate";
   // Standard Scaffold keeps the established TERAS Standard hierarchy: the
   // course name and date range are the focal content, without the banner that
   // belongs to the newer certificate families.
@@ -466,82 +439,70 @@ export function CertificateDocument({ data, config }: { data: CertData; config: 
       {!config.background_url && <CertificateWatermark config={config} color={navy} />}
       <CertificateFrame navy={navy} gold={gold} />
 
-      <div style={{ position: "relative", height: "100%", boxSizing: "border-box", padding: legacyWah ? "26px 34px" : "30px 40px", display: "flex", flexDirection: "column", textAlign: "center" }}>
+      <div style={{ position: "relative", height: "100%", boxSizing: "border-box", padding: "30px 40px", display: "flex", flexDirection: "column", textAlign: "center" }}>
         {/* 105x74 is the asset's own 1144x806 aspect at the requested ~105px
             width — an explicit pair rather than a square box, because a square
             box with objectFit:contain padded ~15px of dead space above and
             below the mark and made the header rhythm read as loose. */}
-        {config.logo_url && <img src={config.logo_url} alt="" style={{ width: legacyWah ? 104 : 105, height: legacyWah ? 104 : 74, objectFit: "contain", display: "block", margin: "0 auto 6px" }} />}
-        <div style={{ letterSpacing: legacyWah ? 2 : 3.4, fontSize: legacyWah ? 15 : 13, color: navy, fontWeight: 700 }}>TERAS UNIVERSAL SDN. BHD.</div>
-        <div style={{ fontSize: legacyWah ? 9.5 : 8, color: legacyWah ? "#6b7280" : "#8a94a6", marginTop: legacyWah ? 2 : 3, letterSpacing: legacyWah ? 0 : 1, fontFamily: legacyWah ? undefined : SANS }}>{REG_NO}</div>
-        {!legacyWah && <div style={{ width: 52, height: 1, background: gold, margin: "11px auto 0" }} />}
+        {config.logo_url && <img src={config.logo_url} alt="" style={{ width: 105, height: 74, objectFit: "contain", display: "block", margin: "0 auto 6px" }} />}
+        <div style={{ letterSpacing: 3.4, fontSize: 13, color: navy, fontWeight: 700 }}>TERAS UNIVERSAL SDN. BHD.</div>
+        <div style={{ fontSize: 8, color: "#8a94a6", marginTop: 3, letterSpacing: 1, fontFamily: SANS }}>{REG_NO}</div>
+        <div style={{ width: 52, height: 1, background: gold, margin: "11px auto 0" }} />
 
-        <h1 style={{ fontSize: legacyWah ? 56 : 44, margin: legacyWah ? "18px 0 0" : "19px 0 0", letterSpacing: legacyWah ? 2 : 14, color: legacyWah ? gold : navy, fontWeight: 700, lineHeight: 1, textIndent: legacyWah ? 0 : 14 }}>CERTIFICATE</h1>
-        {legacyWah ? <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginTop: 8 }}><span style={{ width: 46, height: 1.5, background: gold, display: "inline-block" }} /><span style={{ fontSize: 14, color: navy, letterSpacing: 3, fontWeight: 600 }}>OF SUCCESSFUL COMPLETION</span><span style={{ width: 46, height: 1.5, background: gold, display: "inline-block" }} /></div> : <div style={{ fontSize: 8.5, color: "#8a94a6", letterSpacing: 5, fontWeight: 600, fontFamily: SANS, textIndent: 5, marginTop: 10 }}>OF SUCCESSFUL COMPLETION</div>}
+        <h1 style={{ fontSize: 44, margin: "19px 0 0", letterSpacing: 14, color: navy, fontWeight: 700, lineHeight: 1, textIndent: 14 }}>CERTIFICATE</h1>
+        <div style={{ fontSize: 8.5, color: "#8a94a6", letterSpacing: 5, fontWeight: 600, fontFamily: SANS, textIndent: 5, marginTop: 10 }}>OF SUCCESSFUL COMPLETION</div>
 
-        <p style={{ fontSize: legacyWah ? 13.5 : 9.5, margin: legacyWah ? "22px 0 6px" : "24px 0 9px", color: legacyWah ? "#4b5563" : "#8a94a6", letterSpacing: legacyWah ? 0 : 1.8, fontFamily: legacyWah ? undefined : SANS, textTransform: legacyWah ? undefined : "uppercase", textIndent: legacyWah ? 0 : 1.8 }}>This certificate is proudly presented to</p>
+        <p style={{ fontSize: 9.5, margin: "24px 0 9px", color: "#8a94a6", letterSpacing: 1.8, fontFamily: SANS, textTransform: "uppercase", textIndent: 1.8 }}>This certificate is proudly presented to</p>
         <div style={{ position: "relative", display: "inline-block", margin: "0 auto", maxWidth: 660 }}>
-          <div style={{ fontSize: legacyWah ? fitHolderNameSize(data.holder_name) + 4 : nameSize, fontWeight: 700, color: navy, padding: legacyWah ? "0 24px 8px" : "0 26px 14px", wordBreak: "break-word", lineHeight: legacyWah ? undefined : 1.22, letterSpacing: legacyWah ? undefined : 0.8 }}>
+          <div style={{ fontSize: nameSize, fontWeight: 700, color: navy, padding: "0 26px 14px", wordBreak: "break-word", lineHeight: 1.22, letterSpacing: 0.8 }}>
             {data.holder_name}
           </div>
           {/* Hairline rule with a short gold centre segment — replaces the
               rotated gold diamond, which read as award/wedding ornamentation. */}
-          <div style={{ position: "relative", height: legacyWah ? 2 : 1, background: legacyWah ? gold : "#d3d9e2" }}>
-            {legacyWah ? <span style={{ position: "absolute", top: -4, left: "50%", transform: "translateX(-50%) rotate(45deg)", width: 7, height: 7, background: gold }} /> : <span style={{ position: "absolute", top: -0.5, left: "50%", transform: "translateX(-50%)", width: 130, height: 2, background: gold }} />}
+          <div style={{ position: "relative", height: 1, background: "#d3d9e2" }}>
+            <span style={{ position: "absolute", top: -0.5, left: "50%", transform: "translateX(-50%)", width: 130, height: 2, background: gold }} />
           </div>
           {/* Second, shorter hairline below the first — the same layered-rule
               device as the frame, giving the name a base with depth instead of
               a single flat line. */}
-          {!legacyWah && <div style={{ height: 1, width: "46%", margin: "4px auto 0", background: "#d3d9e2", opacity: 0.55 }} />}
+          <div style={{ height: 1, width: "46%", margin: "4px auto 0", background: "#d3d9e2", opacity: 0.55 }} />
         </div>
-        {data.ic_passport && <p style={{ fontSize: legacyWah ? 12.5 : 9.5, color: legacyWah ? "#6b7280" : "#8a94a6", margin: "10px 0 0", letterSpacing: legacyWah ? 0 : 0.6, fontFamily: legacyWah ? undefined : SANS }}>Passport / IC No: {data.ic_passport}</p>}
+        {data.ic_passport && <p style={{ fontSize: 9.5, color: "#8a94a6", margin: "10px 0 0", letterSpacing: 0.6, fontFamily: SANS }}>Passport / IC No: {data.ic_passport}</p>}
 
-        <p style={{ fontSize: legacyWah ? 13.5 : 9, margin: legacyWah ? "20px 0 4px" : "18px 0 0", color: legacyWah ? "#4b5563" : "#8a94a6", letterSpacing: legacyWah ? 0 : 1.8, fontFamily: legacyWah ? undefined : SANS, textTransform: legacyWah ? undefined : "uppercase", textIndent: legacyWah ? 0 : 1.8 }}>For successfully completing the</p>
-        {!legacyWah && <div style={{ width: 30, height: 1, background: gold, margin: "8px auto 10px" }} />}
-        <div style={{ fontSize: legacyWah ? 20 : 23, fontWeight: 700, color: navy, textTransform: "uppercase", lineHeight: legacyWah ? 1.35 : 1.38, maxWidth: legacyWah ? 640 : 600, margin: "0 auto", letterSpacing: legacyWah ? 0 : 1.4 }}>
+        <p style={{ fontSize: 9, margin: "18px 0 0", color: "#8a94a6", letterSpacing: 1.8, fontFamily: SANS, textTransform: "uppercase", textIndent: 1.8 }}>For successfully completing the</p>
+        <div style={{ width: 30, height: 1, background: gold, margin: "8px auto 10px" }} />
+        <div style={{ fontSize: 23, fontWeight: 700, color: navy, textTransform: "uppercase", lineHeight: 1.38, maxWidth: 600, margin: "0 auto", letterSpacing: 1.4 }}>
           {data.course_name}
         </div>
-        {!legacyWah && <div style={{ width: 150, height: 1, background: navy, opacity: 0.22, margin: "11px auto 0" }} />}
+        <div style={{ width: 150, height: 1, background: navy, opacity: 0.22, margin: "11px auto 0" }} />
         {showDurationRibbon && duration && (
-          <RibbonBanner navy={navy} gold={gold} style={{ margin: legacyWah ? "14px auto 0" : "19px auto 0" }}>
-            <span style={{ fontSize: legacyWah ? 12.5 : 9, fontWeight: 600, letterSpacing: legacyWah ? 0.5 : 2.4, fontFamily: legacyWah ? undefined : SANS, textIndent: legacyWah ? undefined : 2.4 }}>{duration}</span>
+          <RibbonBanner navy={navy} gold={gold} style={{ margin: "19px auto 0" }}>
+            <span style={{ fontSize: 9, fontWeight: 600, letterSpacing: 2.4, fontFamily: SANS, textIndent: 2.4 }}>{duration}</span>
           </RibbonBanner>
         )}
         {dateRange && (
-          <p style={{ fontSize: legacyWah ? 12.5 : 11, color: "#4b5563", margin: legacyWah ? "13px 0 0" : "16px 0 0" }}>
+          <p style={{ fontSize: 11, color: "#4b5563", margin: "16px 0 0" }}>
             <span style={{ color: "#8a94a6", letterSpacing: 1.3, fontSize: 8.5, fontFamily: SANS, textTransform: "uppercase" }}>Conducted from </span>
             {dateRange}
           </p>
         )}
 
-        <p style={{ fontSize: legacyWah ? 12.5 : 10.5, lineHeight: legacyWah ? 1.65 : 1.85, maxWidth: legacyWah ? 590 : 520, margin: legacyWah ? "16px auto 0" : "17px auto 0", color: legacyWah ? "#4b5563" : "#6b7280" }}>
+        <p style={{ fontSize: 10.5, lineHeight: 1.85, maxWidth: 520, margin: "17px auto 0", color: "#6b7280" }}>
           {config.body_text || DEFAULT_BODY_TEXT}
         </p>
 
         {/* Record strip: four data cells across a tinted band, hairline-separated.
             A single horizontal strip on its own ground reads as the data block of
             an issued document; the previous 2x2 icon-badge grid read as a form. */}
-        {legacyWah ? (
-          <div style={{ display: "flex", gap: 20, margin: "auto 0 0", paddingTop: 20, textAlign: "left", position: "relative" }}>
-            <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", rowGap: 20, columnGap: 14, alignContent: "center" }}>
-              <LegacyWahMetaTile icon="calendar" label="Date of Completion" value={data.issue_date || "—"} navy={navy} gold={gold} />
-              <LegacyWahMetaTile icon="refresh" label="Recommended Skills Update" value={config.skills_update_recommendation || "Within Three (3) Years"} navy={navy} gold={gold} />
-              <LegacyWahMetaTile icon="doc" label="Certificate No." value={data.certificate_number} navy={navy} gold={gold} />
-              <LegacyWahMetaTile icon="id" label="Participant ID" value={data.participant_id || "—"} navy={navy} gold={gold} />
-            </div>
-            {config.show_qr !== false && data.qr_svg && <LegacyWahQr svg={data.qr_svg} navy={navy} gold={gold} />}
-          </div>
-        ) : (
-          <div style={{ margin: "auto 0 0", borderTop: `1px solid ${navy}`, borderBottom: "1px solid #e3e7ee", padding: "16px 4px 15px", display: "flex", gap: 22, textAlign: "left", alignItems: "flex-start" }}>
-            <MetaTile icon="calendar" label="Date of Completion" value={data.issue_date || "—"} navy={navy} gold={gold} />
-            <div style={{ width: 1, background: "#e3e7ee", alignSelf: "stretch" }} />
-            <MetaTile icon="refresh" label="Skills Update" value={config.skills_update_recommendation || "Within Three (3) Years"} navy={navy} gold={gold} />
-            <div style={{ width: 1, background: "#e3e7ee", alignSelf: "stretch" }} />
-            <MetaTile icon="doc" label="Certificate No." value={data.certificate_number} navy={navy} gold={gold} />
-            <div style={{ width: 1, background: "#e3e7ee", alignSelf: "stretch" }} />
-            <MetaTile icon="id" label="Participant ID" value={data.participant_id || "—"} navy={navy} gold={gold} />
-          </div>
-        )}
+        <div style={{ margin: "auto 0 0", borderTop: `1px solid ${navy}`, borderBottom: "1px solid #e3e7ee", padding: "16px 4px 15px", display: "flex", gap: 22, textAlign: "left", alignItems: "flex-start" }}>
+          <MetaTile icon="calendar" label="Date of Completion" value={data.issue_date || "—"} navy={navy} gold={gold} />
+          <div style={{ width: 1, background: "#e3e7ee", alignSelf: "stretch" }} />
+          <MetaTile icon="refresh" label="Skills Update" value={config.skills_update_recommendation || "Within Three (3) Years"} navy={navy} gold={gold} />
+          <div style={{ width: 1, background: "#e3e7ee", alignSelf: "stretch" }} />
+          <MetaTile icon="doc" label="Certificate No." value={data.certificate_number} navy={navy} gold={gold} />
+          <div style={{ width: 1, background: "#e3e7ee", alignSelf: "stretch" }} />
+          <MetaTile icon="id" label="Participant ID" value={data.participant_id || "—"} navy={navy} gold={gold} />
+        </div>
 
         {/* Attestation zone: signatory | stamp | verification, baseline-aligned on
             one row. The QR moved out of the record strip so signing and verifying
@@ -555,7 +516,7 @@ export function CertificateDocument({ data, config }: { data: CertData; config: 
             official act of issuance rather than three neighbouring objects —
             the binding principle borrowed from Template A, expressed as a rule
             rather than its ceremonial crest. */}
-        <div style={{ position: "relative", marginTop: legacyWah ? 28 : 18, paddingTop: legacyWah ? 4 : 18, borderTop: legacyWah ? undefined : "1px solid #e3e7ee" }}>
+        <div style={{ position: "relative", marginTop: 18, paddingTop: 18, borderTop: "1px solid #e3e7ee" }}>
           <span style={{ position: "absolute", top: -1, left: "50%", transform: "translateX(-50%)", width: 48, height: 2, background: gold }} />
         {/* Three-zone attestation band -- Authorised Signature | Company Stamp |
             Certificate Verification. Signature column(s) are content-width
@@ -565,8 +526,8 @@ export function CertificateDocument({ data, config }: { data: CertData; config: 
             boundaries instead of leaving the grouping to gap-spacing alone --
             there is no divider between Trainer/Training Manager since they're
             one signature zone, only around it. */}
-        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: legacyWah ? "space-between" : "center", gap: legacyWah ? undefined : (singleSig ? 40 : 24) }}>
-          <div style={{ textAlign: "center", fontSize: legacyWah ? 11.5 : 11, width: legacyWah ? 180 : "auto", maxWidth: legacyWah ? undefined : 160 }}>
+        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "center", gap: singleSig ? 40 : 24 }}>
+          <div style={{ textAlign: "center", fontSize: 11, width: "auto", maxWidth: 160 }}>
             {!config.signature_url && <AuthorisedSignatureLabel />}
             {/* Fixed-height signature well: the image sits ON the rule rather than
                 floating above it at whatever height the asset happens to be.
@@ -574,10 +535,10 @@ export function CertificateDocument({ data, config }: { data: CertData; config: 
                 touching the metadata band above it. Left visibly empty (no
                 fabricated mark) when there's no signature_url -- the label
                 above is guidance, not a substitute signature. */}
-            <div style={{ height: legacyWah ? 38 : 44, display: "flex", alignItems: "flex-end", justifyContent: "center", paddingBottom: 2 }}>
-              {config.signature_url && <img src={config.signature_url} alt="" style={{ maxHeight: legacyWah ? 38 : 44, maxWidth: legacyWah ? undefined : 150, height: legacyWah ? 38 : undefined, objectFit: "contain" }} />}
+            <div style={{ height: 44, display: "flex", alignItems: "flex-end", justifyContent: "center", paddingBottom: 2 }}>
+              {config.signature_url && <img src={config.signature_url} alt="" style={{ maxHeight: 44, maxWidth: 150, objectFit: "contain" }} />}
             </div>
-            <div style={{ borderTop: `1px solid ${navy}`, margin: "4px 0 4px" }} />
+            <div style={{ borderTop: `1px solid ${navy}`, margin: "4px 0 5px" }} />
             {singleSig ? (
               <strong style={{ color: navy, letterSpacing: 0.3 }}>{config.signature_name || config.signature_title || "Director"}</strong>
             ) : (
@@ -590,7 +551,7 @@ export function CertificateDocument({ data, config }: { data: CertData; config: 
               <div style={{ color: "#8a94a6", fontSize: 8.5, letterSpacing: 1.3, fontFamily: SANS, textTransform: "uppercase", marginTop: 3 }}>{config.signature_title || "Director"}</div>
             )}
           </div>
-          {!legacyWah && !singleSig && (
+          {!singleSig && (
             <div style={{ textAlign: "center", fontSize: 11, width: "auto", maxWidth: 160 }}>
               <AuthorisedSignatureLabel />
               <div style={{ height: 44 }} />
@@ -599,7 +560,10 @@ export function CertificateDocument({ data, config }: { data: CertData; config: 
               <div style={{ color: "#8a94a6", fontSize: 8.5, letterSpacing: 1.3, fontFamily: SANS, textTransform: "uppercase", marginTop: 3 }}>Training Manager</div>
             </div>
           )}
-          {legacyWah ? <div style={{ textAlign: "center", fontSize: 10.5, width: 66, height: 66, borderRadius: "50%", border: `1px dashed ${gold}`, display: "flex", alignItems: "center", justifyContent: "center", color: "#9ca3af", padding: 4 }}>COMPANY STAMP</div> : <><div style={{ width: 1, alignSelf: "stretch", background: "#e3e7ee" }} /><StampSeal navy={navy} gold={gold} /><div style={{ width: 1, alignSelf: "stretch", background: "#e3e7ee" }} />{config.show_qr !== false && data.qr_svg && <QrBlock svg={data.qr_svg} navy={navy} gold={gold} size={82} caption />}</>}
+          <div style={{ width: 1, alignSelf: "stretch", background: "#e3e7ee" }} />
+          <StampSeal navy={navy} gold={gold} />
+          <div style={{ width: 1, alignSelf: "stretch", background: "#e3e7ee" }} />
+          {config.show_qr !== false && data.qr_svg && <QrBlock svg={data.qr_svg} navy={navy} gold={gold} size={82} caption />}
         </div>
         </div>
       </div>
