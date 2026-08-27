@@ -31,6 +31,14 @@ const STANDARD_SCAFFOLD_PREVIEW_DATA: Omit<CertData, "qr_svg"> = {
   verification_url: "https://www.terasuniversal.com.my/verify/TU-SCF-2026-0001",
 };
 
+const WORKING_AT_HEIGHT_PREVIEW_DATA: Omit<CertData, "qr_svg"> = {
+  ...PREVIEW_DATA_BASE,
+  certificate_number: "TU-WAH-2026-0001",
+  course_name: "Working at Height",
+  programme_duration: "2-Day Practical Training",
+  verification_url: "https://www.terasuniversal.com.my/verify/TU-WAH-2026-0001",
+};
+
 export function TemplateForm({
   action,
   template,
@@ -85,10 +93,14 @@ export function TemplateForm({
   // watermark from the preview.
   const previewBase = preview.design_variant === "standard_scaffold_certificate"
     ? STANDARD_SCAFFOLD_PREVIEW_DATA
-    : PREVIEW_DATA_BASE;
+    : preview.design_variant === "working_at_height_certificate"
+      ? WORKING_AT_HEIGHT_PREVIEW_DATA
+      : PREVIEW_DATA_BASE;
   const previewData: CertData = { ...previewBase, qr_svg: qrSvg };
   const previewConfig = preview.design_variant === "standard_scaffold_certificate"
     ? { ...preview, watermark_level: "basic" as const, signature_layout: "single" as const }
+    : preview.design_variant === "working_at_height_certificate"
+      ? { ...preview, wah_watermark: true, signature_layout: "single" as const }
     : preview;
   const upd = (k: string, v: any) => setPreview((p) => ({ ...p, [k]: v }));
   const updLines = (k: string, raw: string) => upd(k, raw.split("\n").map((s) => s.trim()).filter(Boolean));
@@ -127,6 +139,7 @@ export function TemplateForm({
           >
             <option value="">TERAS Standard</option>
             <option value="standard_scaffold_certificate">TERAS Standard Scaffold</option>
+            <option value="working_at_height_certificate">Working at Height</option>
             <option value="professional_scaffold_erection_skills">Premium Scaffold</option>
           </select>
         </Field>

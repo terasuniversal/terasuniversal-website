@@ -298,6 +298,31 @@ export async function loadCertificateRender(id: string): Promise<
     config.wah_watermark ??= true;
   }
 
+  // Course identity is the final family boundary. The WAH template is a
+  // dedicated course template, so a stale or manually misconfigured
+  // `design_variant` must never make this course inherit a scaffold motif.
+  // Resolve its approved programme content and its watermark explicitly from
+  // the course map instead of trusting a mutable template JSON field. This
+  // also keeps legacy certificates correct while the repair migration catches
+  // the persisted template up with this source of truth.
+  const workingAtHeightProgramme = findWorkingAtHeightProgrammeByCourseId(c.course_id);
+  if (workingAtHeightProgramme) {
+    config.design_variant = "working_at_height_certificate";
+    config.programme_title = workingAtHeightProgramme.programme_title;
+    config.duration_label = workingAtHeightProgramme.duration_label;
+    config.objectives_text = workingAtHeightProgramme.objectives_text;
+    config.coverage_items = workingAtHeightProgramme.coverage_items;
+    config.learning_outcomes = workingAtHeightProgramme.learning_outcomes;
+    config.assessment_methods = workingAtHeightProgramme.assessment_methods;
+    config.wah_watermark = true;
+    // WAH has an existing dedicated vector motif in certificate-watermarks.
+    // Do not allow an inherited scaffold setting or uploaded background to
+    // hide it on either the React or HTML/PDF rendering path.
+    config.watermark_level = undefined;
+    config.inspector_watermark_level = undefined;
+    config.background_url = undefined;
+  }
+
   const certificateNumber: string = c.certificate_number || c.certificate_no;
   const origin = await siteOrigin();
   // Prefer the certificate's own stored verification_url — issuance
