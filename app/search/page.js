@@ -9,6 +9,7 @@ export const metadata = {
   title: "Search",
   description: "Search TERAS UNIVERSAL training programmes, services, resources and FAQs.",
   alternates: { canonical: "/search" },
+  robots: { index: false, follow: true },
 };
 
 export default function SearchPage() {

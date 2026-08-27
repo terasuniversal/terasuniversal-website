@@ -2,6 +2,7 @@ import Image from "next/image";
 import MobileNav from "../../../components/MobileNav";
 import MegaNav from "../../../components/MegaNav";
 import Footer from "../../../components/Footer";
+import BreadcrumbJsonLd from "../../../components/public/BreadcrumbJsonLd";
 
 const WHATSAPP_MESSAGE = "Hi TERAS UNIVERSAL, I would like to enquire about your Scaffolding Rental & Installation service.";
 const whatsappHref = `https://wa.me/60195193834?text=${encodeURIComponent(WHATSAPP_MESSAGE)}`;
@@ -24,6 +25,7 @@ const reasons = [
 export default function ScaffoldingServicePage() {
   return (
     <main className="scaffolding-page">
+      <BreadcrumbJsonLd items={[{ name: "Home", path: "/" }, { name: "Services", path: "/services" }, { name: "Scaffolding Rental & Installation", path: "/services/scaffolding" }]} />
       <header className="site-header"><div className="container nav-wrap"><a className="brand" href="/" aria-label="TERAS UNIVERSAL home"><Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL logo" width={220} height={140} priority sizes="154px" /></a><MegaNav /><MobileNav basePath="/" /></div></header>
 
       <section className="scaffolding-hero" aria-labelledby="scaffolding-hero-title"><div className="container"><nav className="course-breadcrumb" aria-label="Breadcrumb"><a href="/">Home</a><span>/</span><a href="/services">Services</a><span>/</span><span aria-current="page">Scaffolding Rental &amp; Installation</span></nav><div className="scaffolding-hero-grid"><div className="scaffolding-hero-copy"><span className="eyebrow">Scaffolding Rental &amp; Installation</span><h1 id="scaffolding-hero-title">Safe, Reliable Scaffolding Solutions</h1><p>Rental, erection, dismantling, inspection and maintenance support for construction and industrial projects.</p><div className="hero-actions"><a className="btn btn-primary" href="/request-proposal">Request a Quotation</a><a className="btn btn-outline" href={whatsappHref} target="_blank" rel="noreferrer">WhatsApp Us</a></div></div><figure className="scaffolding-hero-media"><Image src="/images/scaffolding-rental-poster-en.webp" alt="TERAS UNIVERSAL Scaffolding Rental and Installation Services" width={853} height={1280} priority sizes="(max-width: 920px) 260px, 340px" /></figure></div></div></section>

@@ -5,6 +5,13 @@ import TrainingGallery from "../../components/TrainingGallery";
 import Footer from "../../components/Footer";
 import { trainingGallery } from "../../data/trainingGallery";
 
+export const metadata = {
+  title: "Training Gallery",
+  description: "Visual representations of industrial safety training, technical development and practical competency activities from TERAS UNIVERSAL.",
+  alternates: { canonical: "/gallery" },
+  robots: { index: false, follow: true },
+};
+
 export default function GalleryPage() {
   return (
     <main className="gallery-page">

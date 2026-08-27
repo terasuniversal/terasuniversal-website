@@ -18,3 +18,43 @@
 .ctaGroup .primaryAction:hover { background: #082E4E; border-color: #082E4E; }
 .ctaGroup .enquiryAction { border-color: #D4AF37; color: #0B3A63; }
 .ctaGroup .enquiryAction:hover { background: #FFFFFF; color: #0B3A63; }
+
+.relatedIndustries {
+  padding: clamp(3.5rem, 7vw, 6rem) 0;
+  background: #FFFFFF;
+}
+
+.relatedIndustryGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.relatedIndustryCard {
+  display: block;
+  min-height: 100%;
+  padding: 1.35rem;
+  border: 1px solid rgba(11, 58, 99, .16);
+  border-radius: 12px;
+  box-shadow: 0 10px 24px rgba(11, 58, 99, .06);
+  color: #333333;
+  text-decoration: none;
+}
+
+.relatedIndustryCard:hover {
+  border-color: #D4AF37;
+}
+
+.relatedIndustryCard h3 {
+  margin: .45rem 0;
+  color: #0B3A63;
+}
+
+.relatedIndustryCard p {
+  margin: 0 0 1rem;
+}
+
+.relatedIndustryCard > span:last-child {
+  color: #0B3A63;
+  font-weight: 700;
+}
