@@ -10,7 +10,7 @@ export const insights = [
     audience: "Training Managers and HR/L&D",
     metaDescription: "Understand the difference between course attendance, practical capability and assessment, and how organisations can build stronger workforce competency.",
     reviewStatus: "pending",
-    relatedCourses: ["/training"],
+    relatedCourses: ["/training", "/corporate-training", "/calendar"],
     relatedIndustries: [],
     body: [
       { heading: "Attendance is a starting point, not the finish line", paragraphs: ["A completed attendance record shows that someone was present for a learning activity. It does not, by itself, show that the person understood the subject, can apply it at work or is ready to perform a task with the level of care the role requires.", "This distinction matters most in safety-critical and technical environments. Employers need a realistic view of what people know, what they can do under supervision and where further support is required. A competency-based approach helps make that conversation more specific without reducing people to a pass or fail label."] },
@@ -34,7 +34,7 @@ export const insights = [
     audience: "HR/L&D and HSE Managers",
     metaDescription: "A practical framework for identifying, prioritising and reviewing workforce training needs based on roles, capability gaps and operational requirements.",
     reviewStatus: "pending",
-    relatedCourses: ["/training"],
+    relatedCourses: ["/training", "/corporate-training", "/request-proposal"],
     relatedIndustries: ["/industries"],
     body: [
       { heading: "Start with roles and work requirements", paragraphs: ["A training needs analysis is more useful when it begins with the work people are expected to perform. Start by listing priority roles, core tasks, decisions, equipment and working conditions. Speak with the people who perform and supervise the work so the description reflects actual operations rather than only a job title.", "This first step creates a practical reference for the rest of the review. It also helps separate a genuine learning need from an issue that may require a process, equipment, supervision or resource response instead."] },
