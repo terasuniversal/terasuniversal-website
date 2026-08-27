@@ -12,8 +12,9 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
   const sp = await searchParams;
   const hasResult = !!sp.q;
   return {
-    title: hasResult ? "Verification Result | TERAS UNIVERSAL" : "Verify a Certificate | TERAS UNIVERSAL",
+    title: hasResult ? "Verification Result" : "Verify a Certificate",
     description: "Verify the authenticity of a certificate issued by TERAS UNIVERSAL SDN. BHD.",
+    alternates: { canonical: "/verify" },
     robots: hasResult ? { index: false, follow: false } : { index: true, follow: true },
   };
 }

@@ -4,7 +4,7 @@ import MegaNav from "../../components/MegaNav";
 import Footer from "../../components/Footer";
 import { approvedSuccessStories, approvedTestimonials } from "../../data/successStories";
 
-export const metadata = { title: "Testimonials & Success Stories", description: "Approved customer testimonials, project summaries and workforce outcomes from TERAS UNIVERSAL.", alternates: { canonical: "/stories" } };
+export const metadata = { title: "Testimonials & Success Stories", description: "Approved customer testimonials, project summaries and workforce outcomes from TERAS UNIVERSAL.", alternates: { canonical: "/stories" }, robots: { index: false, follow: true } };
 
 function EmptyState({ label, text }) { return <div className="stories-empty"><span className="eyebrow">{label}</span><h2>Customer stories will appear here.</h2><p>{text}</p><a className="btn btn-outline" href="/request-proposal">Discuss a programme</a></div>; }
 
