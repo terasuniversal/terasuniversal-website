@@ -178,6 +178,47 @@ function Test-CodexImplementationAvailable {
     return $null -ne (Get-Command "codex" -ErrorAction SilentlyContinue)
 }
 
+function Get-CodexExecCapabilities {
+    $help = (& codex exec --help 2>&1 | Out-String)
+    $exitCode = $LASTEXITCODE
+    if ($exitCode -ne 0) {
+        return [pscustomobject]@{
+            Supported = $false
+            Reason = "Unable to read codex exec capabilities (exit code $exitCode)."
+            Arguments = @()
+            ApprovalMode = "UNAVAILABLE"
+        }
+    }
+
+    if ($help -notmatch '(?m)--sandbox <SANDBOX_MODE>' -or
+        $help -notmatch '(?m)-C, --cd <DIR>') {
+        return [pscustomobject]@{
+            Supported = $false
+            Reason = "This Codex CLI does not expose the required codex exec workspace controls (--sandbox and --cd)."
+            Arguments = @()
+            ApprovalMode = "UNAVAILABLE"
+        }
+    }
+
+    $arguments = @("--cd", $RepoRoot, "--sandbox", "workspace-write")
+    $approvalMode = "HANDOFF_BOUNDARY_ONLY"
+    if ($help -match '(?m)--ask-for-approval <APPROVAL_POLICY>' -and $help -match '(?m)- on-request:') {
+        $arguments += @("--ask-for-approval", "on-request")
+        $approvalMode = "ON_REQUEST"
+    }
+
+    return [pscustomobject]@{
+        Supported = $true
+        Reason = if ($approvalMode -eq "ON_REQUEST") {
+            "codex exec supports interactive on-request approval."
+        } else {
+            "codex exec does not support interactive on-request approval in this installed version; no auto-approval flag will be used."
+        }
+        Arguments = $arguments
+        ApprovalMode = $approvalMode
+    }
+}
+
 function New-CodexImplementationHandoff {
     param($State)
 
@@ -216,6 +257,7 @@ Do not expand scope. Do not modify CRM application files, database migrations, S
 - Preserve the root AGENTS.md and CLAUDE.md rules.
 - No commit, push, merge, deploy, or migration apply.
 - Do not silently fall back to Claude, DeepSeek, or another agent.
+- The adapter uses workspace-write and the safest approval capability exposed by this Codex CLI. If ``codex exec`` does not expose interactive ``on-request`` approval, no auto-approval flag is used; these boundaries are enforced by this handoff and the task scope.
 - Run relevant verification and write the implementation result to .ai/IMPLEMENTATION_REPORT.md.
 - Human approval remains required before any release action.
 "@
@@ -235,15 +277,34 @@ function Invoke-CodexImplementation {
         return $false
     }
 
+    $capabilities = Get-CodexExecCapabilities
+    if (-not $capabilities.Supported) {
+        Write-Host "Codex CLI capability check failed: $($capabilities.Reason)"
+        Write-Host "No alternate agent was invoked."
+        return $false
+    }
+
     Write-Host ""
     Write-Host "Codex CLI detected. Launching with the controlled handoff at:"
     Write-Host "  $HandoffPath"
+    Write-Host "Approval capability: $($capabilities.ApprovalMode)"
+    Write-Host ""
+    if ($capabilities.ApprovalMode -eq "HANDOFF_BOUNDARY_ONLY") {
+        Write-Host "This codex exec version has no interactive on-request approval flag; no auto-approval flag will be used."
+    }
     Write-Host ""
 
     $prompt = Get-Content -Path $HandoffPath -Raw
+    $execArguments = @($capabilities.Arguments)
+    $previousErrorActionPreference = $ErrorActionPreference
     Push-Location $RepoRoot
     try {
-        $output = $prompt | & codex exec -C $RepoRoot -s workspace-write -a on-request --no-alt-screen - 2>&1
+        # Codex may emit non-fatal startup diagnostics on stderr. The
+        # orchestrator normally treats native stderr as terminating; keep
+        # those diagnostics in the captured output and use LASTEXITCODE for
+        # the actual CLI result instead.
+        $ErrorActionPreference = "Continue"
+        $output = $prompt | & codex exec @execArguments - 2>&1
         $exitCode = $LASTEXITCODE
         if ($output) { $output | Out-Host }
         if ($exitCode -ne 0) {
@@ -262,6 +323,7 @@ function Invoke-CodexImplementation {
         Write-Host "No alternate agent was invoked."
         return $false
     } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
         Pop-Location
     }
 }
@@ -275,7 +337,26 @@ function Invoke-CodexImplementation {
 function Get-GitStatusSnapshot {
     Push-Location $RepoRoot
     try {
-        return @(git status --short)
+        $status = @(git status --short)
+        $snapshot = @()
+        foreach ($line in $status) {
+            $path = Get-StatusPath -StatusLine $line
+            if ($path) {
+                $fullPath = Join-Path $RepoRoot ($path -replace '/', '\\')
+                try {
+                    if (Test-Path -LiteralPath $fullPath -PathType Leaf) {
+                        $fingerprint = (Get-FileHash -LiteralPath $fullPath -Algorithm SHA256).Hash
+                        $line = "$line|CONTENT_HASH=$fingerprint"
+                    }
+                } catch {
+                    # Keep the ordinary status line if a path cannot be probed;
+                    # malformed names and permission failures must not stop
+                    # read-only tracking.
+                }
+            }
+            $snapshot += $line
+        }
+        return $snapshot
     } finally {
         Pop-Location
     }
@@ -286,6 +367,7 @@ function Get-StatusPath {
     # `git status --short` lines are "XY path" (or "XY orig -> new" for renames) - path starts at column 4.
     if ($StatusLine.Length -le 3) { return $null }
     $rest = $StatusLine.Substring(3)
+    $rest = $rest -replace '\|CONTENT_HASH=.*$', ''
     if ($rest -match '^(.*) -> (.*)$') { return $Matches[2] }
     return $rest
 }
