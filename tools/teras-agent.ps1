@@ -407,7 +407,15 @@ function Get-ImplementationDelta {
     $orchestratorManaged = @(
         ".ai/CURRENT_TASK.md",
         ".ai/PROJECT_STATUS.md",
-        ".ai/task-state.json"
+        ".ai/task-state.json",
+        ".ai/CODEX_IMPLEMENTATION_HANDOFF.md",
+        ".ai/CODEX_REVIEW_HANDOFF.md",
+        ".ai/CLAUDE_REVIEW_HANDOFF.md",
+        ".ai/CLAUDE_HANDOFF.md",
+        ".ai/REVIEW_REPORT.md",
+        ".ai/REPAIR_HANDOFF.md",
+        ".ai/FINAL_REPORT.md",
+        ".ai/IMPLEMENTATION_REPORT.md"
     )
     $delta.TaskGenerated = @($delta.TaskGenerated | Where-Object { $_ -notin $orchestratorManaged })
     return $delta
@@ -438,6 +446,23 @@ function Invoke-PostImplementation {
         return $State
     }
 
+    $claudeReview = Invoke-ClaudeReadOnlyReview -State $State -TaskGeneratedFiles $delta.TaskGenerated
+    if (-not $claudeReview.Succeeded) {
+        $State.State = "BLOCKED"
+        Save-TaskState -State $State
+        Write-Host "Claude read-only review did not complete: $($claudeReview.Error)"
+        Write-Host "Review handoff retained at: $($claudeReview.HandoffPath)"
+        return $State
+    }
+
+    Write-Host "Claude review verdict: $($claudeReview.Verdict)"
+    if ($claudeReview.Verdict -eq "CHANGES_REQUIRED") {
+        $State.State = "BLOCKED"
+        Save-TaskState -State $State
+        Write-Host "Claude requested changes. Findings are retained in $($claudeReview.HandoffPath). Codex was not rerun."
+        return $State
+    }
+
     $State.State = "QA"
     Save-TaskState -State $State
     $qa = Invoke-QA -ChangedFiles $delta.TaskGenerated -Lightweight:($State.Implementer -eq "DeepSeek" -or $State.Risk -eq "LOW")
@@ -450,9 +475,14 @@ function Invoke-PostImplementation {
         return $State
     }
 
-    $mandatory = ($State.Reviewer -eq "Codex" -or $State.Reviewer -eq "Human")
-    $optional = ($State.Reviewer -eq "Codex (recommended)")
-    $State = Invoke-ReviewStage -State $State -Mandatory $mandatory -Optional $optional -PreImplementationSnapshot $PreSnapshot
+    # Codex implementation tasks now use the Claude read-only adapter above
+    # as their reviewer. Skipping the legacy Codex review stage here avoids
+    # the old Codex->Claude repair loop; CHANGES_REQUIRED stops for a human.
+    if ($State.Implementer -ne "Codex") {
+        $mandatory = ($State.Reviewer -eq "Codex" -or $State.Reviewer -eq "Human")
+        $optional = ($State.Reviewer -eq "Codex (recommended)")
+        $State = Invoke-ReviewStage -State $State -Mandatory $mandatory -Optional $optional -PreImplementationSnapshot $PreSnapshot
+    }
 
     if ($State.State -ne "BLOCKED") {
         $State.State = "AWAITING_APPROVAL"
@@ -854,7 +884,11 @@ function Invoke-Resume {
 
         $handoffFileName = if ($isDeepSeek) { "DEEPSEEK_HANDOFF.md" } elseif ($isCodex) { "CODEX_IMPLEMENTATION_HANDOFF.md" } else { "CLAUDE_HANDOFF.md" }
         $handoffPath = Join-Path $AiDir $handoffFileName
-        if (-not (Test-Path $handoffPath)) {
+        # Rebuild the Codex handoff on every resume so it reflects the current
+        # shared state, rather than a stale prior task's prompt.
+        if ($isCodex) {
+            $handoffPath = New-CodexImplementationHandoff -State $state
+        } elseif (-not (Test-Path $handoffPath)) {
         $handoffPath = if ($isDeepSeek) { New-DeepSeekHandoff -State $state } elseif ($isCodex) { New-CodexImplementationHandoff -State $state } else { New-ClaudeHandoff -State $state }
         }
         if ($preSnapshot.Count -eq 0) { $preSnapshot = Get-GitStatusSnapshot }
