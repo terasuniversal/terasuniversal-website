@@ -211,9 +211,10 @@ export function renderCertificateFront(data: CertData, config: TemplateConfig): 
   const gold = config.accent_color || "#D4AF37";
   const dateRange = formatDateRange(data.training_date, data.training_end_date);
   const duration = data.programme_duration || config.duration_label;
+  const isWorkingAtHeight = config.design_variant === "working_at_height_certificate" || /working\s+at\s+height/i.test(data.course_name || "");
   // Keep HTML/PDF output aligned with the WAH artwork: no generic duration
   // ribbon between the course title and conducted date.
-  const showDurationRibbon = config.design_variant !== "standard_scaffold_certificate" && config.design_variant !== "working_at_height_certificate";
+  const showDurationRibbon = config.design_variant !== "standard_scaffold_certificate" && !isWorkingAtHeight;
   const nameSize = fitHolderNameSize(data.holder_name) + 8;
   const bgImage = config.background_url ? `background-image:url('${esc(config.background_url)}');background-size:cover;background-position:center;` : "";
 
