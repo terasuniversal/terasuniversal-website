@@ -28,7 +28,7 @@ export default function MobileNav({ basePath = "" }) {
 
   const items = [
     { label: "Training", href: "/training" },
-    { label: "Corporate Training", href: "/request-proposal?source=mobile-nav" },
+    { label: "Corporate Training", href: "/corporate-training" },
     { label: "Industries", href: "/industries" },
     { label: "About TERAS", href: "/about" },
     { label: "Resources", href: "/resources" },
