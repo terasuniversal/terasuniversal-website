@@ -2,47 +2,22 @@ import Image from "next/image";
 import MobileNav from "../../../components/MobileNav";
 import MegaNav from "../../../components/MegaNav";
 import Footer from "../../../components/Footer";
+import CourseCard from "../../../components/public/CourseCard";
+import CourseFactList from "../../../components/public/CourseFactList";
+import PrimaryCtaGroup from "../../../components/public/PrimaryCtaGroup";
 import { courseCatalog, findCourse } from "../../../data/courseCatalog";
 
 export function generateStaticParams() { return courseCatalog.map(({ slug }) => ({ slug })); }
-export async function generateMetadata({ params }) { const { slug } = await params; const course = findCourse(slug); return course ? { title: `${course.title} | TERAS UNIVERSAL`, description: course.summary, alternates: { canonical: `/training/${course.slug}` }, openGraph: { title: `${course.title} | TERAS UNIVERSAL`, description: course.summary, url: `/training/${course.slug}` } } : { title: "Training Programme | TERAS UNIVERSAL" }; }
+export async function generateMetadata({ params }) { const { slug } = await params; const course = findCourse(slug); return course ? { title: course.title, description: course.summary, alternates: { canonical: `/training/${course.slug}` }, openGraph: { title: `${course.title} | TERAS UNIVERSAL`, description: course.summary, url: `/training/${course.slug}` } } : { title: "Training Programme | TERAS UNIVERSAL" }; }
 
-// Converts a verified duration string like "10 Days" into an ISO 8601
-// duration ("P10D") for the Course schema below. Only converts when the
-// format is unambiguous; otherwise returns undefined so we never guess at
-// (or misstate) a course's actual duration in structured data.
-function toIsoDuration(duration) {
-  const match = /^(\d+)\s*Days?$/i.exec((duration || "").trim());
-  return match ? `P${match[1]}D` : undefined;
-}
-
-function courseSchema(course) {
-  const isoDuration = toIsoDuration(course.duration);
-  return {
-    "@context": "https://schema.org",
-    "@type": "Course",
-    name: course.title,
-    description: course.summary,
-    provider: {
-      "@type": "Organization",
-      name: "TERAS UNIVERSAL SDN. BHD.",
-      sameAs: "https://www.terasuniversal.com.my",
-    },
-    ...(isoDuration
-      ? {
-          hasCourseInstance: {
-            "@type": "CourseInstance",
-            courseMode: ["Blended", "onsite"],
-            courseWorkload: isoDuration,
-          },
-        }
-      : {}),
-  };
-}
+function toIsoDuration(duration) { const match = /^(\d+)\s*Days?$/i.exec((duration || "").trim()); return match ? `P${match[1]}D` : undefined; }
+function courseSchema(course) { const isoDuration = toIsoDuration(course.duration); return { "@context": "https://schema.org", "@type": "Course", name: course.title, description: course.summary, url: `https://terasuniversal.com.my/training/${course.slug}`, provider: { "@type": "Organization", name: "TERAS UNIVERSAL SDN. BHD.", sameAs: "https://www.terasuniversal.com.my" }, ...(isoDuration ? { hasCourseInstance: { "@type": "CourseInstance", courseMode: ["Blended", "onsite"], courseWorkload: isoDuration } } : {}) }; }
 
 export default async function CoursePage({ params }) {
   const { slug } = await params;
   const course = findCourse(slug);
   if (!course) return <main className="utility-page"><div className="container utility-container"><h1>Training programme not found</h1><p>Return to the training catalogue to explore available programmes.</p><a className="btn btn-primary" href="/training">View Training</a></div></main>;
-  return <main className="course-catalog-page"><script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(courseSchema(course)) }} /><header className="site-header"><div className="container nav-wrap"><a className="brand" href="/" aria-label="TERAS UNIVERSAL home"><Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL logo" width={220} height={140} priority sizes="154px" /></a><MegaNav /><MobileNav basePath="/" /></div></header><section className="catalog-course-hero"><div className="container catalog-course-grid"><div><nav className="course-breadcrumb" aria-label="Breadcrumb"><a href="/">Home</a><span>/</span><a href="/training">Training</a><span>/</span><span aria-current="page">{course.title}</span></nav><span className="eyebrow">{course.category}</span><h1>{course.title}</h1><p>{course.summary}</p><div className="hero-actions"><a className="btn btn-primary" href="/request-proposal">Request Course Information</a><a className="btn btn-outline" href="https://wa.me/60195193834" target="_blank" rel="noreferrer">WhatsApp Our Team</a></div></div><figure><Image src={course.image} alt={`${course.title} training visual.`} width={1200} height={800} priority sizes="(max-width: 920px) 100vw, 52vw" /></figure></div></section><section className="catalog-course-content"><div className="container course-content-grid"><div><span className="eyebrow">Course Overview</span><h2>Build safer, more confident workplace capability.</h2><p>{course.summary} The programme can be shaped around participant profiles, operating conditions, site requirements and defined learning outcomes.</p><div className="course-info-grid"><article><strong>Duration</strong><span>{course.duration}</span></article><article><strong>Delivery</strong><span>Public, in-house or onsite</span></article><article><strong>Assessment</strong><span>Subject to programme requirements</span></article></div></div><aside className="course-attend-card"><span className="eyebrow">Who Should Attend</span><ul>{course.audience.map((item) => <li key={item}>{item}</li>)}</ul></aside></div></section><section className="catalog-course-modules"><div className="container"><div className="section-heading"><span className="eyebrow">Course Content</span><h2>Learning modules</h2></div><div className="catalog-module-grid">{course.modules.map((module, index) => <article key={module}><span>{String(index + 1).padStart(2, "0")}</span><h3>{module}</h3><p>Relevant principles, practical awareness and workplace application.</p></article>)}</div></div></section><section className="catalog-course-faq"><div className="container course-faq-grid"><div><span className="eyebrow">Frequently Asked Questions</span><h2>Plan the right arrangement for your team.</h2></div><div><details open><summary>Can the programme be customised?</summary><p>Yes. Scope, delivery arrangements and learning emphasis can be discussed around your workforce and operating requirements.</p></details><details><summary>Can training be conducted onsite?</summary><p>Selected programmes may be delivered onsite, subject to site suitability, equipment availability and agreed safety arrangements.</p></details><details><summary>Do participants receive a certificate?</summary><p>Certification or proof of completion depends on attendance, programme structure, assessment requirements and applicable criteria.</p></details></div></div></section><section className="course-final-cta"><div className="container"><div><span className="eyebrow">Corporate Training Solutions</span><h2>Planning {course.title} for your workforce?</h2><p>Speak with TERAS UNIVERSAL about participant requirements, delivery arrangements and a customised proposal.</p></div><a className="btn btn-gold" href="/request-proposal">Request Proposal <span aria-hidden="true">&rarr;</span></a></div></section><Footer /></main>;
+  const relatedCourses = (course.related || []).map((reference) => findCourse(reference) || courseCatalog.find((item) => item.title === reference)).filter(Boolean);
+  const scheduleHref = `/calendar?course=${encodeURIComponent(course.slug)}`;
+  return <main className="course-catalog-page"><script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(courseSchema(course)) }} /><header className="site-header"><div className="container nav-wrap"><a className="brand" href="/" aria-label="TERAS UNIVERSAL home"><Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL logo" width={220} height={140} priority sizes="154px" /></a><MegaNav /><MobileNav basePath="/" /></div></header><section className="catalog-course-hero"><div className="container catalog-course-grid"><div><nav className="course-breadcrumb" aria-label="Breadcrumb"><a href="/">Home</a><span>/</span><a href="/training">Training</a><span>/</span><span aria-current="page">{course.title}</span></nav><span className="eyebrow">{course.category}</span><h1>{course.title}</h1><p>{course.summary}</p><PrimaryCtaGroup course={course} source="course-page" scheduleHref={scheduleHref} /></div><figure><Image src={course.image} alt={`${course.title} training visual.`} width={1200} height={800} priority sizes="(max-width: 920px) 100vw, 52vw" /></figure></div></section><section className="catalog-course-content"><div className="container course-content-grid"><div><span className="eyebrow">Course Overview</span><h2>Course details</h2><p>{course.summary}</p><CourseFactList course={course} /></div>{course.audience?.length > 0 && <aside className="course-attend-card"><span className="eyebrow">Who Should Attend</span><ul>{course.audience.map((item) => <li key={item}>{item}</li>)}</ul></aside>}</div></section>{course.objectives?.length > 0 && <section className="catalog-course-modules"><div className="container"><div className="section-heading"><span className="eyebrow">Learning Objectives</span><h2>What participants will build.</h2></div><div className="catalog-module-grid">{course.objectives.map((objective, index) => <article key={objective}><span>{String(index + 1).padStart(2, "0")}</span><h3>{objective}</h3></article>)}</div></div></section>}{course.entryRequirements?.length > 0 && <section className="catalog-course-content"><div className="container"><div className="section-heading"><span className="eyebrow">Entry Requirements</span><h2>Before attending.</h2></div><ul className="course-attend-card">{course.entryRequirements.map((requirement) => <li key={requirement}>{requirement}</li>)}</ul></div></section>}{course.modules?.length > 0 && <section className="catalog-course-modules"><div className="container"><div className="section-heading"><span className="eyebrow">Course Outline</span><h2>Learning modules</h2></div><div className="catalog-module-grid">{course.modules.map((module, index) => <article key={module}><span>{String(index + 1).padStart(2, "0")}</span><h3>{module}</h3></article>)}</div></div></section>}<section className="course-final-cta"><div className="container"><div><span className="eyebrow">Upcoming Training</span><h2>Looking for a date for {course.title}?</h2><p>Review confirmed public sessions or send an enquiry for your workforce. Registration is arranged with the TERAS team.</p></div><PrimaryCtaGroup course={course} source="course-final-cta" scheduleHref={scheduleHref} /></div></section>{relatedCourses.length > 0 && <section className="training-programmes-section"><div className="container"><div className="section-heading"><span className="eyebrow">Related Courses</span><h2>Continue your competency pathway.</h2></div><div className="training-programme-grid">{relatedCourses.map((relatedCourse) => <CourseCard key={relatedCourse.slug} course={relatedCourse} source="related-course" />)}</div></div></section>}<Footer /></main>;
 }

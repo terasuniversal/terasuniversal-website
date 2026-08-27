@@ -3,11 +3,11 @@
 import { usePathname } from "next/navigation";
 
 const groups = [
-  { label: "Services", links: [["Industrial Safety", "/services#safety"], ["Technical Competency", "/services#technical"], ["Industrial Consultancy", "/services#consultancy"], ["Workforce Development", "/services#workforce"], ["Scaffolding Rental & Installation", "/services/scaffolding"]] },
-  { label: "Training", links: [["All Training", "/training"], ["Scaffolding Competency", "/training/scaffolding-competency"], ["Working at Height", "/training/working-at-height"], ["Confined Space Safety", "/training/confined-space-safety"], ["Training Calendar", "/calendar"], ["Request Proposal", "/request-proposal"]] },
+  { label: "Training", links: [["View All Training", "/training"], ["Training Calendar", "/calendar"], ["Scaffolding Competency", "/training/scaffolding-competency"], ["Working at Height", "/training/working-at-height"], ["Confined Space Safety", "/training/confined-space-safety"]] },
+  { label: "Corporate Training", links: [["Request Corporate Training", "/request-proposal?source=mega-nav"], ["Industrial Safety", "/services#safety"], ["Technical Competency", "/services#technical"], ["Industrial Consultancy", "/services#consultancy"], ["Workforce Development", "/services#workforce"]] },
   { label: "Industries", links: [["All Industries", "/industries"], ["Oil & Gas", "/industries/oil-gas"], ["Construction", "/industries/construction"], ["Manufacturing", "/industries/manufacturing"], ["Government & GLC", "/industries/government-glc"]] },
   { label: "Resources", links: [["Search", "/search"], ["Resources Centre", "/resources"], ["News & Insights", "/insights"], ["FAQ Centre", "/faq"], ["Gallery", "/gallery"]] },
-  { label: "Company", links: [["About TERAS", "/about"], ["Testimonials & Stories", "/stories"], ["Verify Certificate", "/verify"], ["Contact", "/contact"]] },
+  { label: "About TERAS", links: [["About TERAS", "/about"], ["Testimonials & Stories", "/stories"], ["Verify Certificate", "/verify"], ["Contact", "/contact"]] },
 ];
 
 // Marks the current page in the mega nav (feedback: "menu tak tunjukkan
@@ -42,7 +42,7 @@ export default function MegaNav() {
         );
       })}
       <a className="mega-nav-verify" href="/verify">Verify Certificate</a>
-      <a className="nav-proposal" href="/request-proposal">Request Proposal</a>
+      <a className="nav-proposal" href="/request-proposal?source=mega-nav-cta">Request Corporate Training</a>
       <a className="nav-cta" href="https://wa.me/60195193834" target="_blank" rel="noreferrer">WhatsApp</a>
     </nav>
   );

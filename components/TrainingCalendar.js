@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { enquiryHref } from "./public/PrimaryCtaGroup";
 
 // Data-driven training calendar. Sessions come from the live CMS
 // (course_schedules) via the parent server page — this component never
@@ -34,8 +35,8 @@ const seatsLabel = (session) => {
   return null;
 };
 
-const sessionUrl = (session) => (session.slug ? `/training/${session.slug}` : "/request-proposal");
-const sessionCta = (session) => (session.slug ? "View course" : "Enquire");
+const sessionUrl = (session) => (session.slug ? `/training/${session.slug}` : enquiryHref({ source: "calendar", session: session.start_date }));
+const sessionCta = (session) => (session.slug ? "View Course Details" : "Enquire About This Session");
 
 function isUpcoming(session) {
   return session.start_date >= todayString();
@@ -150,20 +151,21 @@ function WeekView({ sessions }) {
   );
 }
 
-export default function TrainingCalendar({ sessions = [] }) {
+export default function TrainingCalendar({ sessions = [], courseSlug }) {
   const [view, setView] = useState("List");
   const [filter, setFilter] = useState("Upcoming");
 
   const visibleSessions = useMemo(() => {
-    if (filter === "All") return sessions;
-    if (filter === "Completed") return sessions.filter((session) => !isUpcoming(session) || session.status === "completed");
-    return sessions.filter((session) => isUpcoming(session) && isLiveStatus(session));
-  }, [filter, sessions]);
+    const courseSessions = courseSlug ? sessions.filter((session) => session.slug === courseSlug) : sessions;
+    if (filter === "All") return courseSessions;
+    if (filter === "Completed") return courseSessions.filter((session) => !isUpcoming(session) || session.status === "completed");
+    return courseSessions.filter((session) => isUpcoming(session) && isLiveStatus(session));
+  }, [courseSlug, filter, sessions]);
 
   return (
     <section className="calendar-tool" aria-labelledby="calendar-title">
       <div className="calendar-toolbar">
-        <div><span className="eyebrow">Training Calendar</span><h2 id="calendar-title">Plan the right learning window.</h2><p>Browse scheduled public programmes and use the list as a starting point for corporate planning.</p></div>
+        <div><span className="eyebrow">Training Calendar</span><h2 id="calendar-title">Plan the right learning window.</h2><p>{courseSlug ? "Showing sessions for your selected course." : "Browse scheduled public programmes and use the list as a starting point for corporate planning."}</p></div>
         <div className="calendar-controls">
           <label><span className="sr-only">Session status</span><select value={filter} onChange={(event) => setFilter(event.target.value)}><option>Upcoming</option><option>Completed</option><option>All</option></select></label>
           <div className="calendar-view-tabs" role="group" aria-label="Calendar view">{["Month", "Week", "List"].map((item) => <button key={item} type="button" aria-pressed={view === item} className={view === item ? "active" : ""} onClick={() => setView(item)}>{item}</button>)}</div>

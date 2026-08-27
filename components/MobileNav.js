@@ -7,7 +7,6 @@ export default function MobileNav({ basePath = "" }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname() || "";
   const closeMenu = () => setOpen(false);
-  const link = (hash) => `${basePath}${hash}`;
 
   function handleKeyDown(event) {
     if (event.key === "Escape") {
@@ -28,33 +27,28 @@ export default function MobileNav({ basePath = "" }) {
   }
 
   const items = [
-    { label: "About", href: link("#about") },
-    { label: "Services", href: link("#services") },
-    { label: "Training", href: basePath ? `${basePath}training` : "#training" },
-    { label: "Industries", href: link("#industries") },
-    { label: "FAQ", href: link("#faq") },
-    { label: "Contact", href: link("#contact") },
-    { label: "WhatsApp", href: "https://wa.me/60195193834", external: true },
-    { label: "Request Proposal", href: basePath ? `${basePath}request-proposal` : "/request-proposal" },
-    { label: "Verify Certificate", href: basePath ? `${basePath}verify` : "/verify" },
-    { label: "Search", href: basePath ? `${basePath}search` : "/search" },
-    { label: "Resources", href: basePath ? `${basePath}resources` : "/resources" },
-    { label: "Training Calendar", href: basePath ? `${basePath}calendar` : "/calendar" },
-    { label: "News & Insights", href: basePath ? `${basePath}insights` : "/insights" },
-    { label: "FAQ Centre", href: basePath ? `${basePath}faq` : "/faq" },
-    { label: "Testimonials & Stories", href: basePath ? `${basePath}stories` : "/stories" },
+    { label: "Training", href: "/training" },
+    { label: "Corporate Training", href: "/request-proposal?source=mobile-nav" },
+    { label: "Industries", href: "/industries" },
+    { label: "About TERAS", href: "/about" },
+    { label: "Resources", href: "/resources" },
+    { label: "Contact", href: "/contact" },
+    { label: "Training Calendar", href: "/calendar" },
+    { label: "Verify Certificate", href: "/verify" },
+    { label: "Search", href: "/search" },
+    { label: "WhatsApp", href: "https://wa.me/60195193834?text=Hi%20TERAS%2C%20saya%20ingin%20bertanya%20tentang%20latihan.", external: true },
   ];
 
   return (
     <>
-      <button className={`menu-button ${open ? "is-open" : ""}`} type="button" aria-label={open ? "Close navigation menu" : "Open navigation menu"} aria-expanded={open} aria-controls="mobile-navigation" onClick={() => setOpen(!open)}><span /><span /><span /></button>
+      <button className={`menu-button ${open ? "is-open" : ""}`} type="button" aria-label={open ? "Close navigation menu" : "Open navigation menu"} aria-expanded={open} aria-controls="mobile-navigation" onClick={() => setOpen(!open)} onKeyDown={handleKeyDown}><span /><span /><span /></button>
       <div id="mobile-navigation" className={`mobile-menu ${open ? "open" : ""}`} role="navigation" aria-label="Mobile navigation" onKeyDown={handleKeyDown}>
         <div className="mobile-menu-heading"><span>TERAS UNIVERSAL</span><strong>Explore our services</strong></div>
         {items.map(({ label, href, external }) => {
           const active = isActive(href);
           return <a href={href} key={label} onClick={closeMenu} className={active ? "is-active" : undefined} aria-current={active ? "page" : undefined} {...(external ? { target: "_blank", rel: "noreferrer" } : {})}>{label}</a>;
         })}
-        <a className="mobile-menu-cta" href={basePath ? `${basePath}request-proposal` : "/request-proposal"} onClick={closeMenu}>Request Proposal</a>
+        <a className="mobile-menu-cta" href="/request-proposal?source=mobile-nav-cta" onClick={closeMenu}>Request Corporate Training</a>
       </div>
     </>
   );
