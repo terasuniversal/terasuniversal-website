@@ -409,6 +409,7 @@ function Get-ImplementationDelta {
         ".ai/PROJECT_STATUS.md",
         ".ai/task-state.json",
         ".ai/CODEX_IMPLEMENTATION_HANDOFF.md",
+        ".ai/CODEX_REPAIR_HANDOFF.md",
         ".ai/CODEX_REVIEW_HANDOFF.md",
         ".ai/CLAUDE_REVIEW_HANDOFF.md",
         ".ai/CLAUDE_HANDOFF.md",
@@ -419,6 +420,85 @@ function Get-ImplementationDelta {
     )
     $delta.TaskGenerated = @($delta.TaskGenerated | Where-Object { $_ -notin $orchestratorManaged })
     return $delta
+}
+
+function Invoke-ClaudeRepairLoop {
+    param($State, [string[]]$PreSnapshot, [string[]]$TaskGeneratedFiles)
+
+    $maximumAttempts = 2
+    $attempts = 0
+    if ($null -ne $State.RepairCyclesUsed) { $attempts = [int]$State.RepairCyclesUsed }
+    $currentFiles = @($TaskGeneratedFiles)
+
+    while ($true) {
+        $review = Invoke-ClaudeReadOnlyReview -State $State -TaskGeneratedFiles $currentFiles
+        if (-not $review.Succeeded) {
+            $State.State = "PENDING_CLAUDE_REVIEW"
+            Set-TaskStateProperty -State $State -Name "PendingAgentStep" -Value "CLAUDE_REVIEW"
+            Save-TaskState -State $State
+            Write-Host "Claude review paused: $($review.Error)"
+            Write-Host "Review will resume from the saved state; Codex will not be rerun."
+            return [pscustomobject]@{ Completed = $false; State = $State; Files = $currentFiles }
+        }
+
+        $State.ReviewVerdict = $review.Verdict
+        Save-TaskState -State $State
+        $decision = Get-ClaudeRepairDecision -Verdict $review.Verdict -AttemptsUsed $attempts -MaximumAttempts $maximumAttempts
+        if ($decision -eq "NO_REPAIR") {
+            return [pscustomobject]@{ Completed = $true; State = $State; Files = $currentFiles }
+        }
+        if ($decision -eq "NEEDS_HUMAN_REVIEW") {
+            $State.State = "BLOCKED"
+            Set-TaskStateProperty -State $State -Name "PendingAgentStep" -Value $null
+            Save-TaskState -State $State
+            Write-Host "NEEDS_HUMAN_REVIEW: Claude still returned CHANGES_REQUIRED after $maximumAttempts repair attempts."
+            return [pscustomobject]@{ Completed = $false; State = $State; Files = $currentFiles }
+        }
+        if ($decision -ne "REPAIR") {
+            $State.State = "PENDING_CLAUDE_REVIEW"
+            Set-TaskStateProperty -State $State -Name "PendingAgentStep" -Value "CLAUDE_REVIEW"
+            Save-TaskState -State $State
+            Write-Host "Claude review returned an unsupported result; review is checkpointed."
+            return [pscustomobject]@{ Completed = $false; State = $State; Files = $currentFiles }
+        }
+
+        $gate = Test-RepairMigrationGate -State $State
+        Set-TaskStateProperty -State $State -Name "MigrationRepairGate" -Value $gate.Mode
+        $attempts++
+        $State.RepairCyclesUsed = $attempts
+        $repairHandoff = New-CodexRepairHandoff -State $State -ClaudeFindings $review.Output -Attempt $attempts
+        Set-TaskStateProperty -State $State -Name "PendingRepairHandoff" -Value $repairHandoff
+        Set-TaskStateProperty -State $State -Name "PendingAgentStep" -Value "CODEX_REPAIR"
+        $State.State = "IMPLEMENTING_REPAIR"
+        Save-TaskState -State $State
+        Write-Host "Claude requested changes. Starting bounded Codex repair attempt $attempts of $maximumAttempts."
+        Write-Host "Repair safety gate: $($gate.Reason)"
+
+        $ran = Invoke-CodexImplementation -HandoffPath $repairHandoff
+        if (-not $ran) {
+            $State.State = "PENDING_CODEX_REPAIR"
+            Set-TaskStateProperty -State $State -Name "PendingAgentStep" -Value "CODEX_REPAIR"
+            Save-TaskState -State $State
+            Write-Host "Codex repair paused. Resume will retry only the pending Codex repair step."
+            return [pscustomobject]@{ Completed = $false; State = $State; Files = $currentFiles }
+        }
+
+        $afterRepair = Get-GitStatusSnapshot
+        $repairDelta = Get-ImplementationDelta -Before $PreSnapshot -After $afterRepair
+        $State.PreExistingFiles = $repairDelta.PreExisting
+        $currentFiles = @($repairDelta.TaskGenerated)
+        $scope = Test-ScopeViolation -TaskGeneratedFiles $currentFiles -AllowedFiles $State.AllowedFiles
+        $State.TaskGeneratedFiles = $currentFiles
+        $State.ScopeCheck = $scope.Status
+        Save-TaskState -State $State
+        if ($scope.Status -eq "FAIL") {
+            $State.State = "BLOCKED"
+            Set-TaskStateProperty -State $State -Name "PendingAgentStep" -Value $null
+            Save-TaskState -State $State
+            Write-Host "SCOPE VIOLATION DETECTED after Codex repair: $($scope.Unauthorized -join ', ')"
+            return [pscustomobject]@{ Completed = $false; State = $State; Files = $currentFiles }
+        }
+    }
 }
 
 function Invoke-PostImplementation {
@@ -446,22 +526,11 @@ function Invoke-PostImplementation {
         return $State
     }
 
-    $claudeReview = Invoke-ClaudeReadOnlyReview -State $State -TaskGeneratedFiles $delta.TaskGenerated
-    if (-not $claudeReview.Succeeded) {
-        $State.State = "BLOCKED"
-        Save-TaskState -State $State
-        Write-Host "Claude read-only review did not complete: $($claudeReview.Error)"
-        Write-Host "Review handoff retained at: $($claudeReview.HandoffPath)"
-        return $State
-    }
-
-    Write-Host "Claude review verdict: $($claudeReview.Verdict)"
-    if ($claudeReview.Verdict -eq "CHANGES_REQUIRED") {
-        $State.State = "BLOCKED"
-        Save-TaskState -State $State
-        Write-Host "Claude requested changes. Findings are retained in $($claudeReview.HandoffPath). Codex was not rerun."
-        return $State
-    }
+    $reviewLoop = Invoke-ClaudeRepairLoop -State $State -PreSnapshot $PreSnapshot -TaskGeneratedFiles $delta.TaskGenerated
+    $State = $reviewLoop.State
+    if (-not $reviewLoop.Completed) { return $State }
+    $delta.TaskGenerated = @($reviewLoop.Files)
+    $State.TaskGeneratedFiles = $delta.TaskGenerated
 
     $State.State = "QA"
     Save-TaskState -State $State
@@ -855,6 +924,35 @@ function Invoke-Resume {
     Write-Host ""
     Write-Host "Resuming task $($state.TaskId) from state $($state.State)."
     Write-Host ""
+
+    if ($state.State -eq "PENDING_CLAUDE_REVIEW") {
+        $pendingSnapshot = @($state.PreImplementationSnapshot | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
+        Invoke-PostImplementation -State $state -PreSnapshot $pendingSnapshot | Out-Null
+        return
+    }
+
+    if ($state.State -eq "PENDING_CODEX_REPAIR") {
+        $repairPath = [string]$state.PendingRepairHandoff
+        if ([string]::IsNullOrWhiteSpace($repairPath) -or -not (Test-Path -LiteralPath $repairPath)) {
+            $state.State = "BLOCKED"
+            Save-TaskState -State $state
+            Write-Host "NEEDS_HUMAN_REVIEW: pending Codex repair handoff is unavailable."
+            return
+        }
+        $state.State = "IMPLEMENTING_REPAIR"
+        Save-TaskState -State $state
+        $repairRan = Invoke-CodexImplementation -HandoffPath $repairPath
+        if (-not $repairRan) {
+            $state.State = "PENDING_CODEX_REPAIR"
+            Set-TaskStateProperty -State $state -Name "PendingAgentStep" -Value "CODEX_REPAIR"
+            Save-TaskState -State $state
+            Write-Host "Codex repair remains pending; no other agent was invoked."
+            return
+        }
+        $pendingSnapshot = @($state.PreImplementationSnapshot | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
+        Invoke-PostImplementation -State $state -PreSnapshot $pendingSnapshot | Out-Null
+        return
+    }
 
     if ($state.State -in @("APPROVED", "COMMIT_READY", "COMPLETE", "BLOCKED")) {
         Show-Status
