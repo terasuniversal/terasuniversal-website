@@ -19,7 +19,7 @@
  * component the real CRM actually renders — can import from this file alone.
  */
 
-export type SalesLeadSourceKind = "enquiry" | "proposal_request";
+export type SalesLeadSourceKind = "enquiry" | "proposal_request" | "marketing_contact";
 
 /** Same four values/labels as the demo module's FollowUpState — moved here, not duplicated with different meaning. */
 export type FollowUpState = "overdue" | "today" | "upcoming" | "none";
@@ -190,6 +190,7 @@ export const CRM_ACTIVITY_LABELS: Record<SalesCrmActivityType, string> = {
 export const SOURCE_LABELS: Record<SalesLeadSourceKind, string> = {
   enquiry: "Contact Enquiry",
   proposal_request: "Proposal Request",
+  marketing_contact: "Marketing Contact",
 };
 
 /* ------------------------------------------------------------------ */

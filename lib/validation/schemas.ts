@@ -452,25 +452,6 @@ export const salesLeadFollowUpSchema = z.object({
 });
 export type SalesLeadFollowUpInput = z.infer<typeof salesLeadFollowUpSchema>;
 
-export const marketingCampaignSchema = z.object({
-  name: z.string().trim().min(2, "Campaign name is required").max(160),
-  channel: z.enum(["meta_ads", "facebook_organic", "instagram", "tiktok", "google", "whatsapp", "email", "website", "event", "referral", "other"]),
-  status: z.enum(["draft", "active", "completed", "archived"]),
-  objective: z.string().trim().max(500).optional().or(z.literal("")),
-  budget: z.coerce.number().min(0).optional().nullable(),
-  start_date: z.string().trim().optional().or(z.literal("")),
-  end_date: z.string().trim().optional().or(z.literal("")),
-  notes: z.string().trim().max(3000).optional().or(z.literal("")),
-});
-export type MarketingCampaignInput = z.infer<typeof marketingCampaignSchema>;
-
-export const leadAttributionSchema = z.object({
-  source: z.enum(["facebook", "tiktok", "whatsapp", "website", "referral", "other"]),
-  campaign_id: z.string().uuid().optional().or(z.literal("")),
-  notes: z.string().trim().max(1000).optional().or(z.literal("")),
-});
-export type LeadAttributionInput = z.infer<typeof leadAttributionSchema>;
-
 /**
  * Sales CRM Phase 2 — sales_opportunities / sales_quotations / sales_quotation_items mutations.
  */
@@ -585,6 +566,64 @@ export const salesTaskSchema = z.object({
   quotation_id: z.string().uuid().optional().or(z.literal("")),
 });
 export type SalesTaskInput = z.infer<typeof salesTaskSchema>;
+
+// Marketing CRM catalog values mirror the checks in the corresponding
+// migrations. Keep these arrays as the single source for filter/form options.
+export const MARKETING_CAMPAIGN_CHANNELS = [
+  "meta_ads", "facebook_organic", "instagram", "tiktok", "google",
+  "whatsapp", "email", "website", "event", "referral", "other",
+] as const;
+export const MARKETING_CAMPAIGN_STATUSES = ["draft", "active", "completed", "archived"] as const;
+export const MARKETING_CONTACT_STATUSES = ["new", "nurturing", "sales_ready", "promoted", "archived"] as const;
+export const MARKETING_CONTACT_SOURCES = ["manual", "newsletter", "event", "referral", "import", "website", "other"] as const;
+export const MARKETING_CONTACT_CONSENT_STATUSES = ["not_set", "opted_in", "opted_out"] as const;
+
+export const marketingCampaignSchema = z.object({
+  name: z.string().trim().min(1).max(160),
+  channel: z.enum(MARKETING_CAMPAIGN_CHANNELS),
+  status: z.enum(MARKETING_CAMPAIGN_STATUSES).default("draft"),
+  start_date: z.string().trim().optional().or(z.literal("")),
+  end_date: z.string().trim().optional().or(z.literal("")),
+  budget: z.coerce.number().nonnegative().nullable(),
+  actual_spend: z.coerce.number().nonnegative().nullable(),
+  owner_id: z.string().uuid().optional().or(z.literal("")),
+  course_id: z.string().uuid().optional().or(z.literal("")),
+  utm_campaign: z.string().trim().max(160).optional().or(z.literal("")),
+  notes: z.string().trim().max(4000).optional().or(z.literal("")),
+}).superRefine((value, ctx) => {
+  if (value.start_date && value.end_date && value.end_date < value.start_date) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["end_date"], message: "End date must be on or after the start date" });
+  }
+});
+
+export const leadAttributionSchema = z.object({
+  source: z.enum(["facebook", "tiktok", "whatsapp", "website", "referral", "other"]),
+  campaign_id: z.string().uuid().optional().or(z.literal("")),
+  notes: z.string().trim().max(1000).optional().or(z.literal("")),
+});
+export type LeadAttributionInput = z.infer<typeof leadAttributionSchema>;
+
+export const marketingContactSchema = z.object({
+  full_name: z.string().trim().max(160).optional().or(z.literal("")),
+  email: z.string().trim().email().max(254).optional().or(z.literal("")),
+  phone: z.string().trim().max(40).optional().or(z.literal("")),
+  company: z.string().trim().max(160).optional().or(z.literal("")),
+  source: z.enum(MARKETING_CONTACT_SOURCES),
+  source_campaign_id: z.string().uuid().optional().or(z.literal("")),
+  owner_id: z.string().uuid().optional().or(z.literal("")),
+  next_follow_up_at: z.string().trim().optional().or(z.literal("")),
+  consent_status: z.enum(MARKETING_CONTACT_CONSENT_STATUSES).default("not_set"),
+  consent_source: z.string().trim().max(160).optional().or(z.literal("")),
+  consented_at: z.string().trim().optional().or(z.literal("")),
+}).refine((value) => Boolean(value.email || value.phone), { message: "Email or phone is required", path: ["email"] });
+
+export const marketingContactConsentSchema = z.object({
+  consent_status: z.enum(MARKETING_CONTACT_CONSENT_STATUSES),
+  consent_source: z.string().trim().max(160).optional().or(z.literal("")),
+});
+export const marketingContactNoteSchema = z.object({
+  note: z.string().trim().min(1).max(3000),
+});
 
 // ===== Participant Feedback (Phase 1) =================================
 

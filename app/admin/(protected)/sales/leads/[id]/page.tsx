@@ -12,6 +12,7 @@ import { formatMalaysiaDateTime } from "../../../../../../lib/date-time";
 import { checkLeadRegistrationEligibility } from "../registration-schedules";
 import { setLeadAttribution } from "../actions";
 import { LEAD_ATTRIBUTION_SOURCE_LABELS, LEAD_ATTRIBUTION_SOURCES, type LeadAttributionRow } from "../../../../../../lib/marketing/crm";
+import type { MarketingContact } from "../../../../../../lib/supabase/database.types";
 
 export const metadata = { title: "Lead Detail — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
@@ -24,6 +25,22 @@ interface ProposalSource {
   company_name: string; contact_person: string; job_title: string | null; email: string; phone: string;
   industry: string; category: string; programme: string | null; participants: number | null;
   location: string | null; preferred_month: string | null; budget: string | null; objectives: string; notes: string | null; created_at: string;
+}
+
+function MarketingContactSourceDetail({ source }: { source: MarketingContact }) {
+  return (
+    <Card title="Original submission">
+      <div className="ta-card-pad">
+        <dl className="ta-kv">
+          <Detail label="Contact number" value={source.contact_number} />
+          <Detail label="Source" value={source.source.replace(/_/g, " ")} />
+          <Detail label="Lifecycle status" value={source.status.replace(/_/g, " ")} />
+          <Detail label="Consent" value={source.consent_status.replace(/_/g, " ")} />
+          <Detail label="Created" value={formatMalaysiaDateTime(source.created_at)} />
+        </dl>
+      </div>
+    </Card>
+  );
 }
 
 function Detail({ label, value }: { label: string; value: any }) {
@@ -48,8 +65,17 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
   if (!lead) notFound();
   const row = lead as SalesLeadInboxRow;
 
-  const sourceTable = row.lead_source === "enquiry" ? "enquiries" : "proposal_requests";
-  const { data: source } = await supabase.from(sourceTable).select("*").eq("id", row.source_id).maybeSingle();
+  let source: EnquirySource | ProposalSource | MarketingContact | null = null;
+  if (row.lead_source === "enquiry") {
+    const { data } = await supabase.from("enquiries").select("*").eq("id", row.source_id).maybeSingle();
+    source = data as EnquirySource | null;
+  } else if (row.lead_source === "proposal_request") {
+    const { data } = await supabase.from("proposal_requests").select("*").eq("id", row.source_id).maybeSingle();
+    source = data as ProposalSource | null;
+  } else if (row.lead_source === "marketing_contact") {
+    const { data } = await supabase.from("marketing_contacts").select("*").eq("id", row.source_id).maybeSingle();
+    source = data as MarketingContact | null;
+  }
 
   const { data: activityRows } = await supabase
     .from("sales_activity")
@@ -145,6 +171,8 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
             <EnquiryDetail source={source as EnquirySource} />
           ) : row.lead_source === "proposal_request" && source ? (
             <ProposalDetail source={source as ProposalSource} />
+          ) : row.lead_source === "marketing_contact" && source ? (
+            <MarketingContactSourceDetail source={source as MarketingContact} />
           ) : (
             <Card title="Original submission">
               <EmptyState message="The original submission record could not be found — it may have been removed." />

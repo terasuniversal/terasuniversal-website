@@ -74,7 +74,12 @@ export const NAV: NavGroup[] = [
   {
     label: "Marketing",
     items: [
+      { key: "marketing", label: "Marketing Dashboard", href: "/admin/marketing", icon: "campaigns", minRole: "editor" },
       { key: "marketing_campaigns", label: "Campaigns", href: "/admin/marketing/campaigns", icon: "campaigns", minRole: "editor" },
+      // Phase 1B-B -- Contacts. Reports/Attribution/Meta Ads are not live
+      // yet (their module keys don't exist in staff_module_catalog), so
+      // they are deliberately not listed here.
+      { key: "marketing_contacts", label: "Contacts", href: "/admin/marketing/contacts", icon: "contacts", minRole: "editor" },
     ],
   },
   {
