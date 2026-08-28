@@ -72,6 +72,7 @@ export default async function SalesLeadsPage({
           <option value="">All sources</option>
           <option value="enquiry">{SOURCE_LABELS.enquiry}</option>
           <option value="proposal_request">{SOURCE_LABELS.proposal_request}</option>
+          <option value="marketing_contact">{SOURCE_LABELS.marketing_contact}</option>
         </select>
         <select name="assigned" defaultValue={sp.assigned ?? ""} className="ta-filter-select" style={{ maxWidth: 180 }} aria-label="Assigned to filter">
           <option value="">Anyone</option>
