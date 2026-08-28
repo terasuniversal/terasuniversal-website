@@ -165,6 +165,17 @@ export interface ProposalRequest {
   deleted_at: string | null;
 }
 
+export interface MarketingCampaign {
+  id: string; campaign_number: string; name: string; channel: "meta_ads" | "facebook_organic" | "instagram" | "tiktok" | "google" | "whatsapp" | "email" | "website" | "event" | "referral" | "other";
+  status: "draft" | "active" | "completed" | "archived"; objective: string | null; budget: number | null;
+  start_date: string | null; end_date: string | null; notes: string | null; course_id: string | null; owner_id: string | null; created_by: string | null; updated_by: string | null;
+  created_at: string; updated_at: string;
+}
+export interface LeadAttribution {
+  id: string; lead_metadata_id: string; source: "facebook" | "tiktok" | "whatsapp" | "website" | "referral" | "other"; campaign_id: string | null;
+  notes: string | null; created_at: string; updated_at: string;
+}
+
 export interface ParticipantSkillResult {
   id: string;
   schedule_id: string;
@@ -211,6 +222,8 @@ export interface Database {
         Update: Partial<ProposalRequest>;
         Relationships: [];
       };
+      marketing_campaigns: { Row: MarketingCampaign; Insert: Partial<MarketingCampaign>; Update: Partial<MarketingCampaign>; Relationships: [] };
+      sales_lead_attributions: { Row: LeadAttribution; Insert: Partial<LeadAttribution>; Update: Partial<LeadAttribution>; Relationships: [] };
       participant_skill_results: {
         Row: ParticipantSkillResult;
         Insert: Partial<ParticipantSkillResult>;

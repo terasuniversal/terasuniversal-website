@@ -10,6 +10,8 @@ import { LeadActionsPanel } from "./LeadActionsPanel";
 import { LeadActivityTimeline } from "./LeadActivityTimeline";
 import { formatMalaysiaDateTime } from "../../../../../../lib/date-time";
 import { checkLeadRegistrationEligibility } from "../registration-schedules";
+import { setLeadAttribution } from "../actions";
+import { LEAD_ATTRIBUTION_SOURCE_LABELS, LEAD_ATTRIBUTION_SOURCES, type LeadAttributionRow } from "../../../../../../lib/marketing/crm";
 
 export const metadata = { title: "Lead Detail — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
@@ -33,12 +35,13 @@ function Detail({ label, value }: { label: string; value: any }) {
   );
 }
 
-export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function LeadDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ attributionError?: string; attributionSaved?: string }> }) {
   const profile =   await requireRole("editor");
   await requireModuleAccess("sales_leads");
   const canManage = isAdmin(profile.role);
   const superAdmin = isSuperAdmin(profile.role);
   const { id } = await params;
+  const sp = await searchParams;
   const supabase = await createSupabaseServerClient();
 
   const { data: lead } = await supabase.from("v_sales_lead_inbox").select("*").eq("lead_metadata_id", id).maybeSingle();
@@ -53,6 +56,11 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
     .select("*")
     .eq("lead_metadata_id", id)
     .order("created_at", { ascending: true });
+
+  const { data: attributionData, error: attributionError } = await supabase.from("sales_lead_attributions").select("*, marketing_campaigns(name)").eq("lead_metadata_id", id).maybeSingle();
+  const attribution = attributionData as (LeadAttributionRow & { marketing_campaigns?: { name: string } | null }) | null;
+  const { data: campaignRows, error: campaignsError } = await supabase.from("marketing_campaigns").select("id, name, status").neq("status", "archived").order("name");
+  const campaignOptions = (campaignRows ?? []) as { id: string; name: string; status: string }[];
 
   const { data: staffRows } = await supabase.from("profiles").select("id, full_name").eq("is_active", true).order("full_name");
   const staff = (staffRows ?? []) as { id: string; full_name: string }[];
@@ -117,6 +125,20 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
                 <Detail label="Phone" value={row.phone} />
               </dl>
             </div>
+          </Card>
+
+          <Card title="Marketing attribution">
+            {(attributionError || campaignsError) && <div className="ta-alert ta-alert-error">Unable to load marketing attribution options. Please try again.</div>}
+            {sp.attributionError && <div className="ta-alert ta-alert-error" role="alert">{sp.attributionError}</div>}
+            {sp.attributionSaved && <div className="ta-alert ta-alert-success" role="status">Marketing attribution saved.</div>}
+            <form action={setLeadAttribution.bind(null, id)} className="ta-form-pad">
+              <div className="ta-field-row">
+                <label className="ta-field">Source<select name="source" defaultValue={attribution?.source ?? "website"}>{LEAD_ATTRIBUTION_SOURCES.map((source) => <option key={source} value={source}>{LEAD_ATTRIBUTION_SOURCE_LABELS[source]}</option>)}</select></label>
+                <label className="ta-field">Campaign<select name="campaign_id" defaultValue={attribution?.campaign_id ?? ""}><option value="">No campaign</option>{campaignOptions.map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}</select></label>
+              </div>
+              <label className="ta-field">Notes<textarea name="notes" rows={2} defaultValue={attribution?.notes ?? ""} /></label>
+              <div><button type="submit" className="ta-btn ta-btn-outline ta-btn-sm">Save attribution</button>{attribution?.marketing_campaigns?.name && <span className="ta-muted-sub" style={{ marginLeft: 10 }}>Currently linked to {attribution.marketing_campaigns.name}</span>}</div>
+            </form>
           </Card>
 
           {row.lead_source === "enquiry" && source ? (

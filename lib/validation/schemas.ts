@@ -452,6 +452,25 @@ export const salesLeadFollowUpSchema = z.object({
 });
 export type SalesLeadFollowUpInput = z.infer<typeof salesLeadFollowUpSchema>;
 
+export const marketingCampaignSchema = z.object({
+  name: z.string().trim().min(2, "Campaign name is required").max(160),
+  channel: z.enum(["meta_ads", "facebook_organic", "instagram", "tiktok", "google", "whatsapp", "email", "website", "event", "referral", "other"]),
+  status: z.enum(["draft", "active", "completed", "archived"]),
+  objective: z.string().trim().max(500).optional().or(z.literal("")),
+  budget: z.coerce.number().min(0).optional().nullable(),
+  start_date: z.string().trim().optional().or(z.literal("")),
+  end_date: z.string().trim().optional().or(z.literal("")),
+  notes: z.string().trim().max(3000).optional().or(z.literal("")),
+});
+export type MarketingCampaignInput = z.infer<typeof marketingCampaignSchema>;
+
+export const leadAttributionSchema = z.object({
+  source: z.enum(["facebook", "tiktok", "whatsapp", "website", "referral", "other"]),
+  campaign_id: z.string().uuid().optional().or(z.literal("")),
+  notes: z.string().trim().max(1000).optional().or(z.literal("")),
+});
+export type LeadAttributionInput = z.infer<typeof leadAttributionSchema>;
+
 /**
  * Sales CRM Phase 2 — sales_opportunities / sales_quotations / sales_quotation_items mutations.
  */
