@@ -21,6 +21,7 @@ function readForm(formData: FormData) {
     name: v("name"),
     channel: v("channel"),
     status: v("status") || "draft",
+    objective: v("objective"),
     start_date: v("start_date"),
     end_date: v("end_date"),
     budget: formData.get("budget") ? Number(formData.get("budget")) : null,
@@ -50,6 +51,7 @@ export async function createCampaign(_prev: CampaignFormState, formData: FormDat
       name: parsed.data.name,
       channel: parsed.data.channel,
       status: parsed.data.status,
+      objective: parsed.data.objective || null,
       start_date: parsed.data.start_date || null,
       end_date: parsed.data.end_date || null,
       budget: parsed.data.budget ?? null,
@@ -92,6 +94,7 @@ export async function updateCampaign(id: string, _prev: CampaignFormState, formD
     .update({
       name: parsed.data.name,
       channel: parsed.data.channel,
+      objective: parsed.data.objective || null,
       start_date: parsed.data.start_date || null,
       end_date: parsed.data.end_date || null,
       budget: parsed.data.budget ?? null,

@@ -208,6 +208,7 @@ export interface MarketingCampaign {
   name: string;
   channel: MarketingCampaignChannel;
   status: MarketingCampaignStatus;
+  objective: string | null;
   start_date: string | null;
   end_date: string | null;
   budget: number | null;

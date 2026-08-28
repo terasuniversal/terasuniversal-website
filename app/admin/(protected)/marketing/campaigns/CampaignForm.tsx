@@ -65,6 +65,10 @@ export function CampaignForm({
         </Field>
       </div>
 
+      <Field label="Objective" name="objective" error={e.objective} hint="What this campaign is intended to achieve">
+        <Textarea id="objective" name="objective" rows={3} maxLength={1000} defaultValue={campaign?.objective ?? ""} />
+      </Field>
+
       <div className="ta-field-row">
         <Field label="Budget (RM)" name="budget" error={e.budget}>
           <Input id="budget" name="budget" type="number" min={0} step="0.01" defaultValue={campaign?.budget ?? ""} />

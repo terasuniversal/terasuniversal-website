@@ -582,6 +582,7 @@ export const marketingCampaignSchema = z.object({
   name: z.string().trim().min(1).max(160),
   channel: z.enum(MARKETING_CAMPAIGN_CHANNELS),
   status: z.enum(MARKETING_CAMPAIGN_STATUSES).default("draft"),
+  objective: z.string().trim().max(1000).optional().or(z.literal("")),
   start_date: z.string().trim().optional().or(z.literal("")),
   end_date: z.string().trim().optional().or(z.literal("")),
   budget: z.coerce.number().nonnegative().nullable(),
