@@ -1,86 +1,81 @@
-﻿# CURRENT_TASK
+# CURRENT_TASK
 
 > This file is regenerated from `.ai/task-state.json` by `tools/agent-router.ps1` - never hand-edit one without the other going stale.
 
-Task ID: TERAS-20260813-200548
-Created At: 2026-08-13 20:05:48
-Category: Attendance / UI / Print
-Risk: LOW
-Description: Fix mobile alignment and spacing on the existing attendance print page only. The existing implementation is in app/admin/(protected)/attendance/[scheduleId]/print/page.tsx and app/admin/(protected)/attendance/[scheduleId]/print/PrintButton.tsx. Modify only these existing files if necessary. Do not create new HTML pages or replacement print implementations. Preserve attendance data loading, attendance business rules, participant signatures, trainer signature, session grouping, and print behavior. UI/layout/responsive changes only.
+Task ID: TERAS-20260828-152855
+Created At: 2026-08-28 15:28:55
+Category: Database / Supabase
+Risk: HIGH
+Description: Final Marketing CRM migration safety review. The implementation is already present. Do not modify application code. Review this exact approved file only: supabase/migrations/20260828103000_marketing_campaigns_attribution_v2.sql. It is a new additive migration for the existing marketing_campaigns table and sales_lead_attributions. Preserve Sales -> Leads ownership. HIGH-RISK / EDIT_ONLY_NO_APPLY. Do not apply migration, commit, push, merge, deploy, or modify unrelated files.
 
 State: BLOCKED
 Human Decision: PENDING
 Repair Cycles Used: 0 / 1
 
 Implementer: Claude Code
-Implementer Model: CLAUDE_FAST
-Original Implementer: DeepSeek
-Current Implementer: Claude Code
-Fallback Implementer: Claude Code
-Fallback Model: CLAUDE_FAST
-Fallback Type: STALE_AGENT_RESULT
-Fallback Reason: STALE_AGENT_RESULT - the existing DeepSeek report no longer reflects the current attempt (Task ID or source-context fingerprint mismatch - see Test-DeepSeekReportStale). Its findings are preserved below for reference but its Escalation Required/Reason are NOT treated as current.
+Implementer Model: CLAUDE_DEEP
 
-Reviewer: None
-Reviewer Model: None
+Reviewer: Codex
+Reviewer Model: CODEX_REVIEW
 
 Reason for Model Selection:
-Explicit attendance-module signal takes precedence over generic visual keyword matching - routed as an Attendance UI change, not Certificate / Visual. DeepSeek is the preferred owner for routine UI/print work.
+Touches migrations, RLS/policies, database functions/RPCs, schema, constraints, indexes, or auth - a DeepSeek-blocked area (AGENTS.md); Claude DEEP + mandatory Codex review.
 
 ## Approved Scope
 
 Scope Source: EXPLICIT_TASK_PATHS
 
 Allowed Files:
-- app/admin/(protected)/attendance/[scheduleId]/print/page.tsx
-- app/admin/(protected)/attendance/[scheduleId]/print/PrintButton.tsx
+- supabase/migrations/20260828103000_marketing_campaigns_attribution_v2.sql
 
 Blocked Files:
 - (fill in before implementation begins)
 
-Scope Check: FAIL
+Scope Check: PASS
 
 ## Changed Files
 
 Pre-existing changes (excluded from this task):
-- .gitignore
-- app/admin/(protected)/participants/import/ImportClient.tsx
-- app/admin/(protected)/participants/import/importActions.ts
-- app/admin/admin.css
-- components/admin/ProfessionalScaffoldCertificateDocument.tsx
-- lib/admin-nav.ts
-- lib/auth/rbac.ts
-- lib/professional-scaffold-certificate-html.ts
+- app/admin/(protected)/sales/leads/[id]/page.tsx
+- app/admin/(protected)/sales/leads/actions.ts
+- lib/sales/crm.ts
+- lib/supabase/database.types.ts
 - lib/validation/schemas.ts
-- public/downloads/TERAS-UNIVERSAL-Company-Profile.pdf
-- .ai/
-- COURSE_DATA_CLEANUP_PLAN.md
-- POST_PUSH_PRODUCTION_VERIFY.md
-- PRODUCTION_SMOKE_TEST.md
-- app/admin/(protected)/sales/
-- ceo-dashboard-audit/
-- components/admin/sales/
-- docs/reference/
-- lib/sales/
-- public/certificates/template-a/teras-symbol-v1.png
-- supabase/migrations/20260812120000_standard_scaffold_certificate_template.sql
-- supabase/seed.sql
-- tools/
+- .ai/CLAUDE_HANDOFF.md
+- .ai/CODEX_IMPLEMENTATION_HANDOFF.md
+- .ai/CODEX_REPAIR_HANDOFF.md
+- .ai/DATABASE_HANDOFF.md
+- .ai/DATABASE_REPORT.md
+- .ai/FINAL_REPORT.md
+- .ai/validation/
+- app/admin/(protected)/marketing/
+- lib/marketing/
+- tools/agent-router.ps1
+- tools/approval-runner.ps1
+- tools/db-runner.ps1
+- tools/deepseek-runner.ps1
+- tools/pr-runner.ps1
+- tools/preview-runner.ps1
+- tools/push-runner.ps1
+- tools/qa-runner.ps1
+- tools/release-runner.ps1
+- tools/review-runner.ps1
+- tools/validate-runner.ps1
+- work/repair-loop-real-test.json
 
 Task-generated changes:
-- app/globals.css
-- supabase/.temp/
+- supabase/migrations/20260828103000_marketing_campaigns_attribution_v2.sql
 
 ## QA
 
-Git Diff Check   : SKIPPED - Not run yet.
-TypeScript       : SKIPPED - Not run yet.
-Targeted Tests   : SKIPPED - Not run yet.
-Production Build : SKIPPED - Not run yet.
+Git Diff Check   : PASS - No whitespace/conflict-marker issues.
+TypeScript       : SKIPPED - No .ts/.tsx files changed.
+Targeted Tests   : SKIPPED - No test script configured in package.json for this area.
+Production Build : FAIL -    Creating an optimized production build ... |  ✓ Compiled successfully in 9.7s |    Linting and checking validity of types ... |    Collecting page data ... |    Generating static pages (0/82) ... | Error occurred prerendering page "/". Read more: https://nextjs.org/docs/messages/prerender-error | Error: Supabase environment variables are not configured. |     at f (D:\Projects\terasuniversal-website-clean-repair-loop\.next\server\app\page.js:1:449) |     at j.tags (D:\Projects\terasuniversal-website-clean-repair-loop\.next\server\app\page.js:1:1761) |     at <unknown> (D:\Projects\terasuniversal-website-clean-repair-loop\.next\server\chunks\6780.js:1:10336) |     at async B (D:\Projects\terasuniversal-website-clean-repair-loop\.next\server\app\page.js:2:21293) { |   digest: '3338936453' | } | Export encountered an error on /page: /, exiting the build. |  ⨯ Next.js build worker exited with code: 1 and signal: null
 
 ## Independent Review
 
-Review Verdict: NOT_REQUIRED
+Review Verdict: PASS_WITH_NOTES
 
 ## Push / Preview (Phase 4)
 
@@ -105,8 +100,8 @@ Production Verification: NOT_STARTED
 
 ## Database Safety (Phase 7)
 
-Database Task: NO
-Database State: DB_NOT_REQUIRED
+Database Task: YES
+Database State: DB_PREPARING
 Database Risk: (not yet classified)
 Migration File: (none)
 Static Validation: NOT_RUN
@@ -126,7 +121,7 @@ Commit Allowed: NO
 Push Allowed: NO
 Deploy Allowed: NO
 
-Human Approval: NOT REQUIRED
+Human Approval: REQUIRED
 
 ## Required Verification
 
@@ -137,3 +132,5 @@ Human Approval: NOT REQUIRED
 - [ ] Targeted tests, if any exist for this area
 - [ ] git diff --check
 - [ ] npm run build (final step only, once)
+- [ ] Codex independent review (REQUIRED for HIGH risk)
+- [ ] Human approval before commit/push/deploy/migration
