@@ -10,12 +10,12 @@
 -- widened in Phase 1B-C), no newsletter/Attribution work.
 --
 -- Ordering / dependency: this migration is timestamped to run AFTER
--- 20260828110000_reconcile_sales_is_test_classification.sql, which is
+-- 20260817004000_sales_test_demo_classification.sql, which is
 -- REQUIRED — see that file's header. This view's rebuild below now
 -- selects m.is_test (at production's confirmed live position, between
 -- won_at and created_at -- see the "is_test" note further down), and
 -- that column only exists on every environment (staging included) once
--- the reconcile migration has run first. Do not reorder these two files.
+-- that migration has run first. Do not reorder this dependency.
 --
 -- ---------------------------------------------------------------------
 -- Part 1 -- v_sales_lead_inbox compatibility (mandatory STOP-gate audit

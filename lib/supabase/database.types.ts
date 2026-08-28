@@ -274,6 +274,24 @@ export interface Database {
         Update: Partial<ProposalRequest>;
         Relationships: [];
       };
+      marketing_campaigns: {
+        Row: MarketingCampaign;
+        Insert: Partial<MarketingCampaign>;
+        Update: Partial<MarketingCampaign>;
+        Relationships: [];
+      };
+      marketing_contacts: {
+        Row: MarketingContact;
+        Insert: Partial<MarketingContact>;
+        Update: Partial<MarketingContact>;
+        Relationships: [];
+      };
+      marketing_contact_events: {
+        Row: MarketingContactEvent;
+        Insert: Partial<MarketingContactEvent>;
+        Update: Partial<MarketingContactEvent>;
+        Relationships: [];
+      };
       participant_skill_results: {
         Row: ParticipantSkillResult;
         Insert: Partial<ParticipantSkillResult>;
