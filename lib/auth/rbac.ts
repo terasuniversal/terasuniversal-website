@@ -93,6 +93,18 @@ export const MODULE_CATALOG: ModuleDefinition[] = [
   ["sales_followups", "Follow-ups", "Sales", "editor"],
   ["sales_tasks", "Tasks", "Sales", "editor"],
   ["sales_reports", "Sales Reports", "Sales", "editor"],
+  // Marketing CRM Phase 1A -- mirrors public.staff_module_catalog rows
+  // added by supabase/migrations/20260827090000_create_marketing_campaigns_v1.sql.
+  // marketing_reports is added in its own later phase migration (1D), not
+  // here -- same one-key-per-shipped-feature discipline the Sales block
+  // above already follows.
+  ["marketing", "Marketing Dashboard", "Marketing", "editor"],
+  ["marketing_campaigns", "Campaigns", "Marketing", "editor"],
+  // Marketing CRM Phase 1B-A -- mirrors public.staff_module_catalog row
+  // added by supabase/migrations/20260828090000_create_marketing_contacts_v1.sql.
+  // Not applied to any database yet (schema-preparation only) -- this
+  // entry is inert client-side until the migration is actually applied.
+  ["marketing_contacts", "Marketing Contacts", "Marketing", "editor"],
   ["news", "News", "Website Content", "editor"],
   ["gallery", "Gallery", "Website Content", "editor"],
   ["faq", "FAQ", "Website Content", "editor"],

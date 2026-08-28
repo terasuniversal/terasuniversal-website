@@ -71,6 +71,14 @@ export type CertificateSkillArea =
   | "practical_assessment"
   | "attendance_requirement";
 export type CertificateSkillStatus = "not_recorded" | "completed" | "passed" | "failed" | "met" | "not_met";
+export type MarketingCampaignChannel =
+  | "meta_ads" | "facebook_organic" | "instagram" | "tiktok" | "google"
+  | "whatsapp" | "email" | "website" | "event" | "referral" | "other";
+export type MarketingCampaignStatus = "draft" | "active" | "completed" | "archived";
+export type MarketingContactStatus = "new" | "nurturing" | "sales_ready" | "promoted" | "archived";
+export type MarketingContactSource = "manual" | "newsletter" | "event" | "referral" | "import" | "website" | "other";
+export type MarketingContactConsentStatus = "not_set" | "opted_in" | "opted_out";
+export type MarketingContactEventType = "created" | "status_changed" | "note_added" | "campaign_linked" | "consent_changed" | "unsubscribed" | "promoted_to_sales";
 
 export interface Profile {
   id: string;
@@ -165,17 +173,6 @@ export interface ProposalRequest {
   deleted_at: string | null;
 }
 
-export interface MarketingCampaign {
-  id: string; campaign_number: string; name: string; channel: "meta_ads" | "facebook_organic" | "instagram" | "tiktok" | "google" | "whatsapp" | "email" | "website" | "event" | "referral" | "other";
-  status: "draft" | "active" | "completed" | "archived"; objective: string | null; budget: number | null;
-  start_date: string | null; end_date: string | null; notes: string | null; course_id: string | null; owner_id: string | null; created_by: string | null; updated_by: string | null;
-  created_at: string; updated_at: string;
-}
-export interface LeadAttribution {
-  id: string; lead_metadata_id: string; source: "facebook" | "tiktok" | "whatsapp" | "website" | "referral" | "other"; campaign_id: string | null;
-  notes: string | null; created_at: string; updated_at: string;
-}
-
 export interface ParticipantSkillResult {
   id: string;
   schedule_id: string;
@@ -205,6 +202,61 @@ export interface CertificateSkillResult {
   created_at: string;
 }
 
+export interface MarketingCampaign {
+  id: string;
+  campaign_number: string;
+  name: string;
+  channel: MarketingCampaignChannel;
+  status: MarketingCampaignStatus;
+  start_date: string | null;
+  end_date: string | null;
+  budget: number | null;
+  actual_spend: number | null;
+  owner_id: string | null;
+  course_id: string | null;
+  utm_campaign: string | null;
+  notes: string | null;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MarketingContact {
+  id: string;
+  contact_number: string;
+  full_name: string | null;
+  email: string | null;
+  phone: string | null;
+  company: string | null;
+  status: MarketingContactStatus;
+  source: MarketingContactSource;
+  source_campaign_id: string | null;
+  consent_status: MarketingContactConsentStatus;
+  consent_source: string | null;
+  consented_at: string | null;
+  unsubscribed_at: string | null;
+  owner_id: string | null;
+  promoted_lead_metadata_id: string | null;
+  promoted_at: string | null;
+  next_follow_up_at: string | null;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MarketingContactEvent {
+  id: string;
+  contact_id: string;
+  event_type: MarketingContactEventType;
+  note: string | null;
+  campaign_id: string | null;
+  lead_metadata_id: string | null;
+  actor_id: string | null;
+  created_at: string;
+}
+
 /**
  * Minimal Database shape so `createServerClient<Database>()` is typed. Tables
  * not listed here fall back to `any` via the index signature, so nothing
@@ -222,8 +274,6 @@ export interface Database {
         Update: Partial<ProposalRequest>;
         Relationships: [];
       };
-      marketing_campaigns: { Row: MarketingCampaign; Insert: Partial<MarketingCampaign>; Update: Partial<MarketingCampaign>; Relationships: [] };
-      sales_lead_attributions: { Row: LeadAttribution; Insert: Partial<LeadAttribution>; Update: Partial<LeadAttribution>; Relationships: [] };
       participant_skill_results: {
         Row: ParticipantSkillResult;
         Insert: Partial<ParticipantSkillResult>;

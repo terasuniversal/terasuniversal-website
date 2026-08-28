@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from "react";
 import Link from "next/link";
 
 /* Reusable, dependency-free admin UI primitives. */
@@ -143,17 +143,20 @@ export function Field({
   children,
   hint,
   required,
+  controlId,
 }: {
   label: string;
   name: string;
   error?: string;
   hint?: string;
   required?: boolean;
+  controlId?: string;
   children: ReactNode;
 }) {
+  const id = controlId ?? name;
   return (
     <div className="ta-field">
-      <label htmlFor={name}>
+      <label htmlFor={id}>
         {label}
         {required && <span className="ta-req" aria-hidden="true"> *</span>}
       </label>
@@ -162,6 +165,28 @@ export function Field({
       {error && <span className="ta-error">{error}</span>}
     </div>
   );
+}
+
+export function Input(props: InputHTMLAttributes<HTMLInputElement>) {
+  return <input {...props} />;
+}
+
+export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
+  return <select {...props} />;
+}
+
+export function Textarea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return <textarea {...props} />;
+}
+
+export function fieldA11y(name: string, options: { hasHint?: boolean; hasError?: boolean } = {}) {
+  const describedBy = [options.hasHint ? `${name}-hint` : null, options.hasError ? `${name}-error` : null]
+    .filter(Boolean)
+    .join(" ");
+  return {
+    describedBy: describedBy || undefined,
+    invalid: options.hasError || undefined,
+  };
 }
 
 /** Small 24-grid stroke icon wrapper for KPI cards (matches icons.tsx style). */
