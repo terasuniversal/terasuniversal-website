@@ -157,10 +157,14 @@ export function canAccessModule(
   moduleKeys?: ReadonlySet<string> | readonly string[],
   accessControlEnabled = false,
 ) {
+  // Super admins are not constrained by the optional per-user module-access
+  // catalog. Keep the sidebar consistent with requireModuleAccess(), which
+  // already treats super_admin as an unconditional allow.
+  if (role === "super_admin") return true;
   const min = MODULE_ACCESS[moduleKey];
   if (!min) return false;
   if (!hasMinRole(role, min)) return false;
-  if (role === "super_admin" || !accessControlEnabled) return true;
+  if (!accessControlEnabled) return true;
   if (typeof (moduleKeys as ReadonlySet<string>).has === "function") {
     return (moduleKeys as ReadonlySet<string>).has(moduleKey);
   }
