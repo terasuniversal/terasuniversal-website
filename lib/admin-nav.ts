@@ -72,6 +72,13 @@ export const NAV: NavGroup[] = [
     ],
   },
   {
+    label: "Marketing",
+    items: [
+      { key: "marketing", label: "Marketing Dashboard", href: "/admin/marketing", icon: "campaigns", minRole: "editor" },
+      { key: "marketing_campaigns", label: "Campaigns", href: "/admin/marketing/campaigns", icon: "campaigns", minRole: "editor" },
+    ],
+  },
+  {
     label: "Website Content",
     items: [
       { key: "news", label: "News", href: "/admin/news", icon: "news", minRole: "editor" },
