@@ -34,7 +34,7 @@ export default async function MarketingLandingPage() {
       <PageHead
         title="Marketing Dashboard"
         subtitle="Live overview of campaigns and pre-sales contacts."
-        action={<Link href="/admin/marketing/contacts/new" className="ta-btn ta-btn-primary">+ Add Contact</Link>}
+        action={<Link href="/admin/marketing/contacts/new" className="ta-btn ta-btn-primary">+ Create Contact</Link>}
       />
 
       {queryError ? (
