@@ -25,6 +25,41 @@ This file is the root entry point for AI agents working in the TERAS Universal w
 - Recovery evidence is permanently read-only unless explicitly approved by a human.
 - Do not touch the recovery worktree during normal development work.
 
+### WORKSPACE SCOPE ENFORCEMENT
+
+Default allowed workspace:
+`D:\Projects\terasuniversal-website-clean`
+
+Agents and delegated workers must not inspect, search, enumerate, read, or modify
+other TERAS repositories, worktrees, recovery folders, sibling project folders,
+or `D:\Projects` recursively unless explicitly authorized by the human.
+
+Blocked by default:
+
+- `D:\Projects\terasuniversal-website`
+- `D:\Projects\_recovery`
+- `D:\Projects\_worktrees`
+- `D:\Projects\_03-other-projects`
+- `D:\Projects\supabase`
+
+For normal TERAS tasks:
+
+- all discovery must remain inside the clean worktree
+- workers must receive this same workspace restriction
+- if information outside the allowed workspace appears necessary, stop and request approval
+- never use another worktree as an alternate source of truth unless explicitly authorized
+
+STRICT RULES:
+
+- Do not modify application code.
+- Do not modify migrations.
+- Do not modify `.ai` generated state.
+- Do not touch the recovery worktree.
+- Do not commit.
+- Do not push.
+- Do not merge.
+- Do not deploy.
+
 ### Risk levels and permitted actions
 
 #### LOW RISK
