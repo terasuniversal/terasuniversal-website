@@ -334,11 +334,18 @@ async function transitionContactStatus(id: string, allowedFrom: MarketingContact
   }
   if (!current || !allowedFrom.includes(current.status as MarketingContactStatus)) return;
 
-  const { error } = await supabase.from("marketing_contacts").update({ status: to }).eq("id", id);
+  const { data: updated, error } = await supabase
+    .from("marketing_contacts")
+    .update({ status: to })
+    .eq("id", id)
+    .in("status", allowedFrom)
+    .select("id")
+    .maybeSingle();
   if (error) {
     console.error("marketing_contacts: transition update failed", { message: error.message, id, to });
     return;
   }
+  if (!updated) return;
 
   const { error: eventError } = await supabase
     .from("marketing_contact_events")
