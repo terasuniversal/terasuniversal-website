@@ -157,9 +157,55 @@ Worker output must include:
 
 ### Model policy
 
-- Parent model: `gpt-5.6-luna` via OpenAI Codex.
-- Delegated workers inherit the parent model/provider for now.
-- Claude and DeepSeek routing remain disabled until later approval.
+- Parent Hermes model: `gpt-5.6-luna` via OpenAI Codex.
+- Selective worker/specialist routing must not change the parent default model.
+- Every worker or specialist report must state the actual model and provider used.
+- No model fallback may happen silently; report any fallback and the reason.
+
+#### LOW RISK — routine/simple
+
+- Preferred worker: `deepseek-v4-flash` via DeepSeek.
+- Examples: copy changes, documentation, simple UI consistency, mechanical CRUD,
+  small CSS/responsive fixes, and basic read-only audits.
+- If DeepSeek is unavailable or fails, the parent may reassess whether
+  `gpt-5.6-luna` is appropriate; any change must be reported explicitly.
+- Stop before commit.
+
+#### LOW RISK — stronger coding/reasoning required
+
+- Parent/worker: `gpt-5.6-luna` via OpenAI Codex.
+- Stop before commit.
+
+#### MEDIUM RISK
+
+- Primary: `gpt-5.6-luna` via OpenAI Codex.
+- A focused delegated Luna review may be used.
+- Stop before commit and request human review.
+
+#### HIGH RISK
+
+- Preferred specialist: `claude-sonnet-5` via Anthropic / Claude Code.
+- Default behavior remains read-only.
+- Claude performs specialist review; the parent Luna agent reviews Claude's
+  output.
+- Implementation requires explicit human approval.
+
+#### CRITICAL
+
+- Claude Sonnet 5 specialist review is required where applicable.
+- Read-only by default.
+- Human approval is required before implementation.
+- Separate approval remains required before commit, push, merge, deploy,
+  migration apply, or production/staging changes.
+
+#### Routing safety and boundaries
+
+- Stay inside the canonical workspace:
+  `D:\Projects\terasuniversal-website-clean`.
+- Recovery evidence remains read-only:
+  `D:\Projects\terasuniversal-website`.
+- Preserve all approval gates, workspace enforcement, delegation limits, and
+  repository rules above.
 
 ### Required verification
 
