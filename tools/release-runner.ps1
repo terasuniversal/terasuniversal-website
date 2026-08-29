@@ -1,0 +1,783 @@
+<#
+    release-runner.ps1 - release preparation, human release approval,
+    controlled merge, and production tracking for the TERAS AI Engineering
+    Orchestrator. Dot-sourced by teras-agent.ps1, which must set $RepoRoot,
+    $AiDir before sourcing this file. Depends on functions from
+    agent-router.ps1, qa-runner.ps1, pr-runner.ps1, and preview-runner.ps1
+    (Test-UrlHealth, Test-VercelAvailable) also being sourced first.
+
+    Hard safety invariants enforced in this file, not just documented:
+    - migration files (supabase/migrations/) always block release in this
+      phase - there is no migration-apply capability here, on purpose
+    - release approval requires the exact phrase "APPROVE RELEASE"; merge
+      requires the exact phrase "MERGE APPROVED RELEASE" - anything else,
+      including "y"/"yes"/"approve", cancels
+    - every gate re-checks the live HEAD SHA against the SHA that was
+      approved/reviewed/QA'd - a single mismatch invalidates the approval
+    - never calls `gh pr merge` with --admin (bypasses branch protection)
+      or any force flag; never invents a merge strategy if it can't be
+      detected
+    - never invokes Claude or Codex from this file - see .ai/USAGE_POLICY.md
+#>
+
+$script:MigrationPathPattern = '(^|/)supabase/migrations/'
+$script:EnvironmentChangePatterns = @(
+    '(^|/)\.env(\..+)?$',
+    '(^|/)vercel\.json$',
+    '(^|/)supabase/config\.toml$'
+)
+$script:ReleaseSensitiveKeywords = @("payment", "financial", "billing", "authorization")
+
+function Test-MigrationDetected {
+    param([string[]]$Files)
+    $matches = @($Files | Where-Object { $_ -match $script:MigrationPathPattern })
+    return [pscustomobject]@{ Detected = ($matches.Count -gt 0); Files = $matches }
+}
+
+function Test-EnvironmentChangeDetected {
+    param([string[]]$Files)
+    $matches = @($Files | Where-Object {
+        $f = $_
+        ($script:EnvironmentChangePatterns | Where-Object { $f -match $_ }).Count -gt 0
+    })
+    return [pscustomobject]@{ Detected = ($matches.Count -gt 0); Files = $matches }
+}
+
+function Get-ReleaseRisk {
+    param($State)
+    $hit = (Test-AnyKeyword -Text $State.Description -Keywords $CertTrustKeywords) -or
+           (Test-AnyKeyword -Text $State.Description -Keywords $DbSensitiveKeywords) -or
+           (Test-AnyKeyword -Text $State.Description -Keywords $DestructiveKeywords) -or
+           (Test-AnyKeyword -Text $State.Description -Keywords $script:ReleaseSensitiveKeywords) -or
+           $State.MigrationDetected -or $State.EnvironmentChangeDetected
+
+    $risk = $State.Risk
+    if ($hit -and $risk -notin @("HIGH", "CRITICAL")) { $risk = "HIGH" }
+    return $risk
+}
+
+function Get-CurrentHeadSha {
+    Push-Location $RepoRoot
+    try {
+        return (git rev-parse HEAD).Trim()
+    } finally {
+        Pop-Location
+    }
+}
+
+function Test-QaStale {
+    param($State)
+    return ((Get-CurrentHeadSha) -ne $State.QaVerifiedSha)
+}
+
+function Test-CodexStale {
+    param($State)
+    if ($State.Reviewer -notin @("Codex", "Human")) { return $false }
+    return ((Get-CurrentHeadSha) -ne $State.ReviewVerifiedSha)
+}
+
+function Write-RollbackPlan {
+    param($State)
+
+    $path = Join-Path $AiDir "ROLLBACK_PLAN.md"
+
+    Push-Location $RepoRoot
+    try {
+        $previousGood = $null
+        if ($State.PrTargetBranch) {
+            # An unresolvable ref (not fetched, typo) is a real possibility
+            # here, not a reason to crash the whole -PrepareRelease call -
+            # try/catch, same reasoning as Get-ExistingPr above.
+            try {
+                $ref = git rev-parse "origin/$($State.PrTargetBranch)" 2>&1
+                if ($LASTEXITCODE -eq 0) { $previousGood = $ref.Trim() }
+            } catch {
+                $previousGood = $null
+            }
+        }
+    } finally {
+        Pop-Location
+    }
+    if (-not $previousGood) { $previousGood = "(unknown - re-fetch and run 'git rev-parse origin/<target>' before relying on this)" }
+
+    $migrationReversibility = if ($State.DbRequired -and $State.DbMigrationFile) {
+        if ($State.DbDestructiveSql -or $State.DbDataMigration) {
+            "NOT FULLY REVERSIBLE - static scan found destructive/data-modifying SQL ($((@($State.DbDangerousStatements) -join ', '))). See .ai/DATABASE_REPORT.md."
+        } else {
+            "Likely reversible with a new corrective migration (additive-only SQL per static scan), but not applied or verified by this tool - see .ai/DATABASE_REPORT.md."
+        }
+    } elseif ($State.MigrationDetected) {
+        "UNKNOWN - not assessed. This phase does not apply or reverse migrations; treat as NOT reversible until a human with schema knowledge confirms otherwise."
+    } else {
+        "N/A - no migration in this release."
+    }
+    $rollbackRisk = if ($State.DbRequired -and ($State.DbDestructiveSql -or $State.DbDataMigration)) { "HIGH" } elseif ($State.MigrationDetected) { "HIGH" } else { "LOW" }
+
+    $content = @"
+# ROLLBACK_PLAN.md
+
+> Regenerated by ``tools/release-runner.ps1``'s ``Write-RollbackPlan`` at -PrepareRelease time. Prepared BEFORE release approval, per this phase's requirement that rollback risk be visible before a human approves.
+
+Task ID:
+$($State.TaskId)
+
+Previous known-good commit (tip of $($State.PrTargetBranch) at preparation time):
+$previousGood
+
+Release commit:
+$($State.CommitSha)
+
+Rollback mechanism:
+Revert the merge commit on $($State.PrTargetBranch) (git revert -m 1 <merge-sha>) and let the existing Vercel Git integration redeploy the reverted tip. Do not force-push history.
+
+Database compatibility considerations:
+$(if ($State.DbRequired -and $State.DbMigrationFile) { "Database migration ($($State.DbMigrationFile)) is on a SEPARATE approval/apply track - see .ai/DATABASE_HANDOFF.md, .ai/DATABASE_REPORT.md, and teras-agent -DatabaseStatus. A code revert does NOT undo an applied schema change." } elseif ($State.MigrationDetected) { "This release includes migration file(s): $((@($State.MigrationFiles) -join ', ')). A code revert does NOT undo an applied schema change. Confirm whether the migration was actually applied before reverting application code that may depend on it." } else { "No migration in this release - a code-only revert is schema-neutral." })
+
+Migration reversibility:
+$migrationReversibility
+
+Backup requirement:
+$(if ($State.DbRequired -and $State.DbRisk -eq "CRITICAL" -and $State.DbDestructiveSql) { "YES - a verified backup/PITR checkpoint is required before this destructive CRITICAL migration may apply to PRODUCTION. This tool cannot verify a backup exists - see teras-agent -ApplyMigration -Target PRODUCTION." } else { "Not flagged as required by the static scan - re-confirm manually for anything destructive." })
+
+Known irreversible steps:
+$(if ($State.DbRequired -and ($State.DbDestructiveSql -or $State.DbDataMigration)) { (@($State.DbDangerousStatements) | ForEach-Object { "- $_" }) -join "`n" } else { "- None flagged." })
+
+Expected impact of rollback:
+Reverts $($State.PrTargetBranch) to the previous known-good commit's application behavior. $(if ($State.DbRequired -or $State.MigrationDetected) { "Database schema is NOT automatically rolled back." } else { "No database impact." })
+
+Verification steps after rollback:
+- Confirm the production deployment tracks the reverted commit (teras-agent -ProductionStatus)
+- Re-run the same production verification checks used for this release (teras-agent -VerifyProduction)
+- Confirm the specific behavior this task changed has returned to its prior state
+$(if ($State.DbRequired) { "- Confirm database state separately (teras-agent -DatabaseStatus / -VerifyDatabase)" })
+
+Rollback Risk:
+$rollbackRisk
+"@
+
+    Set-Content -Path $path -Value $content -Encoding utf8
+    return $rollbackRisk
+}
+
+function Write-ReleaseReport {
+    param($State)
+
+    $path = Join-Path $AiDir "RELEASE_REPORT.md"
+    $reasonsText = if (@($State.ReleaseBlockingReasons).Count -gt 0) { (@($State.ReleaseBlockingReasons) | ForEach-Object { "- $_" }) -join "`n" } else { "- None." }
+    $migrationText = if ($State.MigrationDetected) { (@($State.MigrationFiles) | ForEach-Object { "- $_" }) -join "`n" } else { "None." }
+    $envText = if ($State.EnvironmentChangeDetected) { (@($State.EnvironmentChangeFiles) | ForEach-Object { "- $_" }) -join "`n" } else { "None." }
+
+    $content = @"
+# RELEASE_REPORT.md
+
+> Regenerated by ``tools/release-runner.ps1``'s ``Invoke-PrepareRelease``.
+
+Task ID:
+$($State.TaskId)
+
+PR:
+$(if ($State.PrUrl) { "$($State.PrUrl) (#$($State.PrNumber))" } else { "(none)" })
+
+Approved Commit SHA:
+$($State.CommitSha)
+
+Source Branch:
+$($State.Branch)
+
+Target Branch:
+$($State.PrTargetBranch)
+
+Risk (task):
+$($State.Risk)
+
+Risk (release):
+$($State.ReleaseRisk)
+
+QA:
+git diff --check=$($State.QA.GitDiffCheck.Result), TypeScript=$($State.QA.TypeScript.Result), Tests=$($State.QA.Tests.Result), Build=$($State.QA.Build.Result)
+
+Codex Review:
+$($State.ReviewVerdict)
+
+Preview Verification:
+$($State.PreviewVerificationStatus)
+
+Preview Approval:
+$(if ($State.PreviewApproved) { "YES" } else { "NO" })
+
+Database Changes:
+$(if ($State.MigrationDetected) { "YES" } else { "NO" })
+
+Migration Files:
+$migrationText
+
+Environment Changes:
+$envText
+
+Production Impact:
+$(if ($State.ReleaseRisk -in @("HIGH", "CRITICAL")) { "Meaningful - HIGH/CRITICAL release risk." } else { "Minimal." })
+
+Rollback Strategy:
+See .ai/ROLLBACK_PLAN.md (Rollback Risk: $($State.RollbackRisk))
+
+Deployment Order:
+$(Get-DeploymentOrder -State $State)
+
+Database Status (separate approval track):
+$(if ($State.DbRequired) { "$($State.DbState) - see teras-agent -DatabaseStatus / .ai/DATABASE_REPORT.md. Application release readiness above is NOT blocked by database approval state, but do not deploy application code that assumes a schema change which has not actually been applied." } else { "N/A - no database change detected for this task." })
+
+Production Verification Plan:
+Non-destructive reachability + route check against the production URL once deployed, scoped to what CURRENT_TASK.md/this report describe as changed - see teras-agent -VerifyProduction.
+
+Release Eligibility:
+$($State.ReleaseEligibility)
+
+Blocking Reasons:
+$reasonsText
+"@
+
+    Set-Content -Path $path -Value $content -Encoding utf8
+}
+
+function Invoke-PrepareRelease {
+    $state = Get-TaskState
+    if ($state.State -notin @("PR_OPEN", "RELEASE_BLOCKED", "RELEASE_READY")) {
+        Write-Host ""
+        Write-Host "RELEASE PREPARATION BLOCKED"
+        Write-Host ""
+        Write-Host "Reason:"
+        Write-Host "Task must have an open PR first (current state: $($state.State))."
+        Write-Host ""
+        return
+    }
+
+    $migration = Test-MigrationDetected -Files $state.TaskGeneratedFiles
+    $state.MigrationDetected = $migration.Detected
+    $state.MigrationFiles = $migration.Files
+
+    $env = Test-EnvironmentChangeDetected -Files $state.TaskGeneratedFiles
+    $state.EnvironmentChangeDetected = $env.Detected
+    $state.EnvironmentChangeFiles = $env.Files
+
+    $state.ReleaseRisk = Get-ReleaseRisk -State $state
+    $state.RollbackRisk = Write-RollbackPlan -State $state
+    $state.RollbackPlanPath = Join-Path $AiDir "ROLLBACK_PLAN.md"
+
+    $reasons = @()
+    if ($state.MigrationDetected) {
+        $reasons += "Required database migration has not been separately approved (migration apply is not implemented in this phase)."
+    }
+    if ((Get-CurrentHeadSha) -ne $state.CommitSha) {
+        $reasons += "HEAD has moved since the approved commit - re-run -Commit/-PreparePush/-PreparePR before preparing a release."
+    }
+    if (Test-QaHasBlockingFailure -QaResults $state.QA) {
+        $reasons += "QA has a blocking failure."
+    }
+    if ($state.ReviewVerdict -eq "BLOCKED") {
+        $reasons += "Codex Review is BLOCKED."
+    }
+
+    if ($reasons.Count -gt 0) {
+        $state.ReleaseEligibility = "BLOCKED"
+        $state.ReleaseBlockingReasons = $reasons
+        $state.State = "RELEASE_BLOCKED"
+    } else {
+        $state.ReleaseEligibility = "READY"
+        $state.ReleaseBlockingReasons = @()
+        $state.State = "RELEASE_READY"
+    }
+    Save-TaskState -State $state
+    Write-ReleaseReport -State $state
+
+    Write-Host ""
+    if ($state.ReleaseEligibility -eq "BLOCKED") {
+        Write-Host "RELEASE BLOCKED"
+        Write-Host ""
+        foreach ($r in $reasons) { Write-Host $r }
+    } else {
+        Write-Host "Release prepared. Eligibility: READY."
+        Write-Host "Release Risk: $($state.ReleaseRisk)  |  Rollback Risk: $($state.RollbackRisk)"
+        Write-Host "See .ai/RELEASE_REPORT.md and .ai/ROLLBACK_PLAN.md. Next: teras-agent -ApproveRelease"
+    }
+    Write-Host ""
+}
+
+function Invoke-ApproveRelease {
+    $state = Get-TaskState
+    if ($state.State -ne "RELEASE_READY") {
+        Write-Host ""
+        Write-Host "RELEASE APPROVAL BLOCKED"
+        Write-Host ""
+        Write-Host "Reason:"
+        Write-Host "Task must be RELEASE_READY (run -PrepareRelease first). Current state: $($state.State)."
+        Write-Host ""
+        return
+    }
+
+    if ((Get-CurrentHeadSha) -ne $state.CommitSha) {
+        $state.State = "RELEASE_BLOCKED"
+        $state.ReleaseEligibility = "BLOCKED"
+        Save-TaskState -State $state
+        Write-Host ""
+        Write-Host "RELEASE APPROVAL INVALIDATED"
+        Write-Host ""
+        Write-Host "The commit has changed since -PrepareRelease ran. Re-run 'teras-agent -PrepareRelease'."
+        Write-Host ""
+        return
+    }
+
+    if (Test-QaStale -State $state) {
+        Write-Host ""
+        Write-Host "QA RESULT STALE"
+        Write-Host ""
+        Write-Host "The code has changed since QA last ran against it. Re-run the task pipeline before approving."
+        Write-Host ""
+        return
+    }
+
+    $releaseRisk = if ($state.ReleaseRisk) { $state.ReleaseRisk } else { $state.Risk }
+    $codexMandatory = ($releaseRisk -in @("HIGH", "CRITICAL"))
+
+    if ($codexMandatory -and (Test-CodexStale -State $state)) {
+        Write-Host ""
+        Write-Host "CODEX REVIEW STALE"
+        Write-Host ""
+        Write-Host "This is a $releaseRisk release and the code has changed since the last mandatory Codex review."
+        Write-Host "A fresh review is required (teras-agent -Review) before this release can be approved."
+        Write-Host ""
+        return
+    }
+
+    if ($codexMandatory -and $state.ReviewVerdict -notin @("PASS", "PASS_WITH_NOTES")) {
+        Write-Host ""
+        Write-Host "RELEASE APPROVAL BLOCKED"
+        Write-Host ""
+        Write-Host "Reason:"
+        Write-Host "$releaseRisk release requires Codex Review = PASS (or PASS_WITH_NOTES with explicit acceptance). Current: $($state.ReviewVerdict)."
+        Write-Host ""
+        return
+    }
+
+    if ($state.MigrationDetected) {
+        Write-Host ""
+        Write-Host "RELEASE BLOCKED"
+        Write-Host ""
+        Write-Host "Required database migration has not been separately approved."
+        Write-Host ""
+        return
+    }
+
+    Write-Host ""
+    Write-Host "========================================"
+    Write-Host "TERAS PRODUCTION RELEASE APPROVAL"
+    Write-Host "========================================"
+    Write-Host ""
+    Write-Host "Task:"
+    Write-Host $state.Description
+    Write-Host ""
+    Write-Host "PR:"
+    Write-Host $(if ($state.PrNumber) { "#$($state.PrNumber)" } else { "(none)" })
+    Write-Host ""
+    Write-Host "Risk:"
+    Write-Host $releaseRisk
+    Write-Host ""
+    Write-Host "QA:"
+    Write-Host $(if (Test-QaHasBlockingFailure -QaResults $state.QA) { "FAIL" } else { "PASS" })
+    Write-Host ""
+    Write-Host "Codex:"
+    Write-Host $(if ($state.Reviewer -eq "None") { "NOT REQUIRED" } else { $state.ReviewVerdict })
+    if ($state.ReviewVerdict -eq "PASS_WITH_NOTES") {
+        Write-Host "(PASS_WITH_NOTES - see .ai/REVIEW_REPORT.md; typing the approval phrase below is your explicit acceptance of those notes.)"
+    }
+    Write-Host ""
+    Write-Host "Preview:"
+    Write-Host $(if ($state.PreviewApproved) { "APPROVED" } else { "NOT APPROVED" })
+    Write-Host ""
+    Write-Host "Database Migration:"
+    Write-Host $(if ($state.MigrationDetected) { "DETECTED (blocks release - see above)" } else { "NONE" })
+    Write-Host ""
+    Write-Host "Environment Changes:"
+    Write-Host $(if ($state.EnvironmentChangeDetected) { "DETECTED - review .ai/RELEASE_REPORT.md before approving" } else { "NONE" })
+    Write-Host ""
+    Write-Host "Rollback Plan:"
+    Write-Host $(if ($state.RollbackRisk -eq "HIGH") { "AVAILABLE - ROLLBACK RISK: HIGH (see .ai/ROLLBACK_PLAN.md)" } else { "AVAILABLE" })
+    Write-Host ""
+    Write-Host "This approval permits the controlled release stage."
+    Write-Host ""
+    Write-Host "It does NOT permit future unrelated releases."
+    Write-Host ""
+
+    $confirm = Read-Host "Type APPROVE RELEASE to continue"
+    if ($confirm -cne "APPROVE RELEASE") {
+        Write-Host ""
+        Write-Host "Release approval cancelled."
+        Write-Host ""
+        return
+    }
+
+    $state.ReleaseApproved = $true
+    $state.ReleaseApprovedAt = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $state.ReleaseApprovedCommitSha = $state.CommitSha
+    $state.ReleaseApprovedPr = $state.PrUrl
+    $state.State = "RELEASE_APPROVED"
+    Save-TaskState -State $state
+    Save-ApprovalRecord -State $state -Decision "RELEASE_APPROVED"
+
+    Write-Host ""
+    Write-Host "Release APPROVED for commit $($state.CommitSha)."
+    Write-Host "This approval is invalidated if the commit changes. Next: teras-agent -Release"
+    Write-Host ""
+}
+
+# Best-effort: reads the repo's actual merge settings via the GitHub REST
+# API (through `gh api`, read-only) rather than assuming a strategy.
+function Get-MergeStrategy {
+    if (-not (Test-GitHubCliAvailable)) { return $null }
+
+    Push-Location $RepoRoot
+    try {
+        # A failed API call is a real possibility (rate limit, permissions)
+        # and must fall through to "MERGE STRATEGY REQUIRED" cleanly, not
+        # crash - try/catch, same reasoning as Get-ExistingPr above.
+        $json = gh api repos/{owner}/{repo} --jq '{squash: .allow_squash_merge, merge: .allow_merge_commit, rebase: .allow_rebase_merge}' 2>&1
+        if ($LASTEXITCODE -ne 0) { return $null }
+    } catch {
+        return $null
+    } finally {
+        Pop-Location
+    }
+
+    try {
+        $allowed = $json | ConvertFrom-Json
+    } catch {
+        return $null
+    }
+
+    $options = @()
+    if ($allowed.squash) { $options += "squash" }
+    if ($allowed.merge) { $options += "merge" }
+    if ($allowed.rebase) { $options += "rebase" }
+
+    if ($options.Count -eq 1) { return $options[0] }
+    if ($options -contains "squash") { return "squash" }
+    return $null
+}
+
+function Invoke-Release {
+    $state = Get-TaskState
+    if ($state.State -ne "RELEASE_APPROVED") {
+        Write-Host ""
+        Write-Host "MERGE BLOCKED"
+        Write-Host ""
+        Write-Host "Current state:"
+        Write-Host $state.State
+        Write-Host ""
+        Write-Host "Required state:"
+        Write-Host "RELEASE_APPROVED"
+        Write-Host ""
+        return
+    }
+
+    if ((Get-CurrentHeadSha) -ne $state.ReleaseApprovedCommitSha) {
+        $state.State = "RELEASE_BLOCKED"
+        Save-TaskState -State $state
+        Write-Host ""
+        Write-Host "RELEASE APPROVAL INVALIDATED"
+        Write-Host ""
+        Write-Host "The commit has changed since -ApproveRelease ran. Re-run -PrepareRelease and -ApproveRelease."
+        Write-Host ""
+        return
+    }
+    if (Test-QaStale -State $state) {
+        Write-Host ""
+        Write-Host "QA RESULT STALE"
+        Write-Host ""
+        return
+    }
+    $releaseRisk = if ($state.ReleaseRisk) { $state.ReleaseRisk } else { $state.Risk }
+    if ($releaseRisk -in @("HIGH", "CRITICAL") -and (Test-CodexStale -State $state)) {
+        Write-Host ""
+        Write-Host "CODEX REVIEW STALE"
+        Write-Host ""
+        return
+    }
+    if ($state.MigrationDetected) {
+        Write-Host ""
+        Write-Host "RELEASE BLOCKED"
+        Write-Host ""
+        Write-Host "Required database migration has not been separately approved."
+        Write-Host ""
+        return
+    }
+
+    if (-not (Test-GitHubCliAvailable)) {
+        Write-Host ""
+        Write-Host "GitHub CLI not detected/authenticated - cannot perform a controlled merge automatically."
+        Write-Host "Merge PR #$($state.PrNumber) manually via the GitHub UI once you are satisfied all gates above are genuinely satisfied."
+        Write-Host "State remains RELEASE_APPROVED."
+        Write-Host ""
+        return
+    }
+
+    $pr = Get-ExistingPr -Branch $state.Branch
+    if (-not $pr) {
+        Write-Host ""
+        Write-Host "MERGE BLOCKED"
+        Write-Host ""
+        Write-Host "PR not found for branch $($state.Branch). Re-run -CreatePR."
+        Write-Host ""
+        return
+    }
+    if ($pr.state -ne "OPEN") {
+        Write-Host ""
+        Write-Host "MERGE BLOCKED"
+        Write-Host ""
+        Write-Host "PR state is $($pr.state), not OPEN."
+        Write-Host ""
+        return
+    }
+    if ($pr.mergeStateStatus -and $pr.mergeStateStatus -notin @("CLEAN", "HAS_HOOKS", "UNSTABLE")) {
+        Write-Host ""
+        Write-Host "MERGE BLOCKED"
+        Write-Host ""
+        Write-Host "Required checks / mergeability status is $($pr.mergeStateStatus), not clean. Resolve on GitHub first."
+        Write-Host ""
+        return
+    }
+
+    $strategy = Get-MergeStrategy
+    if (-not $strategy) {
+        Write-Host ""
+        Write-Host "MERGE STRATEGY REQUIRED"
+        Write-Host ""
+        Write-Host "Could not safely determine a single allowed merge strategy for this repository."
+        Write-Host "Configure the desired strategy in GitHub repo settings, or merge PR #$($state.PrNumber) manually."
+        Write-Host ""
+        return
+    }
+
+    Write-Host ""
+    Write-Host "FINAL MERGE GATE"
+    Write-Host ""
+    Write-Host "PR:"
+    Write-Host "#$($state.PrNumber) - $($state.PrUrl)"
+    Write-Host ""
+    Write-Host "Commit:"
+    Write-Host $state.CommitSha
+    Write-Host ""
+    Write-Host "Target:"
+    Write-Host $state.PrTargetBranch
+    Write-Host ""
+    Write-Host "Risk:"
+    Write-Host $releaseRisk
+    Write-Host ""
+    Write-Host "Merge strategy:"
+    Write-Host $strategy
+    Write-Host ""
+    Write-Host "All required checks:"
+    Write-Host "PASS"
+    Write-Host ""
+
+    $confirm = Read-Host "Type MERGE APPROVED RELEASE to continue"
+    if ($confirm -cne "MERGE APPROVED RELEASE") {
+        Write-Host ""
+        Write-Host "Merge cancelled. No merge was performed."
+        Write-Host ""
+        return
+    }
+
+    $state.MergeStrategy = $strategy
+    $state.State = "MERGING"
+    Save-TaskState -State $state
+
+    Push-Location $RepoRoot
+    try {
+        # A merge failure (checks not passing, conflicts, etc.) is a real,
+        # expected outcome to handle cleanly as MERGE_BLOCKED below, not an
+        # uncaught crash - gh's non-zero exit throws under this script's
+        # $ErrorActionPreference = "Stop" even with the error stream
+        # redirected, so this must be a try/catch.
+        $flag = switch ($strategy) { "squash" { "--squash" } "rebase" { "--rebase" } default { "--merge" } }
+        gh pr merge $state.PrNumber $flag 2>&1 | Out-Host
+        $exitCode = $LASTEXITCODE
+    } catch {
+        Write-Host $_.Exception.Message
+        $exitCode = 1
+    } finally {
+        Pop-Location
+    }
+
+    if ($exitCode -ne 0) {
+        $state.MergeStatus = "BLOCKED"
+        $state.State = "MERGE_BLOCKED"
+        Save-TaskState -State $state
+        Write-Host ""
+        Write-Host "MERGE BLOCKED - gh pr merge failed. See output above. No further action was taken."
+        Write-Host ""
+        return
+    }
+
+    $state.MergeStatus = "MERGED"
+    $state.State = "PRODUCTION_DEPLOYING"
+    Save-TaskState -State $state
+    New-HistorySnapshot -State $state | Out-Null
+
+    Write-Host ""
+    Write-Host "Merge complete ($strategy) into $($state.PrTargetBranch)."
+    if ($state.DbRequired -and $state.DbState -notin @("DB_COMPLETE", "DB_NOT_REQUIRED")) {
+        Write-Host ""
+        Write-Host "NOTE: this task also has a pending database change (Database State: $($state.DbState))."
+        Write-Host "Application release approval never implies migration approval or apply - see teras-agent -DatabaseStatus."
+    }
+    Write-Host "Next: teras-agent -ProductionStatus (and -VerifyProduction once a deployment appears)."
+    Write-Host ""
+}
+
+# Single best-effort check, never a polling loop - the human re-runs
+# -ProductionStatus manually to check again later.
+function Invoke-ProductionDeploymentDetection {
+    param($State)
+
+    if (-not (Test-VercelAvailable)) {
+        $State.ProductionDeploymentStatus = "PENDING"
+        Save-TaskState -State $State
+        Write-Host "Vercel CLI not detected - cannot confirm automatic production deployment."
+        Write-Host "Check the Vercel dashboard, or deploy manually if this project does not use Git-integration auto-deploy."
+        return $State
+    }
+
+    Push-Location $RepoRoot
+    try {
+        $output = vercel ls 2>&1
+    } finally {
+        Pop-Location
+    }
+
+    $prodLine = $output | Where-Object { $_ -match '(?i)production' } | Select-Object -First 1
+    if ($LASTEXITCODE -eq 0 -and $prodLine -match '(https://\S+)') {
+        $State.ProductionDeploymentStatus = "DETECTED"
+        $State.ProductionUrl = $Matches[1]
+        $State.ProductionCommitSha = $State.CommitSha
+        Write-Host "Production Deployment: DETECTED ($($State.ProductionUrl))"
+    } else {
+        $State.ProductionDeploymentStatus = "PENDING"
+        Write-Host "Production deployment not yet detected - the Git integration may still be building, or a manual deploy is required."
+        Write-Host "Check the dashboard, then re-run 'teras-agent -ProductionStatus'."
+    }
+    Save-TaskState -State $State
+    return $State
+}
+
+function Invoke-ProductionStatus {
+    $state = Get-TaskState
+
+    # One best-effort refresh per call if a deployment hasn't been confirmed
+    # yet - never a polling loop; the human re-runs this command to check again.
+    if ($state.State -in @("PRODUCTION_DEPLOYING", "PRODUCTION_VERIFYING", "RELEASE_ATTENTION_REQUIRED") -and $state.ProductionDeploymentStatus -ne "DETECTED") {
+        $state = Invoke-ProductionDeploymentDetection -State $state
+    }
+
+    Write-Host ""
+    Write-Host "Production Release"
+    Write-Host ""
+    Write-Host "PR:"
+    Write-Host $(if ($state.PrUrl) { "$($state.PrUrl) (#$($state.PrNumber))" } else { "(none)" })
+    Write-Host ""
+    Write-Host "Merged:"
+    Write-Host $(if ($state.MergeStatus -eq "MERGED") { "YES" } else { "NO" })
+    Write-Host ""
+    Write-Host "Production Deployment:"
+    Write-Host $state.ProductionDeploymentStatus
+    Write-Host ""
+    Write-Host "Release Commit:"
+    Write-Host $(if ($state.CommitSha) { $state.CommitSha } else { "(none)" })
+    Write-Host ""
+    Write-Host "Production Verification:"
+    Write-Host $state.ProductionVerificationStatus
+    Write-Host ""
+    Write-Host "Database Migration:"
+    Write-Host $(if (-not $state.MigrationDetected) { "NONE" } else { "BLOCKED (separate approval/apply not implemented in this phase)" })
+    Write-Host ""
+    Write-Host "Rollback Readiness:"
+    Write-Host $(if ($state.RollbackRisk -eq "HIGH") { "ATTENTION REQUIRED" } elseif ($state.RollbackPlanPath) { "READY" } else { "ATTENTION REQUIRED (no rollback plan prepared yet)" })
+    Write-Host ""
+}
+
+function Invoke-VerifyProduction {
+    $state = Get-TaskState
+    if ($state.State -notin @("PRODUCTION_DEPLOYING", "PRODUCTION_VERIFYING", "RELEASE_COMPLETE") -and $state.ProductionDeploymentStatus -ne "DETECTED") {
+        Write-Host ""
+        Write-Host "No detected production deployment to verify yet. Run -ProductionStatus first (or -Release if not merged)."
+        Write-Host ""
+        return
+    }
+    if (-not $state.ProductionUrl) {
+        $state.ProductionVerificationStatus = "PENDING"
+        Save-TaskState -State $state
+        Write-Host ""
+        Write-Host "No production URL detected automatically."
+        Write-Host "Verify manually via the Vercel dashboard. Production Verification: PENDING."
+        Write-Host ""
+        return
+    }
+
+    $state.State = "PRODUCTION_VERIFYING"
+    Save-TaskState -State $state
+
+    $result = Test-UrlHealth -Url $state.ProductionUrl -UnreachableLabel "Production"
+    $state.ProductionVerificationStatus = $result.Status
+
+    if ($result.Status -eq "FAIL") {
+        $state.ProductionBlockingIssues = @($result.Notes)
+        $state.State = "RELEASE_ATTENTION_REQUIRED"
+        Save-TaskState -State $state
+        Write-Host ""
+        Write-Host "PRODUCTION VERIFICATION FAILED"
+        Write-Host ""
+        foreach ($n in $result.Notes) { Write-Host "- $n" }
+        Write-Host ""
+        Write-Host "State: RELEASE_ATTENTION_REQUIRED"
+        Write-Host ""
+        Write-Host "1. Show failure report   -> .ai/RELEASE_REPORT.md / this output"
+        Write-Host "2. Prepare rollback      -> see .ai/ROLLBACK_PLAN.md"
+        Write-Host "3. Prepare repair task   -> file a new task describing the production defect: teras-agent `"...`""
+        Write-Host "4. Exit"
+        Write-Host ""
+        Write-Host "No automatic repair deployment was started."
+        Write-Host ""
+        return
+    }
+
+    $state.State = "RELEASE_COMPLETE"
+    Save-TaskState -State $state
+    New-HistorySnapshot -State $state | Out-Null
+
+    Write-Host ""
+    Write-Host "Production verification PASSED."
+    foreach ($n in $result.Notes) { Write-Host "- $n" }
+    Write-Host ""
+    Write-Host "State: RELEASE_COMPLETE"
+    Write-Host ""
+}
+
+function Invoke-DryRunRelease {
+    $state = Get-TaskState
+    Write-Host ""
+    Write-Host "DRY RUN RELEASE - nothing will be executed."
+    Write-Host ""
+    Write-Host "PR: $(if ($state.PrUrl) { $state.PrUrl } else { '(not created)' })"
+    Write-Host "Release SHA: $(if ($state.CommitSha) { $state.CommitSha } else { '(none)' })"
+    Write-Host "Target: $(if ($state.PrTargetBranch) { $state.PrTargetBranch } else { '(unknown)' })"
+    Write-Host ""
+    $migration = Test-MigrationDetected -Files $state.TaskGeneratedFiles
+    Write-Host "Migration detected: $(if ($migration.Detected) { 'YES - would BLOCK release' } else { 'NO' })"
+    $env = Test-EnvironmentChangeDetected -Files $state.TaskGeneratedFiles
+    Write-Host "Environment change detected: $(if ($env.Detected) { 'YES - flagged in RELEASE_REPORT.md' } else { 'NO' })"
+    Write-Host "Release risk: $(Get-ReleaseRisk -State $state)"
+    Write-Host ""
+    Write-Host "Required checks: would be re-read live from 'gh pr view' at -Release time"
+    Write-Host "Merge strategy: would be detected via 'gh api repos/{owner}/{repo}' (never invented)"
+    Write-Host "Deployment strategy: existing Vercel Git integration on $(if ($state.PrTargetBranch) { $state.PrTargetBranch } else { 'target branch' }), never a manual --prod trigger"
+    Write-Host "Production verification: non-destructive GET against the detected production URL, same method as preview verification"
+    Write-Host ""
+}
