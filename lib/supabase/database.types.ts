@@ -78,6 +78,7 @@ export type MarketingCampaignStatus = "draft" | "active" | "completed" | "archiv
 export type MarketingContactStatus = "new" | "nurturing" | "sales_ready" | "promoted" | "archived";
 export type MarketingContactSource = "manual" | "newsletter" | "event" | "referral" | "import" | "website" | "other";
 export type MarketingContactConsentStatus = "not_set" | "opted_in" | "opted_out";
+export type LeadAttributionSource = "facebook" | "tiktok" | "whatsapp" | "website" | "referral" | "other";
 export type MarketingContactEventType = "created" | "status_changed" | "note_added" | "campaign_linked" | "consent_changed" | "unsubscribed" | "promoted_to_sales";
 
 export interface Profile {
@@ -258,6 +259,21 @@ export interface MarketingContactEvent {
   created_at: string;
 }
 
+export interface SalesLeadAttribution {
+  id: string;
+  lead_metadata_id: string;
+  source: LeadAttributionSource;
+  campaign_id: string | null;
+  utm_source: string | null;
+  utm_medium: string | null;
+  utm_campaign: string | null;
+  utm_content: string | null;
+  utm_term: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 /**
  * Minimal Database shape so `createServerClient<Database>()` is typed. Tables
  * not listed here fall back to `any` via the index signature, so nothing
@@ -291,6 +307,12 @@ export interface Database {
         Row: MarketingContactEvent;
         Insert: Partial<MarketingContactEvent>;
         Update: Partial<MarketingContactEvent>;
+        Relationships: [];
+      };
+      sales_lead_attributions: {
+        Row: SalesLeadAttribution;
+        Insert: Partial<SalesLeadAttribution>;
+        Update: Partial<SalesLeadAttribution>;
         Relationships: [];
       };
       participant_skill_results: {

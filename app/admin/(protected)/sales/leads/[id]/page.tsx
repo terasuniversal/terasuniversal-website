@@ -162,6 +162,12 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
                 <label className="ta-field">Source<select name="source" defaultValue={attribution?.source ?? "website"}>{LEAD_ATTRIBUTION_SOURCES.map((source) => <option key={source} value={source}>{LEAD_ATTRIBUTION_SOURCE_LABELS[source]}</option>)}</select></label>
                 <label className="ta-field">Campaign<select name="campaign_id" defaultValue={attribution?.campaign_id ?? ""}><option value="">No campaign</option>{campaignOptions.map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}</select></label>
               </div>
+              <div className="ta-field-row">
+                {(["utm_source", "utm_medium", "utm_campaign"] as const).map((field) => <label key={field} className="ta-field">{field.replace("utm_", "UTM ")}<input name={field} defaultValue={attribution?.[field] ?? ""} maxLength={160} /></label>)}
+              </div>
+              <div className="ta-field-row">
+                {(["utm_content", "utm_term"] as const).map((field) => <label key={field} className="ta-field">{field.replace("utm_", "UTM ")}<input name={field} defaultValue={attribution?.[field] ?? ""} maxLength={160} /></label>)}
+              </div>
               <label className="ta-field">Notes<textarea name="notes" rows={2} defaultValue={attribution?.notes ?? ""} /></label>
               <div><button type="submit" className="ta-btn ta-btn-outline ta-btn-sm">Save attribution</button>{attribution?.marketing_campaigns?.name && <span className="ta-muted-sub" style={{ marginLeft: 10 }}>Currently linked to {attribution.marketing_campaigns.name}</span>}</div>
             </form>

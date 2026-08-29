@@ -600,6 +600,11 @@ export const marketingCampaignSchema = z.object({
 export const leadAttributionSchema = z.object({
   source: z.enum(["facebook", "tiktok", "whatsapp", "website", "referral", "other"]),
   campaign_id: z.string().uuid().optional().or(z.literal("")),
+  utm_source: z.string().trim().max(160).optional().or(z.literal("")),
+  utm_medium: z.string().trim().max(160).optional().or(z.literal("")),
+  utm_campaign: z.string().trim().max(160).optional().or(z.literal("")),
+  utm_content: z.string().trim().max(160).optional().or(z.literal("")),
+  utm_term: z.string().trim().max(160).optional().or(z.literal("")),
   notes: z.string().trim().max(1000).optional().or(z.literal("")),
 });
 export type LeadAttributionInput = z.infer<typeof leadAttributionSchema>;
