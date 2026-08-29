@@ -66,7 +66,7 @@ export default async function ContactsPage({
     return (
       <>
         <PageHead title="Contacts" subtitle="Pre-sales nurture contacts." />
-        <div className="ta-alert ta-alert-error">Could not load contacts: {queryError.message}</div>
+        <div className="ta-alert ta-alert-error">Could not load contacts. Please try again later.</div>
       </>
     );
   }

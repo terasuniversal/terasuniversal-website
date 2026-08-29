@@ -38,7 +38,7 @@ export default async function MarketingLandingPage() {
       />
 
       {queryError ? (
-        <div className="ta-alert ta-alert-error">Could not load marketing overview: {queryError.message}</div>
+        <div className="ta-alert ta-alert-error">Could not load the marketing overview. Please try again later.</div>
       ) : (
         <div className="ta-grid cols-3" style={{ marginBottom: 22 }}>
           <StatCard label="Total Campaigns" value={campaigns.count ?? 0} icon="📣" href="/admin/marketing/campaigns" />

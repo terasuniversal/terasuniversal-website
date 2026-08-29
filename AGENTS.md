@@ -101,6 +101,29 @@ Allowed:
 
 Stop before commit and request review.
 
+### LOW / MEDIUM IMPLEMENTATION COMPLETION WORKFLOW
+
+After every LOW or MEDIUM implementation:
+
+1. Automatically run the relevant validation for the approved scope.
+2. Automatically perform a final read-only review of the implementation.
+3. If the review fails, fix only within the approved scope and re-run the
+   relevant validation and final read-only review.
+4. If the review passes, send one concise Telegram report containing:
+   - task completed
+   - risk level
+   - model/provider used
+   - files changed
+   - validation result
+   - review result
+   - risks
+5. If a commit is appropriate, stop and ask exactly:
+   `APPROVAL REQUIRED: COMMIT`
+
+The requester must not need to ask separately for a final review. This
+workflow does not authorize commit, push, merge, deploy, migration apply, or
+database mutation; all existing approval gates remain mandatory.
+
 #### HIGH / CRITICAL
 
 Examples include:

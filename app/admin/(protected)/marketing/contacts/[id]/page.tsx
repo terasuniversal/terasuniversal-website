@@ -61,7 +61,7 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
     return (
       <>
         <PageHead title="Contact" subtitle="Could not load this contact." />
-        <div className="ta-alert ta-alert-error">{error.message}</div>
+        <div className="ta-alert ta-alert-error">Could not load this contact. Please try again later.</div>
       </>
     );
   }
