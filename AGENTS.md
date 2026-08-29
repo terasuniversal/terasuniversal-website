@@ -16,6 +16,128 @@ This file is the root entry point for AI agents working in the TERAS Universal w
 - DeepSeek is limited to low-risk, routine, narrowly scoped work such as copy, CSS, small UI polish, and mechanical CRUD changes. It must escalate if scope, architecture, security, database, auth, or production impact appears.
 - A human remains the approval authority. No agent may merge, push, deploy, apply a production migration, or otherwise release to production without explicit approval in the conversation.
 
+## TERAS Auto-Agent Governance Policy (Approved)
+
+### Repository boundaries
+
+- Development worktree: `D:\Projects\terasuniversal-website-clean`
+- Recovery evidence: `D:\Projects\terasuniversal-website`
+- Recovery evidence is permanently read-only unless explicitly approved by a human.
+- Do not touch the recovery worktree during normal development work.
+
+### Risk levels and permitted actions
+
+#### LOW RISK
+
+Examples include:
+
+- small UI fixes
+- responsive fixes
+- simple CRUD
+- boilerplate
+- documentation
+- small validation fixes
+- read-only audits
+
+Allowed:
+
+- inspect
+- edit approved files
+- run relevant validation
+- delegate focused work
+
+Stop before commit.
+
+#### MEDIUM RISK
+
+Examples include:
+
+- multi-file features
+- moderate refactors
+- Sales/Marketing workflow changes
+- shared component changes
+
+Allowed:
+
+- inspect
+- edit approved files
+- test
+- focused delegation
+
+Stop before commit and request review.
+
+#### HIGH / CRITICAL
+
+Examples include:
+
+- migrations
+- Supabase schema, RLS, policies, or functions
+- auth
+- RBAC/permissions
+- security-sensitive changes
+- production configuration
+- destructive Git operations
+- broad architecture changes
+- certificate trust or verification logic
+
+Default: read-only only. Implementation requires explicit human approval.
+
+### Human approval gates
+
+Human approval is always required before:
+
+- commit
+- push
+- merge or rebase
+- deploy
+- migration apply
+- production or staging database mutation
+- reset
+- clean
+- risky stash
+- significant deletion
+- production configuration changes
+
+### Delegation
+
+- The parent Hermes agent owns final review.
+- Maximum two concurrent workers.
+- Maximum delegation depth is one; workers cannot spawn grandchildren.
+- Every worker must receive the exact objective, allowed paths, blocked paths, risk level, prohibited actions, and output contract.
+- Do not delegate trivial one-file edits unnecessarily.
+- A worker must stop on scope expansion.
+- Existing role descriptions above do not authorize routing that is disabled by the model policy below.
+
+Worker output must include:
+
+- `COMPLETE`, `BLOCKED`, or `ESCALATE`
+- task ID
+- inspected files
+- changed files
+- validation run
+- validation results
+- risks
+- unresolved issues
+- recommended next action
+
+### Model policy
+
+- Parent model: `gpt-5.6-luna` via OpenAI Codex.
+- Delegated workers inherit the parent model/provider for now.
+- Claude and DeepSeek routing remain disabled until later approval.
+
+### Required verification
+
+Before implementation is reported complete:
+
+- run `git status`
+- run `git diff`
+- run `git diff --check`
+- confirm approved files only were changed
+- run relevant lint, typecheck, tests, and build validation
+- report environment failures honestly
+- confirm no commit, push, merge, deploy, or migration occurred
+
 ## Required workflow
 
 1. Read `.ai/CURRENT_TASK.md` and `.ai/PROJECT_STATUS.md` before editing.
