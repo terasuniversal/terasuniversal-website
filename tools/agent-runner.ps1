@@ -159,7 +159,7 @@ function Invoke-ClaudeImplementation {
     $prompt = Get-Content -Path $HandoffPath -Raw
     Push-Location $RepoRoot
     try {
-        $prompt | & claude -p
+        $prompt | & claude -p --safe-mode --no-session-persistence
         if ($LASTEXITCODE -ne 0) {
             Write-Host "Claude Code CLI exited with code $LASTEXITCODE. Review its output above before continuing."
             return $false
@@ -188,21 +188,25 @@ function Get-ClaudeReviewCapabilities {
     # The reviewer must have an explicit read-only permission mode and a
     # restricted built-in tool set. Never substitute an unsafe mode if a
     # future Claude CLI changes either contract.
+    $hasAllowedTools = $help -match '(?m)--allowed-tools <tools\.\.\.>'
+    $hasLegacyTools = $help -match '(?m)--tools <tools\.\.\.>'
     if ($help -notmatch '(?m)-p, --print' -or
         $help -notmatch '(?m)--permission-mode <mode>' -or
         $help -notmatch '(?is)--permission-mode <mode>.*?choices:.*?plan' -or
-        $help -notmatch '(?m)--tools <tools\.\.\.>') {
+        (-not $hasAllowedTools -and -not $hasLegacyTools) -or
+        $help -notmatch '(?m)--safe-mode' -or
+        $help -notmatch '(?m)--no-session-persistence') {
         return [pscustomobject]@{
             Supported = $false
-            Reason = "This Claude CLI does not expose the required read-only review controls (-p, --permission-mode plan, and --tools)."
+            Reason = "This Claude CLI does not expose the required read-only review controls (-p, --permission-mode plan, a restricted tools flag, --safe-mode, and --no-session-persistence)."
             Arguments = @()
         }
     }
 
     return [pscustomobject]@{
         Supported = $true
-        Reason = "Claude review will run in plan mode with only Read, Glob, and Grep tools."
-        Arguments = @("-p", "--permission-mode", "plan", "--tools", "Read,Glob,Grep")
+        Reason = "Claude review will run in plan mode with only Read, Glob, and Grep tools, safe mode, and no session persistence."
+        Arguments = @("-p", "--permission-mode", "plan", $(if ($hasAllowedTools) { "--allowed-tools" } else { "--tools" }), "Read,Glob,Grep", "--safe-mode", "--no-session-persistence", "--output-format", "text")
     }
 }
 
