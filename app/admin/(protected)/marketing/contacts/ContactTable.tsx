@@ -88,7 +88,7 @@ export function ContactTable({
               <span>Consent</span>
               <span>{CONSENT_LABELS[c.consent_status]}</span>
               <span>Owner</span>
-              <span>{c.owner_id ? staffNames.get(c.owner_id) ?? "—" : "Unassigned"}</span>
+              <span>{c.owner_id ? staffNames.get(c.owner_id) ?? "—" : <span className="ta-lead-sub">Unassigned</span>}</span>
               <span>Next Follow-up</span>
               <span>{formatDateTime(c.next_follow_up_at)}</span>
             </div>

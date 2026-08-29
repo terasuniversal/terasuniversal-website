@@ -90,7 +90,7 @@ export function CampaignTable({
               <span>Budget</span>
               <span>{formatMoney(c.budget)}</span>
               <span>Owner</span>
-              <span>{c.owner_id ? staffNames.get(c.owner_id) ?? "—" : "Unassigned"}</span>
+              <span>{c.owner_id ? staffNames.get(c.owner_id) ?? "—" : <span className="ta-lead-sub">Unassigned</span>}</span>
               <span>Course</span>
               <span>{c.course_id ? courseTitles.get(c.course_id) ?? "—" : "—"}</span>
             </div>
