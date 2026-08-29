@@ -22,10 +22,10 @@ export type SalesActionState = { message?: string; errors?: Record<string, strin
 export async function setLeadAttribution(leadMetadataId: string, formData: FormData): Promise<void> {
   const profile = await requireRole("editor");
   await requireModuleAccess("sales_leads");
-  const parsed = leadAttributionSchema.safeParse({ source: formData.get("source"), campaign_id: formData.get("campaign_id") ?? "", notes: formData.get("notes") ?? "" });
+  const parsed = leadAttributionSchema.safeParse({ source: formData.get("source"), campaign_id: formData.get("campaign_id") ?? "", utm_source: formData.get("utm_source") ?? "", utm_medium: formData.get("utm_medium") ?? "", utm_campaign: formData.get("utm_campaign") ?? "", utm_content: formData.get("utm_content") ?? "", utm_term: formData.get("utm_term") ?? "", notes: formData.get("notes") ?? "" });
   if (!parsed.success) redirect(`/admin/sales/leads/${leadMetadataId}?attributionError=${encodeURIComponent("Please enter valid attribution details.")}`);
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.from("sales_lead_attributions").upsert({ lead_metadata_id: leadMetadataId, source: parsed.data.source, campaign_id: parsed.data.campaign_id || null, notes: parsed.data.notes || null }, { onConflict: "lead_metadata_id" });
+  const { error } = await supabase.from("sales_lead_attributions").upsert({ lead_metadata_id: leadMetadataId, source: parsed.data.source, campaign_id: parsed.data.campaign_id || null, utm_source: parsed.data.utm_source || null, utm_medium: parsed.data.utm_medium || null, utm_campaign: parsed.data.utm_campaign || null, utm_content: parsed.data.utm_content || null, utm_term: parsed.data.utm_term || null, notes: parsed.data.notes || null }, { onConflict: "lead_metadata_id" });
   if (error) redirect(`/admin/sales/leads/${leadMetadataId}?attributionError=${encodeURIComponent("Unable to save marketing attribution.")}`);
   await logActivity(supabase, leadMetadataId, "note_added", `Marketing attribution updated by ${profile.full_name ?? "staff"}`, profile.id);
   revalidateLead(leadMetadataId);
