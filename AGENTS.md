@@ -155,6 +155,35 @@ Worker output must include:
 - unresolved issues
 - recommended next action
 
+### SELECTIVE WORKER PATH SAFETY
+
+For every delegated or selective worker, especially DeepSeek:
+
+- Resolve all allowed paths against `D:\Projects\terasuniversal-website-clean`.
+- When an exact file path is supplied, read that exact path directly.
+- Do not search `D:\Projects`.
+- Do not enumerate sibling repositories.
+- Do not inspect alternate worktrees.
+- If a target file cannot be found, return `BLOCKED`, report the unresolved
+  path, and do not broaden the search scope automatically.
+- Parent Hermes must decide the next action.
+- Parenthesized route segments such as `app/admin/(protected)/` are literal
+  path segments and must be handled as such.
+- Prefer normalized absolute paths using:
+  `D:/Projects/terasuniversal-website-clean/...`.
+- Never use another repository, worktree, recovery folder, or sibling project
+  as a fallback.
+
+#### Worker success/failure semantics
+
+- `ROUTING PASS` means the correct model/provider was used, the correct scope
+  was respected, and no prohibited action occurred.
+- Findings discovered during a review do not make routing fail. Report
+  `FINDINGS FOUND` or `NO FINDINGS` separately.
+- `ROUTING FAIL` is reserved for a wrong model/provider, scope violation,
+  prohibited action, silent fallback, or inability to execute the requested
+  worker.
+
 ### Model policy
 
 - Parent Hermes model: `gpt-5.6-luna` via OpenAI Codex.
