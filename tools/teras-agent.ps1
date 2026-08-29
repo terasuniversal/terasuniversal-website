@@ -745,17 +745,14 @@ function Invoke-TaskPipeline {
 
     $state = New-TaskState -TaskId $taskId -Description $Description -Classification $classification
     $state.State = "ROUTED"
-    Save-TaskState -State $state
-
     $isDeepSeek = ($state.Implementer -eq "DeepSeek")
     $isCodex = ($state.Implementer -eq "Codex")
-    $handoffPath = if ($isDeepSeek) { New-DeepSeekHandoff -State $state } elseif ($isCodex) { New-CodexImplementationHandoff -State $state } else { New-ClaudeHandoff -State $state }
     $handoffFileName = if ($isDeepSeek) { "DEEPSEEK_HANDOFF.md" } elseif ($isCodex) { "CODEX_IMPLEMENTATION_HANDOFF.md" } else { "CLAUDE_HANDOFF.md" }
 
     if ($DryRun) {
         Write-Host "DRY RUN - the following would happen next (nothing was launched):"
         Write-Host ""
-        Write-Host "1. Launch $($classification.Implementer) ($($classification.ImplementerModel)) with handoff: $handoffPath"
+        Write-Host "1. Launch $($classification.Implementer) ($($classification.ImplementerModel)) with handoff: $(Join-Path $AiDir $handoffFileName)"
         if ($isDeepSeek) {
             Write-Host "   (DeepSeek can return ESCALATE_TO_CLAUDE - see .ai/DEEPSEEK_IMPLEMENTATION_REPORT.md's Escalation Required field)"
         }
@@ -779,6 +776,11 @@ function Invoke-TaskPipeline {
         Write-Host ""
         return
     }
+
+    Save-TaskState -State $state
+
+    $handoffPath = if ($isDeepSeek) { New-DeepSeekHandoff -State $state } elseif ($isCodex) { New-CodexImplementationHandoff -State $state } else { New-ClaudeHandoff -State $state }
+    $handoffFileName = if ($isDeepSeek) { "DEEPSEEK_HANDOFF.md" } elseif ($isCodex) { "CODEX_IMPLEMENTATION_HANDOFF.md" } else { "CLAUDE_HANDOFF.md" }
 
     $preSnapshot = Get-GitStatusSnapshot
     $state.PreImplementationSnapshot = $preSnapshot
