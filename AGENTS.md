@@ -13,7 +13,7 @@ This file is the root entry point for AI agents working in the TERAS Universal w
 
 - Codex is the primary implementation agent for the active task and performs the final technical review of its own work when no separate reviewer is available.
 - Claude Code is the reviewer for architecture, security, database, auth/RLS, certificate, and cross-module concerns. Claude may implement complex work when explicitly assigned.
-- DeepSeek is limited to low-risk, routine, narrowly scoped work such as copy, CSS, small UI polish, and mechanical CRUD changes. It must escalate if scope, architecture, security, database, auth, or production impact appears.
+- DeepSeek routing is disabled for now. Do not invoke DeepSeek or use it as an automatic fallback.
 - A human remains the approval authority. No agent may merge, push, deploy, apply a production migration, or otherwise release to production without explicit approval in the conversation.
 
 ## TERAS Auto-Agent Governance Policy (Approved)
@@ -157,7 +157,7 @@ Worker output must include:
 
 ### SELECTIVE WORKER PATH SAFETY
 
-For every delegated or selective worker, especially DeepSeek:
+For every delegated or selective worker:
 
 - Resolve all allowed paths against `D:\Projects\terasuniversal-website-clean`.
 - When an exact file path is supplied, read that exact path directly.
@@ -193,42 +193,48 @@ For every delegated or selective worker, especially DeepSeek:
 
 #### LOW RISK — routine/simple
 
-- Preferred worker: `deepseek-v4-flash` via DeepSeek.
-- Examples: copy changes, documentation, simple UI consistency, mechanical CRUD,
-  small CSS/responsive fixes, and basic read-only audits.
-- If DeepSeek is unavailable or fails, the parent may reassess whether
-  `gpt-5.6-luna` is appropriate; any change must be reported explicitly.
+- Use `gpt-5.6-luna` via OpenAI Codex.
+- The worker may inspect, implement the approved scope, validate, and report.
 - Stop before commit.
+- DeepSeek routing is disabled for now.
+- Automatic fallback to DeepSeek is prohibited.
 
 #### LOW RISK — stronger coding/reasoning required
 
-- Parent/worker: `gpt-5.6-luna` via OpenAI Codex.
+- Use `gpt-5.6-luna` via OpenAI Codex.
+- The worker may inspect, implement the approved scope, validate, and report.
 - Stop before commit.
 
 #### MEDIUM RISK
 
-- Primary: `gpt-5.6-luna` via OpenAI Codex.
-- A focused delegated Luna review may be used.
+- Use `gpt-5.6-luna` via OpenAI Codex.
+- A focused delegated Luna reviewer may be used when useful.
+- The worker may inspect, implement the approved scope, validate, and report.
 - Stop before commit and request human review.
 
 #### HIGH RISK
 
-- Preferred specialist: `claude-sonnet-5` via Anthropic / Claude Code.
-- Default behavior remains read-only.
-- Claude performs specialist review; the parent Luna agent reviews Claude's
-  output.
+- Use `claude-sonnet-5` via Claude Code / Anthropic as the specialist.
+- Default behavior is read-only review.
+- Parent `gpt-5.6-luna` must review Claude's findings.
 - Implementation requires explicit human approval.
 
 #### CRITICAL
 
-- Claude Sonnet 5 specialist review is required where applicable.
+- Use `claude-sonnet-5` via Claude Code / Anthropic as the specialist where applicable.
 - Read-only by default.
+- Parent `gpt-5.6-luna` must review Claude's findings.
 - Human approval is required before implementation.
 - Separate approval remains required before commit, push, merge, deploy,
   migration apply, or production/staging changes.
 
 #### Routing safety and boundaries
 
+- The approved worker setup currently consists only of Codex and Claude.
+- DeepSeek routing and any automatic fallback to DeepSeek are disabled.
+- Claude specialist invocation must not change the parent default model.
+- Every delegated or specialist report must state the actual model and provider.
+- No silent model fallback is permitted.
 - Stay inside the canonical workspace:
   `D:\Projects\terasuniversal-website-clean`.
 - Recovery evidence remains read-only:
