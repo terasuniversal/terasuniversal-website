@@ -58,6 +58,7 @@ export default async function SalesLeadsPage({
   return (
     <>
       <PageHead title="Sales Leads" subtitle="Unified inbox — public contact enquiries and proposal requests in one pipeline." />
+<p className="ta-text-muted" style={{ margin: "8px 0 0" }}>{'Inbound WhatsApp, TikTok and Facebook enquiries go directly to Sales Leads.'}</p>
 
       <form className="ta-toolbar">
         <div className="ta-search">
