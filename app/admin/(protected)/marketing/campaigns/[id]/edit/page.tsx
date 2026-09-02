@@ -21,7 +21,7 @@ export default async function EditCampaignPage({ params }: { params: Promise<{ i
     return (
       <>
         <PageHead title="Edit Campaign" subtitle="Could not load this campaign." />
-        <div className="ta-alert ta-alert-error">{error.message}</div>
+        <div className="ta-alert ta-alert-error">Could not load this campaign. Please try again later.</div>
       </>
     );
   }

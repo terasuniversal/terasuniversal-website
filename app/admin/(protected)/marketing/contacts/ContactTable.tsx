@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Badge } from "../../../../../components/admin/ui";
-import { SOURCE_LABELS, CONSENT_LABELS, contactDisplayName } from "../../../../../lib/marketing/contacts";
+import { SOURCE_LABELS, contactDisplayName } from "../../../../../lib/marketing/contacts";
 import type { MarketingContact } from "../../../../../lib/supabase/database.types";
 
 function formatDate(d: string | null) {
@@ -86,11 +86,13 @@ export function ContactTable({
               <span>Source</span>
               <span>{SOURCE_LABELS[c.source]}</span>
               <span>Consent</span>
-              <span>{CONSENT_LABELS[c.consent_status]}</span>
+              <Badge status={c.consent_status} />
               <span>Owner</span>
-              <span>{c.owner_id ? staffNames.get(c.owner_id) ?? "—" : "Unassigned"}</span>
+              <span>{c.owner_id ? staffNames.get(c.owner_id) ?? "—" : <span className="ta-lead-sub">Unassigned</span>}</span>
               <span>Next Follow-up</span>
               <span>{formatDateTime(c.next_follow_up_at)}</span>
+              <span>Created</span>
+              <span>{formatDate(c.created_at)}</span>
             </div>
             <div className="ta-lead-card-action" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <Link href={`/admin/marketing/contacts/${c.id}`} className="ta-btn ta-btn-outline ta-btn-sm">

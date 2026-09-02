@@ -59,7 +59,7 @@ export default async function CampaignsPage({
     return (
       <>
         <PageHead title="Campaigns" subtitle="Marketing campaigns across channels." />
-        <div className="ta-alert ta-alert-error">Could not load campaigns: {queryError.message}</div>
+        <div className="ta-alert ta-alert-error">Could not load campaigns. Please try again later.</div>
       </>
     );
   }

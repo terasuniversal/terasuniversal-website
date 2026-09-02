@@ -21,7 +21,7 @@ export default async function EditContactPage({ params }: { params: Promise<{ id
     return (
       <>
         <PageHead title="Edit Contact" subtitle="Could not load this contact." />
-        <div className="ta-alert ta-alert-error">{error.message}</div>
+        <div className="ta-alert ta-alert-error">Could not load this contact. Please try again later.</div>
       </>
     );
   }

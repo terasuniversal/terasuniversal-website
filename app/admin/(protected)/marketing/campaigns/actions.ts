@@ -134,14 +134,18 @@ async function transitionCampaign(id: string, from: MarketingCampaignStatus, to:
   }
   if (!current || current.status !== from) return;
 
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from("marketing_campaigns")
     .update({ status: to, updated_by: profile.id })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("status", from)
+    .select("id")
+    .maybeSingle();
   if (error) {
     console.error("marketing_campaigns: transition update failed", { message: error.message, id, from, to });
     return;
   }
+  if (!updated) return;
 
   revalidateCampaign(id);
 }
