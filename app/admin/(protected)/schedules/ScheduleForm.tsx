@@ -77,6 +77,14 @@ export function ScheduleForm({
               <input id="capacity" name="capacity" type="number" min="0" defaultValue={d.capacity ?? 20} />
             </Field>
           </div>
+          <Field
+            label="Public registration fee (MYR)"
+            name="fee"
+            hint="Optional session-specific price. Leave blank to keep the session visible but unavailable for online registration."
+            error={e.fee}
+          >
+            <input id="fee" name="fee" type="number" min="0" step="0.01" inputMode="decimal" defaultValue={d.fee ?? ""} />
+          </Field>
         </div>
       </Card>
 

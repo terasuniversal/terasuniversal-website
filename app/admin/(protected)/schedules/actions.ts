@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { requireModuleAccess, requireRole } from "../../../../lib/auth/session";
@@ -23,6 +23,7 @@ function readForm(formData: FormData) {
     exam_date: v("exam_date"),
     start_time: v("start_time"),
     end_time: v("end_time"),
+    fee: v("fee"),
     capacity: formData.get("capacity") ?? 0,
     status: (v("status") || "open") as any,
     is_published: formData.get("is_published") === "on",
@@ -35,6 +36,11 @@ function readForm(formData: FormData) {
 
 function clean(data: any) {
   const out: any = { ...data };
+  // The session fee column is introduced by the Phase 3 additive migration.
+  // Omit an empty value so this action remains compatible with a baseline
+  // database before that migration is applied; once present, NULL means the
+  // session is visible but not eligible for online payment.
+  if (out.fee === null || out.fee === undefined) delete out.fee;
   // exam_date is a nullable `date` column and, unlike start_date/end_date, is
   // genuinely optional -- a blank submission must clear it to NULL, not send
   // an empty string (which Postgres rejects for a date column).
@@ -92,6 +98,9 @@ export async function createSchedule(_prev: ScheduleFormState, formData: FormDat
     const assignErr = await applyAssessorAssignment(supabase, created.id, assessor_id);
     if (assignErr) {
       revalidatePath("/admin/schedules");
+      revalidateTag("schedules");
+      revalidatePath("/calendar");
+      revalidatePath("/");
       redirect(`/admin/schedules/${created.id}?assessor_error=${encodeURIComponent(assignErr)}`);
     }
   }
@@ -114,10 +123,16 @@ export async function createSchedule(_prev: ScheduleFormState, formData: FormDat
     }
     revalidatePath(`/admin/sales/opportunities/${payload.source_opportunity_id}`);
     revalidatePath("/admin/schedules");
+    revalidateTag("schedules");
+    revalidatePath("/calendar");
+    revalidatePath("/");
     redirect(`/admin/schedules/${created.id}`);
   }
 
   revalidatePath("/admin/schedules");
+  revalidateTag("schedules");
+  revalidatePath("/calendar");
+  revalidatePath("/");
   redirect("/admin/schedules");
 }
 
@@ -137,6 +152,9 @@ export async function updateSchedule(id: string, _prev: ScheduleFormState, formD
   if (assignErr) return { message: `Schedule updated, but the primary assessor could not be assigned: ${assignErr}` };
   revalidatePath("/admin/schedules");
   revalidatePath(`/admin/schedules/${id}`);
+  revalidateTag("schedules");
+  revalidatePath("/calendar");
+  revalidatePath("/");
   redirect(`/admin/schedules/${id}`);
 }
 
@@ -155,6 +173,9 @@ export async function duplicateSchedule(id: string) {
     notes: s.notes, status: "open", is_published: false,
   });
   revalidatePath("/admin/schedules");
+  revalidateTag("schedules");
+  revalidatePath("/calendar");
+  revalidatePath("/");
 }
 
 // "Archive" as a distinct status was removed: cancelled already represents a
@@ -168,6 +189,9 @@ export async function softDeleteSchedule(id: string) {
   const supabase = await createSupabaseServerClient();
   await supabase.from("course_schedules").update({ deleted_at: new Date().toISOString() }).eq("id", id);
   revalidatePath("/admin/schedules");
+  revalidateTag("schedules");
+  revalidatePath("/calendar");
+  revalidatePath("/");
 }
 
 export async function restoreSchedule(id: string) {
@@ -177,6 +201,9 @@ export async function restoreSchedule(id: string) {
   await supabase.from("course_schedules").update({ deleted_at: null }).eq("id", id);
   revalidatePath("/admin/schedules");
   revalidatePath(`/admin/schedules/${id}`);
+  revalidateTag("schedules");
+  revalidatePath("/calendar");
+  revalidatePath("/");
 }
 
 // --------------------------------------------------------------------
