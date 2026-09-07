@@ -1,0 +1,12 @@
+import Link from "next/link";
+import type { PublicSchedule } from "../../lib/public-content";
+
+const statusLabels: Record<string, string> = { open: "Open", full: "Full", cancelled: "Cancelled", completed: "Completed", in_progress: "In progress" };
+const formatDate = (value: string) => new Intl.DateTimeFormat("en-MY", { day: "numeric", month: "short", year: "numeric" }).format(new Date(`${value}T00:00:00`));
+const formatMoney = (value: number | null) => value == null ? "Fee to be confirmed" : new Intl.NumberFormat("en-MY", { style: "currency", currency: "MYR" }).format(value);
+
+export default function CourseScheduleOptions({ sessions, loadError = false }: { sessions: PublicSchedule[]; loadError?: boolean }) {
+  if (loadError) return <section className="course-schedule-options" aria-labelledby="course-schedule-title"><div className="container"><div className="section-heading"><span className="eyebrow">Upcoming Training</span><h2 id="course-schedule-title">Training dates are temporarily unavailable.</h2><p>Please try again shortly or contact TERAS for assistance.</p><a className="btn btn-outline" href="/request-proposal">Contact TERAS</a></div></div></section>;
+  if (!sessions.length) return null;
+  return <section className="course-schedule-options" aria-labelledby="course-schedule-title"><div className="container"><div className="section-heading"><span className="eyebrow">Public Sessions</span><h2 id="course-schedule-title">Choose a training date.</h2><p>Review the available sessions below. Registration availability is checked from TERAS training records.</p></div><div className="course-schedule-grid">{sessions.map((session) => { const active = session.registration_available === true; return <article className="course-schedule-card" key={session.id}><div><span className="course-schedule-date">{formatDate(session.start_date)}{session.end_date && session.end_date !== session.start_date ? ` – ${formatDate(session.end_date)}` : ""}</span><strong>{[session.delivery_mode, session.venue].filter(Boolean).join(" · ") || "Venue to be confirmed"}</strong><span className="course-schedule-fee">{formatMoney(session.fee ?? null)} per attendee</span></div><span className={`calendar-status is-${active ? "open" : session.status}`}>{active ? "Registration open" : (statusLabels[session.status] ?? "Unavailable")}</span>{active ? <Link className="btn btn-primary" href={`/registration/${session.id}`}>Register</Link> : <span className="course-schedule-unavailable">Not available</span>}</article>; })}</div></div></section>;
+}

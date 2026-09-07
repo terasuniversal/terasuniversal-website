@@ -447,7 +447,10 @@ function mapProviderStatus(rawStatus: unknown): ProviderPaymentStatus {
  * disproven, just never observed in the one real response captured so
  * far.
  */
-export async function getBillTransactions(billCode: string): Promise<ProviderBillTransaction[]> {
+export async function getBillTransactions(
+  billCode: string,
+  options: { strictProviderBillCode?: boolean } = {},
+): Promise<ProviderBillTransaction[]> {
   const { userSecretKey, baseUrl } = getCredentials();
   if (!billCode || billCode.trim().length === 0) {
     throw new Error("ToyyibPay getBillTransactions: billCode is required.");
@@ -482,7 +485,10 @@ export async function getBillTransactions(billCode: string): Promise<ProviderBil
     const refnoRaw = r.billpaymentInvoiceNo ?? r.refno ?? r.billplzTransactionId ?? r.transaction_id ?? null;
     const amountRaw = r.billpaymentAmount ?? r.billPaymentAmount ?? r.amount ?? null;
     const timeRaw = r.billPaymentDate ?? r.billpaymentDate ?? r.transaction_time ?? r.paidAt ?? null;
-    const billCodeRaw = r.billCode ?? r.billpaymentBillCode ?? billCode;
+    // The registration callback must prove that ToyyibPay returned the bill
+    // code.  The legacy invoice flow retains its historical fallback unless
+    // strictProviderBillCode is explicitly requested.
+    const billCodeRaw = r.billCode ?? r.billpaymentBillCode ?? (options.strictProviderBillCode ? null : billCode);
 
     return {
       providerTransactionId: refnoRaw !== null ? String(refnoRaw) : null,
