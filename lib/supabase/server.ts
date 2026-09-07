@@ -3,8 +3,7 @@ import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import type { Database } from "./database.types";
-
-const supabasePublicKey = () => process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || "";
+import { getSupabasePublishableKey, getSupabaseServiceRoleKey, getSupabaseUrl } from "./env";
 
 /**
  * Supabase client for React Server Components, Server Actions and Route
@@ -15,8 +14,8 @@ export async function createSupabaseServerClient() {
   const cookieStore = await cookies();
 
   const client = createServerClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    supabasePublicKey(),
+    getSupabaseUrl(),
+    getSupabasePublishableKey(),
     {
       cookies: {
         getAll() {
@@ -50,8 +49,8 @@ export async function createSupabaseServerClient() {
  */
 export function createSupabaseServiceClient() {
   const client = createClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    getSupabaseUrl(),
+    getSupabaseServiceRoleKey(),
     { auth: { persistSession: false, autoRefreshToken: false } }
   );
   return client as any;
