@@ -35,8 +35,8 @@ const seatsLabel = (session) => {
   return null;
 };
 
-const sessionUrl = (session) => (session.slug ? `/training/${session.slug}` : enquiryHref({ source: "calendar", session: session.start_date }));
-const sessionCta = (session) => (session.slug ? "View Course Details" : "Enquire About This Session");
+const sessionUrl = (session) => session.registration_available ? `/registration/${session.id}` : (session.slug ? `/training/${session.slug}` : enquiryHref({ source: "calendar", session: session.start_date }));
+const sessionCta = (session) => session.registration_available ? "Register" : (session.slug ? "View Course Details" : "Enquire About This Session");
 
 function isUpcoming(session) {
   return session.start_date >= todayString();
@@ -151,12 +151,16 @@ function WeekView({ sessions }) {
   );
 }
 
-export default function TrainingCalendar({ sessions = [], courseSlug }) {
+export default function TrainingCalendar({ sessions = [], courseSlug, courseId, loadError = false }) {
   const [view, setView] = useState("List");
   const [filter, setFilter] = useState("Upcoming");
 
   const visibleSessions = useMemo(() => {
-    const courseSessions = courseSlug ? sessions.filter((session) => session.slug === courseSlug) : sessions;
+    const courseSessions = courseId
+      ? sessions.filter((session) => session.course_id === courseId)
+      : courseSlug
+        ? sessions.filter((session) => session.slug === courseSlug)
+        : sessions;
     if (filter === "All") return courseSessions;
     if (filter === "Completed") return courseSessions.filter((session) => !isUpcoming(session) || session.status === "completed");
     return courseSessions.filter((session) => isUpcoming(session) && isLiveStatus(session));
@@ -171,7 +175,13 @@ export default function TrainingCalendar({ sessions = [], courseSlug }) {
           <div className="calendar-view-tabs" role="group" aria-label="Calendar view">{["Month", "Week", "List"].map((item) => <button key={item} type="button" aria-pressed={view === item} className={view === item ? "active" : ""} onClick={() => setView(item)}>{item}</button>)}</div>
         </div>
       </div>
-      {sessions.length === 0 ? (
+      {loadError ? (
+        <div className="calendar-empty-state" role="alert">
+          <strong>Training dates are temporarily unavailable.</strong>
+          <p>Please try again shortly or contact TERAS for assistance with upcoming programmes.</p>
+          <a className="btn btn-primary" href="/request-proposal">Contact TERAS</a>
+        </div>
+      ) : sessions.length === 0 ? (
         <div className="calendar-empty-state">
           <strong>No training dates published yet.</strong>
           <p>Public programme dates are confirmed as courses are arranged. Check back soon, or tell us your preferred timing and we will propose a plan.</p>

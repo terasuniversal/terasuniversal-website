@@ -13,6 +13,7 @@ const slug = z
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Use lowercase letters, numbers and hyphens only");
 
 const stringArray = z.array(z.string().trim().min(1)).default([]);
+const dateTimeInput = z.string().trim().refine((value) => value === "" || Number.isFinite(Date.parse(value)), "Enter a valid date and time");
 
 export const courseSchema = z.object({
   title: z.string().trim().min(2).max(160),
@@ -88,6 +89,13 @@ export const scheduleSchema = z
     exam_date: z.string().date("Enter a valid exam date").optional().or(z.literal("")),
     start_time: z.string().optional().or(z.literal("")),
     end_time: z.string().optional().or(z.literal("")),
+    // Phase 3: the public registration price belongs to the training session,
+    // not the catalogue course. An empty field deliberately means NULL, which
+    // keeps the session visible but not payable online.
+    fee: z.preprocess(
+      (value) => value === "" || value === null || value === undefined ? null : value,
+      z.coerce.number().nonnegative().nullable().optional(),
+    ),
     capacity: z.coerce.number().int().min(0).default(0),
     status: z.enum(["open", "full", "in_progress", "completed", "cancelled"]).default("open"),
     is_published: z.boolean().default(true),
@@ -259,6 +267,26 @@ export const certificateSchema = z.object({
   expiry_date: z.string().date().optional().or(z.literal("")),
 });
 export type CertificateInput = z.infer<typeof certificateSchema>;
+
+// Compatibility validation for the currently deployed legacy certificates
+// table. Keep this separate from certificateSchema: the legacy API uses
+// certificate_no/participant_name and valid|expired|revoked, while the
+// canonical TERAS schema intentionally uses different names/statuses.
+export const legacyCertificateSchema = z.object({
+  participant_name: z.string().trim().min(2).max(160),
+  identity_no: z.string().trim().min(1).max(80),
+  course_name: z.string().trim().min(2).max(200),
+  course_date: z.string().date(),
+  course_end_date: z.string().date().optional().or(z.literal("")),
+  certificate_no: z.string().trim().min(1).max(80),
+  expiry_date: z.string().date().optional().or(z.literal("")),
+  status: z.enum(["valid", "expired", "revoked"]).default("valid"),
+  instructor: z.string().trim().max(160).optional().or(z.literal("")),
+  venue: z.string().trim().max(200).optional().or(z.literal("")),
+  certificate_file_url: z.string().trim().max(1000).optional().or(z.literal("")),
+  public_verification_enabled: z.boolean().optional(),
+});
+export type LegacyCertificateInput = z.infer<typeof legacyCertificateSchema>;
 
 export const companySchema = z.object({
   company_name: z.string().trim().min(2, "Company name is required").max(200),
@@ -617,10 +645,10 @@ export const marketingContactSchema = z.object({
   source: z.enum(MARKETING_CONTACT_SOURCES),
   source_campaign_id: z.string().uuid().optional().or(z.literal("")),
   owner_id: z.string().uuid().optional().or(z.literal("")),
-  next_follow_up_at: z.string().trim().optional().or(z.literal("")),
+  next_follow_up_at: dateTimeInput,
   consent_status: z.enum(MARKETING_CONTACT_CONSENT_STATUSES).default("not_set"),
   consent_source: z.string().trim().max(160).optional().or(z.literal("")),
-  consented_at: z.string().trim().optional().or(z.literal("")),
+  consented_at: dateTimeInput,
 }).refine((value) => Boolean(value.email || value.phone), { message: "Email or phone is required", path: ["email"] });
 
 export const marketingContactConsentSchema = z.object({
