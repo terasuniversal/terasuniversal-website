@@ -1,8 +1,9 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import type { Database } from "./database.types";
+import { getSupabasePublishableKey, getSupabaseUrl } from "./env";
 
-const supabasePublicKey = () => process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || "";
+const supabasePublicKey = () => getSupabasePublishableKey();
 
 /**
  * Refreshes the Supabase auth session on every request and guards the
@@ -19,7 +20,7 @@ export async function updateSession(request: NextRequest) {
   const isAdminArea = pathname.startsWith("/admin");
   const isLogin = pathname === "/admin/login";
   const isPasswordRecovery = pathname === "/admin/reset-password";
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseUrl = getSupabaseUrl();
   const publicKey = supabasePublicKey();
 
   // A preview without its Supabase variables should remain viewable instead of
