@@ -52,7 +52,8 @@ export default function PublicRegistrationFlow({ schedule }: { schedule: PublicR
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(friendlyError(response.status, body));
       const registration = body.registration as RegistrationResult;
-      setResult(registration); writeSession(schedule.schedule_id, { ...current, reference: registration.registration_reference }); setStep("review");
+      const nextSession = { ...current, reference: registration.registration_reference };
+      setResult(registration); setSession(nextSession); writeSession(schedule.schedule_id, nextSession); setStep("review");
     } catch (submissionError) { setError(submissionError instanceof Error ? submissionError.message : "We could not complete your registration. Please try again."); }
     finally { setBusy(false); }
   };
