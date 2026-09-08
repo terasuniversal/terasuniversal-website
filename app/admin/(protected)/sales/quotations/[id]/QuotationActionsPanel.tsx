@@ -124,6 +124,12 @@ export function QuotationActionsPanel({
           <div className="ta-card-pad" style={{ color: "var(--ta-muted)", fontSize: 13 }}>This quotation has been superseded by a later revision.</div>
         </Card>
       )}
+
+      {status === "cancelled" && (
+        <Card title="Status">
+          <div className="ta-card-pad" style={{ color: "var(--ta-muted)", fontSize: 13 }}>This accepted quotation was cancelled through the governed reversal flow and is excluded from current revenue.</div>
+        </Card>
+      )}
     </>
   );
 }

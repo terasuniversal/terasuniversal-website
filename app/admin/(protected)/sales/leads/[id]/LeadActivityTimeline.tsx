@@ -1,5 +1,6 @@
 import { Card } from "../../../../../../components/admin/ui";
 import { CRM_ACTIVITY_LABELS, type SalesActivityRow } from "../../../../../../lib/sales/crm";
+import { compareSalesActivityRows } from "../../../../../../lib/sales/activity-ordering";
 import { formatMalaysiaDateTime } from "../../../../../../lib/date-time";
 
 /**
@@ -16,7 +17,9 @@ export function LeadActivityTimeline({
   activities: SalesActivityRow[];
   actorNames: Map<string, string>;
 }) {
-  if (activities.length === 0) {
+  const sortedActivities = [...activities].sort(compareSalesActivityRows);
+
+  if (sortedActivities.length === 0) {
     return (
       <Card title="Activity Timeline">
         <div className="ta-card-pad" style={{ color: "var(--ta-muted)" }}>No activity recorded yet.</div>
@@ -28,7 +31,7 @@ export function LeadActivityTimeline({
     <Card title="Activity Timeline">
       <div className="ta-card-pad">
         <ul className="ta-timeline">
-          {activities.map((activity) => (
+          {sortedActivities.map((activity) => (
             <li className="ta-timeline-item" key={activity.id}>
               <span className={`ta-timeline-marker type-${activity.type}`} aria-hidden="true" />
               <div className="ta-timeline-body">

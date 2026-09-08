@@ -13,6 +13,7 @@ const slug = z
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Use lowercase letters, numbers and hyphens only");
 
 const stringArray = z.array(z.string().trim().min(1)).default([]);
+const dateTimeInput = z.string().trim().refine((value) => value === "" || Number.isFinite(Date.parse(value)), "Enter a valid date and time");
 
 export const courseSchema = z.object({
   title: z.string().trim().min(2).max(160),
@@ -88,6 +89,10 @@ export const scheduleSchema = z
     exam_date: z.string().date("Enter a valid exam date").optional().or(z.literal("")),
     start_time: z.string().optional().or(z.literal("")),
     end_time: z.string().optional().or(z.literal("")),
+    fee: z.preprocess(
+      (value) => value === "" || value === null || value === undefined ? null : value,
+      z.coerce.number().nonnegative().nullable().optional(),
+    ),
     capacity: z.coerce.number().int().min(0).default(0),
     status: z.enum(["open", "full", "in_progress", "completed", "cancelled"]).default("open"),
     is_published: z.boolean().default(true),
@@ -617,10 +622,10 @@ export const marketingContactSchema = z.object({
   source: z.enum(MARKETING_CONTACT_SOURCES),
   source_campaign_id: z.string().uuid().optional().or(z.literal("")),
   owner_id: z.string().uuid().optional().or(z.literal("")),
-  next_follow_up_at: z.string().trim().optional().or(z.literal("")),
+  next_follow_up_at: dateTimeInput,
   consent_status: z.enum(MARKETING_CONTACT_CONSENT_STATUSES).default("not_set"),
   consent_source: z.string().trim().max(160).optional().or(z.literal("")),
-  consented_at: z.string().trim().optional().or(z.literal("")),
+  consented_at: dateTimeInput,
 }).refine((value) => Boolean(value.email || value.phone), { message: "Email or phone is required", path: ["email"] });
 
 export const marketingContactConsentSchema = z.object({

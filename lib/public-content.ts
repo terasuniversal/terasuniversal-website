@@ -71,6 +71,57 @@ export interface PublicSchedule {
   status: string;
   capacity: number;
   available_seats: number;
+  fee: number | null;
+  registration_available: boolean;
+}
+
+export interface PublicRegistrationSchedule {
+  schedule_id: string;
+  schedule_code: string | null;
+  course_id: string;
+  course_title: string;
+  course_slug: string | null;
+  start_date: string;
+  end_date: string;
+  start_time: string | null;
+  end_time: string | null;
+  venue: string | null;
+  delivery_mode: string | null;
+  status: string;
+  fee: number | null;
+  capacity: number;
+  available_seats: number;
+  registration_available: boolean;
+}
+
+export async function getPublicRegistrationSchedule(scheduleId: string): Promise<PublicRegistrationSchedule | null> {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase.rpc("get_public_registration_schedule", { p_schedule_id: scheduleId });
+    if (error || !data) return null;
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!row) return null;
+    return {
+      schedule_id: row.schedule_id,
+      schedule_code: row.schedule_code ?? null,
+      course_id: row.course_id,
+      course_title: row.course_title,
+      course_slug: row.course_slug ?? null,
+      start_date: row.start_date,
+      end_date: row.end_date,
+      start_time: row.start_time ?? null,
+      end_time: row.end_time ?? null,
+      venue: row.venue ?? null,
+      delivery_mode: row.delivery_mode ?? null,
+      status: row.status,
+      fee: row.fee == null ? null : Number(row.fee),
+      capacity: Number(row.capacity ?? 0),
+      available_seats: Number(row.available_seats ?? 0),
+      registration_available: row.registration_available === true,
+    };
+  } catch {
+    return null;
+  }
 }
 
 const mapSchedule = (row: any): PublicSchedule => ({
@@ -87,6 +138,8 @@ const mapSchedule = (row: any): PublicSchedule => ({
   status: row.status,
   capacity: Number(row.capacity ?? 0),
   available_seats: Number(row.available_seats ?? 0),
+  fee: row.fee == null ? null : Number(row.fee),
+  registration_available: row.registration_available === true,
 });
 
 /**
@@ -103,7 +156,12 @@ export const getPublishedSchedules = unstable_cache(
     try {
       const { data, error } = await supabase.rpc("get_public_upcoming_schedules", { p_include_past: true });
       if (error) return [];
-      return (data ?? []).map(mapSchedule);
+      const schedules = (data ?? []).map(mapSchedule);
+      const withRegistration = await Promise.all(schedules.map(async (schedule: PublicSchedule) => {
+        const context = await getPublicRegistrationSchedule(schedule.id);
+        return { ...schedule, fee: context?.fee ?? null, registration_available: context?.registration_available === true };
+      }));
+      return withRegistration;
     } catch {
       return [];
     }
