@@ -34,6 +34,15 @@ const programmeLink = (title) => {
   return match ? `/training/${match.slug}` : "/request-proposal";
 };
 
+// Resolve schedule cards through the catalogue's stable CRM identity first.
+// The RPC slug is a database value and may use the canonical CRM naming,
+// while the public catalogue can intentionally use a different route slug.
+const publicScheduleSlug = (session) => {
+  const byCrmId = courseCatalog.find((course) => course.crmCourseId && course.crmCourseId === session.course_id);
+  if (byCrmId) return byCrmId.slug;
+  return courseCatalog.find((course) => course.slug === session.slug)?.slug ?? null;
+};
+
 const pillars = [
   {
     number: "01",
@@ -217,8 +226,9 @@ export default async function HomePage() {
 
           {upcomingSchedules.length > 0 ? (
             <div className="upcoming-list">
-              {upcomingSchedules.map((session) => (
-                <article className="upcoming-card" key={session.id}>
+              {upcomingSchedules.map((session) => {
+                const scheduleSlug = publicScheduleSlug(session);
+                return <article className="upcoming-card" key={session.id}>
                   <time className="upcoming-date" dateTime={session.start_date}>
                     <strong>{dateLabel(session.start_date)}</strong>
                     {session.end_date && session.end_date !== session.start_date && <span>– {dateLabel(session.end_date)}</span>}
@@ -229,9 +239,9 @@ export default async function HomePage() {
                     <p>{[session.delivery_mode, session.venue].filter(Boolean).join(" · ") || "Venue to be confirmed"}</p>
                   </div>
                   <span className={`upcoming-status is-${session.status}`}>{scheduleStatusLabel(session.status)}</span>
-                  <a className="btn btn-outline upcoming-link" href={session.slug ? `/training/${session.slug}` : `/request-proposal?source=homepage-schedule&session=${encodeURIComponent(session.start_date)}`}>{session.slug ? "View Course Details" : "Enquire About This Session"}</a>
+                  <a className="btn btn-outline upcoming-link" href={scheduleSlug ? `/training/${scheduleSlug}` : `/request-proposal?source=homepage-schedule&session=${encodeURIComponent(session.start_date)}`}>{scheduleSlug ? "View Course Details" : "Enquire About This Session"}</a>
                 </article>
-              ))}
+              })}
             </div>
           ) : (
             <div className="upcoming-empty">
