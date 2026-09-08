@@ -28,6 +28,9 @@ export const courseCatalog = [
   },
   {
     slug: "intermediate-scaffolder-level-2",
+    // Stable CRM identity: the public marketing slug intentionally differs
+    // from the canonical CRM course slug/title.
+    crmCourseId: "904293c4-8792-41d7-8744-42143887e577",
     title: "Intermediate Scaffolder (Level 2)",
     category: "Scaffolding Competency",
     summary: "Further develops the knowledge, technical skills and practical competency of scaffolders who have completed Basic Scaffolder (Level 1), for greater responsibilities in construction, maintenance, petrochemical and Oil & Gas operations.",

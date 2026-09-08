@@ -25,13 +25,12 @@ export default async function CoursePage({ params }) {
 
   const relatedCourses = (course.related || []).map((reference) => findCourse(reference) || courseCatalog.find((item) => item.title === reference)).filter(Boolean);
   const [{ schedules: publicSchedules, error: scheduleLoadError }, canonicalCourse] = await Promise.all([getPublishedSchedulesWithState(), getPublicCourseIdentity(course.slug)]);
-  // Prefer the published database course ID as the stable relationship. The
-  // static catalogue predates the CMS, so retain exact slug/title matching as
-  // a deterministic compatibility bridge only when the database course row
-  // cannot be resolved (never fuzzy matching).
+  // Prefer the explicit stable CRM identity when the public marketing slug
+  // differs from the canonical CRM slug/title. Legacy entries may resolve via
+  // the published database slug; exact title matching is compatibility-only.
   const courseSchedules = publicSchedules.filter((session) => (
-    canonicalCourse
-      ? session.course_id === canonicalCourse.id
+    course.crmCourseId || canonicalCourse
+      ? session.course_id === (course.crmCourseId || canonicalCourse.id)
       : session.slug === course.slug || session.title === course.title
   ) && session.start_date >= new Date().toISOString().slice(0, 10));
   const hasRegistration = courseSchedules.some((session) => session.registration_available === true);
