@@ -204,7 +204,15 @@ export const getUpcomingSchedules = unstable_cache(
     try {
       const { data, error } = await supabase.rpc("get_public_upcoming_schedules", { p_include_past: false });
       if (error) return [];
-      return (data ?? []).map(mapSchedule).slice(0, 3);
+      const schedules = (data ?? []).map(mapSchedule).slice(0, 3);
+      return Promise.all(schedules.map(async (schedule: PublicSchedule) => {
+        const context = await getPublicRegistrationSchedule(schedule.id);
+        return {
+          ...schedule,
+          fee: context?.fee ?? null,
+          registration_available: context?.registration_available === true,
+        };
+      }));
     } catch {
       return [];
     }

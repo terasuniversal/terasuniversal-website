@@ -5,8 +5,40 @@ import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { requireModuleAccess, requireRole } from "../../../../lib/auth/session";
 import { scheduleSchema, scheduleGroupSchema, fieldErrors } from "../../../../lib/validation/schemas";
+import { courseCatalog } from "../../../../data/courseCatalog";
 
 export type ScheduleFormState = { errors?: Record<string, string>; message?: string };
+
+/**
+ * Schedule changes affect both the calendar and the course detail page. The
+ * public catalogue can use a marketing slug that differs from the CRM slug,
+ * so invalidate explicit catalogue mappings first and then any exact CRM
+ * slug resolved from the database. This keeps invalidation targeted without
+ * relying on fuzzy title matching.
+ */
+async function revalidatePublicScheduleViews(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  courseIds: Array<string | null | undefined> = []
+) {
+  const ids = [...new Set(courseIds.filter((id): id is string => Boolean(id)))];
+  const publicSlugs = new Set(
+    courseCatalog
+      .filter((course) => course.crmCourseId && ids.includes(course.crmCourseId))
+      .map((course) => course.slug)
+  );
+
+  if (ids.length > 0) {
+    const { data } = await supabase.from("courses").select("id, slug").in("id", ids);
+    for (const course of data ?? []) {
+      if (course.slug) publicSlugs.add(course.slug);
+    }
+  }
+
+  revalidateTag("schedules");
+  revalidatePath("/calendar");
+  revalidatePath("/");
+  for (const slug of publicSlugs) revalidatePath(`/training/${slug}`);
+}
 
 function readForm(formData: FormData) {
   const v = (k: string) => {
@@ -98,9 +130,7 @@ export async function createSchedule(_prev: ScheduleFormState, formData: FormDat
     const assignErr = await applyAssessorAssignment(supabase, created.id, assessor_id);
     if (assignErr) {
       revalidatePath("/admin/schedules");
-      revalidateTag("schedules");
-      revalidatePath("/calendar");
-      revalidatePath("/");
+      await revalidatePublicScheduleViews(supabase, [payload.course_id]);
       redirect(`/admin/schedules/${created.id}?assessor_error=${encodeURIComponent(assignErr)}`);
     }
   }
@@ -123,16 +153,12 @@ export async function createSchedule(_prev: ScheduleFormState, formData: FormDat
     }
     revalidatePath(`/admin/sales/opportunities/${payload.source_opportunity_id}`);
     revalidatePath("/admin/schedules");
-    revalidateTag("schedules");
-    revalidatePath("/calendar");
-    revalidatePath("/");
+    await revalidatePublicScheduleViews(supabase, [payload.course_id]);
     redirect(`/admin/schedules/${created.id}`);
   }
 
   revalidatePath("/admin/schedules");
-  revalidateTag("schedules");
-  revalidatePath("/calendar");
-  revalidatePath("/");
+  await revalidatePublicScheduleViews(supabase, [payload.course_id]);
   redirect("/admin/schedules");
 }
 
@@ -143,6 +169,7 @@ export async function updateSchedule(id: string, _prev: ScheduleFormState, formD
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
   const supabase = await createSupabaseServerClient();
+  const { data: previousSchedule } = await supabase.from("course_schedules").select("course_id").eq("id", id).maybeSingle();
   const { assessor_id, ...scheduleData } = parsed.data;
   const { error } = await supabase.from("course_schedules").update(clean(scheduleData)).eq("id", id);
   if (error) return { message: error.message };
@@ -152,9 +179,7 @@ export async function updateSchedule(id: string, _prev: ScheduleFormState, formD
   if (assignErr) return { message: `Schedule updated, but the primary assessor could not be assigned: ${assignErr}` };
   revalidatePath("/admin/schedules");
   revalidatePath(`/admin/schedules/${id}`);
-  revalidateTag("schedules");
-  revalidatePath("/calendar");
-  revalidatePath("/");
+  await revalidatePublicScheduleViews(supabase, [previousSchedule?.course_id, scheduleData.course_id]);
   redirect(`/admin/schedules/${id}`);
 }
 
@@ -173,9 +198,7 @@ export async function duplicateSchedule(id: string) {
     notes: s.notes, status: "open", is_published: false,
   });
   revalidatePath("/admin/schedules");
-  revalidateTag("schedules");
-  revalidatePath("/calendar");
-  revalidatePath("/");
+  await revalidatePublicScheduleViews(supabase, [s.course_id]);
 }
 
 // "Archive" as a distinct status was removed: cancelled already represents a
@@ -187,23 +210,21 @@ export async function softDeleteSchedule(id: string) {
   await requireRole("admin");
   await requireModuleAccess("schedules");
   const supabase = await createSupabaseServerClient();
+  const { data: schedule } = await supabase.from("course_schedules").select("course_id").eq("id", id).maybeSingle();
   await supabase.from("course_schedules").update({ deleted_at: new Date().toISOString() }).eq("id", id);
   revalidatePath("/admin/schedules");
-  revalidateTag("schedules");
-  revalidatePath("/calendar");
-  revalidatePath("/");
+  await revalidatePublicScheduleViews(supabase, [schedule?.course_id]);
 }
 
 export async function restoreSchedule(id: string) {
   await requireRole("admin");
   await requireModuleAccess("schedules");
   const supabase = await createSupabaseServerClient();
+  const { data: schedule } = await supabase.from("course_schedules").select("course_id").eq("id", id).maybeSingle();
   await supabase.from("course_schedules").update({ deleted_at: null }).eq("id", id);
   revalidatePath("/admin/schedules");
   revalidatePath(`/admin/schedules/${id}`);
-  revalidateTag("schedules");
-  revalidatePath("/calendar");
-  revalidatePath("/");
+  await revalidatePublicScheduleViews(supabase, [schedule?.course_id]);
 }
 
 // --------------------------------------------------------------------
