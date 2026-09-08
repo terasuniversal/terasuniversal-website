@@ -25,13 +25,13 @@ import type { CompanyCandidate } from "../actions";
 export const metadata = { title: "Opportunity Detail — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
 
-const dl = { display: "grid", gridTemplateColumns: "170px 1fr", gap: 2, margin: 0 } as const;
+const dl = { display: "grid", gridTemplateColumns: "170px minmax(0, 1fr)", gap: 2, margin: 0 } as const;
 
 function Detail({ label, value }: { label: string; value: any }) {
   return (
     <div style={{ display: "contents" }}>
       <dt style={{ color: "var(--ta-muted)", padding: "7px 0" }}>{label}</dt>
-      <dd style={{ margin: 0, padding: "7px 0", fontWeight: 500 }}>{value || "—"}</dd>
+      <dd style={{ margin: 0, padding: "7px 0", fontWeight: 500, minWidth: 0, overflowWrap: "anywhere" }}>{value || "—"}</dd>
     </div>
   );
 }
@@ -230,7 +230,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
       </div>
 
       <div className="ta-lead-detail-grid">
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 20, minWidth: 0 }}>
           <Card title="Opportunity Information">
             <div className="ta-card-pad">
               <dl style={dl}>
@@ -250,7 +250,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
           <Card
             title="Quotations"
             action={
-              canManage && opp.stage !== "won" && opp.stage !== "lost" ? (
+              canManage && opp.stage !== "won" && opp.stage !== "lost" && opp.stage !== "cancelled" ? (
                 <Link href={`/admin/sales/quotations/new?opportunityId=${opp.id}`} className="ta-btn ta-btn-primary ta-btn-sm">+ Create Quotation</Link>
               ) : undefined
             }
@@ -283,7 +283,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
           <LeadActivityTimeline activities={(activityRows ?? []) as SalesActivityRow[]} actorNames={actorNames} />
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 20, minWidth: 0 }}>
           {onboardingPanel}
           {handoffPanel}
           <OpportunityActionsPanel

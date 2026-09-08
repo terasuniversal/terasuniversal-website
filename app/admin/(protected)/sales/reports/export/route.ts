@@ -2,13 +2,17 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
 import { getCurrentProfile, hasModuleAccess } from "../../../../../../lib/auth/session";
 import { isEditor } from "../../../../../../lib/auth/rbac";
-import { resolveReportDateRange, monthKeysInRange, mytMonthKey, monthKeyLabel, REPORT_RANGE_KEYS, type ReportRangeKey } from "../../../../../../lib/sales/reports";
+import { resolveReportDateRange, resolveReportArchiveState, quotationInArchivedChain, buildMonthlyTrend, REPORT_RANGE_KEYS, type ReportRangeKey } from "../../../../../../lib/sales/reports";
 
 /**
  * Exports the Monthly Trend summary for the selected date range as CSV.
  * Read access = editor+, matching the report page's own RLS floor.
  * Only aggregate counts/values — no internal notes, no participant PII, no
  * activity text (Task 13's explicit exclusions).
+ *
+ * Archive rule is identical to the report page (shared helpers in
+ * lib/sales/reports.ts) — archived lead/opportunity chains are excluded from
+ * every CSV column, so UI totals and the export always match.
  */
 export async function GET(request: NextRequest) {
   const profile = await getCurrentProfile();
@@ -24,7 +28,7 @@ export async function GET(request: NextRequest) {
   // Test/demo chains (is_test=true) are excluded.
   const supabase = await createSupabaseServerClient();
   const leadsQuery = supabase.from("sales_lead_metadata").select("id, created_at, status").eq("is_test", false).gte("created_at", range.startUtc).lt("created_at", range.endUtc);
-  const opportunitiesQuery = supabase.from("sales_opportunities").select("id, created_at").eq("is_test", false).gte("created_at", range.startUtc).lt("created_at", range.endUtc);
+  const opportunitiesQuery = supabase.from("sales_opportunities").select("id, created_at, stage, lead_metadata_id").eq("is_test", false).gte("created_at", range.startUtc).lt("created_at", range.endUtc);
   const quotationsSentQuery = supabase
     .from("sales_quotations")
     .select("opportunity_id, sent_at")
@@ -62,28 +66,68 @@ export async function GET(request: NextRequest) {
   const accepted = acceptedRaw ?? [];
   const qualifiedStatuses = new Set(["qualified", "proposal_sent", "negotiation", "won", "lost"]);
 
+  // ---- Archive exclusion — same shared rule and lookups as the report
+  // page (resolveReportArchiveState()), so UI totals and the CSV can never
+  // disagree. Date-unfiltered because won/lost/accepted are event-dated
+  // inside the range while their lead/opportunity may predate it. ----
+  const allOppIds = new Set<string>([
+    ...opps.map((o: any) => o.id),
+    ...quotationsSent.map((q: any) => q.opportunity_id),
+    ...accepted.map((q: any) => q.opportunity_id),
+    ...won.map((o: any) => o.id),
+    ...lost.map((o: any) => o.id),
+  ].filter(Boolean));
+  const { data: allOppRowsRaw } = allOppIds.size
+    ? await supabase.from("sales_opportunities").select("id, stage, lead_metadata_id").in("id", Array.from(allOppIds))
+    : { data: [] as any[] };
+  const allLeadIds = new Set<string>([
+    ...leads.map((l: any) => l.id),
+    ...(allOppRowsRaw ?? []).map((o: any) => o.lead_metadata_id).filter(Boolean),
+  ]);
+  const { data: allLeadRowsRaw } = allLeadIds.size
+    ? await supabase.from("sales_lead_metadata").select("id, status").in("id", Array.from(allLeadIds))
+    : { data: [] as any[] };
+
   // Same correction as the report page: convert_lead_to_opportunity() does
   // not update the source lead's own status, so status alone undercounts —
   // a lead with an Opportunity at all counts as qualified regardless of
-  // its own (possibly stale) status column.
+  // its own (possibly stale) status column. The same query doubles as the
+  // lead->opportunity map archive propagation needs.
   const leadIds = leads.map((l: any) => l.id);
   const { data: leadsWithOppRaw } = leadIds.length
-    ? await supabase.from("sales_opportunities").select("lead_metadata_id").eq("is_test", false).in("lead_metadata_id", leadIds)
+    ? await supabase.from("sales_opportunities").select("id, stage, lead_metadata_id").eq("is_test", false).in("lead_metadata_id", leadIds)
     : { data: [] as any[] };
-  const leadIdsWithOpportunity = new Set((leadsWithOppRaw ?? []).map((o: any) => o.lead_metadata_id));
-  const isQualified = (l: any) => qualifiedStatuses.has(l.status) || leadIdsWithOpportunity.has(l.id);
 
-  const monthKeys = monthKeysInRange(range.startUtc, range.endUtc);
-  const rows = monthKeys.map((mk) => ({
-    month: monthKeyLabel(mk),
-    leads: leads.filter((l: any) => mytMonthKey(l.created_at) === mk).length,
-    qualified: leads.filter((l: any) => mytMonthKey(l.created_at) === mk && isQualified(l)).length,
-    opportunities: opps.filter((o: any) => mytMonthKey(o.created_at) === mk).length,
-    quotationsSent: new Set(quotationsSent.filter((q: any) => mytMonthKey(q.sent_at) === mk).map((q: any) => q.opportunity_id)).size,
-    won: won.filter((o: any) => mytMonthKey(o.won_at) === mk).length,
-    lost: lost.filter((o: any) => mytMonthKey(o.lost_at) === mk).length,
-    wonValue: accepted.filter((q: any) => mytMonthKey(q.accepted_at) === mk).reduce((s: number, q: any) => s + Number(q.total), 0),
-  }));
+  const { excludedLeadIds, excludedOppIds } = resolveReportArchiveState(
+    leads,
+    opps,
+    allLeadRowsRaw ?? [],
+    [...(allOppRowsRaw ?? []), ...(leadsWithOppRaw ?? [])]
+  );
+
+  const activeLeads = leads.filter((l: any) => !excludedLeadIds.has(l.id));
+  const activeOpps = opps.filter((o: any) => !excludedOppIds.has(o.id));
+  const activeQuotationsSent = quotationsSent.filter((q: any) => !quotationInArchivedChain(q, excludedOppIds));
+  const activeWon = won.filter((o: any) => !excludedOppIds.has(o.id));
+  const activeLost = lost.filter((o: any) => !excludedOppIds.has(o.id));
+  const activeAccepted = accepted.filter((q: any) => !quotationInArchivedChain(q, excludedOppIds));
+
+  // An archived opportunity must not certify its lead as qualified.
+  const leadIdsWithOpportunity = new Set<string>((leadsWithOppRaw ?? []).filter((o: any) => !excludedOppIds.has(o.id)).map((o: any) => o.lead_metadata_id));
+  const qualifiedLeadIds = new Set<string>(activeLeads.filter((l: any) => qualifiedStatuses.has(l.status) || leadIdsWithOpportunity.has(l.id)).map((l: any) => l.id));
+
+  // Shared builder with the report page — identical aggregation by
+  // construction, so the CSV always mirrors the UI Monthly Trend table.
+  const rows = buildMonthlyTrend({
+    range,
+    leads: activeLeads,
+    qualifiedLeadIds,
+    opps: activeOpps,
+    quotationsSent: activeQuotationsSent,
+    won: activeWon,
+    lost: activeLost,
+    accepted: activeAccepted,
+  });
 
   await supabase.rpc("log_event" as never, {
     p_action: "export",
