@@ -6,7 +6,7 @@ import {
   publicErrorMessage,
   publicRegistrationPaymentSchema,
 } from "../../../../lib/public-registration";
-import { createBill, inactivateBill, ringgitStringToSen, getToyyibpayCapability } from "../../../../lib/payments/toyyibpay";
+import { createBill, inactivateBill, registrationCallbackUrl, ringgitStringToSen, getToyyibpayCapability } from "../../../../lib/payments/toyyibpay";
 import { canonicalSiteOrigin } from "../../../../lib/site-origin";
 import { createSupabaseServerClient, createSupabaseServiceClient } from "../../../../lib/supabase/server";
 
@@ -89,7 +89,7 @@ export async function POST(request: Request) {
       description: `TERAS training registration ${parsed.data.registration_reference}`,
       amountSen: ringgitStringToSen(String(attemptRow.amount)),
       returnUrl: `${origin}/payments/toyyibpay/registration-return?reference=${encodeURIComponent(parsed.data.registration_reference)}`,
-      callbackUrl: `${origin}/api/payments/toyyibpay/registration-callback`,
+      callbackUrl: registrationCallbackUrl(origin),
       externalReferenceNo: String(attemptRow.id),
       billTo: payerRow?.full_name || "TERAS Training Participant",
       billEmail: payerRow?.email || null,

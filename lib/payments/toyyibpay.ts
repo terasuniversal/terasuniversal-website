@@ -22,6 +22,20 @@ const TOYYIBPAY_BASE_URLS: Record<ToyyibpayEnv, string> = {
 };
 
 /**
+ * Builds the registration callback URL. Preview deployments protected by
+ * Vercel Authentication need the provider-compatible automation bypass query
+ * parameter; production callbacks must remain clean and never carry it.
+ */
+export function registrationCallbackUrl(origin: string): string {
+  const url = new URL(`${origin}/api/payments/toyyibpay/registration-callback`);
+  if (process.env.TOYYIBPAY_ENV === "sandbox" && process.env.VERCEL_ENV !== "production") {
+    const bypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET?.trim();
+    if (bypass) url.searchParams.set("x-vercel-protection-bypass", bypass);
+  }
+  return url.toString();
+}
+
+/**
  * Phase 2F: explicit environment resolver, replacing Phase 2B's
  * sandbox-only assertSandboxEnvironment(). TOYYIBPAY_ENV must be the
  * literal string "sandbox" or "production" -- never inferred from
