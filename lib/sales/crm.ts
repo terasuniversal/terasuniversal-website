@@ -19,6 +19,9 @@
  * component the real CRM actually renders — can import from this file alone.
  */
 
+// Marketing CRM Phase 1B-D -- 'marketing_contact' added to match the
+// sales_lead_metadata.lead_source CHECK constraint widened in Phase 1B-C
+// (supabase/migrations/20260828100000_widen_sales_lead_source_for_marketing_contacts.sql).
 export type SalesLeadSourceKind = "enquiry" | "proposal_request" | "marketing_contact";
 
 /** Same four values/labels as the demo module's FollowUpState — moved here, not duplicated with different meaning. */
@@ -133,9 +136,13 @@ export type SalesCrmActivityType =
   | "task_created"
   | "task_completed"
   | "task_reopened"
-  | "task_cancelled";
+  | "task_cancelled"
+  | "quotation_cancelled"
+  | "opportunity_reversed";
 
 export const CRM_ACTIVITY_ICONS: Record<SalesCrmActivityType, string> = {
+  quotation_cancelled: "↩️",
+  opportunity_reversed: "↪️",
   lead_created: "🧲",
   status_changed: "🔁",
   assigned: "👤",
@@ -162,6 +169,8 @@ export const CRM_ACTIVITY_ICONS: Record<SalesCrmActivityType, string> = {
 };
 
 export const CRM_ACTIVITY_LABELS: Record<SalesCrmActivityType, string> = {
+  quotation_cancelled: "Quotation cancelled",
+  opportunity_reversed: "Opportunity reversed",
   lead_created: "Lead created",
   status_changed: "Status changed",
   assigned: "Assigned",
@@ -198,9 +207,9 @@ export const SOURCE_LABELS: Record<SalesLeadSourceKind, string> = {
 /* ------------------------------------------------------------------ */
 
 /** Matches sales_opportunities.stage's CHECK. Aligned with the Lead pipeline where practical (Task 4). */
-export type SalesOpportunityStage = "new" | "qualified" | "quotation" | "negotiation" | "won" | "lost" | "archived";
+export type SalesOpportunityStage = "new" | "qualified" | "quotation" | "negotiation" | "won" | "lost" | "archived" | "cancelled";
 
-export const OPPORTUNITY_STAGE_ORDER: SalesOpportunityStage[] = ["new", "qualified", "quotation", "negotiation", "won", "lost", "archived"];
+export const OPPORTUNITY_STAGE_ORDER: SalesOpportunityStage[] = ["new", "qualified", "quotation", "negotiation", "won", "lost", "archived", "cancelled"];
 
 export const OPPORTUNITY_STAGE_LABELS: Record<SalesOpportunityStage, string> = {
   new: "New",
@@ -210,6 +219,7 @@ export const OPPORTUNITY_STAGE_LABELS: Record<SalesOpportunityStage, string> = {
   won: "Won",
   lost: "Lost",
   archived: "Archived",
+  cancelled: "Cancelled",
 };
 
 export const OPEN_OPPORTUNITY_STAGES: SalesOpportunityStage[] = ["new", "qualified", "quotation", "negotiation"];
@@ -245,9 +255,9 @@ export interface SalesOpportunityRow {
 /* ------------------------------------------------------------------ */
 
 /** Matches sales_quotations.status's CHECK. */
-export type SalesQuotationStatus = "draft" | "sent" | "accepted" | "rejected" | "expired" | "superseded";
+export type SalesQuotationStatus = "draft" | "sent" | "accepted" | "rejected" | "expired" | "superseded" | "cancelled";
 
-export const QUOTATION_STATUS_ORDER: SalesQuotationStatus[] = ["draft", "sent", "accepted", "rejected", "expired", "superseded"];
+export const QUOTATION_STATUS_ORDER: SalesQuotationStatus[] = ["draft", "sent", "accepted", "rejected", "expired", "superseded", "cancelled"];
 
 export const QUOTATION_STATUS_LABELS: Record<SalesQuotationStatus, string> = {
   draft: "Draft",
@@ -256,6 +266,7 @@ export const QUOTATION_STATUS_LABELS: Record<SalesQuotationStatus, string> = {
   rejected: "Rejected",
   expired: "Expired",
   superseded: "Superseded",
+  cancelled: "Cancelled",
 };
 
 export type SalesQuotationUnit = "pax" | "session" | "day" | "lot" | "unit";
@@ -299,6 +310,8 @@ export interface SalesQuotationRow {
   accepted_at: string | null;
   rejected_at: string | null;
   superseded_at: string | null;
+  cancelled_at: string | null;
+  cancellation_reason: string | null;
 }
 
 export interface SalesQuotationItemRow {
@@ -423,10 +436,8 @@ export function followUpState(followUpAt: string | null, status: SalesCrmStatus)
   return dueDateState(followUpAt);
 }
 
-/** Sanitizes free-text search input before interpolating into a PostgREST .or() filter string (CLAUDE.md §6). */
-export function sanitizeSearchTerm(value: string): string {
-  return value.replace(/[%_,()]/g, " ").trim();
-}
+/** Canonical PostgREST search sanitizer (CLAUDE.md §6). */
+export { sanitizeSearchTerm } from "../search";
 
 /* ------------------------------------------------------------------ */
 /* Phase 4B — Sales Tasks                                              */

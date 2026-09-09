@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { getSupabasePublishableKey, getSupabaseUrl } from "../../../../lib/supabase/env";
 
 export const runtime = "nodejs";
 
@@ -22,8 +23,8 @@ export async function POST(request) {
     const cleanEmail = String(email || "").trim();
     if (!/^\S+@\S+\.\S+$/.test(cleanEmail)) return NextResponse.json({ error: "Masukkan email admin yang sah." }, { status: 400 });
     recentResetRequests.set(ip, now);
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+    const url = getSupabaseUrl();
+    const key = getSupabasePublishableKey();
     if (!url || !key) return NextResponse.json({ error: "Supabase belum dikonfigurasi." }, { status: 503 });
     const client = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
     const { error } = await client.auth.resetPasswordForEmail(cleanEmail, { redirectTo: `${new URL(request.url).origin}/admin/reset-password` });

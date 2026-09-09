@@ -59,7 +59,7 @@ export async function createQuotation(
   const supabase = await createSupabaseServerClient();
   const { data: opportunity } = await supabase.from("sales_opportunities").select("stage").eq("id", opportunityId).maybeSingle();
   if (!opportunity) return { message: "Opportunity not found." };
-  if (opportunity.stage === "won" || opportunity.stage === "lost") {
+  if (opportunity.stage === "won" || opportunity.stage === "lost" || opportunity.stage === "cancelled") {
     return { message: `This opportunity is already ${opportunity.stage} — a new quotation cannot be created for it.` };
   }
 

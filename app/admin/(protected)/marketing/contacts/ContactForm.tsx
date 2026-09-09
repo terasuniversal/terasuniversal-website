@@ -1,7 +1,6 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import type { ChangeEvent } from "react";
 import Link from "next/link";
 import type { ContactFormState } from "./actions";
 import { Field, Input, Select, fieldA11y } from "../../../../../components/admin/ui";
@@ -121,7 +120,7 @@ export function ContactForm({
               id="consent_status"
               name="consent_status"
               defaultValue="not_set"
-              onChange={(ev: ChangeEvent<HTMLSelectElement>) => setConsentStatus(ev.target.value)}
+              onChange={(ev) => setConsentStatus(ev.target.value)}
             >
               {MARKETING_CONTACT_CONSENT_STATUSES.map((c) => (
                 <option key={c} value={c}>
