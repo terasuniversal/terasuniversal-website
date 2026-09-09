@@ -13,6 +13,13 @@
  */
 
 export type ContentStatus = "draft" | "scheduled" | "published" | "archived";
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[];
 export type UserRole =
   | "super_admin"
   | "admin"
@@ -274,6 +281,78 @@ export interface SalesLeadAttribution {
   updated_at: string;
 }
 
+/** Exact staging-generated row shape for the Sales Lead qualification fields. */
+export interface SalesLeadMetadata {
+  assigned_to: string | null;
+  created_at: string;
+  disqualification_reason: string | null;
+  follow_up_at: string | null;
+  id: string;
+  is_test: boolean;
+  lead_source: string;
+  lost_reason: string | null;
+  priority: string;
+  qualification_changed_at: string | null;
+  qualification_changed_by: string | null;
+  qualification_reason: string | null;
+  qualification_status: string;
+  source_id: string;
+  status: string;
+  temperature: string | null;
+  updated_at: string;
+  won_at: string | null;
+}
+
+export interface SalesLeadMetadataInsert {
+  assigned_to?: string | null;
+  created_at?: string;
+  disqualification_reason?: string | null;
+  follow_up_at?: string | null;
+  id?: string;
+  is_test?: boolean;
+  lead_source: string;
+  lost_reason?: string | null;
+  priority?: string;
+  qualification_changed_at?: string | null;
+  qualification_changed_by?: string | null;
+  qualification_reason?: string | null;
+  qualification_status?: string;
+  source_id: string;
+  status?: string;
+  temperature?: string | null;
+  updated_at?: string;
+  won_at?: string | null;
+}
+
+export type SalesLeadMetadataUpdate = Partial<SalesLeadMetadataInsert>;
+
+/** Exact staging-generated row shape for append-only Sales Activity metadata. */
+export interface SalesActivity {
+  actor_id: string | null;
+  created_at: string;
+  id: string;
+  lead_metadata_id: string;
+  metadata: Json;
+  note: string | null;
+  opportunity_id: string | null;
+  quotation_id: string | null;
+  type: string;
+}
+
+export interface SalesActivityInsert {
+  actor_id?: string | null;
+  created_at?: string;
+  id?: string;
+  lead_metadata_id: string;
+  metadata?: Json;
+  note?: string | null;
+  opportunity_id?: string | null;
+  quotation_id?: string | null;
+  type: string;
+}
+
+export type SalesActivityUpdate = Partial<SalesActivityInsert>;
+
 /**
  * Minimal Database shape so `createServerClient<Database>()` is typed. Tables
  * not listed here fall back to `any` via the index signature, so nothing
@@ -313,6 +392,18 @@ export interface Database {
         Row: SalesLeadAttribution;
         Insert: Partial<SalesLeadAttribution>;
         Update: Partial<SalesLeadAttribution>;
+        Relationships: [];
+      };
+      sales_lead_metadata: {
+        Row: SalesLeadMetadata;
+        Insert: SalesLeadMetadataInsert;
+        Update: SalesLeadMetadataUpdate;
+        Relationships: [];
+      };
+      sales_activity: {
+        Row: SalesActivity;
+        Insert: SalesActivityInsert;
+        Update: SalesActivityUpdate;
         Relationships: [];
       };
       participant_skill_results: {
