@@ -139,6 +139,12 @@ export type SalesCrmActivityType =
   | "task_cancelled"
   | "quotation_cancelled"
   | "opportunity_reversed"
+  | "invoice_created"
+  | "invoice_issued"
+  | "invoice_partially_paid"
+  | "invoice_paid"
+  | "payment_recorded"
+  | "invoice_cancelled"
   | "qualification_changed"
   | "temperature_changed"
   | "priority_changed";
@@ -149,6 +155,12 @@ export const CRM_ACTIVITY_ICONS: Record<SalesCrmActivityType, string> = {
   priority_changed: "↑",
   quotation_cancelled: "↩️",
   opportunity_reversed: "↪️",
+  invoice_created: "🧾",
+  invoice_issued: "📤",
+  invoice_partially_paid: "💳",
+  invoice_paid: "✅",
+  payment_recorded: "💰",
+  invoice_cancelled: "↩️",
   lead_created: "🧲",
   status_changed: "🔁",
   assigned: "👤",
@@ -180,6 +192,12 @@ export const CRM_ACTIVITY_LABELS: Record<SalesCrmActivityType, string> = {
   priority_changed: "Priority changed",
   quotation_cancelled: "Quotation cancelled",
   opportunity_reversed: "Opportunity reversed",
+  invoice_created: "Invoice created",
+  invoice_issued: "Invoice issued",
+  invoice_partially_paid: "Invoice partially paid",
+  invoice_paid: "Invoice paid",
+  payment_recorded: "Payment recorded",
+  invoice_cancelled: "Invoice cancelled",
   lead_created: "Lead created",
   status_changed: "Status changed",
   assigned: "Assigned",
