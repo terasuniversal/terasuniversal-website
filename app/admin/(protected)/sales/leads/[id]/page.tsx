@@ -65,7 +65,7 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
   if (!lead) notFound();
   const row = lead as SalesLeadInboxRow;
 
-  const [sourceResult, activityResult, attributionResult, campaignsResult, staffResult, profilesResult, opportunityResult, regMetaResult, moduleAccessResult] = await Promise.all([
+  const [sourceResult, activityResult, attributionResult, campaignsResult, staffResult, profilesResult, opportunityResult, moduleAccessResult] = await Promise.all([
     row.lead_source === "enquiry"
       ? supabase.from("enquiries").select("*").eq("id", row.source_id).maybeSingle()
       : row.lead_source === "proposal_request"
@@ -79,7 +79,6 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
     supabase.from("profiles").select("id, full_name").eq("is_active", true).order("full_name"),
     supabase.from("profiles").select("id, full_name"),
     supabase.from("sales_opportunities").select("id, opportunity_no").eq("lead_metadata_id", id).maybeSingle(),
-    supabase.from("sales_lead_metadata").select("registration_schedule_id").eq("id", id).maybeSingle(),
     supabase.rpc("get_my_module_access"),
   ]);
 
@@ -93,19 +92,6 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
   const actorNames = new Map(((profilesResult.data ?? []) as { id: string; full_name: string }[]).map((p) => [p.id, p.full_name]));
   const existingOpportunity = opportunityResult.data;
 
-  // Personal/Company Registration — the lead's registered schedule outcome,
-  // and whether the current staff member may register (needs participants +
-  // schedules + sales_leads module access; the page already enforces editor+).
-  const regMeta = regMetaResult.data;
-  let registeredSchedule: { id: string; schedule_code: string; course_name: string } | null = null;
-  if (regMeta?.registration_schedule_id) {
-    const { data: rs } = await supabase
-      .from("course_schedules")
-      .select("id, schedule_code, courses(course_name)")
-      .eq("id", regMeta.registration_schedule_id)
-      .maybeSingle();
-    registeredSchedule = rs as any ?? null;
-  }
   const moduleAccess = moduleAccessResult.data;
   const modules = Array.isArray(moduleAccess) ? moduleAccess.map((m: { module_key: string }) => m.module_key) : [];
   const canRegister = modules.includes("sales_leads") && modules.includes("participants") && modules.includes("schedules");
@@ -181,16 +167,6 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
           {canRegister && (
             <Card title="Registration">
               <div className="ta-card-pad ta-stack">
-                {registeredSchedule ? (
-                  <p style={{ margin: 0, fontSize: 13, color: "var(--ta-muted)" }}>
-                    <strong>Registered to</strong>{" "}
-                    <Link href={`/admin/schedules/${registeredSchedule.id}`} className="ta-link">
-                      {registeredSchedule.course_name} · {registeredSchedule.schedule_code}
-                    </Link>
-                  </p>
-                ) : (
-                  <p style={{ margin: 0, fontSize: 13, color: "var(--ta-muted)" }}>Not registered to a schedule yet.</p>
-                )}
                 {registrationEligibility.eligible ? (
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     <Link href={`/admin/sales/leads/${id}/personal-registration`} className="ta-btn ta-btn-outline ta-btn-sm">
