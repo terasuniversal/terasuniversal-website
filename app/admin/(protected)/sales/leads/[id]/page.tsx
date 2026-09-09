@@ -65,49 +65,38 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
   if (!lead) notFound();
   const row = lead as SalesLeadInboxRow;
 
-  let source: EnquirySource | ProposalSource | MarketingContact | null = null;
-  if (row.lead_source === "enquiry") {
-    const { data } = await supabase.from("enquiries").select("*").eq("id", row.source_id).maybeSingle();
-    source = data as EnquirySource | null;
-  } else if (row.lead_source === "proposal_request") {
-    const { data } = await supabase.from("proposal_requests").select("*").eq("id", row.source_id).maybeSingle();
-    source = data as ProposalSource | null;
-  } else if (row.lead_source === "marketing_contact") {
-    const { data } = await supabase.from("marketing_contacts").select("*").eq("id", row.source_id).maybeSingle();
-    source = data as MarketingContact | null;
-  }
+  const [sourceResult, activityResult, attributionResult, campaignsResult, staffResult, profilesResult, opportunityResult, regMetaResult, moduleAccessResult] = await Promise.all([
+    row.lead_source === "enquiry"
+      ? supabase.from("enquiries").select("*").eq("id", row.source_id).maybeSingle()
+      : row.lead_source === "proposal_request"
+        ? supabase.from("proposal_requests").select("*").eq("id", row.source_id).maybeSingle()
+        : row.lead_source === "marketing_contact"
+          ? supabase.from("marketing_contacts").select("*").eq("id", row.source_id).maybeSingle()
+          : Promise.resolve({ data: null }),
+    supabase.from("sales_activity").select("*").eq("lead_metadata_id", id).order("created_at", { ascending: true }),
+    supabase.from("sales_lead_attributions").select("*, marketing_campaigns(name)").eq("lead_metadata_id", id).maybeSingle(),
+    supabase.from("marketing_campaigns").select("id, name, status").neq("status", "archived").order("name"),
+    supabase.from("profiles").select("id, full_name").eq("is_active", true).order("full_name"),
+    supabase.from("profiles").select("id, full_name"),
+    supabase.from("sales_opportunities").select("id, opportunity_no").eq("lead_metadata_id", id).maybeSingle(),
+    supabase.from("sales_lead_metadata").select("registration_schedule_id").eq("id", id).maybeSingle(),
+    supabase.rpc("get_my_module_access"),
+  ]);
 
-  const { data: activityRows } = await supabase
-    .from("sales_activity")
-    .select("*")
-    .eq("lead_metadata_id", id)
-    .order("created_at", { ascending: true });
-
-  const { data: attributionData, error: attributionError } = await supabase.from("sales_lead_attributions").select("*, marketing_campaigns(name)").eq("lead_metadata_id", id).maybeSingle();
-  const attribution = attributionData as (LeadAttributionRow & { marketing_campaigns?: { name: string } | null }) | null;
-  const { data: campaignRows, error: campaignsError } = await supabase.from("marketing_campaigns").select("id, name, status").neq("status", "archived").order("name");
-  const campaignOptions = (campaignRows ?? []) as { id: string; name: string; status: string }[];
-
-  const { data: staffRows } = await supabase.from("profiles").select("id, full_name").eq("is_active", true).order("full_name");
-  const staff = (staffRows ?? []) as { id: string; full_name: string }[];
-
-  const { data: allProfiles } = await supabase.from("profiles").select("id, full_name");
-  const actorNames = new Map(((allProfiles ?? []) as { id: string; full_name: string }[]).map((p) => [p.id, p.full_name]));
-
-  const { data: existingOpportunity } = await supabase
-    .from("sales_opportunities")
-    .select("id, opportunity_no")
-    .eq("lead_metadata_id", id)
-    .maybeSingle();
+  const source = sourceResult.data as EnquirySource | ProposalSource | MarketingContact | null;
+  const activityRows = activityResult.data;
+  const attributionError = attributionResult.error;
+  const campaignsError = campaignsResult.error;
+  const attribution = attributionResult.data as (LeadAttributionRow & { marketing_campaigns?: { name: string } | null }) | null;
+  const campaignOptions = (campaignsResult.data ?? []) as { id: string; name: string; status: string }[];
+  const staff = (staffResult.data ?? []) as { id: string; full_name: string }[];
+  const actorNames = new Map(((profilesResult.data ?? []) as { id: string; full_name: string }[]).map((p) => [p.id, p.full_name]));
+  const existingOpportunity = opportunityResult.data;
 
   // Personal/Company Registration — the lead's registered schedule outcome,
   // and whether the current staff member may register (needs participants +
   // schedules + sales_leads module access; the page already enforces editor+).
-  const { data: regMeta } = await supabase
-    .from("sales_lead_metadata")
-    .select("registration_schedule_id")
-    .eq("id", id)
-    .maybeSingle();
+  const regMeta = regMetaResult.data;
   let registeredSchedule: { id: string; schedule_code: string; course_name: string } | null = null;
   if (regMeta?.registration_schedule_id) {
     const { data: rs } = await supabase
@@ -117,7 +106,7 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
       .maybeSingle();
     registeredSchedule = rs as any ?? null;
   }
-  const { data: moduleAccess } = await supabase.rpc("get_my_module_access");
+  const moduleAccess = moduleAccessResult.data;
   const modules = Array.isArray(moduleAccess) ? moduleAccess.map((m: { module_key: string }) => m.module_key) : [];
   const canRegister = modules.includes("sales_leads") && modules.includes("participants") && modules.includes("schedules");
   const registrationEligibility = checkLeadRegistrationEligibility({ status: row.status, is_test: row.is_test });

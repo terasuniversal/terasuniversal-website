@@ -47,26 +47,18 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
   if (!opportunity) notFound();
   const opp = opportunity as SalesOpportunityRow;
 
-  const { data: leadRow } = await supabase.from("v_sales_lead_inbox").select("lead_source, source_id, status").eq("lead_metadata_id", opp.lead_metadata_id).maybeSingle();
-
-  const { data: quotationRows } = await supabase
-    .from("sales_quotations")
-    .select("*")
-    .eq("opportunity_id", id)
-    .order("quotation_no", { ascending: true })
-    .order("revision_no", { ascending: true });
-
-  const { data: activityRows } = await supabase
-    .from("sales_activity")
-    .select("*")
-    .eq("opportunity_id", id)
-    .order("created_at", { ascending: true });
-
-  const { data: staffRows } = await supabase.from("profiles").select("id, full_name").eq("is_active", true).order("full_name");
-  const staff = (staffRows ?? []) as { id: string; full_name: string }[];
-
-  const { data: allProfiles } = await supabase.from("profiles").select("id, full_name");
-  const actorNames = new Map(((allProfiles ?? []) as { id: string; full_name: string }[]).map((p) => [p.id, p.full_name]));
+  const [leadResult, quotationsResult, activityResult, staffResult, profilesResult] = await Promise.all([
+    supabase.from("v_sales_lead_inbox").select("lead_source, source_id, status").eq("lead_metadata_id", opp.lead_metadata_id).maybeSingle(),
+    supabase.from("sales_quotations").select("*").eq("opportunity_id", id).order("quotation_no", { ascending: true }).order("revision_no", { ascending: true }),
+    supabase.from("sales_activity").select("*").eq("opportunity_id", id).order("created_at", { ascending: true }),
+    supabase.from("profiles").select("id, full_name").eq("is_active", true).order("full_name"),
+    supabase.from("profiles").select("id, full_name"),
+  ]);
+  const leadRow = leadResult.data;
+  const quotationRows = quotationsResult.data;
+  const activityRows = activityResult.data;
+  const staff = (staffResult.data ?? []) as { id: string; full_name: string }[];
+  const actorNames = new Map(((profilesResult.data ?? []) as { id: string; full_name: string }[]).map((p) => [p.id, p.full_name]));
 
   // --------------------------------------------------------------------
   // Sales CRM Phase 3 — Won Opportunity -> Training Operations handoff.
