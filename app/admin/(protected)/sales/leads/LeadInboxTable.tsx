@@ -4,13 +4,17 @@ import { FollowUpBadge } from "../../../../../components/admin/sales/FollowUpBad
 import { SOURCE_LABELS, followUpState, type SalesLeadInboxRow } from "../../../../../lib/sales/crm";
 import { formatMalaysiaDate } from "../../../../../lib/date-time";
 
+type LeadNextAction = { id: string; title: string; status: string; priority: string; due_at: string | null };
+
 /** Server component — the Lead Inbox has no bulk actions in V1, so no client state is needed. */
 export function LeadInboxTable({
   rows,
   staffNames,
+  nextActions,
 }: {
   rows: SalesLeadInboxRow[];
   staffNames: Map<string, string>;
+  nextActions: Map<string, LeadNextAction>;
 }) {
   return (
     <>
@@ -25,6 +29,7 @@ export function LeadInboxTable({
               <th>Status</th>
               <th>Assigned To</th>
               <th>Follow-up</th>
+              <th>Next Action</th>
               <th>Created</th>
               <th></th>
             </tr>
@@ -50,6 +55,11 @@ export function LeadInboxTable({
                 <td>
                   <FollowUpBadge state={followUpState(r.follow_up_at, r.status)} />
                   {r.follow_up_at && <div className="ta-lead-sub">{formatMalaysiaDate(r.follow_up_at)}</div>}
+                </td>
+                <td>
+                  {nextActions.get(r.lead_metadata_id) ? (
+                    <Link href={`/admin/sales/tasks/${nextActions.get(r.lead_metadata_id)!.id}`}>{nextActions.get(r.lead_metadata_id)!.title}</Link>
+                  ) : <span className="ta-lead-sub">None</span>}
                 </td>
                 <td className="ta-lead-sub" style={{ whiteSpace: "nowrap" }}>
                   {formatMalaysiaDate(r.created_at)}
@@ -90,6 +100,12 @@ export function LeadInboxTable({
               <span>
                 <FollowUpBadge state={followUpState(r.follow_up_at, r.status)} />
                 {r.follow_up_at && <div className="ta-lead-sub">{formatMalaysiaDate(r.follow_up_at)}</div>}
+              </span>
+              <span>Next Action</span>
+              <span>
+                {nextActions.get(r.lead_metadata_id) ? (
+                  <Link href={`/admin/sales/tasks/${nextActions.get(r.lead_metadata_id)!.id}`}>{nextActions.get(r.lead_metadata_id)!.title}</Link>
+                ) : "None"}
               </span>
               <span>Created</span>
               <span>{formatMalaysiaDate(r.created_at)}</span>

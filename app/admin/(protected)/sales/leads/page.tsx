@@ -2,7 +2,7 @@ import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { requireRole, requireModuleAccess } from "../../../../../lib/auth/session";
 import { PageHead, Card, EmptyState, Pagination } from "../../../../../components/admin/ui";
-import { CRM_STATUS_ORDER, CRM_STATUS_LABELS, SOURCE_LABELS, sanitizeSearchTerm, type SalesLeadInboxRow } from "../../../../../lib/sales/crm";
+import { CRM_STATUS_ORDER, CRM_STATUS_LABELS, SOURCE_LABELS, mytEndOfTodayUtc, sanitizeSearchTerm, type SalesLeadInboxRow } from "../../../../../lib/sales/crm";
 import { LeadInboxTable } from "./LeadInboxTable";
 
 export const metadata = { title: "Sales Leads — TERAS UNIVERSAL Admin" };
@@ -14,7 +14,7 @@ export default async function SalesLeadsPage({
   searchParams,
 }: {
   searchParams: Promise<{
-    page?: string; q?: string; status?: string; source?: string; assigned?: string; from?: string; to?: string;
+    page?: string; q?: string; status?: string; source?: string; assigned?: string; followup?: string; from?: string; to?: string;
   }>;
 }) {
   await requireRole("editor"); // read allowed for all sales-CRM staff; mutations are admin-gated in actions.ts
@@ -45,14 +45,37 @@ export default async function SalesLeadsPage({
   if (sp.status) query = query.eq("status", sp.status);
   if (sp.source) query = query.eq("lead_source", sp.source);
   if (sp.assigned) query = sp.assigned === "unassigned" ? query.is("assigned_to", null) : query.eq("assigned_to", sp.assigned);
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const endOfTodayMyt = mytEndOfTodayUtc(now).toISOString();
+  if (sp.followup === "overdue") query = query.not("status", "in", "(won,lost,archived)").not("follow_up_at", "is", null).lt("follow_up_at", nowIso);
+  else if (sp.followup === "today") query = query.not("status", "in", "(won,lost,archived)").not("follow_up_at", "is", null).gte("follow_up_at", nowIso).lt("follow_up_at", endOfTodayMyt);
+  else if (sp.followup === "upcoming") query = query.not("status", "in", "(won,lost,archived)").not("follow_up_at", "is", null).gte("follow_up_at", endOfTodayMyt);
+  else if (sp.followup === "none") query = query.or("follow_up_at.is.null,status.in.(won,lost,archived)");
   if (sp.from) query = query.gte("created_at", sp.from);
   if (sp.to) query = query.lte("created_at", `${sp.to}T23:59:59`);
 
   const { data: rows, count } = await query;
+  const leadRows = (rows ?? []) as SalesLeadInboxRow[];
+  const leadIds = leadRows.map((lead) => lead.lead_metadata_id);
+  const { data: taskRows } = leadIds.length
+    ? await supabase
+        .from("sales_tasks")
+        .select("id, title, status, priority, due_at, lead_metadata_id, created_at")
+        .in("lead_metadata_id", leadIds)
+        .is("deleted_at", null)
+        .not("status", "in", "(completed,cancelled)")
+        .order("due_at", { ascending: true, nullsFirst: false })
+        .order("created_at", { ascending: true })
+    : { data: [] };
+  const nextActions = new Map<string, { id: string; title: string; status: string; priority: string; due_at: string | null }>();
+  for (const task of taskRows ?? []) {
+    if (task.lead_metadata_id && !nextActions.has(task.lead_metadata_id)) nextActions.set(task.lead_metadata_id, task);
+  }
   const pageCount = Math.ceil((count ?? 0) / PAGE_SIZE);
 
   const qsBase: Record<string, string> = {};
-  for (const k of ["q", "status", "source", "assigned", "from", "to"] as const) if (sp[k]) qsBase[k] = sp[k]!;
+  for (const k of ["q", "status", "source", "assigned", "followup", "from", "to"] as const) if (sp[k]) qsBase[k] = sp[k]!;
   const exportQs = new URLSearchParams(qsBase).toString();
 
   return (
@@ -79,6 +102,13 @@ export default async function SalesLeadsPage({
           <option value="unassigned">Unassigned</option>
           {staff.map((s) => <option key={s.id} value={s.id}>{s.full_name}</option>)}
         </select>
+        <select name="followup" defaultValue={sp.followup ?? ""} className="ta-filter-select" aria-label="Follow-up filter">
+          <option value="">All follow-ups</option>
+          <option value="overdue">Overdue</option>
+          <option value="today">Due Today</option>
+          <option value="upcoming">Upcoming</option>
+          <option value="none">No Follow-up</option>
+        </select>
         <label className="ta-filter-date-group">
           From
           <input type="date" name="from" defaultValue={sp.from ?? ""} className="ta-filter-date" />
@@ -88,7 +118,7 @@ export default async function SalesLeadsPage({
           <input type="date" name="to" defaultValue={sp.to ?? ""} className="ta-filter-date" />
         </label>
         <button type="submit" className="ta-btn ta-btn-outline ta-btn-sm">Apply</button>
-        {(sp.q || sp.status || sp.source || sp.assigned || sp.from || sp.to) && (
+        {(sp.q || sp.status || sp.source || sp.assigned || sp.followup || sp.from || sp.to) && (
           <Link className="ta-btn ta-btn-outline ta-btn-sm" href="/admin/sales/leads">Reset filters</Link>
         )}
       </form>
@@ -100,7 +130,7 @@ export default async function SalesLeadsPage({
         }
       >
         {rows && rows.length > 0 ? (
-          <LeadInboxTable rows={rows as SalesLeadInboxRow[]} staffNames={staffNames} />
+          <LeadInboxTable rows={leadRows} staffNames={staffNames} nextActions={nextActions} />
         ) : (
           <EmptyState icon="🧲" message="No leads match this view. Leads appear automatically here as soon as a visitor submits a contact enquiry or a proposal request." />
         )}
