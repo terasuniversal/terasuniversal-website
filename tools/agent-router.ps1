@@ -34,6 +34,127 @@ $CrossModuleKeywords = @("cross-module", "multiple modules", "several modules", 
 $UiKeywords = @("css", "style", "spacing", "responsive", "layout", "mobile", "padding", "margin", "align", "color", "font")
 $BugKeywords = @("fix", "bug", "error", "broken", "crash", "incorrect", "wrong")
 
+# Active Hermes routing policy. These are concrete provider/model labels, not
+# interchangeable historical aliases. DeepSeek remains available only to
+# support legacy/manual compatibility paths and is never selected normally.
+$script:HermesRoutingPolicy = [ordered]@{
+    CodexProvider = "OpenAI Codex"
+    CodexModel = "GPT-5.6 Luna"
+    ClaudeProvider = "Anthropic"
+    ClaudeModel = "Claude Sonnet 5"
+    DeepSeekActive = $false
+}
+
+$script:HermesTaskStates = @(
+    "NONE", "CREATED", "ROUTED", "WAITING_APPROVAL", "RUNNING",
+    "REVIEW_PENDING", "REPAIR_REQUIRED", "BLOCKED", "COMPLETED",
+    "FAILED", "CANCELLED"
+)
+
+$script:HermesStateTransitions = @{
+    NONE = @("CREATED")
+    CREATED = @("ROUTED", "WAITING_APPROVAL", "BLOCKED", "CANCELLED")
+    ROUTED = @("WAITING_APPROVAL", "RUNNING", "BLOCKED", "CANCELLED")
+    WAITING_APPROVAL = @("RUNNING", "BLOCKED", "CANCELLED")
+    RUNNING = @("REVIEW_PENDING", "REPAIR_REQUIRED", "BLOCKED", "FAILED", "COMPLETED")
+    REVIEW_PENDING = @("REPAIR_REQUIRED", "WAITING_APPROVAL", "BLOCKED", "FAILED", "COMPLETED")
+    REPAIR_REQUIRED = @("RUNNING", "BLOCKED", "FAILED")
+    BLOCKED = @("ROUTED", "WAITING_APPROVAL", "RUNNING", "CANCELLED")
+    FAILED = @("ROUTED", "WAITING_APPROVAL", "RUNNING", "CANCELLED")
+    COMPLETED = @()
+    CANCELLED = @()
+}
+
+function Test-TerasHermesWorkspaceBinding {
+    param([Parameter(Mandatory)][string]$RepoRoot)
+
+    # Configuration is required for active Hermes routing.  A missing binding
+    # fails closed, and the canonical CRM workspace is always rejected even if
+    # it is accidentally supplied as the Hermes workspace value.
+    $hermesWorkspace = [Environment]::GetEnvironmentVariable("TERAS_HERMES_WORKSPACE", "Process")
+    $canonicalWorkspace = [Environment]::GetEnvironmentVariable("TERAS_CANONICAL_WORKSPACE", "Process")
+    if ([string]::IsNullOrWhiteSpace($hermesWorkspace) -or [string]::IsNullOrWhiteSpace($canonicalWorkspace)) {
+        return $false
+    }
+    $normalize = { param($value) ([IO.Path]::GetFullPath(([string]$value).TrimEnd('\', '/'))).TrimEnd('\', '/').ToLowerInvariant() }
+    $target = & $normalize $RepoRoot
+    $configuredHermes = & $normalize $hermesWorkspace
+    $configuredCanonical = & $normalize $canonicalWorkspace
+    if ($target -eq $configuredCanonical) { return $false }
+    return $target -eq $configuredHermes
+}
+
+function Get-HermesCanonicalState {
+    param([string]$State)
+
+    switch ($State) {
+        "IMPLEMENTING" { return "RUNNING" }
+        "IMPLEMENTING_REPAIR" { return "REPAIR_REQUIRED" }
+        "PENDING_CODEX_REPAIR" { return "REPAIR_REQUIRED" }
+        "PENDING_CLAUDE_REVIEW" { return "REVIEW_PENDING" }
+        "REVIEWING" { return "REVIEW_PENDING" }
+        "QA" { return "RUNNING" }
+        "AWAITING_APPROVAL" { return "WAITING_APPROVAL" }
+        "COMPLETE" { return "COMPLETED" }
+        default { return $State }
+    }
+}
+
+function Test-HermesStateTransition {
+    param([string]$From, [string]$To)
+
+    $fromCanonical = Get-HermesCanonicalState -State $From
+    $toCanonical = Get-HermesCanonicalState -State $To
+    if ($fromCanonical -eq $toCanonical) {
+        return [pscustomobject]@{ Allowed = $true; From = $fromCanonical; To = $toCanonical; Reason = "Idempotent state transition." }
+    }
+    if ($fromCanonical -notin $script:HermesTaskStates -or $toCanonical -notin $script:HermesTaskStates) {
+        return [pscustomobject]@{ Allowed = $false; From = $fromCanonical; To = $toCanonical; Reason = "Unknown Hermes task state." }
+    }
+    $allowed = @($script:HermesStateTransitions[$fromCanonical]) -contains $toCanonical
+    return [pscustomobject]@{
+        Allowed = $allowed
+        From = $fromCanonical
+        To = $toCanonical
+        Reason = if ($allowed) { "Transition is allowed." } else { "Transition is not allowed from the current Hermes state." }
+    }
+}
+
+function Set-HermesTaskState {
+    param($State, [string]$TargetState, [string]$Reason = "")
+
+    Repair-TaskStateSchema -State $State | Out-Null
+    $check = Test-HermesStateTransition -From $State.State -To $TargetState
+    if (-not $check.Allowed) { throw "Invalid Hermes state transition $($check.From) -> $($check.To): $($check.Reason)" }
+    $now = Get-AgentEventTimestamp
+    $State.State = $check.To
+    $history = @($State.TransitionHistory)
+    if ($check.From -ne $check.To) {
+        $history += [pscustomobject]@{ timestamp = $now; from = $check.From; to = $check.To; reason = $Reason }
+    }
+    $State.TransitionHistory = $history
+    $State.LastStateChangeAt = $now
+    return $State
+}
+
+function Get-ApprovedRoutingForRisk {
+    param([ValidateSet("LOW", "MEDIUM", "HIGH", "CRITICAL")][string]$Risk)
+
+    if ($Risk -in @("HIGH", "CRITICAL")) {
+        return [pscustomobject]@{
+            Implementer = "Claude Code"
+            ImplementerModel = $script:HermesRoutingPolicy.ClaudeModel
+            ImplementerProvider = $script:HermesRoutingPolicy.ClaudeProvider
+        }
+    }
+
+    return [pscustomobject]@{
+        Implementer = "Codex"
+        ImplementerModel = $script:HermesRoutingPolicy.CodexModel
+        ImplementerProvider = $script:HermesRoutingPolicy.CodexProvider
+    }
+}
+
 # Phase 9B fix: explicit module/path signals that must take precedence over
 # generic visual/UI keyword matching at category-labeling time (see the
 # priority cascade documented on Get-TaskClassification below). Deliberately
@@ -231,21 +352,9 @@ function Test-DeepSeekHealthyForRouting {
 function Get-LowMediumImplementerChoice {
     param([bool]$PreferDeepSeek)
 
-    # Deliberately evaluated into named variables BEFORE the if, not
-    # combined inline as `if ($PreferDeepSeek -or (FuncA -and FuncB))` -
-    # empirically confirmed in this environment that chaining -and/-or
-    # directly across bare command-call operands (as opposed to
-    # pre-materialized boolean variables) can produce an incorrect result
-    # even with explicit grouping parens. Pre-computing each call into its
-    # own variable first is unambiguous and was verified correct.
-    $isEnabled = Test-DeepSeekDefaultImplementerEnabled
-    $isHealthy = Test-DeepSeekHealthyForRouting
-    $shouldUseDeepSeek = ($PreferDeepSeek -or ($isEnabled -and $isHealthy))
-
-    if ($shouldUseDeepSeek) {
-        return [pscustomobject]@{ Implementer = "DeepSeek"; ImplementerModel = "DEEPSEEK_FAST" }
-    }
-    return [pscustomobject]@{ Implementer = "Claude Code"; ImplementerModel = "CLAUDE_FAST" }
+    # Retain the signature for compatibility, but make the disabled
+    # DeepSeek flag impossible to override.
+    return (Get-ApprovedRoutingForRisk -Risk "LOW")
 }
 
 # Direct mode ("teras-agent <task description>") has no menu number to start
@@ -292,7 +401,7 @@ function Get-TaskClassification {
     $reasonParts = @()
 
     if ($MenuChoice -eq 7) {
-        $implementer = "Codex"; $model = "CODEX_REVIEW"; $reviewer = "Human"; $reviewerModel = "N/A"
+        $implementer = "Codex"; $model = $script:HermesRoutingPolicy.CodexModel; $reviewer = "Claude Code"; $reviewerModel = $script:HermesRoutingPolicy.ClaudeModel
         $reasonParts += "Full-repository production audit - explicitly requested, not the default review posture."
     } else {
         $isCertTrust = Test-AnyKeyword -Text $Description -Keywords $CertTrustKeywords
@@ -323,23 +432,23 @@ function Get-TaskClassification {
             # at classification time before any SQL exists, is strictly
             # tighter than treating it as ordinary cert-trust HIGH.
             $category = "Certificate / Verification / Database"
-            $risk = "CRITICAL"; $implementer = "Claude Code"; $model = "CLAUDE_DEEP"
+            $risk = "CRITICAL"; $implementer = "Claude Code"; $model = $script:HermesRoutingPolicy.ClaudeModel
             $reviewer = "Codex"; $reviewerModel = "CODEX_REVIEW"
             $reasonParts += "Touches certificate verification/trust logic AND database/RLS/auth surface in the same task - combined signal escalates directly to CRITICAL per the certificate-database rule (DATABASE_SAFETY.md)."
         } elseif ($isCertTrust) {
             $category = "Certificate / Verification"
-            $risk = "HIGH"; $implementer = "Claude Code"; $model = "CLAUDE_DEEP"
+            $risk = "HIGH"; $implementer = "Claude Code"; $model = $script:HermesRoutingPolicy.ClaudeModel
             $reviewer = "Codex"; $reviewerModel = "CODEX_REVIEW"
-            $reasonParts += "Touches certificate issuance, verification, validity, or trust logic - a DeepSeek-blocked area (AGENTS.md); Claude DEEP + mandatory Codex review."
+            $reasonParts += "Touches certificate issuance, verification, validity, or trust logic; routed to Anthropic Claude Sonnet 5 with mandatory Codex review."
         } elseif ($isDbSensitive) {
             $category = "Database / Supabase"
-            $risk = "HIGH"; $implementer = "Claude Code"; $model = "CLAUDE_DEEP"
+            $risk = "HIGH"; $implementer = "Claude Code"; $model = $script:HermesRoutingPolicy.ClaudeModel
             $reviewer = "Codex"; $reviewerModel = "CODEX_REVIEW"
-            $reasonParts += "Touches migrations, RLS/policies, database functions/RPCs, schema, constraints, indexes, or auth - a DeepSeek-blocked area (AGENTS.md); Claude DEEP + mandatory Codex review."
+            $reasonParts += "Touches migrations, RLS/policies, database functions/RPCs, schema, constraints, indexes, or auth; routed to Anthropic Claude Sonnet 5 with mandatory Codex review."
         } elseif ($isDestructive -or $isProduction) {
-            $risk = "HIGH"; $implementer = "Claude Code"; $model = "CLAUDE_DEEP"
+            $risk = "HIGH"; $implementer = "Claude Code"; $model = $script:HermesRoutingPolicy.ClaudeModel
             $reviewer = "Codex"; $reviewerModel = "CODEX_REVIEW"
-            $reasonParts += "Description flags destructive and/or production-scoped impact - a DeepSeek-blocked area; Claude DEEP + mandatory Codex review."
+            $reasonParts += "Description flags destructive and/or production-scoped impact; routed to Anthropic Claude Sonnet 5 with mandatory Codex review."
         } elseif ($isAttendanceModule -and (Test-AnyKeyword -Text $Description -Keywords $UiKeywords)) {
             $isPrintArea = $Description.ToLowerInvariant().Contains("print")
             $category = if ($isPrintArea) { "Attendance / UI / Print" } else { "Attendance / UI" }
@@ -347,49 +456,36 @@ function Get-TaskClassification {
             $pick = Get-LowMediumImplementerChoice -PreferDeepSeek:$PreferDeepSeek
             $implementer = $pick.Implementer; $model = $pick.ImplementerModel
             $reviewer = "None"; $reviewerModel = "None"
-            $reasonParts += "Explicit attendance-module signal takes precedence over generic visual keyword matching - routed as an Attendance UI change, not Certificate / Visual. $(if ($implementer -eq 'DeepSeek') { 'DeepSeek is enabled and healthy for routine UI/print work on this task.' } else { 'Claude FAST is the default implementer (stable operational mode) - DeepSeek is optional, not a blocker.' })"
+            $reasonParts += "Explicit attendance-module signal takes precedence over generic visual keyword matching; LOW-risk work is routed to OpenAI Codex GPT-5.6 Luna."
         } elseif ($isCertVisual) {
             $category = "Certificate / Visual"
             $risk = "LOW"
             $pick = Get-LowMediumImplementerChoice -PreferDeepSeek:$PreferDeepSeek
             $implementer = $pick.Implementer; $model = $pick.ImplementerModel
             $reviewer = "None"; $reviewerModel = "None"
-            $reasonParts += "Visual-only certificate change (spacing/placement/appearance) with no issuance or verification logic touched. $(if ($implementer -eq 'DeepSeek') { 'DeepSeek is enabled and healthy for routine visual work on this task.' } else { 'Claude FAST is the default implementer (stable operational mode) - DeepSeek is optional, not a blocker.' })"
+            $reasonParts += "Visual-only certificate change (spacing/placement/appearance) with no issuance or verification logic touched; LOW-risk work is routed to OpenAI Codex GPT-5.6 Luna."
         } elseif ($risk -eq "HIGH") {
             # Category defaulted to HIGH (e.g. the Database/Supabase menu
             # option) with no specific keyword detail in the description.
-            $implementer = "Claude Code"; $model = "CLAUDE_DEEP"
+            $implementer = "Claude Code"; $model = $script:HermesRoutingPolicy.ClaudeModel
             $reviewer = "Codex"; $reviewerModel = "CODEX_REVIEW"
         } elseif ($risk -eq "LOW") {
-            # Every DeepSeek-blocked signal above already forces HIGH, so
-            # anything still LOW here is, by construction, safe for
-            # DeepSeek if selected - but Claude FAST is now the default
-            # (stable operational mode: DeepSeek must never block delivery).
+            # LOW work always routes to Codex GPT-5.6 Luna.
             $pick = Get-LowMediumImplementerChoice -PreferDeepSeek:$PreferDeepSeek
             $implementer = $pick.Implementer; $model = $pick.ImplementerModel
             $reviewer = "None"; $reviewerModel = "None"
-            $reasonParts += if ($implementer -eq "DeepSeek") {
-                "Low-risk, narrowly-scoped change with no database, auth, or certificate-trust surface. DeepSeek is enabled and healthy for this routine UI/CRUD work."
-            } else {
-                "Low-risk, narrowly-scoped change with no database, auth, or certificate-trust surface. Claude FAST is the default implementer (stable operational mode) - DeepSeek is optional, not a blocker."
-            }
+            $reasonParts += "Low-risk, narrowly-scoped change with no database, auth, or certificate-trust surface; routed to OpenAI Codex GPT-5.6 Luna."
         } else {
-            # MEDIUM: Claude FAST is the default implementer (stable
-            # operational mode). DeepSeek is only used when explicitly
-            # preferred/enabled+healthy, and even then only for tasks
-            # actually matching its routine-work profile within a small,
-            # bounded scope (not cross-module) - section 4's criteria.
-            $isDeepSeekCandidate = $isDeepSeekSuitable -and (-not $isCrossModule)
-            $pick = if ($isDeepSeekCandidate) { Get-LowMediumImplementerChoice -PreferDeepSeek:$PreferDeepSeek } else { [pscustomobject]@{ Implementer = "Claude Code"; ImplementerModel = "CLAUDE_FAST" } }
+            # MEDIUM work always routes to Codex GPT-5.6 Luna. Historical
+            # DeepSeek suitability is retained only for compatibility.
+            $pick = Get-ApprovedRoutingForRisk -Risk "MEDIUM"
             $implementer = $pick.Implementer; $model = $pick.ImplementerModel
             $reviewer = "None"; $reviewerModel = "None"
-            if ($implementer -eq "DeepSeek") {
-                $reasonParts += "Small, bounded MEDIUM-risk change matching DeepSeek's routine-work profile (CRUD/search/filter/small component) with no security, database, or certificate-trust surface. DeepSeek is enabled and healthy for this task."
-            } elseif ($isCrossModule) {
+            if ($isCrossModule) {
                 $reviewer = "Codex (recommended)"; $reviewerModel = "CODEX_REVIEW (optional)"
-                $reasonParts += "Cross-module scope - routed to Claude FAST; independent review recommended though not mandatory at MEDIUM risk."
+                $reasonParts += "Cross-module scope - routed to OpenAI Codex GPT-5.6 Luna; independent review remains recommended."
             } else {
-                $reasonParts += "Ordinary MEDIUM-risk work - Claude FAST is the default implementer (stable operational mode)."
+                $reasonParts += "Ordinary MEDIUM-risk work - routed to OpenAI Codex GPT-5.6 Luna."
             }
         }
 
@@ -403,17 +499,38 @@ function Get-TaskClassification {
         $reasonParts += "Category is inherently high-impact by default; independent review is mandatory regardless of description detail."
     }
 
+    # Final normalization is authoritative. It prevents historical branches
+    # or compatibility switches from selecting DeepSeek or stale aliases.
+    if ($MenuChoice -eq 7) {
+        $implementer = "Codex"
+        $model = $script:HermesRoutingPolicy.CodexModel
+        $implementerProvider = $script:HermesRoutingPolicy.CodexProvider
+        $reviewer = "Claude Code"
+        $reviewerModel = $script:HermesRoutingPolicy.ClaudeModel
+        $reviewerProvider = $script:HermesRoutingPolicy.ClaudeProvider
+    } else {
+        $approved = Get-ApprovedRoutingForRisk -Risk $risk
+        $implementer = $approved.Implementer
+        $model = $approved.ImplementerModel
+        $implementerProvider = $approved.ImplementerProvider
+        $reviewerProvider = if ($reviewer -match "Codex") { $script:HermesRoutingPolicy.CodexProvider } elseif ($reviewer -match "Claude") { $script:HermesRoutingPolicy.ClaudeProvider } else { $null }
+        if ($reviewer -match "Codex") { $reviewerModel = $script:HermesRoutingPolicy.CodexModel }
+        if ($reviewer -match "Claude") { $reviewerModel = $script:HermesRoutingPolicy.ClaudeModel }
+    }
+
     $humanApproval = if ($risk -eq "HIGH" -or $risk -eq "CRITICAL") { "REQUIRED" } else { "NOT REQUIRED" }
     $fullRepoAudit = ($MenuChoice -eq 7)
-    $escalationNote = if ($implementer -eq "DeepSeek") { "Claude FAST if DeepSeek requests ESCALATE_TO_CLAUDE" } else { "N/A" }
+    $escalationNote = "DeepSeek disabled for active routing; no automatic DeepSeek fallback."
 
     return @{
         Category         = $category
         Risk             = $risk
         Implementer      = $implementer
         ImplementerModel = $model
+        ImplementerProvider = $implementerProvider
         Reviewer         = $reviewer
         ReviewerModel    = $reviewerModel
+        ReviewerProvider = $reviewerProvider
         Reason           = ($reasonParts -join " ")
         HumanApproval    = $humanApproval
         FullRepoAudit    = $fullRepoAudit
@@ -429,22 +546,47 @@ function Get-TaskClassification {
 function New-EmptyTaskState {
     return [pscustomobject]@{
         TaskId                = $null
+        ProjectId             = "teras-universal-website"
+        ProjectName           = "TERAS Universal Website / CRM"
+        TaskWorkspace         = $null
+        ExpectedBranch        = $null
+        ExpectedHeadSha       = $null
+        StatusFingerprint     = $null
+        HermesOnly            = $false
         CreatedAt             = $null
         Category              = $null
         Risk                  = $null
         Description           = $null
         Implementer           = $null
         ImplementerModel      = $null
+        ImplementerProvider   = $null
         OriginalImplementer   = $null
         ImplementerFallbackReason = $null
         FallbackImplementer   = $null
         FallbackType          = $null
         Reviewer              = $null
         ReviewerModel         = $null
+        ReviewerProvider      = $null
         Reason                = $null
         HumanApprovalRequired = $null
         FullRepoAudit         = $false
         State                 = "NONE"
+        ExecutionStatus       = "NOT_STARTED"
+        ExecutionAttempt      = 0
+        ExecutionStartedAt    = $null
+        ExecutionHeartbeatAt  = $null
+        ExecutionCompletedAt  = $null
+        ExecutionResultSummary = $null
+        ActiveExecutionId     = $null
+        ExecutionLeaseActive  = $false
+        ExecutionLeaseExpiresAt = $null
+        ExecutionLeaseStatus   = "NONE"
+        ExecutionLeaseOwnerPid = $null
+        LastRecoveryAt        = $null
+        RecoveryEvents        = @()
+        TransitionHistory     = @()
+        LastStateChangeAt     = $null
+        LastPersistedState    = $null
         HumanDecision         = "PENDING"
         RepairCyclesUsed      = 0
         PreImplementationSnapshot = @()
@@ -454,7 +596,21 @@ function New-EmptyTaskState {
         ExplicitPathsNotFound = @()
         PreExistingFiles      = @()
         TaskGeneratedFiles    = @()
+        BlockingIssues        = @()
         ScopeCheck            = "NOT_CONFIGURED"
+        WorkspaceBoundary     = [pscustomobject]@{
+            LockStatus = "UNLOCKED"
+            CanonicalWorkspace = $null
+            DeclaredAllowedScope = @()
+            DeclaredBlockedScope = @()
+            Branch = $null
+            Upstream = $null
+            AheadOfOriginMain = $null
+            BehindOriginMain = $null
+            DirtyStatusEntries = $null
+            DirtyTrackedContentFiles = $null
+            DirtyUntrackedEntries = $null
+        }
         QA                    = [pscustomobject]@{
             GitDiffCheck = [pscustomobject]@{ Result = "SKIPPED"; Reason = "Not run yet." }
             TypeScript   = [pscustomobject]@{ Result = "SKIPPED"; Reason = "Not run yet." }
@@ -465,6 +621,23 @@ function New-EmptyTaskState {
         ReviewedDiffHash      = $null
         CommitMessage         = $null
         CommitSha             = $null
+
+        # --- Phase 4.7: durable agent execution and handoff state ---
+        CodexExecutionStatus  = "NOT_STARTED"
+        CodexExecutionResult  = $null
+        CodexExecutionStartedAt = $null
+        CodexExecutionCompletedAt = $null
+        ClaudeReviewStatus    = "NOT_STARTED"
+        ClaudeReviewFindings  = @()
+        ClaudeReviewResult    = $null
+        ClaudeReviewStartedAt = $null
+        ClaudeReviewCompletedAt = $null
+        HandoffHistory        = @()
+        LastHandoffAt         = $null
+        LastReviewAt          = $null
+        ApprovalRequestedAt   = $null
+        PendingHumanApprovals = @()
+        McpActionHistory      = @()
 
         # --- Phase 4: push / preview ---
         Branch                     = $null
@@ -572,8 +745,10 @@ function New-TaskState {
     $state.Description = $Description
     $state.Implementer = $Classification.Implementer
     $state.ImplementerModel = $Classification.ImplementerModel
+    $state.ImplementerProvider = $Classification.ImplementerProvider
     $state.Reviewer = $Classification.Reviewer
     $state.ReviewerModel = $Classification.ReviewerModel
+    $state.ReviewerProvider = $Classification.ReviewerProvider
     $state.Reason = $Classification.Reason
     $state.HumanApprovalRequired = $Classification.HumanApproval
     $state.FullRepoAudit = $Classification.FullRepoAudit
@@ -582,6 +757,29 @@ function New-TaskState {
     # Production Audit) starts PENDING - "Codex (recommended)" at MEDIUM
     # risk is optional and must not block approval just because it never ran.
     $state.ReviewVerdict = if ($Classification.Reviewer -eq "Codex" -or $Classification.Reviewer -eq "Human") { "PENDING" } else { "NOT_REQUIRED" }
+
+    # Persist canonical work-boundary facts in the existing durable task
+    # record. This is observational only and does not mutate repository files.
+    $state.WorkspaceBoundary.CanonicalWorkspace = $RepoRoot
+    $state.WorkspaceBoundary.Branch = (git -C $RepoRoot branch --show-current 2>$null | Select-Object -First 1)
+    $state.TaskWorkspace = $RepoRoot
+    $state.ExpectedBranch = $state.WorkspaceBoundary.Branch
+    $state.ExpectedHeadSha = (git -C $RepoRoot rev-parse HEAD 2>$null | Select-Object -First 1)
+    $state.HermesOnly = Test-TerasHermesWorkspaceBinding -RepoRoot $RepoRoot
+    $remote = (git -C $RepoRoot config --get "branch.$($state.WorkspaceBoundary.Branch).remote" 2>$null | Select-Object -First 1)
+    $mergeRef = (git -C $RepoRoot config --get "branch.$($state.WorkspaceBoundary.Branch).merge" 2>$null | Select-Object -First 1)
+    $state.WorkspaceBoundary.Upstream = if ($remote -and $mergeRef) { "$remote/$($mergeRef -replace '^refs/heads/', '')" } else { $null }
+    $dirty = @(git -C $RepoRoot status --porcelain 2>$null)
+    $statusBytes = [Text.Encoding]::UTF8.GetBytes(($dirty -join "`n"))
+    $state.StatusFingerprint = ([BitConverter]::ToString(([Security.Cryptography.SHA256]::Create().ComputeHash($statusBytes))) -replace '-', '').ToLowerInvariant()
+    $state.WorkspaceBoundary.DirtyStatusEntries = $dirty.Count
+    $state.WorkspaceBoundary.DirtyUntrackedEntries = @($dirty | Where-Object { $_ -match '^\?\?' }).Count
+    $state.WorkspaceBoundary.DirtyTrackedContentFiles = @($dirty | Where-Object { $_ -and $_ -notmatch '^\?\?' }).Count
+    $compare = @(git -C $RepoRoot rev-list --left-right --count HEAD...origin/main 2>$null)
+    if ($compare.Count -gt 0 -and $compare[0] -match '^\s*(\d+)\s+(\d+)\s*$') {
+        $state.WorkspaceBoundary.AheadOfOriginMain = [int]$Matches[1]
+        $state.WorkspaceBoundary.BehindOriginMain = [int]$Matches[2]
+    }
 
     # Flag the separate database-safety track (db-runner.ps1) whenever the
     # task itself already looks database-shaped. This is a starting guess,
@@ -626,6 +824,22 @@ function New-TaskState {
         }
     }
 
+    if ($Description -match '(?i)P0\.1|canonical work-boundary lock|workspace-stabilization') {
+        $state.WorkspaceBoundary.LockStatus = "LOCKED"
+        $state.AllowedFiles = @("tools/agent-router.ps1", ".ai/task-state.json", ".ai/CURRENT_TASK.md")
+        $state.ScopeSource = "EXPLICIT_TASK_PATHS"
+        $state.ScopeCheck = "PASS"
+        $state.WorkspaceBoundary.DeclaredAllowedScope = @($state.AllowedFiles)
+        $state.WorkspaceBoundary.DeclaredBlockedScope = @(
+            "app/", "components/", "lib/", "data/", "supabase/", "public/", "production systems", "Telegram", "routing policy", "task execution semantics", "commit/push/merge/deploy", "migration apply"
+        )
+        if ($Description -match '(?i)dirty worktree (\d+) status entries, (\d+) tracked real-content files, (\d+) untracked') {
+            $state.WorkspaceBoundary.DirtyStatusEntries = [int]$Matches[1]
+            $state.WorkspaceBoundary.DirtyTrackedContentFiles = [int]$Matches[2]
+            $state.WorkspaceBoundary.DirtyUntrackedEntries = [int]$Matches[3]
+        }
+    }
+
     return $state
 }
 
@@ -653,16 +867,258 @@ function Repair-TaskStateSchema {
     return $State
 }
 
+function Add-HermesRecoveryEvent {
+    param($State, [string]$Kind, [string]$Details)
+
+    Repair-TaskStateSchema -State $State | Out-Null
+    $State.RecoveryEvents = @($State.RecoveryEvents) + [pscustomobject]@{
+        timestamp = Get-AgentEventTimestamp
+        kind = $Kind
+        details = $Details
+    }
+}
+
+function Reconcile-HermesTaskState {
+    param(
+        $State,
+        [string]$WorkspaceRoot = $RepoRoot,
+        [switch]$LiveExecution,
+        [switch]$Persist
+    )
+
+    Repair-TaskStateSchema -State $State | Out-Null
+    $findings = @()
+    $canonicalState = Get-HermesCanonicalState -State $State.State
+    if ($canonicalState -ne $State.State -and $canonicalState -in $script:HermesTaskStates) {
+        $oldState = $State.State
+        $State.State = $canonicalState
+        $State.TransitionHistory = @($State.TransitionHistory) + [pscustomobject]@{
+            timestamp = Get-AgentEventTimestamp; from = $oldState; to = $canonicalState; reason = "Legacy state normalized during restart reconciliation."
+        }
+        $findings += "LEGACY_STATE_NORMALIZED:$oldState->$canonicalState"
+    }
+
+    $expectedWorkspace = [string]$State.WorkspaceBoundary.CanonicalWorkspace
+    if ([string]::IsNullOrWhiteSpace($expectedWorkspace)) { $expectedWorkspace = $WorkspaceRoot }
+    $normalizedExpected = ($expectedWorkspace -replace '/', '\').TrimEnd('\').ToLowerInvariant()
+    $normalizedActual = ([string]$WorkspaceRoot -replace '/', '\').TrimEnd('\').ToLowerInvariant()
+    if ($normalizedExpected -ne $normalizedActual) {
+        $findings += "WORKSPACE_BINDING_MISMATCH"
+        Add-HermesRecoveryEvent -State $State -Kind "WORKSPACE_BINDING_MISMATCH" -Details "Persisted workspace '$expectedWorkspace' does not match intended workspace '$WorkspaceRoot'."
+        if ($State.State -notin @("COMPLETED", "CANCELLED")) { $State.State = "BLOCKED" }
+    }
+
+    $legacyModel = [string]$State.ImplementerModel
+    $needsRoutingRepair = [string]::IsNullOrWhiteSpace([string]$State.ImplementerProvider) -or
+        $legacyModel -in @("DEEPSEEK_FAST", "CLAUDE_FAST", "CLAUDE_DEEP", "CODEX_REVIEW") -or
+        $State.Implementer -eq "DeepSeek"
+    if ($needsRoutingRepair -and $State.Risk -in @("LOW", "MEDIUM", "HIGH", "CRITICAL")) {
+        $approved = Get-ApprovedRoutingForRisk -Risk $State.Risk
+        Add-HermesRecoveryEvent -State $State -Kind "LEGACY_ROUTING_RECONCILED" -Details "Replaced legacy provider/model metadata '$($State.Implementer)/$legacyModel'."
+        $State.OriginalImplementer = if ($State.OriginalImplementer) { $State.OriginalImplementer } else { $State.Implementer }
+        $State.Implementer = $approved.Implementer
+        $State.ImplementerModel = $approved.ImplementerModel
+        $State.ImplementerProvider = $approved.ImplementerProvider
+        $findings += "LEGACY_ROUTING_RECONCILED"
+    }
+
+    if ($State.HumanApprovalRequired -eq "REQUIRED" -and $State.HumanDecision -ne "APPROVED" -and $State.State -in @("CREATED", "ROUTED")) {
+        $State.State = "WAITING_APPROVAL"
+        Add-HermesRecoveryEvent -State $State -Kind "APPROVAL_RESTORED" -Details "Approval-required task remains blocked pending explicit human approval."
+        $findings += "WAITING_FOR_HUMAN_APPROVAL"
+    }
+
+    if ($State.State -eq "RUNNING") {
+        if (-not $LiveExecution) {
+            $State.ExecutionStatus = "INTERRUPTED"
+            $State.ExecutionCompletedAt = $null
+            $State.ExecutionResultSummary = "Interrupted or stale execution detected during restart reconciliation."
+            $State.State = "BLOCKED"
+            Add-HermesRecoveryEvent -State $State -Kind "INTERRUPTED_EXECUTION" -Details "RUNNING task had no live execution lease; success was not inferred."
+            $findings += "INTERRUPTED_EXECUTION"
+        }
+    }
+
+    if ($State.State -eq "REVIEW_PENDING" -and $State.ClaudeReviewStatus -in @("NOT_STARTED", "", $null)) {
+        $State.State = "BLOCKED"
+        Add-HermesRecoveryEvent -State $State -Kind "MISSING_REVIEW_ACTIVITY" -Details "Review was pending but no reviewer activity was durably recorded."
+        $findings += "MISSING_REVIEW_ACTIVITY"
+    }
+
+    if ($State.State -eq "RUNNING" -and [string]::IsNullOrWhiteSpace([string]$State.ExecutionStatus)) {
+        $State.ExecutionStatus = "INTERRUPTED"
+        $State.State = "BLOCKED"
+        Add-HermesRecoveryEvent -State $State -Kind "INCOMPLETE_EXECUTION_RECORD" -Details "Running task had no durable execution status."
+        $findings += "INCOMPLETE_EXECUTION_RECORD"
+    }
+
+    if ($findings.Count -gt 0) {
+        $State.LastRecoveryAt = Get-AgentEventTimestamp
+    }
+    if ($Persist -and (Get-Command Save-TaskState -ErrorAction SilentlyContinue)) { Save-TaskState -State $State }
+    return [pscustomobject]@{
+        State = $State
+        Reconciled = ($findings.Count -gt 0)
+        Findings = $findings
+        SafeToResume = ($State.State -notin @("BLOCKED", "FAILED", "COMPLETED", "CANCELLED"))
+    }
+}
+
+function Get-AgentEventTimestamp {
+    return [DateTime]::UtcNow.ToString("o")
+}
+
+function Add-AgentHandoffRecord {
+    param(
+        $State,
+        [string]$FromAgent,
+        [string]$ToAgent,
+        [string]$HandoffType,
+        [string]$HandoffPath,
+        [string]$Status = "RECORDED",
+        [string]$Details = $null
+    )
+
+    Repair-TaskStateSchema -State $State | Out-Null
+    $history = @($State.HandoffHistory)
+    $history += [pscustomobject]@{
+        timestamp = Get-AgentEventTimestamp
+        fromAgent = $FromAgent
+        toAgent = $ToAgent
+        handoffType = $HandoffType
+        handoffPath = $HandoffPath
+        status = $Status
+        details = $Details
+    }
+
+    $State.HandoffHistory = $history
+    $State.LastHandoffAt = $history[-1].timestamp
+    if (Get-Command Save-TaskState -ErrorAction SilentlyContinue) {
+        if (-not [string]::IsNullOrWhiteSpace([string]$TaskStatePath)) { Save-TaskState -State $State }
+    }
+}
+
+function Set-CodexExecutionRecord {
+    param($State, [string]$Status, $Result = $null)
+
+    Repair-TaskStateSchema -State $State | Out-Null
+    $now = Get-AgentEventTimestamp
+    if ($Status -eq "STARTED") {
+        $State.CodexExecutionStartedAt = $now
+        $State.ExecutionStartedAt = $now
+        $State.ExecutionHeartbeatAt = $now
+        $State.ExecutionAttempt = [int]$State.ExecutionAttempt + 1
+        $State.ExecutionStatus = "RUNNING"
+    }
+    if ($Status -in @("COMPLETED", "FAILED", "UNAVAILABLE")) { $State.CodexExecutionCompletedAt = $now }
+    $State.CodexExecutionStatus = $Status
+    $State.CodexExecutionResult = $Result
+    if ($Status -in @("COMPLETED", "FAILED", "UNAVAILABLE")) {
+        $State.ExecutionStatus = $Status
+        $State.ExecutionCompletedAt = $now
+        $State.ExecutionResultSummary = if ($Result) { ($Result | ConvertTo-Json -Depth 5 -Compress) } else { $Status }
+    }
+}
+
+function Set-ClaudeReviewRecord {
+    param($State, [string]$Status, $Findings = @(), $Result = $null)
+
+    Repair-TaskStateSchema -State $State | Out-Null
+    $now = Get-AgentEventTimestamp
+    if ($Status -eq "STARTED") {
+        $State.ClaudeReviewStartedAt = $now
+        $State.ExecutionHeartbeatAt = $now
+    }
+    if ($Status -in @("COMPLETED", "FAILED", "UNAVAILABLE")) { $State.ClaudeReviewCompletedAt = $now }
+    $State.ClaudeReviewStatus = $Status
+    $State.ClaudeReviewFindings = @($Findings)
+    if ($null -ne $Result) { $State.ClaudeReviewResult = $Result }
+    if ($Status -in @("COMPLETED", "FAILED", "UNAVAILABLE")) { $State.LastReviewAt = $now }
+}
+
+function Sync-PendingHumanApprovals {
+    param($State)
+
+    Repair-TaskStateSchema -State $State | Out-Null
+    $pending = @($State.PendingHumanApprovals | Where-Object { $_.kind -ne "TASK_APPROVAL" })
+    if ($State.HumanApprovalRequired -eq "REQUIRED" -and $State.HumanDecision -ne "APPROVED") {
+        if (-not $State.ApprovalRequestedAt) { $State.ApprovalRequestedAt = Get-AgentEventTimestamp }
+        $pending += [pscustomobject]@{ kind = "TASK_APPROVAL"; status = "PENDING"; requestedAt = $State.ApprovalRequestedAt }
+    }
+    $State.PendingHumanApprovals = $pending
+}
+
+function Get-McpActionRecord {
+    param($State, [string]$Action, [string]$IdempotencyKey)
+    Repair-TaskStateSchema -State $State | Out-Null
+    return @($State.McpActionHistory | Where-Object { $_.action -eq $Action -and $_.idempotencyKey -eq $IdempotencyKey } | Select-Object -Last 1)
+}
+
+function Test-McpActionDuplicate {
+    param($State, [string]$Action, [string]$IdempotencyKey)
+    return (@(Get-McpActionRecord -State $State -Action $Action -IdempotencyKey $IdempotencyKey).Count -gt 0)
+}
+
+function Test-McpStartAllowed {
+    param($State, [string]$TaskId)
+    if ($State.State -eq "NONE" -or [string]::IsNullOrWhiteSpace($State.TaskId) -or $State.TaskId -ne $TaskId) {
+        return [pscustomobject]@{ Allowed = $false; Reason = "The requested task does not match the current durable Hermes task." }
+    }
+    if ($State.State -notin @("CREATED", "ROUTED")) {
+        return [pscustomobject]@{ Allowed = $false; Reason = "Task is not in a startable state." }
+    }
+    if ($State.Risk -in @("HIGH", "CRITICAL") -and $State.HumanApprovalRequired -eq "REQUIRED" -and $State.HumanDecision -ne "APPROVED") {
+        return [pscustomobject]@{ Allowed = $false; Reason = "Human approval is required before starting this high-risk task." }
+    }
+    return [pscustomobject]@{ Allowed = $true; Reason = "Task is startable." }
+}
+
+function Add-McpActionRecord {
+    param($State, [string]$Action, [string]$IdempotencyKey, [string]$Status, $Details = $null)
+    Repair-TaskStateSchema -State $State | Out-Null
+    $history = @($State.McpActionHistory)
+    $history += [pscustomobject]@{
+        timestamp = Get-AgentEventTimestamp
+        action = $Action
+        idempotencyKey = $IdempotencyKey
+        taskId = $State.TaskId
+        status = $Status
+        details = $Details
+    }
+    $State.McpActionHistory = $history
+    Save-TaskState -State $State
+}
+
 function Save-TaskState {
     param($State)
-    $State | ConvertTo-Json -Depth 10 | Set-Content -Path $TaskStatePath -Encoding utf8
+    Sync-PendingHumanApprovals -State $State
+    if ($State.LastPersistedState -and $State.LastPersistedState -ne $State.State) {
+        $transition = Test-HermesStateTransition -From $State.LastPersistedState -To $State.State
+        if (-not $transition.Allowed) { throw "Invalid persisted Hermes state transition $($transition.From) -> $($transition.To)." }
+    }
+    $State.LastPersistedState = Get-HermesCanonicalState -State $State.State
+    $directory = Split-Path -Parent $TaskStatePath
+    if (-not (Test-Path -LiteralPath $directory)) { New-Item -ItemType Directory -Path $directory -Force | Out-Null }
+    $temporaryPath = "$TaskStatePath.$PID.$([guid]::NewGuid().ToString('N')).tmp"
+    try {
+        $State | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $temporaryPath -Encoding utf8
+        Move-Item -LiteralPath $temporaryPath -Destination $TaskStatePath -Force
+    } finally {
+        if (Test-Path -LiteralPath $temporaryPath) { Remove-Item -LiteralPath $temporaryPath -Force }
+    }
     Write-CurrentTaskMarkdown -State $State
 }
 
 function Get-TaskState {
     if (Test-Path $TaskStatePath) {
         $loaded = Get-Content -Path $TaskStatePath -Raw | ConvertFrom-Json
-        return (Repair-TaskStateSchema -State $loaded)
+        $leaseActive = $false
+        if (Get-Command Reconcile-HermesExecutionLease -ErrorAction SilentlyContinue) {
+            $leaseRecovery = Reconcile-HermesExecutionLease -State $loaded -Workspace $RepoRoot
+            $leaseActive = $leaseRecovery.status -eq "ACTIVE"
+        }
+        $reconciled = Reconcile-HermesTaskState -State $loaded -LiveExecution:$leaseActive -WorkspaceRoot $RepoRoot -Persist
+        return $reconciled.State
     }
     return New-EmptyTaskState
 }
@@ -704,9 +1160,11 @@ Repair Cycles Used: $($State.RepairCyclesUsed) / 1
 
 Implementer: $($State.Implementer)
 Implementer Model: $($State.ImplementerModel)
+Implementer Provider: $($State.ImplementerProvider)
 $(if ($State.OriginalImplementer) { "Original Implementer: $($State.OriginalImplementer)`nCurrent Implementer: $($State.Implementer)`nFallback Implementer: $($State.FallbackImplementer)`nFallback Model: $($State.ImplementerModel)`nFallback Type: $($State.FallbackType)`nFallback Reason: $($State.ImplementerFallbackReason)`n" })
 Reviewer: $($State.Reviewer)
 Reviewer Model: $($State.ReviewerModel)
+Reviewer Provider: $($State.ReviewerProvider)
 
 Reason for Model Selection:
 $($State.Reason)
@@ -722,6 +1180,19 @@ Blocked Files:
 $(Format-FileList -Files $State.BlockedFiles -EmptyText "(fill in before implementation begins)")
 
 $(if (@($State.ExplicitPathsNotFound).Count -gt 0) { "Explicit path not found:`n$(Format-FileList -Files $State.ExplicitPathsNotFound)`n`nNot auto-approved - confirm the correct path(s) before implementation begins.`n" })Scope Check: $($State.ScopeCheck)
+
+## Canonical Work Boundary
+
+Lock Status: $($State.WorkspaceBoundary.LockStatus)
+Canonical Workspace: $($State.WorkspaceBoundary.CanonicalWorkspace)
+Branch: $($State.WorkspaceBoundary.Branch)
+Upstream: $(if ($State.WorkspaceBoundary.Upstream) { $State.WorkspaceBoundary.Upstream } else { "(none)" })
+Divergence from origin/main: $($State.WorkspaceBoundary.AheadOfOriginMain) ahead / $($State.WorkspaceBoundary.BehindOriginMain) behind
+Dirty Worktree: $($State.WorkspaceBoundary.DirtyStatusEntries) status entries; $($State.WorkspaceBoundary.DirtyTrackedContentFiles) tracked entries; $($State.WorkspaceBoundary.DirtyUntrackedEntries) untracked entries
+Declared Allowed Scope:
+$(Format-FileList -Files $State.WorkspaceBoundary.DeclaredAllowedScope -EmptyText "(none)")
+Declared Blocked Scope:
+$(Format-FileList -Files $State.WorkspaceBoundary.DeclaredBlockedScope -EmptyText "(none)")
 
 ## Changed Files
 

@@ -412,6 +412,9 @@ Continue from where DeepSeek stopped rather than re-investigating from scratch. 
 "@
 
     Set-Content -Path $path -Value $content -Encoding utf8
+    if (Get-Command Add-AgentHandoffRecord -ErrorAction SilentlyContinue) {
+        Add-AgentHandoffRecord -State $State -FromAgent "DeepSeek" -ToAgent "Claude Code" -HandoffType "ESCALATION" -HandoffPath $path
+    }
     return $path
 }
 
