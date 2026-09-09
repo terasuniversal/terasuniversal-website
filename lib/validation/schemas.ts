@@ -480,6 +480,17 @@ export const salesLeadFollowUpSchema = z.object({
 });
 export type SalesLeadFollowUpInput = z.infer<typeof salesLeadFollowUpSchema>;
 
+export const salesLeadQualificationSchema = z.object({
+  qualification_status: z.enum(["pending", "qualified", "unqualified"]),
+  reason: z.string().trim().optional().or(z.literal("")),
+}).superRefine((value, ctx) => {
+  if (value.qualification_status !== "pending" && !value.reason) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["reason"], message: "Select a reason for this qualification decision." });
+  }
+});
+
+export const salesLeadTemperatureSchema = z.object({ temperature: z.enum(["", "hot", "warm", "cold"]) });
+
 /**
  * Sales CRM Phase 2 — sales_opportunities / sales_quotations / sales_quotation_items mutations.
  */

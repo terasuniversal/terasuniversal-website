@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useRef, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { Card, Field } from "../../../../../../components/admin/ui";
-import { updateLeadStatus, assignLead, setLeadFollowUp, addLeadNote, convertLeadToOpportunity, markLeadTest, type SalesActionState } from "../actions";
+import { updateLeadStatus, assignLead, setLeadFollowUp, addLeadNote, convertLeadToOpportunity, markLeadTest, updateLeadQualification, updateLeadTemperature, type SalesActionState } from "../actions";
 import { CRM_STATUS_ORDER, CRM_STATUS_LABELS, LOST_REASONS, LOST_REASON_LABELS, type SalesCrmStatus, type SalesCrmPriority } from "../../../../../../lib/sales/crm";
+import { DISQUALIFICATION_REASONS, DISQUALIFICATION_REASON_LABELS, QUALIFICATION_REASONS, QUALIFICATION_REASON_LABELS } from "../../../../../../lib/sales/qualification";
 
 const INITIAL: SalesActionState = {};
 
@@ -20,6 +21,10 @@ export function LeadActionsPanel({
   defaultOpportunityTitle,
   isSuperAdmin,
   isTest,
+  qualificationStatus,
+  temperature,
+  qualificationReason,
+  disqualificationReason,
 }: {
   leadMetadataId: string;
   status: SalesCrmStatus;
@@ -32,6 +37,10 @@ export function LeadActionsPanel({
   defaultOpportunityTitle?: string;
   isSuperAdmin?: boolean;
   isTest?: boolean;
+  qualificationStatus: string;
+  temperature: string | null;
+  qualificationReason: string | null;
+  disqualificationReason: string | null;
 }) {
   const [convertState, convertAction, convertPending] = useActionState(convertLeadToOpportunity.bind(null, leadMetadataId), INITIAL);
   const [statusState, statusAction, statusPending] = useActionState(updateLeadStatus.bind(null, leadMetadataId), INITIAL);
@@ -42,9 +51,16 @@ export function LeadActionsPanel({
     async (_prev, _fd) => markLeadTest(leadMetadataId, !isTest),
     INITIAL
   );
+  const [qualificationState, qualificationAction, qualificationPending] = useActionState(updateLeadQualification.bind(null, leadMetadataId), INITIAL);
+  const [temperatureState, temperatureAction, temperaturePending] = useActionState(updateLeadTemperature.bind(null, leadMetadataId), INITIAL);
 
   const [pendingStatus, setPendingStatus] = useState<SalesCrmStatus>(status);
+  const [pendingQualification, setPendingQualification] = useState(qualificationStatus);
   const statusFormRef = useRef<HTMLFormElement>(null);
+
+  useEffect(() => {
+    setPendingQualification(qualificationStatus);
+  }, [qualificationStatus]);
 
   const localDateTimeValue = followUpAt ? new Date(followUpAt).toISOString().slice(0, 16) : "";
 
@@ -91,6 +107,44 @@ export function LeadActionsPanel({
             </form>
           </Card>
         )
+      )}
+
+      {canManage && (
+        <Card title="Qualification">
+          <form action={qualificationAction} className="ta-card-pad ta-stack">
+            {qualificationState.message && <div className="ta-alert ta-alert-error">{qualificationState.message}</div>}
+            <Field label="Qualification" name="qualification_status" error={qualificationState.errors?.qualification_status}>
+              <select name="qualification_status" value={pendingQualification} onChange={(event) => setPendingQualification(event.target.value)}>
+                <option value="pending">Pending</option><option value="qualified">Qualified</option><option value="unqualified">Unqualified</option>
+              </select>
+            </Field>
+            {pendingQualification === "qualified" && (
+              <Field label="Qualification reason" name="reason" error={qualificationState.errors?.reason}>
+                <select name="reason" defaultValue={qualificationReason ?? ""} required><option value="" disabled>Select a reason</option>{QUALIFICATION_REASONS.map((reason) => <option key={reason} value={reason}>{QUALIFICATION_REASON_LABELS[reason]}</option>)}</select>
+              </Field>
+            )}
+            {pendingQualification === "unqualified" && (
+              <Field label="Disqualification reason" name="reason" error={qualificationState.errors?.reason}>
+                <select name="reason" defaultValue={disqualificationReason ?? ""} required><option value="" disabled>Select a reason</option>{DISQUALIFICATION_REASONS.map((reason) => <option key={reason} value={reason}>{DISQUALIFICATION_REASON_LABELS[reason]}</option>)}</select>
+              </Field>
+            )}
+            <button type="submit" className="ta-btn ta-btn-primary ta-btn-sm" disabled={qualificationPending}>{qualificationPending ? "Saving…" : "Save Qualification"}</button>
+          </form>
+        </Card>
+      )}
+
+      {canManage && (
+        <Card title="Temperature">
+          <form action={temperatureAction} className="ta-card-pad ta-stack">
+            {temperatureState.message && <div className="ta-alert ta-alert-error">{temperatureState.message}</div>}
+            <Field label="Sales readiness" name="temperature" error={temperatureState.errors?.temperature}>
+              <select name="temperature" defaultValue={temperature ?? ""}>
+                <option value="">Not set</option><option value="hot">Hot — active discussion</option><option value="warm">Warm — valid interest</option><option value="cold">Cold — low current signal</option>
+              </select>
+            </Field>
+            <button type="submit" className="ta-btn ta-btn-outline ta-btn-sm" disabled={temperaturePending}>{temperaturePending ? "Saving…" : "Save Temperature"}</button>
+          </form>
+        </Card>
       )}
 
       {canManage && (

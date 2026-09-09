@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { Badge } from "../../../../../components/admin/ui";
 import { FollowUpBadge } from "../../../../../components/admin/sales/FollowUpBadge";
-import { SOURCE_LABELS, followUpState, type SalesLeadInboxRow } from "../../../../../lib/sales/crm";
+import { PRIORITY_LABELS, SOURCE_LABELS, followUpState, type SalesLeadInboxRow } from "../../../../../lib/sales/crm";
 import { formatMalaysiaDate } from "../../../../../lib/date-time";
+import { ageLabel, daysSinceActivityLabel, qualificationLabel, temperatureLabel } from "../../../../../lib/sales/qualification";
 
 type LeadNextAction = { id: string; title: string; status: string; priority: string; due_at: string | null };
 
@@ -11,10 +12,14 @@ export function LeadInboxTable({
   rows,
   staffNames,
   nextActions,
+  qualificationByLead,
+  lastActivityByLead,
 }: {
   rows: SalesLeadInboxRow[];
   staffNames: Map<string, string>;
   nextActions: Map<string, LeadNextAction>;
+  qualificationByLead: Map<string, { qualification_status: string; temperature: string | null }>;
+  lastActivityByLead: Map<string, string>;
 }) {
   return (
     <>
@@ -27,6 +32,11 @@ export function LeadInboxTable({
               <th>Email / Phone</th>
               <th>Subject</th>
               <th>Status</th>
+              <th>Qualification</th>
+              <th>Temperature</th>
+              <th>Priority</th>
+              <th>Age</th>
+              <th>Last activity</th>
               <th>Assigned To</th>
               <th>Follow-up</th>
               <th>Next Action</th>
@@ -51,6 +61,11 @@ export function LeadInboxTable({
                   <Badge status={r.status} />
                   {r.is_test && <span className="ta-badge-pill" style={{ background: "#f4f5f7", color: "#667085", marginLeft: 4 }}>Test</span>}
                 </td>
+                <td><span className="ta-badge-pill">{qualificationLabel(qualificationByLead.get(r.lead_metadata_id)?.qualification_status)}</span></td>
+                <td>{temperatureLabel(qualificationByLead.get(r.lead_metadata_id)?.temperature)}</td>
+                <td>{PRIORITY_LABELS[r.priority]}</td>
+                <td>{ageLabel(r.created_at)}</td>
+                <td>{daysSinceActivityLabel(lastActivityByLead.get(r.lead_metadata_id) ?? null)}</td>
                 <td>{r.assigned_to ? staffNames.get(r.assigned_to) ?? "—" : <span className="ta-lead-sub">Unassigned</span>}</td>
                 <td>
                   <FollowUpBadge state={followUpState(r.follow_up_at, r.status)} />
@@ -82,6 +97,13 @@ export function LeadInboxTable({
                 <Badge status={r.status} />
                 {r.is_test && <span className="ta-badge-pill" style={{ background: "#f4f5f7", color: "#667085", marginLeft: 4 }}>Test</span>}
               </span>
+            </div>
+            <div className="ta-lead-card-grid">
+              <span>Qualification</span><span>{qualificationLabel(qualificationByLead.get(r.lead_metadata_id)?.qualification_status)}</span>
+              <span>Temperature</span><span>{temperatureLabel(qualificationByLead.get(r.lead_metadata_id)?.temperature)}</span>
+              <span>Priority</span><span>{PRIORITY_LABELS[r.priority]}</span>
+              <span>Lead age</span><span>{ageLabel(r.created_at)}</span>
+              <span>Last activity</span><span>{daysSinceActivityLabel(lastActivityByLead.get(r.lead_metadata_id) ?? null)}</span>
             </div>
             <div className="ta-lead-card-company">
               <strong>{r.contact_name ?? "—"}</strong>
