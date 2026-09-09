@@ -10,6 +10,8 @@
     implementation happened.
 #>
 
+. (Join-Path $PSScriptRoot "hermes-repair-policy.ps1")
+
 . (Join-Path $PSScriptRoot "hermes-execution.ps1")
 
 function Test-ClaudeAvailable {
@@ -119,7 +121,7 @@ function New-RepairHandoff {
     $content = @"
 # REPAIR_HANDOFF.md
 
-> Generated only when Codex review returns BLOCKED. Contains ONLY the blocking issues - not a general re-implementation request. This is repair cycle $($State.RepairCyclesUsed + 1) of a maximum of 1 automatic cycle (MAX_REPAIR_CYCLES=1, see .ai/USAGE_POLICY.md). If this cycle does not resolve the issues, the task stops and requires human intervention - no further automatic loop.
+> Generated only when Codex review returns BLOCKED. Contains ONLY the blocking issues - not a general re-implementation request. This is repair cycle $($State.RepairCyclesUsed + 1) of a maximum of $HermesMaxRepairAttempts automatic cycles. If this cycle does not resolve the issues, the task stops and requires human intervention - no further automatic loop.
 
 ## TASK
 
@@ -378,7 +380,7 @@ function Invoke-ClaudeReadOnlyReview {
 }
 
 function Get-ClaudeRepairDecision {
-    param([string]$Verdict, [int]$AttemptsUsed, [int]$MaximumAttempts = 2)
+    param([string]$Verdict, [int]$AttemptsUsed, [int]$MaximumAttempts = $HermesMaxRepairAttempts)
 
     if ($Verdict -in @("PASS", "PASS_WITH_NOTES")) { return "NO_REPAIR" }
     if ($Verdict -eq "CHANGES_REQUIRED" -and $AttemptsUsed -lt $MaximumAttempts) { return "REPAIR" }
@@ -423,7 +425,7 @@ function New-CodexRepairHandoff {
     $content = @"
 # CODEX_REPAIR_HANDOFF.md
 
-> Generated after Claude returned CHANGES_REQUIRED. This is bounded repair attempt $Attempt of 2. Codex remains the implementation agent.
+> Generated after Claude returned CHANGES_REQUIRED. This is bounded repair attempt $Attempt of $HermesMaxRepairAttempts. Codex remains the implementation agent.
 
 ## ORIGINAL TASK
 

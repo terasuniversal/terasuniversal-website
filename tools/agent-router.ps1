@@ -26,6 +26,8 @@ $DbSensitiveKeywords = @("migration", "rls", "polic", "database function", "rpc"
 # certificate-trust language escalates straight to CRITICAL at
 # classification time - see the isCertTrust-and-isDbSensitiveCritical
 # branch below.
+. (Join-Path $PSScriptRoot "hermes-repair-policy.ps1")
+
 $DbSensitiveCriticalKeywords = @("migration", "rls", "polic", "database function", "schema", "auth")
 $DestructiveKeywords = @("destructive", "drop", "delete", "truncate", "irreversible")
 $CertDomainTerms = @("certificate", "template a", "template b", "crest", "signature", "stamp", "seal")
@@ -1156,7 +1158,7 @@ Description: $($State.Description)
 
 State: $($State.State)
 Human Decision: $($State.HumanDecision)
-Repair Cycles Used: $($State.RepairCyclesUsed) / 1
+Repair Cycles Used: $($State.RepairCyclesUsed) / $HermesMaxRepairAttempts
 
 Implementer: $($State.Implementer)
 Implementer Model: $($State.ImplementerModel)

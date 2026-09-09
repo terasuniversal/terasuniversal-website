@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { MAX_AUTOMATIC_REPAIR_ATTEMPTS } from "./hermes-repair-policy.mjs";
 
 export const EXPORT_VERSION = "H7.0";
 export const RETENTION_ACTIONS = ["KEEP", "ARCHIVE_ELIGIBLE", "REVIEW_REQUIRED", "NEVER_DELETE_AUTOMATICALLY"];
@@ -85,7 +86,7 @@ function reviewEvidence(task) {
 
 function repairEvidence(task) {
   const attempts = Number.isFinite(Number(task?.RepairCyclesUsed)) ? Number(task.RepairCyclesUsed) : 0;
-  return [{ RepairAttemptsUsed: attempts, RepairAttemptsRemaining: Math.max(0, 2 - attempts), RepairLimit: 2, RepairStatus: safeStatus(task?.State === "REPAIR_REQUIRED" ? "REPAIR_REQUIRED" : attempts ? "RECORDED" : "NOT_RECORDED") }];
+  return [{ RepairAttemptsUsed: attempts, RepairAttemptsRemaining: Math.max(0, MAX_AUTOMATIC_REPAIR_ATTEMPTS - attempts), RepairLimit: MAX_AUTOMATIC_REPAIR_ATTEMPTS, RepairStatus: safeStatus(task?.State === "REPAIR_REQUIRED" ? "REPAIR_REQUIRED" : attempts ? "RECORDED" : "NOT_RECORDED") }];
 }
 
 export function createAuditExport({ task = null, intent = null, projectContext = null, approval = null, decisionHistory = [], queueItem = null, queueEvents = [], executionEvents = [], executionLease = null, timeline = null, operatorSummary = null, now = new Date() } = {}) {

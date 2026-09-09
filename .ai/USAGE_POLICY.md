@@ -19,5 +19,7 @@ Codex and Claude receive only the bounded handoff context required by the
 task. No routing policy authorizes arbitrary shell execution, Git mutation,
 deployment, SQL execution, migration application, or production access.
 
-Repair and review limits remain unchanged: bounded repair cycles, explicit
-human approval, and no automatic release actions.
+Automatic repair is bounded by the persisted task-level budget of exactly two
+attempts. Attempts one and two may run after concrete review/validation
+findings; attempt three blocks for human intervention. Explicit human approval
+and no automatic release actions remain mandatory.

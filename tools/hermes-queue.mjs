@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { MAX_AUTOMATIC_REPAIR_ATTEMPTS } from "./hermes-repair-policy.mjs";
 
 export const QUEUE_STATES = [
   "QUEUED", "WAITING_APPROVAL", "WAITING_DEPENDENCY", "WAITING_CONFLICT", "READY",
@@ -168,7 +169,7 @@ export function evaluateQueueItem(itemInput, allItems = [], {
   ];
   const failedFlag = flags.find(([failed]) => failed);
   if (failedFlag) return { item: { ...item, QueueState: "BLOCKED", BlockReasonCodes: [failedFlag[1]], BlockedAt: now.toISOString() }, state: "BLOCKED", codes: [failedFlag[1]], conflicts: [], eligible: false };
-  if (item.RepairAttempts >= 2 && ["REPAIR_REQUIRED", "READY", "QUEUED"].includes(item.QueueState)) return { item: { ...item, QueueState: "BLOCKED", BlockReasonCodes: ["REPAIR_LIMIT_REACHED"], BlockedAt: now.toISOString() }, state: "BLOCKED", codes: ["REPAIR_LIMIT_REACHED"], conflicts: [], eligible: false };
+  if (item.RepairAttempts >= MAX_AUTOMATIC_REPAIR_ATTEMPTS && ["REPAIR_REQUIRED", "READY", "QUEUED"].includes(item.QueueState)) return { item: { ...item, QueueState: "BLOCKED", BlockReasonCodes: ["REPAIR_LIMIT_REACHED"], BlockedAt: now.toISOString() }, state: "BLOCKED", codes: ["REPAIR_LIMIT_REACHED"], conflicts: [], eligible: false };
   if (item.ApprovalValid === false || ["PENDING", "EXPIRED", "INVALIDATED", "REJECTED", "REVOKED"].includes(item.ApprovalStatus)) {
     return { item: { ...item, QueueState: "WAITING_APPROVAL", BlockReasonCodes: ["APPROVAL_REQUIRED"] }, state: "WAITING_APPROVAL", codes: ["APPROVAL_REQUIRED"], conflicts: [], eligible: false };
   }

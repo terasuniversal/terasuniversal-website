@@ -1,6 +1,7 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { randomUUID, createHash } from "node:crypto";
 import { join } from "node:path";
+import { MAX_AUTOMATIC_REPAIR_ATTEMPTS } from "./hermes-repair-policy.mjs";
 
 export const MAX_TELEGRAM_MESSAGE_LENGTH = 3800;
 export const MAX_ROWS_PER_PAGE = 8;
@@ -105,7 +106,7 @@ function renderTask(state, taskId, audit = false) {
   const task = (state.tasks ?? []).find((item) => item.TaskId === taskId) ?? (state.task?.TaskId === taskId ? state.task : null);
   if (!task) return [header(audit ? "Audit" : "Task"), "Task not found or not visible."];
   const evidence = audit ? (state.auditByTask?.[taskId] ?? state.operatorEvidence) : null;
-  const lines = [header(audit ? "Audit" : "Task"), row("Task", task.TaskId), row("Title", task.Title ?? task.Description), row("Intent", task.IntentSummary), row("Domain", task.Domain), row("Risk", task.Risk), row("Workspace", task.Workspace), row("Branch", task.Branch), row("Allowed", list(task.AllowedScope, 3).join(", ")), row("Protected", list(task.ProtectedScope, 3).join(", ")), row("Dependencies", list(task.Dependencies, 3).join(", ") || "NONE"), row("Conflicts", list(task.Conflicts, 3).join(", ") || "NONE"), row("Decision", task.DecisionStatus), row("Approval", task.ApprovalStatus), row("Implementer", `${task.ImplementerProvider ?? "UNKNOWN"} / ${task.ImplementerModel ?? "UNKNOWN"}`), row("Reviewer", `${task.ReviewerProvider ?? "UNKNOWN"} / ${task.ReviewerModel ?? "UNKNOWN"}`), row("Execution", task.ExecutionStatus), row("Repair", `${task.RepairAttempts ?? 0}/2`), row("Review", task.ReviewStatus), row("Action", task.RequiredHumanAction ?? "MANUAL_INTERVENTION"), row("Blockers", list(task.Blockers, 3).join(", ") || "NONE")];
+  const lines = [header(audit ? "Audit" : "Task"), row("Task", task.TaskId), row("Title", task.Title ?? task.Description), row("Intent", task.IntentSummary), row("Domain", task.Domain), row("Risk", task.Risk), row("Workspace", task.Workspace), row("Branch", task.Branch), row("Allowed", list(task.AllowedScope, 3).join(", ")), row("Protected", list(task.ProtectedScope, 3).join(", ")), row("Dependencies", list(task.Dependencies, 3).join(", ") || "NONE"), row("Conflicts", list(task.Conflicts, 3).join(", ") || "NONE"), row("Decision", task.DecisionStatus), row("Approval", task.ApprovalStatus), row("Implementer", `${task.ImplementerProvider ?? "UNKNOWN"} / ${task.ImplementerModel ?? "UNKNOWN"}`), row("Reviewer", `${task.ReviewerProvider ?? "UNKNOWN"} / ${task.ReviewerModel ?? "UNKNOWN"}`), row("Execution", task.ExecutionStatus), row("Repair", `${task.RepairAttempts ?? 0}/${MAX_AUTOMATIC_REPAIR_ATTEMPTS}`), row("Review", task.ReviewStatus), row("Action", task.RequiredHumanAction ?? "MANUAL_INTERVENTION"), row("Blockers", list(task.Blockers, 3).join(", ") || "NONE")];
   if (evidence) lines.push(row("Evidence digest", evidence.ExportDigest ?? evidence.ExportDigestShort), row("Final state", evidence.FinalState ?? evidence.EvidenceStatus));
   return lines;
 }

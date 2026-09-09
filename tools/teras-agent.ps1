@@ -184,7 +184,7 @@ function Show-Menu {
 }
 
 # ---------------------------------------------------------------------------
-# Post-implementation tail: scope check -> QA -> review (+ one repair cycle)
+# Post-implementation tail: scope check -> QA -> review (+ bounded repair cycles)
 # -> AWAITING_APPROVAL -> FINAL_REPORT.md -> approval screen. Shared by the
 # direct pipeline and -Resume so the two never drift apart.
 # ---------------------------------------------------------------------------
@@ -209,19 +209,19 @@ function Invoke-ReviewStage {
         return $State
     }
 
-    if ($State.RepairCyclesUsed -ge 1) {
+    if ($State.RepairCyclesUsed -ge $HermesMaxRepairAttempts) {
         $State.State = "BLOCKED"
         Save-TaskState -State $State
         Write-Host ""
         Write-Host "STATUS: HUMAN INTERVENTION REQUIRED"
-        Write-Host "Codex review is still BLOCKED after the maximum of 1 automatic repair cycle (MAX_REPAIR_CYCLES=1)."
+        Write-Host "Codex review is still BLOCKED after the maximum of $HermesMaxRepairAttempts automatic repair cycles."
         Write-Host "No further agent loop will run automatically."
         Write-Host ""
         return $State
     }
 
     Write-Host ""
-    Write-Host "Codex review returned BLOCKED. Starting repair cycle 1 of 1 (MAX_REPAIR_CYCLES=1)."
+    Write-Host "Codex review returned BLOCKED. Starting repair cycle $($State.RepairCyclesUsed + 1) of $HermesMaxRepairAttempts."
     Write-Host ""
 
     $State.State = "REPAIR"
@@ -267,7 +267,7 @@ function Invoke-ReviewStage {
         return $State
     }
 
-    $State.RepairCyclesUsed = 1
+    $State.RepairCyclesUsed = [int]$State.RepairCyclesUsed + 1
     $State.State = "REVIEWING"
     Save-TaskState -State $State
     $handoffPath2 = New-CodexReviewHandoff -State $State -TaskGeneratedFiles $State.TaskGeneratedFiles
@@ -277,6 +277,9 @@ function Invoke-ReviewStage {
     Save-TaskState -State $State
 
     if ($State.ReviewVerdict -eq "BLOCKED") {
+        if ($State.RepairCyclesUsed -lt $HermesMaxRepairAttempts) {
+            return Invoke-ReviewStage -State $State -Mandatory $Mandatory -Optional $Optional -PreImplementationSnapshot $PreImplementationSnapshot
+        }
         $State.State = "BLOCKED"
         Save-TaskState -State $State
         Write-Host ""

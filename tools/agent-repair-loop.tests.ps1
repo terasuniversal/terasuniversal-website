@@ -66,9 +66,11 @@ if (-not $synthetic.Completed -or $script:reviewCalls -ne 2 -or $script:repairCa
 }
 
 $runnerSource = Get-Content (Join-Path $PSScriptRoot "agent-runner.ps1") -Raw
+$repairPolicySource = Get-Content (Join-Path $PSScriptRoot "hermes-repair-policy.ps1") -Raw
 $pipelineSource = Get-Content (Join-Path $PSScriptRoot "teras-agent.ps1") -Raw
 if ($runnerSource -notmatch "New-CodexRepairHandoff" -or $runnerSource -notmatch "Do not commit, push, merge, deploy, or apply a migration") { throw "Repair handoff governance assertions failed." }
-if ($pipelineSource -notmatch "Invoke-ClaudeRepairLoop" -or $pipelineSource -notmatch "PENDING_CLAUDE_REVIEW" -or $pipelineSource -notmatch "PENDING_CODEX_REPAIR" -or $pipelineSource -notmatch "\$maximumAttempts = 2") { throw "Repair loop control assertions failed." }
+if ($pipelineSource -notmatch "Invoke-ClaudeRepairLoop" -or $pipelineSource -notmatch "PENDING_CLAUDE_REVIEW" -or $pipelineSource -notmatch "PENDING_CODEX_REPAIR" -or $repairPolicySource -notmatch "HermesMaxRepairAttempts = 2" -or $pipelineSource -match "RepairCyclesUsed -ge 1") { throw "Repair loop control assertions failed." }
 if ($pipelineSource -notmatch 'State\.Implementer -ne "Codex"') { throw "Legacy review loop guard assertion failed." }
+if ($pipelineSource -notmatch 'RepairCyclesUsed -lt \$HermesMaxRepairAttempts') { throw "Legacy review path does not honor the shared repair budget." }
 
 Write-Output "Repair loop static tests: PASS"
