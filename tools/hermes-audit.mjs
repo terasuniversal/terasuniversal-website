@@ -2,10 +2,17 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { evaluateDecisionFreshness } from "./hermes-decision.mjs";
+import { MAX_AUTOMATIC_REPAIR_ATTEMPTS } from "./hermes-repair-policy.mjs";
 
 const APPROVAL_STATES = new Set(["PENDING", "APPROVED", "REJECTED", "REVOKED", "EXPIRED", "INVALIDATED"]);
 const unique = (values) => [...new Set(values.filter(Boolean))];
 const bounded = (value, max = 500) => String(value ?? "").slice(0, max);
+const stable = (value) => {
+  if (Array.isArray(value)) return value.map(stable);
+  if (value && typeof value === "object") return Object.fromEntries(Object.keys(value).sort().map((key) => [key, stable(value[key])]));
+  return value ?? null;
+};
+const sameValue = (left, right) => JSON.stringify(stable(left)) === JSON.stringify(stable(right));
 
 function reasonToAction(codes = [], { approvalRequired = false, reviewStatus = null, repairRequired = false } = {}) {
   if (codes.includes("APPROVAL_MISSING") || (approvalRequired && !codes.includes("APPROVAL_REQUIRED"))) return "APPROVE";
@@ -24,7 +31,7 @@ export function normalizeApprovalRecord({ task = null, decision = null, intent =
   const approved = task?.HumanDecision === "APPROVED" || decision?.ApprovalState === "APPROVED";
   const rejected = task?.HumanDecision === "REJECTED";
   const revoked = task?.HumanDecision === "REVOKED";
-  const decisionFreshness = decision && intent && projectContext ? evaluateDecisionFreshness(decision, { taskId: task?.TaskId ?? decision.TaskId, intent, projectContext, approvalState: decision.ApprovalState }) : { valid: true };
+  const decisionFreshness = decision && intent && projectContext ? evaluateDecisionFreshness(decision, { taskId: task?.TaskId ?? decision.TaskId, intent, projectContext, approvalState: decision.ApprovalState, now }) : { valid: true };
   let state = existing?.ApprovalState ?? (rejected ? "REJECTED" : revoked ? "REVOKED" : approved ? "APPROVED" : "PENDING");
   let invalidationReason = existing?.InvalidationReason ?? null;
   if (state === "APPROVED" && decision) {
@@ -39,11 +46,16 @@ export function normalizeApprovalRecord({ task = null, decision = null, intent =
     ApproverType: existing?.ApproverType ?? (required ? "HUMAN" : "POLICY"),
     ApprovalState: state,
     ApprovedRisk: existing?.ApprovedRisk ?? decision?.Risk ?? task?.Risk ?? null,
+    ApprovedProjectId: existing?.ApprovedProjectId ?? decision?.ProjectId ?? null,
+    ApprovedWorkspaceRole: existing?.ApprovedWorkspaceRole ?? decision?.WorkspaceRole ?? null,
     ApprovedWorkspace: existing?.ApprovedWorkspace ?? decision?.Workspace ?? task?.WorkspaceBoundary?.CanonicalWorkspace ?? null,
     ApprovedBranch: existing?.ApprovedBranch ?? decision?.Branch ?? null,
     ApprovedHead: existing?.ApprovedHead ?? decision?.ObservedHeadSha ?? null,
     ApprovedStatusFingerprint: existing?.ApprovedStatusFingerprint ?? decision?.StatusFingerprint ?? null,
+    ApprovedOperation: existing?.ApprovedOperation ?? decision?.OperationType ?? null,
     ApprovedScope: existing?.ApprovedScope ?? decision?.AllowedPaths ?? [],
+    ApprovedDependencies: existing?.ApprovedDependencies ?? decision?.Dependencies ?? [],
+    ApprovedConflicts: existing?.ApprovedConflicts ?? (decision?.ConflictState === "NONE" ? [] : decision?.Conflicts ?? []),
     ApprovedImplementer: existing?.ApprovedImplementer ?? (decision ? { provider: decision.ImplementerProvider, model: decision.ImplementerModel } : null),
     ApprovedReviewer: existing?.ApprovedReviewer ?? (decision ? { provider: decision.ReviewerProvider, model: decision.ReviewerModel } : null),
     InputFingerprint: existing?.InputFingerprint ?? decision?.InputFingerprint ?? null,
@@ -60,6 +72,35 @@ export function approvalValidity(approval, { now = new Date() } = {}) {
   if (approval.ApprovalState === "APPROVED" && Date.parse(approval.ExpiresAt ?? "") > now.getTime()) return { valid: true, status: "APPROVED", reasonCodes: [] };
   const code = approval.ApprovalState === "EXPIRED" ? "STALE_DECISION" : approval.ApprovalState === "INVALIDATED" ? "STALE_CONTEXT" : "APPROVAL_MISSING";
   return { valid: false, status: approval.ApprovalState, reasonCodes: [code] };
+}
+
+export function validatePersistedApprovalBinding(approval, decision, { now = new Date() } = {}) {
+  if (!approval) return { valid: false, code: "APPROVAL_MISSING", reason: "No persisted approval record is available." };
+  if (approval.ApprovalState !== "APPROVED") return { valid: false, code: "APPROVAL_INVALIDATED", reason: `Persisted approval state is ${approval.ApprovalState ?? "UNKNOWN"}.` };
+  if (!approval.ExpiresAt || Date.parse(approval.ExpiresAt) <= now.getTime()) return { valid: false, code: "APPROVAL_INVALIDATED", reason: "Persisted approval has expired." };
+  const checks = [
+    ["TaskId", approval.TaskId, decision.TaskId],
+    ["ProjectId", approval.ApprovedProjectId, decision.ProjectId],
+    ["WorkspaceRole", approval.ApprovedWorkspaceRole, decision.WorkspaceRole],
+    ["Risk", approval.ApprovedRisk, decision.Risk],
+    ["Workspace", approval.ApprovedWorkspace, decision.Workspace],
+    ["Branch", approval.ApprovedBranch, decision.Branch],
+    ["Head", approval.ApprovedHead, decision.ObservedHeadSha],
+    ["StatusFingerprint", approval.ApprovedStatusFingerprint, decision.StatusFingerprint],
+    ["Operation", approval.ApprovedOperation, decision.OperationType],
+    ["AllowedScope", approval.ApprovedScope, decision.AllowedPaths],
+    ["Dependencies", approval.ApprovedDependencies, decision.Dependencies],
+    ["Conflicts", approval.ApprovedConflicts, decision.ConflictState === "NONE" ? [] : decision.Conflicts],
+    ["Implementer", approval.ApprovedImplementer, { provider: decision.ImplementerProvider, model: decision.ImplementerModel }],
+    ["Reviewer", approval.ApprovedReviewer, { provider: decision.ReviewerProvider, model: decision.ReviewerModel }],
+    ["InputFingerprint", approval.InputFingerprint, decision.InputFingerprint],
+  ];
+  const missing = checks.find(([, approved]) => approved === null || approved === undefined);
+  if (missing) return { valid: false, code: "APPROVAL_INVALIDATED", reason: `Persisted approval is missing its ${missing[0]} binding.` };
+  const mismatch = checks.find(([, approved, current]) => approved !== null && approved !== undefined && !sameValue(approved, current));
+  if (mismatch) return { valid: false, code: "APPROVAL_INVALIDATED", reason: `Persisted approval binding differs for ${mismatch[0]}.` };
+  if (approval.DecisionId && approval.DecisionId !== decision.DecisionId) return { valid: false, code: "APPROVAL_INVALIDATED", reason: "Persisted approval is bound to a different decision." };
+  return { valid: true, code: null, reason: "Persisted approval is approved and bound to the current decision context." };
 }
 
 function event({ taskId, type, timestamp, actor = "Hermes", provider = null, model = null, attempt = null, decisionId = null, approvalId = null, executionId = null, summary = null, reasonCodes = [] }) {
@@ -105,7 +146,7 @@ export function buildOperatorSummary({ task = null, intent = null, projectContex
   const decisionCodes = unique([...(decision?.DecisionReasonCodes ?? []), ...(decisionExpired ? ["STALE_DECISION"] : [])]);
   const reviewStatus = task?.ClaudeReviewStatus ?? "NOT_STARTED";
   const repairUsed = Number(task?.RepairCyclesUsed ?? 0);
-  const repairLimit = 2;
+  const repairLimit = MAX_AUTOMATIC_REPAIR_ATTEMPTS;
   const reviewBlocked = ["FAILED", "CHANGES_REQUIRED"].includes(reviewStatus);
   const blockers = unique([...(task?.BlockingIssues ?? []), ...decisionCodes.filter((code) => !["APPROVAL_REQUIRED"].includes(code))]);
   const requiredHumanAction = reasonToAction(decisionCodes, { approvalRequired: Boolean(decision?.ApprovalRequired), reviewStatus, repairRequired: task?.State === "REPAIR_REQUIRED" });

@@ -6,7 +6,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { analyzeTaskIntent, analyzeTaskPlan, validateTaskIntentForAction } from "./hermes-task-intent.mjs";
 import { createFinalDecision, decisionSummary, evaluateDecisionFreshness, persistDecisionRecord, readDecisionRecord } from "./hermes-decision.mjs";
-import { buildAuditTimeline, buildOperatorSummary, controlledActionAuditResponse, normalizeApprovalRecord, readAuditInputs } from "./hermes-audit.mjs";
+import { buildAuditTimeline, buildOperatorSummary, controlledActionAuditResponse, normalizeApprovalRecord, readAuditInputs, validatePersistedApprovalBinding } from "./hermes-audit.mjs";
 import { readQueueState, summarizeQueueItem } from "./hermes-queue.mjs";
 import { buildOperatorEvidence, createAuditExport } from "./hermes-export.mjs";
 import { CANONICAL_WORKSPACE, HERMES_WORKSPACE } from "./hermes-project-config.mjs";
@@ -522,7 +522,9 @@ async function runHermesAction(name, args) {
   const taskIntent = analyzeTaskIntent({ taskId: args.taskId ?? task?.TaskId ?? null, description: args.description ?? task?.Description ?? "", projectContext: awarenessContext, existingTask: task });
   const intentCheck = validateTaskIntentForAction(name, taskIntent, { projectContext: awarenessContext, task });
   const decisionTaskId = task?.TaskId ?? args.taskId ?? `planned-${args.idempotencyKey}`;
-  const approvalState = task?.HumanDecision === "APPROVED" ? "APPROVED" : task?.HumanApprovalRequired === "REQUIRED" ? "MISSING" : "NOT_REQUIRED";
+  const auditInputs = await readAuditInputs(REPO_ROOT, decisionTaskId);
+  const approvalRequired = Boolean(taskIntent.RequiresHumanApproval);
+  const approvalState = approvalRequired && auditInputs.approval?.ApprovalState === "APPROVED" ? "APPROVED" : approvalRequired ? "MISSING" : "NOT_REQUIRED";
   let decision = createFinalDecision({ taskId: decisionTaskId, intent: taskIntent, projectContext: awarenessContext, approvalState });
   const combinedBlockers = [...new Set([...awareness.blockers, ...intentCheck.blockers])];
   if (combinedBlockers.length) {
@@ -534,6 +536,16 @@ async function runHermesAction(name, args) {
   const previous = await readDecisionRecord(REPO_ROOT, decisionTaskId);
   if (!previous || previous.InputFingerprint !== decision.InputFingerprint || previous.Decision !== decision.Decision) await persistDecisionRecord(REPO_ROOT, decision);
   else decision = previous;
+  if (approvalRequired) {
+    const approvalCheck = validatePersistedApprovalBinding(auditInputs.approval, decision);
+    if (!approvalCheck.valid) {
+      decision.Decision = "WAITING_APPROVAL";
+      decision.DecisionReasonCodes = [...new Set([...decision.DecisionReasonCodes, approvalCheck.code])];
+      decision.DecisionReason = `H4 approval binding blocked execution: ${approvalCheck.reason}`;
+      decision.LeaseEligible = false;
+      await persistDecisionRecord(REPO_ROOT, decision);
+    }
+  }
   if (decision.Decision !== "ALLOW") {
     const approval = normalizeApprovalRecord({ task, intent: taskIntent, projectContext: awarenessContext, decision });
     const summary = buildOperatorSummary({ task, intent: taskIntent, projectContext: awarenessContext, decision, approval });

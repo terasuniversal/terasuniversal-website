@@ -66,6 +66,7 @@ function baseDecision({ taskId, intent, projectContext, approvalState, now, expi
     AllowedPaths: Array.isArray(intent?.AllowedPathFamilies) ? intent.AllowedPathFamilies.slice(0, 64) : [],
     ProtectedPaths: Array.isArray(intent?.ProtectedPathFamilies) ? intent.ProtectedPathFamilies.slice(0, 64) : [],
     Dependencies: intent?.Dependencies ?? [],
+    Conflicts: intent?.Conflicts ?? [],
     ConflictState: intent?.Conflicts?.length ? "WRITE_CONFLICT" : "NONE",
     DecompositionState: intent?.DecompositionRequired ? "REQUIRED" : "NOT_REQUIRED",
     ApprovalRequired: Boolean(intent?.RequiresHumanApproval),

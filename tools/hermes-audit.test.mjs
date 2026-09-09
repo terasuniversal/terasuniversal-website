@@ -5,7 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { analyzeTaskIntent } from "./hermes-task-intent.mjs";
 import { createFinalDecision, persistDecisionRecord, readDecisionRecord } from "./hermes-decision.mjs";
-import { buildAuditTimeline, buildOperatorSummary, controlledActionAuditResponse, normalizeApprovalRecord, persistApprovalRecord } from "./hermes-audit.mjs";
+import { buildAuditTimeline, buildOperatorSummary, controlledActionAuditResponse, normalizeApprovalRecord, persistApprovalRecord, validatePersistedApprovalBinding } from "./hermes-audit.mjs";
 import { HERMES_WORKSPACE } from "./hermes-project-config.mjs";
 
 const context = (overrides = {}) => ({ ProjectId: "teras-universal-website", ActiveWorkspace: HERMES_WORKSPACE, WorkspaceRole: "ISOLATED_HERMES", Branch: "isolate/hermes-source", HeadSha: "head-1", StatusFingerprint: "status-1", Blockers: [], ...overrides });
@@ -38,6 +38,36 @@ test("rejected, revoked, expired, and changed-context approvals cannot execute",
   assert.equal(expired.ApprovalState, "EXPIRED");
   const changed = normalizeApprovalRecord({ task: task({ Risk: "HIGH", HumanApprovalRequired: "REQUIRED", HumanDecision: "APPROVED" }), intent: { ...intent, Risk: "CRITICAL" }, projectContext: context(), decision, existing: normalizeApprovalRecord({ task: task({ Risk: "HIGH", HumanApprovalRequired: "REQUIRED", HumanDecision: "APPROVED" }), intent, projectContext: context(), decision }) });
   assert.equal(changed.ApprovalState, "INVALIDATED");
+});
+
+test("H-1 persisted approval binding blocks every material context drift", () => {
+  const intent = { TaskId: "H1-APPROVAL", Domain: "HERMES_RELIABILITY", OperationType: "SOURCE_EDIT", Risk: "HIGH", RequiresHumanApproval: true, AllowedPathFamilies: ["tools/**"], ProtectedPathFamilies: ["app/**"], Dependencies: [], Conflicts: [], ImplementerProvider: "Anthropic", ImplementerModel: "Claude Sonnet 5", ReviewerProvider: "OpenAI Codex", ReviewerModel: "GPT-5.6 Luna", ValidationRequirements: ["targeted tests"] };
+  const approvedDecision = createFinalDecision({ taskId: "H1-APPROVAL", intent, projectContext: context(), approvalState: "APPROVED", now: new Date("2026-01-01T00:00:00Z"), ttlMs: 60_000 });
+  const approval = normalizeApprovalRecord({ task: task({ TaskId: "H1-APPROVAL", Risk: "HIGH", HumanApprovalRequired: "REQUIRED", HumanDecision: "APPROVED" }), intent, projectContext: context(), decision: approvedDecision, now: new Date("2026-01-01T00:00:00Z") });
+  assert.equal(validatePersistedApprovalBinding(approval, approvedDecision, { now: new Date("2026-01-01T00:00:30Z") }).valid, true);
+  assert.equal(validatePersistedApprovalBinding(null, approvedDecision).code, "APPROVAL_MISSING");
+  for (const [label, changed] of [
+    ["description", { ...intent, RequestedOutcome: "different" }],
+    ["operation", { ...intent, OperationType: "DATABASE_CHANGE" }],
+    ["risk", { ...intent, Risk: "CRITICAL" }],
+    ["scope", { ...intent, AllowedPathFamilies: ["tools/other/**"] }],
+    ["model", { ...intent, ImplementerModel: "GPT-5.6 Luna", ImplementerProvider: "OpenAI Codex" }],
+  ]) {
+    const changedDecision = createFinalDecision({ taskId: "H1-APPROVAL", intent: changed, projectContext: context(), approvalState: "APPROVED", now: new Date("2026-01-01T00:00:00Z"), ttlMs: 60_000 });
+    assert.equal(validatePersistedApprovalBinding(approval, changedDecision).valid, false, label);
+  }
+  for (const [label, changedContext] of [
+    ["workspace", context({ ActiveWorkspace: "D:\\Projects\\other" })],
+    ["branch", context({ Branch: "other" })],
+    ["head", context({ HeadSha: "head-2" })],
+    ["status", context({ StatusFingerprint: "status-2" })],
+  ]) {
+    const changedDecision = createFinalDecision({ taskId: "H1-APPROVAL", intent, projectContext: changedContext, approvalState: "APPROVED", now: new Date("2026-01-01T00:00:00Z"), ttlMs: 60_000 });
+    assert.equal(validatePersistedApprovalBinding(approval, changedDecision).valid, false, label);
+  }
+  for (const state of ["EXPIRED", "REVOKED", "REJECTED", "PENDING"]) {
+    assert.equal(validatePersistedApprovalBinding({ ...approval, ApprovalState: state }, approvedDecision).valid, false, state);
+  }
 });
 
 test("operator summary exposes bounded execution, review, repair, and human-action state", () => {
