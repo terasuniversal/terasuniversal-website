@@ -65,7 +65,7 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
   if (!lead) notFound();
   const row = lead as SalesLeadInboxRow;
 
-  const [sourceResult, activityResult, attributionResult, campaignsResult, staffResult, profilesResult, opportunityResult, moduleAccessResult] = await Promise.all([
+  const [sourceResult, activityResult, attributionResult, campaignsResult, staffResult, profilesResult, opportunityResult, moduleAccessResult, nextActionResult] = await Promise.all([
     row.lead_source === "enquiry"
       ? supabase.from("enquiries").select("*").eq("id", row.source_id).maybeSingle()
       : row.lead_source === "proposal_request"
@@ -80,6 +80,16 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
     supabase.from("profiles").select("id, full_name"),
     supabase.from("sales_opportunities").select("id, opportunity_no").eq("lead_metadata_id", id).maybeSingle(),
     supabase.rpc("get_my_module_access"),
+    supabase
+      .from("sales_tasks")
+      .select("id, title, status, priority, due_at")
+      .eq("lead_metadata_id", id)
+      .is("deleted_at", null)
+      .not("status", "in", "(completed,cancelled)")
+      .order("due_at", { ascending: true, nullsFirst: false })
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   const source = sourceResult.data as EnquirySource | ProposalSource | MarketingContact | null;
@@ -91,6 +101,7 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
   const staff = (staffResult.data ?? []) as { id: string; full_name: string }[];
   const actorNames = new Map(((profilesResult.data ?? []) as { id: string; full_name: string }[]).map((p) => [p.id, p.full_name]));
   const existingOpportunity = opportunityResult.data;
+  const nextAction = nextActionResult.data as { id: string; title: string; status: string; priority: string; due_at: string | null } | null;
 
   const moduleAccess = moduleAccessResult.data;
   const modules = Array.isArray(moduleAccess) ? moduleAccess.map((m: { module_key: string }) => m.module_key) : [];
@@ -184,6 +195,25 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
               </div>
             </Card>
           )}
+
+          <Card title="Next Action">
+            <div className="ta-card-pad ta-stack">
+              {nextAction ? (
+                <>
+                  <strong>{nextAction.title}</strong>
+                  <span className="ta-muted-sub">
+                    {nextAction.due_at ? `Due ${formatMalaysiaDateTime(nextAction.due_at)}` : "No due date"} · {nextAction.status.replace(/_/g, " ")}
+                  </span>
+                  <Link href={`/admin/sales/tasks/${nextAction.id}`} className="ta-btn ta-btn-outline ta-btn-sm">View / update task</Link>
+                </>
+              ) : (
+                <>
+                  <span className="ta-muted-sub">No active next action.</span>
+                  <Link href={`/admin/sales/tasks/new?leadId=${id}`} className="ta-btn ta-btn-outline ta-btn-sm">Add task</Link>
+                </>
+              )}
+            </div>
+          </Card>
 
           <LeadActionsPanel
             leadMetadataId={row.lead_metadata_id}
