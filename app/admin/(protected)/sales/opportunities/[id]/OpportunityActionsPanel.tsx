@@ -14,7 +14,7 @@ import {
 import { OPPORTUNITY_STAGE_ORDER, OPPORTUNITY_STAGE_LABELS, LOST_REASONS, LOST_REASON_LABELS, type SalesOpportunityStage } from "../../../../../../lib/sales/crm";
 
 const INITIAL: SalesActionState = {};
-const NON_TERMINAL_STAGES = OPPORTUNITY_STAGE_ORDER.filter((s) => s !== "won" && s !== "lost");
+const NON_TERMINAL_STAGES = OPPORTUNITY_STAGE_ORDER.filter((s) => s !== "won" && s !== "lost" && s !== "cancelled");
 
 export function OpportunityActionsPanel({
   opportunityId,
@@ -39,7 +39,7 @@ export function OpportunityActionsPanel({
   const [lostState, lostAction, lostPending] = useActionState(markOpportunityLost.bind(null, opportunityId), INITIAL);
   const [noteState, noteAction, notePending] = useActionState(addOpportunityNote.bind(null, opportunityId), INITIAL);
 
-  const isResolved = stage === "won" || stage === "lost";
+  const isResolved = stage === "won" || stage === "lost" || stage === "cancelled";
 
   return (
     <>
@@ -146,7 +146,7 @@ export function OpportunityActionsPanel({
       {isResolved && canManage && (
         <Card title="Outcome">
           <div className="ta-card-pad" style={{ color: "var(--ta-muted)", fontSize: 13 }}>
-            This opportunity is {stage === "won" ? "won" : "lost"}. {stage === "won" ? "Marked won automatically when a quotation was accepted." : "No further stage changes are possible."}
+            This opportunity is {stage === "won" ? "won" : stage === "lost" ? "lost" : "cancelled"}. {stage === "won" ? "Marked won automatically when a quotation was accepted." : stage === "cancelled" ? "Reversed through the governed revenue flow; no further stage changes are possible." : "No further stage changes are possible."}
           </div>
         </Card>
       )}
