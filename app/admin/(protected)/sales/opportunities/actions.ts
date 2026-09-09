@@ -47,7 +47,7 @@ export async function updateOpportunityStage(
   const supabase = await createSupabaseServerClient();
   const { data: current } = await supabase.from("sales_opportunities").select("stage, lead_metadata_id").eq("id", opportunityId).maybeSingle();
   if (!current) return { message: "Opportunity not found." };
-  if (current.stage === "won" || current.stage === "lost") {
+  if (current.stage === "won" || current.stage === "lost" || current.stage === "cancelled") {
     return { message: `This opportunity is already ${current.stage} — its stage can no longer be changed.` };
   }
 

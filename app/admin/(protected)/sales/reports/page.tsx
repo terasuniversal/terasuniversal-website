@@ -350,7 +350,7 @@ export default async function SalesReportsPage({
   const acceptedAmongSent = quotationsSent.filter((q: any) => q.status === "accepted").length;
   const rejectedAmongSent = quotationsSent.filter((q: any) => q.status === "rejected").length;
   const avgAcceptedValue = accepted.length > 0 ? accepted.reduce((sum: number, q: any) => sum + Number(q.total), 0) / accepted.length : null;
-  const quotationStatusRows = ["draft", "sent", "accepted", "rejected", "expired", "superseded"].map((status) => ({
+  const quotationStatusRows = ["draft", "sent", "accepted", "rejected", "expired", "superseded", "cancelled"].map((status) => ({
     status,
     count: quotationsCreated.filter((q: any) => q.status === status).length,
   }));
