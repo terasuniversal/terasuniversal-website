@@ -257,6 +257,8 @@ export interface SalesOpportunityRow {
   updated_at: string;
   won_at: string | null;
   lost_at: string | null;
+  cancelled_at: string | null;
+  cancellation_reason: string | null;
 }
 
 /* ------------------------------------------------------------------ */
