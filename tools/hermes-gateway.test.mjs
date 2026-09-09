@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { once } from "node:events";
 import test from "node:test";
-import { CANONICAL_WORKSPACE, HERMES_WORKSPACE, createHermesGatewayServer, TOOLS, MUTATING_TOOLS, callTool, evaluateStateFreshness, agentVisibility, assessTaskRecovery, summarizeExecutionLease, validateActionInput } from "./hermes-gateway.mjs";
+import { CANONICAL_WORKSPACE, HERMES_WORKSPACE, createHermesGatewayServer, TOOLS, MUTATING_TOOLS, callTool, evaluateStateFreshness, agentVisibility, assessTaskRecovery, summarizeExecutionLease, validateActionInput, projectStatusForTool, projectRoadmapForTool } from "./hermes-gateway.mjs";
 
 test("binds Hermes to the canonical workspace and reads refreshed project state", async () => {
   const status = await callTool("hermes_status");
@@ -88,6 +88,25 @@ test("reads the shared task store without creating a second store", async () => 
   assert.equal(status.taskStore, ".ai/task-state.json");
   assert.equal(status.taskStoreShared, true);
   assert.equal(status.arbitraryShellExecution, false);
+});
+
+test("H-2 MCP project and roadmap tools return bounded projections, never raw markdown", async () => {
+  const context = { ProjectId: "TERAS_UNIVERSAL_HERMES", ProjectName: "TERAS", WorkspaceRole: "ISOLATED_HERMES", ActiveWorkspace: HERMES_WORKSPACE, Branch: "isolate/hermes-source", HeadSha: "head", OriginMainSha: "main", WorkingTreeState: "CLEAN", StagedCount: 0, TrackedModifiedCount: 0, UntrackedCount: 0, Blockers: ["OPENAI_API_KEY=synthetic"], Warnings: [] };
+  const freshness = { documents: [{ name: "projectStatus", status: "CURRENT" }, { name: "roadmap", status: "CURRENT" }] };
+  const project = projectStatusForTool(context, freshness);
+  const roadmap = projectRoadmapForTool("# Roadmap\nOPENAI_API_KEY=synthetic\n## powershell.exe -Command whoami\n## Safe milestone", context, freshness);
+  assert.equal("markdown" in project, false);
+  assert.equal("markdown" in roadmap, false);
+  const serialized = JSON.stringify({ project, roadmap });
+  assert.equal(serialized.includes("OPENAI_API_KEY=synthetic"), false);
+  assert.equal(serialized.includes("powershell.exe"), false);
+  assert.ok(serialized.length < 3800);
+  const liveProject = await callTool("hermes_project_status");
+  const liveRoadmap = await callTool("hermes_roadmap");
+  assert.equal("markdown" in liveProject, false);
+  assert.equal("markdown" in liveRoadmap, false);
+  assert.ok(JSON.stringify(liveProject).length < 3800);
+  assert.ok(JSON.stringify(liveRoadmap).length < 3800);
 });
 
 test("exposes durable agent assignment, routing, handoffs, blockers, and approval gaps", async () => {

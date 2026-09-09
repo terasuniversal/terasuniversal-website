@@ -132,6 +132,39 @@ async function readDocument(path) {
   }
 }
 
+function boundedProjectionText(value, max = 240) {
+  let text = String(value ?? "").replace(/[\u0000-\u001F\u007F]/g, " ");
+  if (/openai_api_key|supabase_service_role_key|toyyibpay|authorization\s*:\s*bearer|password\s*[:=]|service[_ -]?role/i.test(text)) return "[REDACTED_SENSITIVE_VALUE]";
+  if (/\b(powershell(?:\.exe)?|pwsh|cmd(?:\.exe)?|bash|sh)\b|\bgit\s+(?:push|commit|merge|rebase)|\b(?:select|drop|truncate)\s+/i.test(text)) return "[REDACTED_COMMAND]";
+  text = text.replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[REDACTED_EMAIL]");
+  return text.replace(/\s+/g, " ").trim().slice(0, max);
+}
+
+export function projectStatusForTool(context, freshness) {
+  return {
+    ProjectId: context?.ProjectId ?? "UNKNOWN", ProjectName: context?.ProjectName ?? "UNKNOWN",
+    WorkspaceRole: context?.WorkspaceRole ?? "UNKNOWN", ActiveWorkspace: context?.ActiveWorkspace ?? "UNKNOWN",
+    Branch: context?.Branch ?? "UNKNOWN", HeadSha: context?.HeadSha ?? "UNKNOWN", OriginMainSha: context?.OriginMainSha ?? "UNKNOWN",
+    WorkingTreeState: context?.WorkingTreeState ?? "UNKNOWN", StagedCount: context?.StagedCount ?? "UNKNOWN",
+    TrackedModifiedCount: context?.TrackedModifiedCount ?? "UNKNOWN", UntrackedCount: context?.UntrackedCount ?? "UNKNOWN",
+    DevelopmentStream: context?.DevelopmentStream ?? { status: "UNKNOWN_WORKSPACE" },
+    Blockers: (context?.Blockers ?? []).slice(0, 10).map((item) => boundedProjectionText(item, 160)),
+    Warnings: (context?.Warnings ?? []).slice(0, 10).map((item) => boundedProjectionText(item, 160)),
+    Freshness: { ProjectStatus: freshness?.documents?.find((item) => item.name === "projectStatus")?.status ?? "NEEDS_REFRESH", Remote: context?.RemoteFreshness ?? "REMOTE_FRESHNESS_UNKNOWN" },
+  };
+}
+
+export function projectRoadmapForTool(markdown, context, freshness) {
+  const milestones = [];
+  for (const line of String(markdown ?? "").split(/\r?\n/)) {
+    const match = line.match(/^\s*#{1,4}\s+(.+?)\s*$/);
+    if (!match || milestones.length >= 12) continue;
+    const name = boundedProjectionText(match[1], 160);
+    if (name && !/^\[REDACTED_/i.test(name)) milestones.push({ Name: name, Status: "NOT_RECORDED", Risk: "NOT_RECORDED", Blockers: [], Dependencies: [] });
+  }
+  return { ProjectId: context?.ProjectId ?? "UNKNOWN", WorkspaceRole: context?.WorkspaceRole ?? "UNKNOWN", Freshness: freshness?.documents?.find((item) => item.name === "roadmap")?.status ?? "NEEDS_REFRESH", Milestones: milestones, MissingFields: milestones.length ? [] : ["MILESTONES"] };
+}
+
 async function isReadable(path) {
   try {
     await stat(path);
@@ -637,9 +670,9 @@ export async function callTool(name, args = {}) {
       return { ok: readable.every((item) => item.readable), readOnly: true, canonicalWorkspace: CANONICAL_WORKSPACE, projectContext: state.projectContext, stateFreshness: state.freshness, recovery: state.recovery, executionLease: state.executionLease, stateSources: readable, reportsAvailable: reports.length, handoffsAvailable: handoffs.length };
     }
     case "hermes_project_status":
-      return { source: ".ai/PROJECT_STATUS.md", workspace: CANONICAL_WORKSPACE, projectContext: state.projectContext, stateFreshness: state.freshness.documents.find((item) => item.name === "projectStatus"), markdown: state.project ?? "Project status is unavailable." };
+      return { source: ".ai/PROJECT_STATUS.md", workspace: CANONICAL_WORKSPACE, projectStatus: projectStatusForTool(state.projectContext, state.freshness), stateFreshness: state.freshness.documents.find((item) => item.name === "projectStatus") };
     case "hermes_roadmap":
-      return { source: ".ai/ROADMAP.md", workspace: CANONICAL_WORKSPACE, projectContext: state.projectContext, stateFreshness: state.freshness.documents.find((item) => item.name === "roadmap"), markdown: state.roadmap ?? "Roadmap is unavailable." };
+      return { source: ".ai/ROADMAP.md", workspace: CANONICAL_WORKSPACE, roadmap: projectRoadmapForTool(state.roadmap, state.projectContext, state.freshness), stateFreshness: state.freshness.documents.find((item) => item.name === "roadmap") };
     case "hermes_active_tasks":
       return { source: ".ai/task-state.json", workspace: CANONICAL_WORKSPACE, projectContext: state.projectContext, taskIntent: state.taskIntent, lastDecision: state.lastDecision, operatorSummary: state.operatorSummary, operatorEvidence: state.operatorEvidence, auditExport: state.auditExport ? { ExportVersion: state.auditExport.ExportVersion, GeneratedAt: state.auditExport.GeneratedAt, ExportDigest: state.auditExport.ExportDigest, DataQuality: state.auditExport.DataQuality, InputRecordCount: state.auditExport.InputRecordCount, ExportRecordCount: state.auditExport.ExportRecordCount } : null, queue: state.queue, auditTimeline: state.auditTimeline, recovery: state.recovery, tasks: task && !["NONE", "COMPLETE", "BLOCKED"].includes(task.state) ? [{ ...task, agentVisibility: visibility }] : [], currentTaskState: task?.state ?? "NONE" };
     case "hermes_task_detail": {
