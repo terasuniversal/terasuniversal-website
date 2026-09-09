@@ -5,10 +5,11 @@ import { requireRole, requireModuleAccess } from "../../../../../../lib/auth/ses
 import { isAdmin, isSuperAdmin } from "../../../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, EmptyState } from "../../../../../../components/admin/ui";
 import { FollowUpBadge } from "../../../../../../components/admin/sales/FollowUpBadge";
-import { SOURCE_LABELS, followUpState, type SalesLeadInboxRow, type SalesActivityRow } from "../../../../../../lib/sales/crm";
+import { PRIORITY_LABELS, SOURCE_LABELS, followUpState, type SalesLeadInboxRow, type SalesActivityRow } from "../../../../../../lib/sales/crm";
 import { LeadActionsPanel } from "./LeadActionsPanel";
 import { LeadActivityTimeline } from "./LeadActivityTimeline";
 import { formatMalaysiaDateTime } from "../../../../../../lib/date-time";
+import { ageLabel, daysSinceActivityLabel, qualificationLabel, temperatureLabel, QUALIFICATION_REASON_LABELS, DISQUALIFICATION_REASON_LABELS } from "../../../../../../lib/sales/qualification";
 import { checkLeadRegistrationEligibility } from "../registration-schedules";
 import { setLeadAttribution } from "../actions";
 import { LEAD_ATTRIBUTION_SOURCE_LABELS, LEAD_ATTRIBUTION_SOURCES, type LeadAttributionRow } from "../../../../../../lib/marketing/crm";
@@ -65,7 +66,7 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
   if (!lead) notFound();
   const row = lead as SalesLeadInboxRow;
 
-  const [sourceResult, activityResult, attributionResult, campaignsResult, staffResult, profilesResult, opportunityResult, moduleAccessResult, nextActionResult] = await Promise.all([
+  const [sourceResult, activityResult, attributionResult, campaignsResult, staffResult, profilesResult, opportunityResult, moduleAccessResult, nextActionResult, qualificationResult] = await Promise.all([
     row.lead_source === "enquiry"
       ? supabase.from("enquiries").select("*").eq("id", row.source_id).maybeSingle()
       : row.lead_source === "proposal_request"
@@ -90,10 +91,11 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
       .order("created_at", { ascending: true })
       .limit(1)
       .maybeSingle(),
+    supabase.from("sales_lead_metadata").select("qualification_status, temperature, qualification_reason, disqualification_reason, qualification_changed_at, qualification_changed_by, created_at").eq("id", id).maybeSingle(),
   ]);
 
   const source = sourceResult.data as EnquirySource | ProposalSource | MarketingContact | null;
-  const activityRows = activityResult.data;
+  const activityRows = (activityResult.data ?? []) as Array<{ created_at: string; [key: string]: unknown }>;
   const attributionError = attributionResult.error;
   const campaignsError = campaignsResult.error;
   const attribution = attributionResult.data as (LeadAttributionRow & { marketing_campaigns?: { name: string } | null }) | null;
@@ -102,6 +104,8 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
   const actorNames = new Map(((profilesResult.data ?? []) as { id: string; full_name: string }[]).map((p) => [p.id, p.full_name]));
   const existingOpportunity = opportunityResult.data;
   const nextAction = nextActionResult.data as { id: string; title: string; status: string; priority: string; due_at: string | null } | null;
+  const qualification = qualificationResult.data as { qualification_status: string; temperature: string | null; qualification_reason: string | null; disqualification_reason: string | null; qualification_changed_at: string | null; qualification_changed_by: string | null; created_at: string } | null;
+  const lastActivityAt = (activityRows ?? []).reduce<string | null>((latest, activity) => !latest || activity.created_at > latest ? activity.created_at : latest, null);
 
   const moduleAccess = moduleAccessResult.data;
   const modules = Array.isArray(moduleAccess) ? moduleAccess.map((m: { module_key: string }) => m.module_key) : [];
@@ -171,7 +175,7 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
             </Card>
           )}
 
-          <LeadActivityTimeline activities={(activityRows ?? []) as SalesActivityRow[]} actorNames={actorNames} />
+          <LeadActivityTimeline activities={(activityRows ?? []) as unknown as SalesActivityRow[]} actorNames={actorNames} />
         </div>
 
         <div className="ta-lead-detail-side">
@@ -215,6 +219,19 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
             </div>
           </Card>
 
+          <Card title="Sales Qualification">
+            <div className="ta-card-pad">
+              <dl className="ta-kv">
+                <Detail label="Qualification" value={qualificationLabel(qualification?.qualification_status)} />
+                <Detail label="Reason" value={qualification?.qualification_status === "qualified" ? QUALIFICATION_REASON_LABELS[qualification.qualification_reason as keyof typeof QUALIFICATION_REASON_LABELS] : DISQUALIFICATION_REASON_LABELS[qualification?.disqualification_reason as keyof typeof DISQUALIFICATION_REASON_LABELS]} />
+                <Detail label="Temperature" value={temperatureLabel(qualification?.temperature)} />
+                <Detail label="Priority" value={PRIORITY_LABELS[row.priority]} />
+                <Detail label="Lead age" value={ageLabel(qualification?.created_at ?? row.created_at)} />
+                <Detail label="Last activity" value={daysSinceActivityLabel(lastActivityAt)} />
+              </dl>
+            </div>
+          </Card>
+
           <LeadActionsPanel
             leadMetadataId={row.lead_metadata_id}
             status={row.status}
@@ -227,6 +244,10 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
             defaultOpportunityTitle={row.subject ?? undefined}
             isSuperAdmin={superAdmin}
             isTest={row.is_test}
+            qualificationStatus={qualification?.qualification_status ?? "pending"}
+            temperature={qualification?.temperature ?? null}
+            qualificationReason={qualification?.qualification_reason ?? null}
+            disqualificationReason={qualification?.disqualification_reason ?? null}
           />
         </div>
       </div>

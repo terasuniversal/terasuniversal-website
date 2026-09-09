@@ -138,9 +138,15 @@ export type SalesCrmActivityType =
   | "task_reopened"
   | "task_cancelled"
   | "quotation_cancelled"
-  | "opportunity_reversed";
+  | "opportunity_reversed"
+  | "qualification_changed"
+  | "temperature_changed"
+  | "priority_changed";
 
 export const CRM_ACTIVITY_ICONS: Record<SalesCrmActivityType, string> = {
+  qualification_changed: "✓",
+  temperature_changed: "★",
+  priority_changed: "↑",
   quotation_cancelled: "↩️",
   opportunity_reversed: "↪️",
   lead_created: "🧲",
@@ -169,6 +175,9 @@ export const CRM_ACTIVITY_ICONS: Record<SalesCrmActivityType, string> = {
 };
 
 export const CRM_ACTIVITY_LABELS: Record<SalesCrmActivityType, string> = {
+  qualification_changed: "Qualification changed",
+  temperature_changed: "Temperature changed",
+  priority_changed: "Priority changed",
   quotation_cancelled: "Quotation cancelled",
   opportunity_reversed: "Opportunity reversed",
   lead_created: "Lead created",
@@ -392,6 +401,7 @@ export interface SalesActivityRow {
   note: string | null;
   actor_id: string | null;
   created_at: string;
+  metadata: Record<string, unknown> | null;
 }
 
 // Sales CRM Phase 4B — Asia/Kuala_Lumpur is a fixed UTC+8 offset year-round
