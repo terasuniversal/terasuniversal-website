@@ -29,6 +29,13 @@ export default async function NewQuotationPage({ searchParams }: { searchParams:
   const { data: opportunity } = await supabase.from("sales_opportunities").select("*").eq("id", sp.opportunityId).maybeSingle();
   if (!opportunity) notFound();
   const opp = opportunity as SalesOpportunityRow;
+  const { data: company } = opp.company_id
+    ? await supabase.from("companies").select("company_name, registration_no, email, phone, person_in_charge, pic_email, pic_phone, billing_address, address").eq("id", opp.company_id).maybeSingle()
+    : { data: null };
+  const customerEmail = company?.email ?? company?.pic_email ?? opp.contact_email ?? "";
+  const customerPhone = company?.phone ?? company?.pic_phone ?? opp.contact_phone ?? "";
+  const customerContact = company?.person_in_charge ?? opp.contact_person ?? "";
+  const billingAddress = company?.billing_address ?? company?.address ?? "";
 
   return (
     <>
@@ -46,7 +53,19 @@ export default async function NewQuotationPage({ searchParams }: { searchParams:
         </div>
       </Card>
 
-      <QuotationItemsEditor action={createQuotation.bind(null, opp.id)} submitLabel="Create Quotation" />
+      <QuotationItemsEditor
+        action={createQuotation.bind(null, opp.id)}
+        initialHeader={{
+          customer_company_name: company?.company_name ?? opp.company_name,
+          customer_contact_name: customerContact,
+          customer_registration_no: company?.registration_no,
+          customer_email: customerEmail,
+          customer_phone: customerPhone,
+          billing_address: billingAddress,
+          training_service_address: "",
+        }}
+        submitLabel="Create Quotation"
+      />
     </>
   );
 }

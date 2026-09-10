@@ -44,6 +44,13 @@ export async function createQuotation(
   const profile = await requireRole("admin");
   await requireModuleAccess("sales_quotations");
   const parsed = quotationHeaderSchema.safeParse({
+    customer_company_name: formData.get("customer_company_name") ?? "",
+    customer_contact_name: formData.get("customer_contact_name") ?? "",
+    customer_registration_no: formData.get("customer_registration_no") ?? "",
+    customer_email: formData.get("customer_email") ?? "",
+    customer_phone: formData.get("customer_phone") ?? "",
+    billing_address: formData.get("billing_address") ?? "",
+    training_service_address: formData.get("training_service_address") ?? "",
     valid_until: formData.get("valid_until") ?? "",
     currency: formData.get("currency") || "MYR",
     discount: formData.get("discount") || 0,
@@ -57,11 +64,15 @@ export async function createQuotation(
   const d = parsed.data;
 
   const supabase = await createSupabaseServerClient();
-  const { data: opportunity } = await supabase.from("sales_opportunities").select("stage").eq("id", opportunityId).maybeSingle();
+  const { data: opportunity } = await supabase.from("sales_opportunities").select("*").eq("id", opportunityId).maybeSingle();
   if (!opportunity) return { message: "Opportunity not found." };
   if (opportunity.stage === "won" || opportunity.stage === "lost" || opportunity.stage === "cancelled") {
     return { message: `This opportunity is already ${opportunity.stage} — a new quotation cannot be created for it.` };
   }
+  const { data: company } = opportunity.company_id
+    ? await supabase.from("companies").select("company_name, registration_no, email, phone, person_in_charge, pic_email, pic_phone, billing_address, address").eq("id", opportunity.company_id).maybeSingle()
+    : { data: null };
+  const submitted = (name: string) => formData.has(name);
 
   const totals = computeQuotationTotals({
     items: d.items.map((i) => ({ quantity: i.quantity, unitPrice: i.unit_price, discount: i.discount })),
@@ -85,6 +96,13 @@ export async function createQuotation(
       terms: d.terms || null,
       notes: d.notes || null,
       created_by: profile.id,
+      customer_company_name: submitted("customer_company_name") ? d.customer_company_name || null : company?.company_name || opportunity.company_name || null,
+      customer_contact_name: submitted("customer_contact_name") ? d.customer_contact_name || null : company?.person_in_charge || opportunity.contact_person || null,
+      customer_registration_no: submitted("customer_registration_no") ? d.customer_registration_no || null : company?.registration_no || null,
+      customer_email: submitted("customer_email") ? d.customer_email || null : company?.email || company?.pic_email || opportunity.contact_email || null,
+      customer_phone: submitted("customer_phone") ? d.customer_phone || null : company?.phone || company?.pic_phone || opportunity.contact_phone || null,
+      billing_address: submitted("billing_address") ? d.billing_address || null : company?.billing_address || company?.address || null,
+      training_service_address: submitted("training_service_address") ? d.training_service_address || null : null,
     })
     .select("id, quotation_no")
     .single();
@@ -123,6 +141,13 @@ export async function updateQuotationDraft(
   await requireRole("admin");
   await requireModuleAccess("sales_quotations");
   const parsed = quotationHeaderSchema.safeParse({
+    customer_company_name: formData.get("customer_company_name") ?? "",
+    customer_contact_name: formData.get("customer_contact_name") ?? "",
+    customer_registration_no: formData.get("customer_registration_no") ?? "",
+    customer_email: formData.get("customer_email") ?? "",
+    customer_phone: formData.get("customer_phone") ?? "",
+    billing_address: formData.get("billing_address") ?? "",
+    training_service_address: formData.get("training_service_address") ?? "",
     valid_until: formData.get("valid_until") ?? "",
     currency: formData.get("currency") || "MYR",
     discount: formData.get("discount") || 0,
@@ -161,6 +186,13 @@ export async function updateQuotationDraft(
       terms: d.terms || null,
       notes: d.notes || null,
       updated_at: new Date().toISOString(),
+      customer_company_name: d.customer_company_name || null,
+      customer_contact_name: d.customer_contact_name || null,
+      customer_registration_no: d.customer_registration_no || null,
+      customer_email: d.customer_email || null,
+      customer_phone: d.customer_phone || null,
+      billing_address: d.billing_address || null,
+      training_service_address: d.training_service_address || null,
     })
     .eq("id", quotationId);
   if (error) return { message: error.message };

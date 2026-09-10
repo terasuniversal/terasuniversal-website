@@ -533,6 +533,13 @@ const quotationItemInputSchema = z.object({
 export type QuotationItemInput = z.infer<typeof quotationItemInputSchema>;
 
 export const quotationHeaderSchema = z.object({
+  customer_company_name: z.string().trim().max(200).optional().or(z.literal("")),
+  customer_contact_name: z.string().trim().max(200).optional().or(z.literal("")),
+  customer_registration_no: z.string().trim().max(100).optional().or(z.literal("")),
+  customer_email: z.string().trim().email("Enter a valid customer email").max(320).optional().or(z.literal("")),
+  customer_phone: z.string().trim().max(60).optional().or(z.literal("")),
+  billing_address: z.string().trim().max(1000).optional().or(z.literal("")),
+  training_service_address: z.string().trim().max(1000).optional().or(z.literal("")),
   valid_until: z.string().trim().optional().or(z.literal("")),
   currency: z.string().trim().min(1).max(10).default("MYR"),
   discount: z.coerce.number().min(0, "Discount cannot be negative").default(0),
