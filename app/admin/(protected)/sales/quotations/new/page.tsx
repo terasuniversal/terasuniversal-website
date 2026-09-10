@@ -6,6 +6,7 @@ import { PageHead, Card } from "../../../../../../components/admin/ui";
 import { QuotationItemsEditor } from "../QuotationItemsEditor";
 import { createQuotation } from "../actions";
 import type { SalesOpportunityRow } from "../../../../../../lib/sales/crm";
+import { loadCourseCommercialOptions } from "../../../../../../lib/sales/course-commercial";
 
 export const metadata = { title: "New Quotation — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
@@ -36,6 +37,7 @@ export default async function NewQuotationPage({ searchParams }: { searchParams:
   const customerPhone = company?.phone ?? company?.pic_phone ?? opp.contact_phone ?? "";
   const customerContact = company?.person_in_charge ?? opp.contact_person ?? "";
   const billingAddress = company?.billing_address ?? company?.address ?? "";
+  const courseOptions = await loadCourseCommercialOptions(supabase);
 
   return (
     <>
@@ -64,6 +66,7 @@ export default async function NewQuotationPage({ searchParams }: { searchParams:
           billing_address: billingAddress,
           training_service_address: "",
         }}
+        courseOptions={courseOptions}
         submitLabel="Create Quotation"
       />
     </>

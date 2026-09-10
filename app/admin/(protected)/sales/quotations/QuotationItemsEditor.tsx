@@ -3,6 +3,15 @@
 import { useActionState, useMemo, useState } from "react";
 import { Card, Field } from "../../../../../components/admin/ui";
 import { QUOTATION_UNITS, QUOTATION_UNIT_LABELS, computeQuotationTotals, type SalesQuotationUnit } from "../../../../../lib/sales/crm";
+import {
+  ACCOMMODATION_PACKAGE_KEY,
+  MEALS_PACKAGE_KEY,
+  buildDefaultPackageSnapshot,
+  commercialName,
+  normalizePackageIncludeItems,
+  type CourseCommercialOption,
+  type PackageIncludeSnapshot,
+} from "../../../../../lib/sales/course-commercial";
 import type { SalesActionState } from "./actions";
 
 interface ItemDraft {
@@ -11,9 +20,23 @@ interface ItemDraft {
   unit: SalesQuotationUnit;
   unit_price: string;
   discount: string;
+  course_id: string;
+  course_name_snapshot: string;
+  hrdf_claim: boolean;
+  package_includes_snapshot: PackageIncludeSnapshot[];
 }
 
-const EMPTY_ITEM: ItemDraft = { description: "", quantity: "1", unit: "pax", unit_price: "0", discount: "0" };
+const EMPTY_ITEM: ItemDraft = {
+  description: "",
+  quantity: "1",
+  unit: "pax",
+  unit_price: "0",
+  discount: "0",
+  course_id: "",
+  course_name_snapshot: "",
+  hrdf_claim: false,
+  package_includes_snapshot: [],
+};
 
 /**
  * Shared create/edit form for a quotation header + line items. The totals
@@ -27,6 +50,7 @@ export function QuotationItemsEditor({
   action,
   initialHeader,
   initialItems,
+  courseOptions,
   submitLabel,
 }: {
   action: (prev: SalesActionState, fd: FormData) => Promise<SalesActionState>;
@@ -47,6 +71,7 @@ export function QuotationItemsEditor({
     notes?: string | null;
   };
   initialItems?: ItemDraft[];
+  courseOptions?: CourseCommercialOption[];
   submitLabel: string;
 }) {
   const [state, formAction, pending] = useActionState<SalesActionState, FormData>(action, {});
@@ -76,8 +101,49 @@ export function QuotationItemsEditor({
     setItems((current) => (current.length > 1 ? current.filter((_, i) => i !== index) : current));
   }
 
+  function updatePackageItem(index: number, key: string, checked: boolean, label: string) {
+    setItems((current) => current.map((item, i) => {
+      if (i !== index) return item;
+      const without = item.package_includes_snapshot.filter((entry) => entry.key !== key);
+      return { ...item, package_includes_snapshot: checked ? [...without, { key, label }] : without };
+    }));
+  }
+
+  function updatePackageLabel(index: number, key: string, label: string) {
+    setItems((current) => current.map((item, i) => i !== index ? item : {
+      ...item,
+      package_includes_snapshot: item.package_includes_snapshot.map((entry) => entry.key === key ? { ...entry, label } : entry),
+    }));
+  }
+
+  function applyCourseDefaults(index: number, courseId: string) {
+    const option = courseOptions?.find((candidate) => candidate.course_id === courseId);
+    setItems((current) => current.map((item, i) => {
+      if (i !== index) return item;
+      if (!option) return { ...item, course_id: "", course_name_snapshot: "", hrdf_claim: false, package_includes_snapshot: [] };
+      const profile = option.profile;
+      return {
+        ...item,
+        course_id: courseId,
+        course_name_snapshot: commercialName(profile, false),
+        hrdf_claim: false,
+        description: profile.quotation_description,
+        package_includes_snapshot: buildDefaultPackageSnapshot(profile),
+      };
+    }));
+  }
+
   const itemsJson = JSON.stringify(
-    items.map((i) => ({ description: i.description, quantity: Number(i.quantity) || 0, unit: i.unit, unit_price: Number(i.unit_price) || 0, discount: Number(i.discount) || 0 }))
+    items.map((i) => ({
+      description: i.description,
+      quantity: Number(i.quantity) || 0,
+      unit: i.unit,
+      unit_price: Number(i.unit_price) || 0,
+      discount: Number(i.discount) || 0,
+      course_id: i.course_id,
+      hrdf_claim: i.hrdf_claim,
+      package_includes_snapshot: i.package_includes_snapshot,
+    }))
   );
 
   return (
@@ -135,9 +201,54 @@ export function QuotationItemsEditor({
               <tbody>
                 {items.map((item, index) => {
                   const lineTotal = (Number(item.quantity) || 0) * (Number(item.unit_price) || 0) - (Number(item.discount) || 0);
+                  const option = courseOptions?.find((candidate) => candidate.course_id === item.course_id);
+                  const profileItems = option ? normalizePackageIncludeItems(option.profile.package_includes) : [];
+                  const accommodationSnapshot = item.package_includes_snapshot.find((entry) => entry.key === ACCOMMODATION_PACKAGE_KEY);
+                  const mealsSnapshot = item.package_includes_snapshot.find((entry) => entry.key === MEALS_PACKAGE_KEY);
                   return (
                     <tr key={index}>
-                      <td><input value={item.description} onChange={(e) => updateItem(index, { description: e.target.value })} placeholder="e.g. Basic Scaffolder (Level 1) training" required /></td>
+                      <td>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 250 }}>
+                          <select aria-label={`Course for line ${index + 1}`} value={item.course_id} onChange={(e) => applyCourseDefaults(index, e.target.value)}>
+                            <option value="">Manual item</option>
+                            {(courseOptions ?? []).map((candidate) => <option key={candidate.course_id} value={candidate.course_id}>{candidate.profile.standard_display_name}</option>)}
+                          </select>
+                          {option && (
+                            <>
+                              <div style={{ fontSize: 12, color: "var(--ta-muted)" }}>Commercial name: <strong>{item.course_name_snapshot || commercialName(option.profile, item.hrdf_claim)}</strong></div>
+                              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5 }}>
+                                <input
+                                  type="checkbox"
+                                  checked={item.hrdf_claim}
+                                  disabled={!option.profile.hrdf_claimable || !option.profile.hrdf_display_name?.trim()}
+                                  onChange={(e) => updateItem(index, { hrdf_claim: e.target.checked, course_name_snapshot: commercialName(option.profile, e.target.checked) })}
+                                />
+                                HRDF Claim
+                              </label>
+                              <div style={{ fontSize: 12, color: "var(--ta-muted)" }}>{option.profile.hrdf_claimable && option.profile.hrdf_display_name ? "HRDF name available" : "HRDF not configured for this course"}</div>
+                              <fieldset style={{ border: "1px solid var(--ta-line)", borderRadius: 6, padding: 8, margin: 0 }}>
+                                <legend style={{ fontSize: 12, padding: "0 4px" }}>Package Includes</legend>
+                                {profileItems.map((entry) => {
+                                  const selectedSnapshot = item.package_includes_snapshot.find((snapshot) => snapshot.key === entry.key);
+                                  const checked = Boolean(selectedSnapshot);
+                                  const displayLabel = selectedSnapshot?.label ?? entry.label;
+                                  return <label key={entry.key} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, marginBottom: 4 }}><input type="checkbox" checked={checked} onChange={(e) => updatePackageItem(index, entry.key, e.target.checked, displayLabel)} />{displayLabel}</label>;
+                                })}
+                                {option.profile.accommodation_description_default?.trim() && <>
+                                  <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, marginBottom: 4 }}><input type="checkbox" checked={Boolean(accommodationSnapshot)} onChange={(e) => updatePackageItem(index, ACCOMMODATION_PACKAGE_KEY, e.target.checked, accommodationSnapshot?.label ?? option.profile.accommodation_description_default!.trim())} />Accommodation</label>
+                                  {accommodationSnapshot && <input aria-label="Accommodation description" value={accommodationSnapshot.label} onChange={(e) => updatePackageLabel(index, ACCOMMODATION_PACKAGE_KEY, e.target.value)} placeholder="Accommodation description" />}
+                                </>}
+                                {option.profile.meals_description_default?.trim() && <>
+                                  <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, marginBottom: 4 }}><input type="checkbox" checked={Boolean(mealsSnapshot)} onChange={(e) => updatePackageItem(index, MEALS_PACKAGE_KEY, e.target.checked, mealsSnapshot?.label ?? option.profile.meals_description_default!.trim())} />Meals</label>
+                                  {mealsSnapshot && <input aria-label="Meals description" value={mealsSnapshot.label} onChange={(e) => updatePackageLabel(index, MEALS_PACKAGE_KEY, e.target.value)} placeholder="Meals description" />}
+                                </>}
+                              </fieldset>
+                            </>
+                          )}
+                          {!option && item.course_name_snapshot && <div style={{ fontSize: 12, color: "var(--ta-muted)" }}>Saved course snapshot: <strong>{item.course_name_snapshot}</strong></div>}
+                          <textarea rows={4} value={item.description} onChange={(e) => updateItem(index, { description: e.target.value })} placeholder="Quotation description" required />
+                        </div>
+                      </td>
                       <td><input type="number" min="0.01" step="0.01" value={item.quantity} onChange={(e) => updateItem(index, { quantity: e.target.value })} required /></td>
                       <td>
                         <select value={item.unit} onChange={(e) => updateItem(index, { unit: e.target.value as SalesQuotationUnit })}>

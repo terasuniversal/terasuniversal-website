@@ -523,12 +523,20 @@ export const opportunityExpectedCloseSchema = z.object({
 });
 export type OpportunityExpectedCloseInput = z.infer<typeof opportunityExpectedCloseSchema>;
 
+const quotationPackageIncludeSnapshotSchema = z.object({
+  key: z.string().trim().min(1).max(80),
+  label: z.string().trim().min(1).max(200),
+});
+
 const quotationItemInputSchema = z.object({
   description: z.string().trim().min(1, "Description is required").max(500),
   quantity: z.coerce.number().positive("Quantity must be greater than 0"),
   unit: z.enum(["pax", "session", "day", "lot", "unit"]),
   unit_price: z.coerce.number().min(0, "Unit price cannot be negative"),
   discount: z.coerce.number().min(0, "Discount cannot be negative").default(0),
+  course_id: z.string().uuid().optional().or(z.literal("")),
+  hrdf_claim: z.boolean().default(false),
+  package_includes_snapshot: z.array(quotationPackageIncludeSnapshotSchema).default([]),
 });
 export type QuotationItemInput = z.infer<typeof quotationItemInputSchema>;
 

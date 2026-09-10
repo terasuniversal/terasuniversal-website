@@ -4,8 +4,9 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { requireRole, requireModuleAccess } from "../../../../../lib/auth/session";
-import { quotationHeaderSchema, quotationRejectSchema, fieldErrors } from "../../../../../lib/validation/schemas";
+import { quotationHeaderSchema, quotationRejectSchema, fieldErrors, type QuotationHeaderInput } from "../../../../../lib/validation/schemas";
 import { computeQuotationTotals } from "../../../../../lib/sales/crm";
+import { canonicalizePackageSnapshot, commercialName, type CourseCommercialProfileData, type PackageIncludeSnapshot } from "../../../../../lib/sales/course-commercial";
 
 export type SalesActionState = { message?: string; errors?: Record<string, string> };
 
@@ -33,6 +34,46 @@ async function logActivity(supabase: any, leadMetadataId: string | null, opportu
 async function getLeadMetadataId(supabase: any, opportunityId: string): Promise<string | null> {
   const { data } = await supabase.from("sales_opportunities").select("lead_metadata_id").eq("id", opportunityId).maybeSingle();
   return data?.lead_metadata_id ?? null;
+}
+
+async function prepareQuotationItems(supabase: any, items: QuotationHeaderInput["items"]) {
+  const courseIds = [...new Set(items.map((item) => item.course_id).filter((id): id is string => Boolean(id)))];
+  const profilesByCourse = new Map<string, CourseCommercialProfileData>();
+  if (courseIds.length > 0) {
+    const { data, error } = await supabase
+      .from("course_commercial_profiles")
+      .select("id, course_id, standard_display_name, hrdf_display_name, hrdf_claimable, quotation_description, package_includes, accommodation_included_default, accommodation_description_default, meals_included_default, meals_description_default")
+      .in("course_id", courseIds);
+    if (error) return { error: error.message };
+    for (const profile of (data ?? []) as CourseCommercialProfileData[]) profilesByCourse.set(profile.course_id, profile);
+  }
+
+  const rows = [];
+  for (const item of items) {
+    const courseId = item.course_id || null;
+    if (!courseId) {
+      if (item.hrdf_claim) return { error: "HRDF Claim requires a configured course profile." };
+      if (item.package_includes_snapshot.length > 0) return { error: "Package Includes requires a configured course profile." };
+      rows.push({ ...item, course_id: null, course_name_snapshot: null, hrdf_claim: false, package_includes_snapshot: [] });
+      continue;
+    }
+
+    const profile = profilesByCourse.get(courseId);
+    if (!profile) return { error: "The selected course has no commercial profile configured." };
+    if (item.hrdf_claim && (!profile.hrdf_claimable || !profile.hrdf_display_name?.trim())) {
+      return { error: `HRDF Claim is not configured for ${profile.standard_display_name}.` };
+    }
+    const packageSnapshot = canonicalizePackageSnapshot(item.package_includes_snapshot as PackageIncludeSnapshot[], profile);
+    if ("error" in packageSnapshot) return { error: packageSnapshot.error };
+    rows.push({
+      ...item,
+      course_id: courseId,
+      course_name_snapshot: commercialName(profile, item.hrdf_claim),
+      hrdf_claim: item.hrdf_claim,
+      package_includes_snapshot: packageSnapshot,
+    });
+  }
+  return { rows };
 }
 
 /** Task 8: create quotation (revision 0) from an Opportunity — admin+ only, per sales_quotations RLS. */
@@ -64,6 +105,8 @@ export async function createQuotation(
   const d = parsed.data;
 
   const supabase = await createSupabaseServerClient();
+  const preparedItems = await prepareQuotationItems(supabase, d.items);
+  if ("error" in preparedItems) return { message: preparedItems.error };
   const { data: opportunity } = await supabase.from("sales_opportunities").select("*").eq("id", opportunityId).maybeSingle();
   if (!opportunity) return { message: "Opportunity not found." };
   if (opportunity.stage === "won" || opportunity.stage === "lost" || opportunity.stage === "cancelled") {
@@ -109,7 +152,7 @@ export async function createQuotation(
   if (error) return { message: error.message };
 
   const { error: itemsError } = await supabase.from("sales_quotation_items").insert(
-    d.items.map((item, index) => ({
+    preparedItems.rows.map((item, index) => ({
       quotation_id: quotation.id,
       description: item.description,
       quantity: item.quantity,
@@ -117,6 +160,10 @@ export async function createQuotation(
       unit_price: item.unit_price,
       discount: item.discount,
       sort_order: index,
+      course_id: item.course_id,
+      course_name_snapshot: item.course_name_snapshot,
+      hrdf_claim: item.hrdf_claim,
+      package_includes_snapshot: item.package_includes_snapshot,
     }))
   );
   if (itemsError) return { message: itemsError.message };
@@ -164,6 +211,8 @@ export async function updateQuotationDraft(
   const { data: existing } = await supabase.from("sales_quotations").select("status, opportunity_id").eq("id", quotationId).maybeSingle();
   if (!existing) return { message: "Quotation not found." };
   if (existing.status !== "draft") return { message: "Only draft quotations can be edited. Create a revision instead." };
+  const preparedItems = await prepareQuotationItems(supabase, d.items);
+  if ("error" in preparedItems) return { message: preparedItems.error };
 
   const totals = computeQuotationTotals({
     items: d.items.map((i) => ({ quantity: i.quantity, unitPrice: i.unit_price, discount: i.discount })),
@@ -199,7 +248,7 @@ export async function updateQuotationDraft(
 
   await supabase.from("sales_quotation_items").delete().eq("quotation_id", quotationId);
   const { error: itemsError } = await supabase.from("sales_quotation_items").insert(
-    d.items.map((item, index) => ({
+    preparedItems.rows.map((item, index) => ({
       quotation_id: quotationId,
       description: item.description,
       quantity: item.quantity,
@@ -207,6 +256,10 @@ export async function updateQuotationDraft(
       unit_price: item.unit_price,
       discount: item.discount,
       sort_order: index,
+      course_id: item.course_id,
+      course_name_snapshot: item.course_name_snapshot,
+      hrdf_claim: item.hrdf_claim,
+      package_includes_snapshot: item.package_includes_snapshot,
     }))
   );
   if (itemsError) return { message: itemsError.message };
