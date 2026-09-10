@@ -11,6 +11,7 @@ import { LeadActivityTimeline } from "../../leads/[id]/LeadActivityTimeline";
 import { QuotationItemsEditor } from "../QuotationItemsEditor";
 import { QuotationActionsPanel } from "./QuotationActionsPanel";
 import { updateQuotationDraft } from "../actions";
+import { loadCourseCommercialOptions, normalizePackageIncludeItems } from "../../../../../../lib/sales/course-commercial";
 
 export const metadata = { title: "Quotation Detail — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
@@ -39,6 +40,7 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
   };
   const { data: itemRows } = await supabase.from("sales_quotation_items").select("*").eq("quotation_id", id).order("sort_order");
   const items = (itemRows ?? []) as SalesQuotationItemRow[];
+  const courseOptions = await loadCourseCommercialOptions(supabase);
   const { data: existingInvoice } = await supabase.from("invoices").select("id, invoice_no, status, grand_total, amount_paid, balance_due, invoice_date, due_date").eq("quotation_id", id).maybeSingle();
   const { data: paymentRows } = existingInvoice
     ? await supabase.from("invoice_payments").select("status, payment_provider").eq("invoice_id", existingInvoice.id)
@@ -109,7 +111,8 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
             <QuotationItemsEditor
               action={updateQuotationDraft.bind(null, id)}
               initialHeader={{ valid_until: q.valid_until, currency: q.currency, discount: Number(q.discount), sst_applicable: q.sst_applicable, sst_rate: Number(q.sst_rate), terms: q.terms, notes: q.notes, customer_company_name: q.customer_company_name ?? customer.company, customer_contact_name: q.customer_contact_name ?? customer.contact, customer_registration_no: q.customer_registration_no ?? customer.registration, customer_email: q.customer_email ?? customer.email, customer_phone: q.customer_phone ?? customer.phone, billing_address: q.billing_address ?? company?.billing_address ?? company?.address, training_service_address: q.training_service_address }}
-              initialItems={items.map((i) => ({ description: i.description, quantity: String(i.quantity), unit: i.unit, unit_price: String(i.unit_price), discount: String(i.discount) }))}
+              initialItems={items.map((i) => ({ description: i.description, quantity: String(i.quantity), unit: i.unit, unit_price: String(i.unit_price), discount: String(i.discount), course_id: i.course_id ?? "", course_name_snapshot: i.course_name_snapshot ?? "", hrdf_claim: i.hrdf_claim ?? false, package_includes_snapshot: normalizePackageIncludeItems(i.package_includes_snapshot) }))}
+              courseOptions={courseOptions}
               submitLabel="Save Changes"
             />
           ) : (
@@ -121,7 +124,11 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
                     <tbody>
                       {items.map((item) => (
                         <tr key={item.id}>
-                          <td>{item.description}</td>
+                          <td>
+                            {item.course_name_snapshot && <div style={{ fontWeight: 600, marginBottom: 4 }}>Course: {item.course_name_snapshot}{item.hrdf_claim ? " (HRDF)" : ""}</div>}
+                            <div style={{ whiteSpace: "pre-wrap" }}>{item.description}</div>
+                            {item.package_includes_snapshot.length > 0 && <div style={{ marginTop: 6, fontSize: 12, color: "var(--ta-muted)" }}><strong>Package Includes:</strong> {normalizePackageIncludeItems(item.package_includes_snapshot).map((entry) => entry.label).join(", ")}</div>}
+                          </td>
                           <td>{item.quantity}</td>
                           <td>{item.unit}</td>
                           <td>RM {Number(item.unit_price).toLocaleString("en-MY", { minimumFractionDigits: 2 })}</td>
