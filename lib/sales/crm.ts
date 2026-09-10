@@ -19,6 +19,8 @@
  * component the real CRM actually renders — can import from this file alone.
  */
 
+import type { Json } from "../supabase/database.types";
+
 // Marketing CRM Phase 1B-D -- 'marketing_contact' added to match the
 // sales_lead_metadata.lead_source CHECK constraint widened in Phase 1B-C
 // (supabase/migrations/20260828100000_widen_sales_lead_source_for_marketing_contacts.sql).
@@ -341,6 +343,13 @@ export interface SalesQuotationRow {
   superseded_at: string | null;
   cancelled_at: string | null;
   cancellation_reason: string | null;
+  customer_company_name: string | null;
+  customer_contact_name: string | null;
+  customer_registration_no: string | null;
+  customer_email: string | null;
+  customer_phone: string | null;
+  billing_address: string | null;
+  training_service_address: string | null;
 }
 
 export interface SalesQuotationItemRow {
@@ -353,6 +362,10 @@ export interface SalesQuotationItemRow {
   discount: number;
   line_total: number;
   sort_order: number;
+  course_id: string | null;
+  course_name_snapshot: string | null;
+  hrdf_claim: boolean | null;
+  package_includes_snapshot: Json[];
 }
 
 /**

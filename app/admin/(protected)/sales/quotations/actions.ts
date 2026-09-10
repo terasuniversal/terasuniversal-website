@@ -263,7 +263,7 @@ export async function createRevision(quotationId: string, _prev: SalesActionStat
 
   const { data: sourceItems } = await supabase
     .from("sales_quotation_items")
-    .select("description, quantity, unit, unit_price, discount, sort_order")
+    .select("description, quantity, unit, unit_price, discount, sort_order, course_id, course_name_snapshot, hrdf_claim, package_includes_snapshot")
     .eq("quotation_id", quotationId)
     .order("sort_order");
 
@@ -295,6 +295,13 @@ export async function createRevision(quotationId: string, _prev: SalesActionStat
       total: source.total,
       terms: source.terms,
       notes: source.notes,
+      customer_company_name: source.customer_company_name,
+      customer_contact_name: source.customer_contact_name,
+      customer_registration_no: source.customer_registration_no,
+      customer_email: source.customer_email,
+      customer_phone: source.customer_phone,
+      billing_address: source.billing_address,
+      training_service_address: source.training_service_address,
       created_by: profile.id,
     })
     .select("id, quotation_no")

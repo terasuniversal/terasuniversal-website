@@ -142,6 +142,24 @@ export interface Course {
   certificate_template_id: string | null;
 }
 
+export interface CourseCommercialProfile {
+  id: string;
+  course_id: string;
+  standard_display_name: string;
+  hrdf_display_name: string | null;
+  hrdf_claimable: boolean;
+  quotation_description: string;
+  package_includes: Json[];
+  accommodation_included_default: boolean;
+  accommodation_description_default: string | null;
+  meals_included_default: boolean;
+  meals_description_default: string | null;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Enquiry {
   id: string;
   name: string;
@@ -363,6 +381,12 @@ export interface Database {
     Tables: {
       profiles: { Row: Profile; Insert: Partial<Profile>; Update: Partial<Profile>; Relationships: [] };
       courses: { Row: Course; Insert: Partial<Course>; Update: Partial<Course>; Relationships: [] };
+      course_commercial_profiles: {
+        Row: CourseCommercialProfile;
+        Insert: Partial<CourseCommercialProfile>;
+        Update: Partial<CourseCommercialProfile>;
+        Relationships: [];
+      };
       enquiries: { Row: Enquiry; Insert: Partial<Enquiry>; Update: Partial<Enquiry>; Relationships: [] };
       proposal_requests: {
         Row: ProposalRequest;
