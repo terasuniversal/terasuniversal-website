@@ -2,7 +2,7 @@ import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { requireRole, requireModuleAccess } from "../../../../../lib/auth/session";
 import { PageHead, Card, Badge, EmptyState, Pagination } from "../../../../../components/admin/ui";
-import { QUOTATION_STATUS_ORDER, QUOTATION_STATUS_LABELS, revisionLabel, sanitizeSearchTerm, type SalesQuotationRow, type SalesTaskRow } from "../../../../../lib/sales/crm";
+import { FOLLOW_UP_STATE_LABELS, QUOTATION_STATUS_ORDER, QUOTATION_STATUS_LABELS, revisionLabel, sanitizeSearchTerm, type SalesQuotationRow, type SalesTaskRow } from "../../../../../lib/sales/crm";
 import { formatMalaysiaDate, formatMalaysiaDateTime } from "../../../../../lib/date-time";
 import { dueDateState } from "../../../../../lib/sales/crm";
 import { invoiceStatusLabel, paymentVisibilityLabel, pickNextQuotationTask, QUOTATION_EXPIRY_LABELS, quotationExpiryState } from "../../../../../lib/sales/quotation-workflow";
@@ -106,7 +106,7 @@ export default async function QuotationsPage({
             <div className="ta-table-wrap ta-q-table">
               <table className="ta-table">
                 <thead>
-                  <tr><th>Quotation No</th><th>Revision</th><th>Company</th><th>Status</th><th>Total</th><th>Valid Until</th><th></th></tr>
+                  <tr><th>Quotation No</th><th>Revision</th><th>Company</th><th>Status</th><th>Total</th><th>Valid Until</th><th>Next Action</th><th></th></tr>
                 </thead>
                 <tbody>
                   {quotationRows.map((q) => {
@@ -122,6 +122,7 @@ export default async function QuotationsPage({
                       <td><div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}><Badge status={q.status} /><span style={{ fontSize: 11, color: expiry === "expired" ? "var(--ta-danger)" : "var(--ta-muted)" }}>{QUOTATION_EXPIRY_LABELS[expiry]}</span></div></td>
                       <td>RM {Number(q.total).toLocaleString("en-MY", { minimumFractionDigits: 2 })}</td>
                       <td><div>{q.valid_until ? formatMalaysiaDate(q.valid_until) : "—"}</div>{task && <div style={{ fontSize: 11, color: taskState === "overdue" ? "var(--ta-danger)" : "var(--ta-muted)", maxWidth: 190, overflowWrap: "anywhere" }}>{task.title} · {task.due_at ? formatMalaysiaDateTime(task.due_at) : "No due date"}</div>}{invoice && <div style={{ fontSize: 11, color: "var(--ta-muted)" }}>Invoice: {invoiceStatusLabel(invoice.status)} · {paymentVisibilityLabel(invoice.status, paymentStatusesByInvoice.get(invoice.id) ?? [])}</div>}</td>
+                      <td>{task ? <div style={{ display: "flex", flexDirection: "column", gap: 3, maxWidth: 190, overflowWrap: "anywhere" }}><strong>{task.title}</strong><span style={{ fontSize: 11, color: taskState === "overdue" ? "var(--ta-danger)" : "var(--ta-muted)" }}>{task.due_at ? `${FOLLOW_UP_STATE_LABELS[taskState]} · ${formatMalaysiaDateTime(task.due_at)}` : "No due date"}</span></div> : <span style={{ color: "var(--ta-muted)" }}>No Follow-up</span>}</td>
                       <td style={{ textAlign: "right" }}><Link href={`/admin/sales/quotations/${q.id}`} className="ta-btn ta-btn-outline ta-btn-sm">View</Link></td>
                     </tr>
                     );
@@ -153,7 +154,7 @@ export default async function QuotationsPage({
                     <span>Valid Until</span>
                     <span>{q.valid_until ? formatMalaysiaDate(q.valid_until) : "—"}</span>
                     <span>Next Action</span>
-                    <span style={{ overflowWrap: "anywhere", color: taskState === "overdue" ? "var(--ta-danger)" : undefined }}>{task ? `${task.title}${task.due_at ? ` · ${formatMalaysiaDateTime(task.due_at)}` : ""}` : "None"}</span>
+                    <span style={{ overflowWrap: "anywhere", color: taskState === "overdue" ? "var(--ta-danger)" : undefined }}>{task ? `${task.title} · ${task.due_at ? `${FOLLOW_UP_STATE_LABELS[taskState]} · ${formatMalaysiaDateTime(task.due_at)}` : "No due date"}` : "No Follow-up"}</span>
                     {invoice && <><span>Invoice</span><span>{invoice.invoice_no} · {invoiceStatusLabel(invoice.status)} · {paymentVisibilityLabel(invoice.status, paymentStatusesByInvoice.get(invoice.id) ?? [])}</span></>}
                   </div>
                   <div className="ta-lead-card-action">
