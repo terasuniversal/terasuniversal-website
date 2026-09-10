@@ -26,7 +26,17 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
   if (!quotation) notFound();
   const q = quotation as SalesQuotationRow;
 
-  const { data: opportunity } = await supabase.from("sales_opportunities").select("id, opportunity_no, company_name").eq("id", q.opportunity_id).maybeSingle();
+  const { data: opportunity } = await supabase.from("sales_opportunities").select("id, opportunity_no, company_name, contact_person, contact_email, contact_phone, company_id").eq("id", q.opportunity_id).maybeSingle();
+  const { data: company } = opportunity?.company_id
+    ? await supabase.from("companies").select("company_name, registration_no, email, phone, person_in_charge, pic_email, pic_phone, billing_address, address").eq("id", opportunity.company_id).maybeSingle()
+    : { data: null };
+  const customer = {
+    company: q.customer_company_name ?? company?.company_name ?? opportunity?.company_name,
+    contact: q.customer_contact_name ?? company?.person_in_charge ?? opportunity?.contact_person,
+    registration: q.customer_registration_no ?? company?.registration_no,
+    email: q.customer_email ?? company?.email ?? company?.pic_email ?? opportunity?.contact_email,
+    phone: q.customer_phone ?? company?.phone ?? company?.pic_phone ?? opportunity?.contact_phone,
+  };
   const { data: itemRows } = await supabase.from("sales_quotation_items").select("*").eq("quotation_id", id).order("sort_order");
   const items = (itemRows ?? []) as SalesQuotationItemRow[];
   const { data: existingInvoice } = await supabase.from("invoices").select("id, invoice_no, status, grand_total, amount_paid, balance_due, invoice_date, due_date").eq("quotation_id", id).maybeSingle();
@@ -98,7 +108,7 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
           {q.status === "draft" && canManage ? (
             <QuotationItemsEditor
               action={updateQuotationDraft.bind(null, id)}
-              initialHeader={{ valid_until: q.valid_until, currency: q.currency, discount: Number(q.discount), sst_applicable: q.sst_applicable, sst_rate: Number(q.sst_rate), terms: q.terms, notes: q.notes }}
+              initialHeader={{ valid_until: q.valid_until, currency: q.currency, discount: Number(q.discount), sst_applicable: q.sst_applicable, sst_rate: Number(q.sst_rate), terms: q.terms, notes: q.notes, customer_company_name: q.customer_company_name ?? customer.company, customer_contact_name: q.customer_contact_name ?? customer.contact, customer_registration_no: q.customer_registration_no ?? customer.registration, customer_email: q.customer_email ?? customer.email, customer_phone: q.customer_phone ?? customer.phone, billing_address: q.billing_address ?? company?.billing_address ?? company?.address, training_service_address: q.training_service_address }}
               initialItems={items.map((i) => ({ description: i.description, quantity: String(i.quantity), unit: i.unit, unit_price: String(i.unit_price), discount: String(i.discount) }))}
               submitLabel="Save Changes"
             />
@@ -142,6 +152,13 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
               </div>
             </Card>
           )}
+          {!(q.status === "draft" && canManage) && <Card title="Customer Details">
+            <div className="ta-card-pad" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
+              {[["Company", customer.company], ["Attention", customer.contact], ["Registration No.", customer.registration], ["Email", customer.email], ["Phone", customer.phone]].map(([label, value]) => <div key={label}><div style={{ color: "var(--ta-muted)", fontSize: 12 }}>{label}</div><div style={{ overflowWrap: "anywhere" }}>{value || "—"}</div></div>)}
+              <div style={{ gridColumn: "1 / -1" }}><div style={{ color: "var(--ta-muted)", fontSize: 12 }}>Billing Address</div><div style={{ whiteSpace: "pre-wrap" }}>{q.billing_address ?? "—"}</div></div>
+              <div style={{ gridColumn: "1 / -1" }}><div style={{ color: "var(--ta-muted)", fontSize: 12 }}>Training / Service Address</div><div style={{ whiteSpace: "pre-wrap" }}>{q.training_service_address ?? "—"}</div></div>
+            </div>
+          </Card>}
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>

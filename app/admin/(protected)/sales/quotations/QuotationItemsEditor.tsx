@@ -31,6 +31,13 @@ export function QuotationItemsEditor({
 }: {
   action: (prev: SalesActionState, fd: FormData) => Promise<SalesActionState>;
   initialHeader?: {
+    customer_company_name?: string | null;
+    customer_contact_name?: string | null;
+    customer_registration_no?: string | null;
+    customer_email?: string | null;
+    customer_phone?: string | null;
+    billing_address?: string | null;
+    training_service_address?: string | null;
     valid_until?: string | null;
     currency?: string;
     discount?: number;
@@ -47,6 +54,8 @@ export function QuotationItemsEditor({
   const [discount, setDiscount] = useState(String(initialHeader?.discount ?? 0));
   const [sstApplicable, setSstApplicable] = useState(initialHeader?.sst_applicable ?? false);
   const [sstRate, setSstRate] = useState(String(initialHeader?.sst_rate ?? 0));
+  const [billingAddress, setBillingAddress] = useState(initialHeader?.billing_address ?? "");
+  const [trainingAddress, setTrainingAddress] = useState(initialHeader?.training_service_address ?? "");
 
   const totals = useMemo(() => {
     return computeQuotationTotals({
@@ -76,6 +85,45 @@ export function QuotationItemsEditor({
       {state.message && <div className="ta-alert ta-alert-error">{state.message}</div>}
       {state.errors?.items && <div className="ta-alert ta-alert-error">{state.errors.items}</div>}
       <input type="hidden" name="items" value={itemsJson} />
+
+      <Card title="Customer Information">
+        <div className="ta-card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div className="ta-field-row">
+            <Field label="Company Name" name="customer_company_name">
+              <input name="customer_company_name" defaultValue={initialHeader?.customer_company_name ?? ""} maxLength={200} />
+            </Field>
+            <Field label="Contact / Attention" name="customer_contact_name">
+              <input name="customer_contact_name" defaultValue={initialHeader?.customer_contact_name ?? ""} maxLength={200} />
+            </Field>
+          </div>
+          <div className="ta-field-row">
+            <Field label="Registration No." name="customer_registration_no">
+              <input name="customer_registration_no" defaultValue={initialHeader?.customer_registration_no ?? ""} maxLength={100} />
+            </Field>
+            <Field label="Email" name="customer_email">
+              <input name="customer_email" type="email" defaultValue={initialHeader?.customer_email ?? ""} maxLength={320} />
+            </Field>
+          </div>
+          <Field label="Phone" name="customer_phone">
+            <input name="customer_phone" defaultValue={initialHeader?.customer_phone ?? ""} maxLength={60} />
+          </Field>
+        </div>
+      </Card>
+
+      <Card title="Address Information">
+        <div className="ta-card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <Field label="Billing Address" name="billing_address">
+            <textarea name="billing_address" rows={4} value={billingAddress} onChange={(e) => setBillingAddress(e.target.value)} />
+          </Field>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5 }}>
+            <input type="checkbox" onChange={(e) => { if (e.target.checked) setTrainingAddress(billingAddress); }} />
+            Same as Billing Address
+          </label>
+          <Field label="Training / Service Address" name="training_service_address">
+            <textarea name="training_service_address" rows={4} value={trainingAddress} onChange={(e) => setTrainingAddress(e.target.value)} />
+          </Field>
+        </div>
+      </Card>
 
       <Card title="Line Items">
         <div className="ta-card-pad">
