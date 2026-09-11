@@ -1,0 +1,66 @@
+{
+  "baseline_version": "v2",
+  "baseline_status": "source_generated_read_only",
+  "production_project_ref": "iagzkrzeuawaxvacqprk",
+  "captured_at": "2026-09-11T08:40:14.8337807Z",
+  "postgres_version": "17.6.1.147",
+  "supabase_cli_version": "2.114.0",
+  "git_commit_at_snapshot": "f1ce4f5e2742a5ff3ed1f578cf88fcf20af60ee8",
+  "included_schemas": ["public", "app"],
+  "excluded_schemas": ["auth", "storage", "realtime", "vault", "supabase_migrations"],
+  "object_counts": {
+    "tables": 70,
+    "views": 2,
+    "materialized_views": 0,
+    "functions": 155,
+    "triggers": 91,
+    "policies": 160,
+    "public_rls_tables": 70,
+    "non_system_sequences": 12,
+    "enum_types": 7,
+    "extensions": 7
+  },
+  "snapshot_object_counts": {
+    "tables": 70,
+    "views": 2,
+    "materialized_views": 0,
+    "app_public_functions_emitted": 124,
+    "public_app_triggers_emitted": 91,
+    "auth_triggers_appended": 1,
+    "policies": 160,
+    "public_rls_tables": 70,
+    "sequences_emitted": 10,
+    "enum_types": 7,
+    "extensions_declared": 2
+  },
+  "snapshot_exclusions_explained": {
+    "extension_owned_functions": 31,
+    "identity_owned_sequences": 2,
+    "platform_managed_extensions": ["pgcrypto", "uuid-ossp", "pg_stat_statements", "supabase_vault", "plpgsql"],
+    "supabase_managed_schemas": ["auth", "storage", "realtime", "vault", "supabase_migrations"]
+  },
+  "artifact_counts_exclude_bootstrap_marker": true,
+  "schema_sha256": "7709534BA0593CC3361AE13B3DDC75C3319E87C7E76027A9D0600D4C6DD566B9",
+  "schema_bytes": 483183,
+  "bootstrap_sha256": "41D18DF60C06F41534571F6CF0F6007C07444AB876F11161AF9164276CE3A2B8",
+  "bootstrap_bytes": 485227,
+  "data_included": false,
+  "auth_users_included": false,
+  "secrets_included": false,
+  "production_modified": false,
+  "staging_modified": false,
+  "internal_lead_migration_included": false,
+  "generation": {
+    "source": "Production live schema via supabase db dump --schema public --schema app",
+    "post_processing": [
+      "added idempotent citext and pg_trgm extension declarations",
+      "preserved application-owned auth.users trigger definition",
+      "added Baseline V2 new-environment guard and app.app_schema_baseline marker to bootstrap only"
+    ],
+    "canonical_line_endings": "LF",
+    "business_rows": 0
+  },
+  "future_migration_policy": "forward-only; migrations begin after Baseline V2",
+  "first_forward_migration": "20260911090000_internal_sales_lead_creation.sql",
+  "v1_preserved": true
+}
