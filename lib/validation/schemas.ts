@@ -464,6 +464,24 @@ export const salesLeadStatusSchema = z
   });
 export type SalesLeadStatusInput = z.infer<typeof salesLeadStatusSchema>;
 
+export const salesLeadCreateSchema = z
+  .object({
+    contact_name: z.string().trim().min(1, "Name is required").max(120),
+    company_name: z.string().trim().max(160).optional().or(z.literal("")),
+    email: z.string().trim().email("Enter a valid email address").max(254).optional().or(z.literal("")),
+    phone: z.string().trim().max(40).optional().or(z.literal("")),
+    course_interest: z.string().trim().max(160).optional().or(z.literal("")),
+    notes: z.string().trim().max(3000).optional().or(z.literal("")),
+    source_channel: z.enum(["", "facebook", "tiktok", "whatsapp", "website", "referral", "other"]),
+    campaign_id: z.string().uuid().optional().or(z.literal("")),
+    attribution_notes: z.string().trim().max(3000).optional().or(z.literal("")),
+  })
+  .refine((value) => !!value.email || !!value.phone, {
+    message: "Email or phone is required",
+    path: ["email"],
+  });
+export type SalesLeadCreateInput = z.infer<typeof salesLeadCreateSchema>;
+
 export const salesLeadAssignSchema = z.object({
   assigned_to: z.string().uuid().optional().or(z.literal("")),
 });

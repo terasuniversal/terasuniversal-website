@@ -299,6 +299,20 @@ export interface SalesLeadAttribution {
   updated_at: string;
 }
 
+export interface SalesInternalLeadSource {
+  id: string;
+  contact_name: string;
+  email: string | null;
+  phone: string | null;
+  company_name: string | null;
+  course_interest: string | null;
+  notes: string | null;
+  created_by: string;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 /** Exact staging-generated row shape for the Sales Lead qualification fields. */
 export interface SalesLeadMetadata {
   assigned_to: string | null;
@@ -416,6 +430,12 @@ export interface Database {
         Row: SalesLeadAttribution;
         Insert: Partial<SalesLeadAttribution>;
         Update: Partial<SalesLeadAttribution>;
+        Relationships: [];
+      };
+      sales_internal_lead_sources: {
+        Row: SalesInternalLeadSource;
+        Insert: Partial<SalesInternalLeadSource>;
+        Update: Partial<SalesInternalLeadSource>;
         Relationships: [];
       };
       sales_lead_metadata: {

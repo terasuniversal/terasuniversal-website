@@ -13,6 +13,7 @@ import {
   revisionLabel,
   sanitizeSearchTerm,
   type SalesOpportunityRow,
+  type SalesLeadSourceKind,
   type SalesActivityRow,
   type SalesQuotationRow,
 } from "../../../../../../lib/sales/crm";
@@ -108,6 +109,9 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
     } else if (leadRow?.lead_source === "enquiry" && leadRow.source_id) {
       const { data: enq } = await supabase.from("enquiries").select("message").eq("id", leadRow.source_id).maybeSingle();
       objectives = enq?.message ?? null;
+    } else if (leadRow?.lead_source === "internal" && leadRow.source_id) {
+      const { data: internalLead } = await supabase.from("sales_internal_lead_sources").select("notes").eq("id", leadRow.source_id).maybeSingle();
+      objectives = internalLead?.notes ?? null;
     }
 
     const matchedCourseId = acceptedQuotation ? await matchCourseByProgramme(opp.programme) : null;
@@ -223,7 +227,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
 
       <div className="ta-lead-meta">
         <Badge status={opp.stage} />
-        {leadRow && <span className="ta-lead-meta-time">Source: {SOURCE_LABELS[leadRow.lead_source as "enquiry" | "proposal_request"]}</span>}
+        {leadRow && <span className="ta-lead-meta-time">Source: {SOURCE_LABELS[leadRow.lead_source as SalesLeadSourceKind]}</span>}
         <span className="ta-lead-meta-time">
           Created {formatMalaysiaDateTime(opp.created_at)}
         </span>
