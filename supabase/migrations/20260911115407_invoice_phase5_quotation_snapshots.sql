@@ -107,7 +107,8 @@ begin
 
   select * into v_quotation
   from public.sales_quotations
-  where id = p_quotation_id;
+  where id = p_quotation_id
+  for update;
   if v_quotation.id is null then
     raise exception 'quotation_not_found' using errcode = 'P0001';
   end if;
