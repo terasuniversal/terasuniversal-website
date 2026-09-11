@@ -75,7 +75,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
       <PageHead
         title={inv.invoice_no}
         subtitle={[
-          quotation ? `from ${quotation.quotation_no}` : undefined,
+          inv.quotation_number_snapshot ? `from ${inv.quotation_number_snapshot}` : quotation ? `from ${quotation.quotation_no}` : undefined,
           opportunity ? `${opportunity.opportunity_no} — ${opportunity.company_name ?? "No company on file"}` : undefined,
         ].filter(Boolean).join(" · ")}
         action={
@@ -122,6 +122,14 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
             </div>
           </Card>
 
+          {inv.training_service_address_snapshot && (
+            <Card title="Training / Service Address">
+              <div className="ta-card-pad" style={{ fontSize: 14, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+                {inv.training_service_address_snapshot}
+              </div>
+            </Card>
+          )}
+
           <Card title="Line Items">
             {items.length > 0 ? (
               <div className="ta-table-wrap">
@@ -130,7 +138,15 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
                   <tbody>
                     {items.map((item) => (
                       <tr key={item.id}>
-                        <td>{item.description}</td>
+                        <td>
+                          {item.course_name_snapshot && <div style={{ fontWeight: 600 }}>{item.course_name_snapshot}{item.hrdf_claim ? " (HRDF)" : ""}</div>}
+                          <div>{item.description}</div>
+                          {item.package_includes_snapshot.length > 0 && (
+                            <div style={{ color: "var(--ta-muted)", fontSize: 12 }}>
+                              Package Includes: {item.package_includes_snapshot.map((entry) => String(entry.label ?? entry.key ?? "")).filter(Boolean).join(", ")}
+                            </div>
+                          )}
+                        </td>
                         <td>{item.quantity}</td>
                         <td>{item.unit}</td>
                         <td>{fmt(item.unit_price)}</td>
