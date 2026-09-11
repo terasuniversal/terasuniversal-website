@@ -169,7 +169,7 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
             {sp.attributionSaved && <div className="ta-alert ta-alert-success" role="status">Marketing attribution saved.</div>}
             <form action={setLeadAttribution.bind(null, id)} className="ta-form-pad">
               <div className="ta-field-row">
-                <label className="ta-field">Source<select name="source" defaultValue={attribution?.source ?? "website"}>{LEAD_ATTRIBUTION_SOURCES.map((source) => <option key={source} value={source}>{LEAD_ATTRIBUTION_SOURCE_LABELS[source]}</option>)}</select></label>
+                <label className="ta-field">Source<select name="source" defaultValue={attribution?.source ?? ""}><option value="">Manual / No attribution</option>{LEAD_ATTRIBUTION_SOURCES.map((source) => <option key={source} value={source}>{LEAD_ATTRIBUTION_SOURCE_LABELS[source]}</option>)}</select></label>
                 <label className="ta-field">Campaign<select name="campaign_id" defaultValue={attribution?.campaign_id ?? ""}><option value="">No campaign</option>{campaignOptions.map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}</select></label>
               </div>
               <div className="ta-field-row">
