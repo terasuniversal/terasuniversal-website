@@ -27,7 +27,7 @@ BEGIN
   ]) AS obj_name) q WHERE to_regclass(obj_name) IS NOT NULL);
 
   IF existing IS NOT NULL AND cardinality(existing) > 0 THEN
-    RAISE EXCEPTION 'non_empty_database: TERAS application objects already exist: % -- refusing Baseline V2 bootstrap' USING ERRCODE = 'P0001';
+    RAISE EXCEPTION 'non_empty_database: TERAS application objects already exist: % -- refusing Baseline V2 bootstrap', existing USING ERRCODE = 'P0001';
   END IF;
 END
 $$;
