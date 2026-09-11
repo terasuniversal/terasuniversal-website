@@ -14,6 +14,8 @@ import {
 import { getToyyibpayCapability } from "../../../../../lib/payments/toyyibpay";
 import { InvoiceDraftForm } from "./InvoiceDraftForm";
 import { InvoiceActionsPanel } from "./InvoiceActionsPanel";
+import { HrdfClaimCard } from "./HrdfClaimCard";
+import type { HrdfClaim } from "../../../../../lib/supabase/database.types";
 
 export const metadata = { title: "Invoice Detail — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
@@ -60,6 +62,8 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
   const { data: opportunity } = await supabase.from("sales_opportunities").select("id, opportunity_no, company_name").eq("id", inv.opportunity_id).maybeSingle();
   const { data: itemRows } = await supabase.from("invoice_items").select("*").eq("invoice_id", id).order("sort_order");
   const items = (itemRows ?? []) as InvoiceItemRow[];
+  const { data: claimRow } = await (supabase.from("hrdf_claims") as any).select("*").eq("invoice_id", id).maybeSingle();
+  const hrdfClaim = (claimRow ?? null) as HrdfClaim | null;
   const { data: paymentRows } = await supabase.from("invoice_payments").select("*").eq("invoice_id", id).order("created_at", { ascending: false });
   const payments = (paymentRows ?? []) as InvoicePaymentRow[];
   // Most recent row already first (query is ordered desc) -- the ToyyibPay
@@ -219,6 +223,8 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
               <EmptyState icon="💳" message="No payments recorded yet." />
             )}
           </Card>
+
+          <HrdfClaimCard invoiceId={id} applicable={items.some((item) => item.hrdf_claim === true)} claim={hrdfClaim} canManage={canManage} />
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>

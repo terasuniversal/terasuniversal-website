@@ -1,0 +1,18 @@
+-- Read-only behavior test plan. Execute only against an isolated Staging QA
+-- fixture after the migration is approved and applied.
+-- The assertions intentionally use no real customer or Production data.
+
+-- 1. create_hrdf_claim_for_invoice() must raise hrdf_not_applicable when all
+-- invoice_items.hrdf_claim values are false/null.
+-- 2. An HRDF invoice creates exactly one row; a second call raises
+-- hrdf_claim_already_exists and UNIQUE(invoice_id) remains enforced.
+-- 3. transition_hrdf_claim() rejects invalid transitions and requires grant,
+-- claim and rejection fields at their respective boundaries.
+-- 4. approved_amount > claim_amount raises approved_amount_invalid.
+-- 5. record_hrdf_payment() requires claim_approved, locks claim and invoice,
+-- rejects duplicate references, and inserts payment_source='hrdf'.
+-- 6. The existing balance trigger determines partially_paid/paid; claim
+-- transitions never write invoices.status directly.
+-- 7. RLS/direct writes reject anon and authenticated direct mutations.
+-- 8. Changing course_commercial_profiles after claim creation does not alter
+-- hrdf_items_snapshot.

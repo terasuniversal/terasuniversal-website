@@ -615,6 +615,16 @@ export const recordManualPaymentSchema = z.object({
 });
 export type RecordManualPaymentInput = z.infer<typeof recordManualPaymentSchema>;
 
+export const recordHrdfPaymentSchema = z.object({
+  payment_provider: z.enum(["cash", "bank_transfer", "cheque", "other"]),
+  payment_method: z.string().trim().max(100).optional().or(z.literal("")),
+  amount: z.coerce.number().positive("Amount must be greater than 0"),
+  payment_date: z.string().trim().optional().or(z.literal("")),
+  payment_reference: z.string().trim().min(1, "Payment reference is required").max(200),
+  notes: z.string().trim().max(1000).optional().or(z.literal("")),
+});
+export type RecordHrdfPaymentInput = z.infer<typeof recordHrdfPaymentSchema>;
+
 export const cancelInvoiceSchema = z.object({
   reason: z.string().trim().max(500).optional().or(z.literal("")),
 });
