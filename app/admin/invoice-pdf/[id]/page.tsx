@@ -7,7 +7,7 @@ import { PAYMENT_PROVIDER_LABELS, type InvoiceRow, type InvoiceItemRow, type Inv
 export const metadata = { title: "Invoice PDF — TERAS UNIVERSAL", robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
 
-const REG_NO = "202201038223 (1477529-X)";
+const REG_NO = "201201003207 (976732-P)";
 const SANS = "'Helvetica Neue',Helvetica,Arial,sans-serif";
 
 function fmt(n: number) {
@@ -57,7 +57,6 @@ export default async function InvoicePdfPage({ params }: { params: Promise<{ id:
   const inv = invoice as InvoiceRow;
   if (inv.status === "draft") notFound();
 
-  const { data: quotation } = await supabase.from("sales_quotations").select("quotation_no").eq("id", inv.quotation_id).maybeSingle();
   const { data: itemRows } = await supabase.from("invoice_items").select("*").eq("invoice_id", id).order("sort_order");
   const items = (itemRows ?? []) as InvoiceItemRow[];
   const { data: paymentRows } = await supabase.from("invoice_payments").select("*").eq("invoice_id", id).order("created_at", { ascending: true });
@@ -103,7 +102,7 @@ export default async function InvoicePdfPage({ params }: { params: Promise<{ id:
           <div style={{ textAlign: "right" }}>
             <div><span style={{ color: "#667085" }}>Invoice Date: </span>{fmtDate(inv.invoice_date)}</div>
             <div><span style={{ color: "#667085" }}>Due Date: </span>{fmtDate(inv.due_date)}</div>
-            {quotation && <div><span style={{ color: "#667085" }}>Quotation Ref: </span>{quotation.quotation_no}</div>}
+            {inv.quotation_no && <div><span style={{ color: "#667085" }}>Quotation Ref: </span>{inv.quotation_no}</div>}
           </div>
         </div>
 
@@ -120,7 +119,11 @@ export default async function InvoicePdfPage({ params }: { params: Promise<{ id:
           <tbody>
             {items.map((item) => (
               <tr key={item.id} style={{ borderBottom: "1px solid #eef1f6" }}>
-                <td style={{ padding: "8px 6px" }}>{item.description}</td>
+                <td style={{ padding: "8px 6px" }}>
+                  {item.course_name_snapshot && <div style={{ fontWeight: 700 }}>{item.course_name_snapshot}{item.hrdf_claim ? " (HRDF)" : ""}</div>}
+                  <div>{item.description}</div>
+                  {item.package_includes_snapshot.length > 0 && <div style={{ color: "#667085", fontSize: 11 }}>Package Includes: {item.package_includes_snapshot.map((entry) => String(entry.label ?? entry.key ?? "")).filter(Boolean).join(", ")}</div>}
+                </td>
                 <td style={{ padding: "8px 6px", textAlign: "right" }}>{item.quantity} {item.unit}</td>
                 <td style={{ padding: "8px 6px", textAlign: "right" }}>{fmt(item.unit_price)}</td>
                 <td style={{ padding: "8px 6px", textAlign: "right" }}>{fmt(item.discount)}</td>
@@ -142,6 +145,13 @@ export default async function InvoicePdfPage({ params }: { params: Promise<{ id:
             </tbody>
           </table>
         </div>
+
+        {inv.training_service_address && (
+          <div style={{ marginBottom: 16, fontSize: 12 }}>
+            <div style={{ fontSize: 11, color: "#667085", textTransform: "uppercase", marginBottom: 4 }}>Training / Service Address</div>
+            <div style={{ whiteSpace: "pre-wrap" }}>{inv.training_service_address}</div>
+          </div>
+        )}
 
         {payments.length > 0 && (
           <div style={{ marginBottom: 20 }}>
