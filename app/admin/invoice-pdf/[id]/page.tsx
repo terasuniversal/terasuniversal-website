@@ -102,7 +102,7 @@ export default async function InvoicePdfPage({ params }: { params: Promise<{ id:
           <div style={{ textAlign: "right" }}>
             <div><span style={{ color: "#667085" }}>Invoice Date: </span>{fmtDate(inv.invoice_date)}</div>
             <div><span style={{ color: "#667085" }}>Due Date: </span>{fmtDate(inv.due_date)}</div>
-            {inv.quotation_no && <div><span style={{ color: "#667085" }}>Quotation Ref: </span>{inv.quotation_no}</div>}
+            {inv.quotation_number_snapshot && <div><span style={{ color: "#667085" }}>Quotation Ref: </span>{inv.quotation_number_snapshot}</div>}
           </div>
         </div>
 
@@ -146,10 +146,10 @@ export default async function InvoicePdfPage({ params }: { params: Promise<{ id:
           </table>
         </div>
 
-        {inv.training_service_address && (
+        {inv.training_service_address_snapshot && (
           <div style={{ marginBottom: 16, fontSize: 12 }}>
             <div style={{ fontSize: 11, color: "#667085", textTransform: "uppercase", marginBottom: 4 }}>Training / Service Address</div>
-            <div style={{ whiteSpace: "pre-wrap" }}>{inv.training_service_address}</div>
+            <div style={{ whiteSpace: "pre-wrap" }}>{inv.training_service_address_snapshot}</div>
           </div>
         )}
 

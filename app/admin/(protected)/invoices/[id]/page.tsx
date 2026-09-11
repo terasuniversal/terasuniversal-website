@@ -75,7 +75,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
       <PageHead
         title={inv.invoice_no}
         subtitle={[
-          quotation ? `from ${quotation.quotation_no}` : undefined,
+          inv.quotation_number_snapshot ? `from ${inv.quotation_number_snapshot}` : quotation ? `from ${quotation.quotation_no}` : undefined,
           opportunity ? `${opportunity.opportunity_no} — ${opportunity.company_name ?? "No company on file"}` : undefined,
         ].filter(Boolean).join(" · ")}
         action={
@@ -122,10 +122,10 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
             </div>
           </Card>
 
-          {inv.training_service_address && (
+          {inv.training_service_address_snapshot && (
             <Card title="Training / Service Address">
               <div className="ta-card-pad" style={{ fontSize: 14, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
-                {inv.training_service_address}
+                {inv.training_service_address_snapshot}
               </div>
             </Card>
           )}

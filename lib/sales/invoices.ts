@@ -41,7 +41,7 @@ export interface InvoiceRow {
   id: string;
   invoice_no: string;
   quotation_id: string;
-  quotation_no: string | null;
+  quotation_number_snapshot: string | null;
   opportunity_id: string;
   company_id: string | null;
   customer_company_name: string | null;
@@ -49,7 +49,7 @@ export interface InvoiceRow {
   customer_registration_no: string | null;
   customer_email: string | null;
   customer_phone: string | null;
-  training_service_address: string | null;
+  training_service_address_snapshot: string | null;
   billing_name: string;
   billing_company: string | null;
   billing_registration_no: string | null;
@@ -91,7 +91,7 @@ export interface InvoiceItemRow {
   line_total: number;
   sort_order: number;
   source_quotation_item_id: string | null;
-  course_id: string | null;
+  course_id_snapshot: string | null;
   course_name_snapshot: string | null;
   hrdf_claim: boolean | null;
   package_includes_snapshot: Array<Record<string, unknown>>;
