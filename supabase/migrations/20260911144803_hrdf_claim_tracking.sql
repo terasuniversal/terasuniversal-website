@@ -267,8 +267,11 @@ end;
 $$;
 
 revoke all on function public.create_hrdf_claim_for_invoice(uuid) from public;
+revoke all on function public.create_hrdf_claim_for_invoice(uuid) from anon;
 revoke all on function public.transition_hrdf_claim(uuid, text, jsonb) from public;
+revoke all on function public.transition_hrdf_claim(uuid, text, jsonb) from anon;
 revoke all on function public.record_hrdf_payment(uuid, numeric, text, text, date, text, text) from public;
+revoke all on function public.record_hrdf_payment(uuid, numeric, text, text, date, text, text) from anon;
 grant execute on function public.create_hrdf_claim_for_invoice(uuid) to authenticated;
 grant execute on function public.transition_hrdf_claim(uuid, text, jsonb) to authenticated;
 grant execute on function public.record_hrdf_payment(uuid, numeric, text, text, date, text, text) to authenticated;
