@@ -24,7 +24,7 @@ import type { Json } from "../supabase/database.types";
 // Marketing CRM Phase 1B-D -- 'marketing_contact' added to match the
 // sales_lead_metadata.lead_source CHECK constraint widened in Phase 1B-C
 // (supabase/migrations/20260828100000_widen_sales_lead_source_for_marketing_contacts.sql).
-export type SalesLeadSourceKind = "enquiry" | "proposal_request" | "marketing_contact";
+export type SalesLeadSourceKind = "enquiry" | "proposal_request" | "marketing_contact" | "internal";
 
 /** Same four values/labels as the demo module's FollowUpState — moved here, not duplicated with different meaning. */
 export type FollowUpState = "overdue" | "today" | "upcoming" | "none";
@@ -229,6 +229,7 @@ export const SOURCE_LABELS: Record<SalesLeadSourceKind, string> = {
   enquiry: "Contact Enquiry",
   proposal_request: "Proposal Request",
   marketing_contact: "Marketing Contact",
+  internal: "Internal CRM",
 };
 
 /* ------------------------------------------------------------------ */

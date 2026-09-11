@@ -8,6 +8,7 @@ import { redirect } from "next/navigation";
 import { formatMalaysiaDateTime } from "../../../../../lib/date-time";
 import {
   salesLeadStatusSchema,
+  salesLeadCreateSchema,
   salesLeadAssignSchema,
   salesLeadNoteSchema,
   salesLeadFollowUpSchema,
@@ -21,6 +22,51 @@ import { LOST_REASON_LABELS, type SalesCrmLostReason } from "../../../../../lib/
 import { DISQUALIFICATION_REASONS, DISQUALIFICATION_REASON_LABELS, QUALIFICATION_REASONS, QUALIFICATION_REASON_LABELS } from "../../../../../lib/sales/qualification";
 
 export type SalesActionState = { message?: string; errors?: Record<string, string> };
+
+export async function createLead(
+  _prev: SalesActionState,
+  formData: FormData,
+): Promise<SalesActionState> {
+  await requireRole("editor");
+  await requireModuleAccess("sales_leads");
+
+  const parsed = salesLeadCreateSchema.safeParse({
+    contact_name: formData.get("contact_name"),
+    company_name: formData.get("company_name") ?? "",
+    email: formData.get("email"),
+    phone: formData.get("phone"),
+    course_interest: formData.get("course_interest") ?? "",
+    notes: formData.get("notes") ?? "",
+    source_channel: formData.get("source_channel") ?? "",
+    campaign_id: formData.get("campaign_id") ?? "",
+    attribution_notes: formData.get("attribution_notes") ?? "",
+  });
+  if (!parsed.success) return { errors: fieldErrors(parsed.error) };
+
+  const supabase = await createSupabaseServerClient();
+  const { data: leadId, error } = await supabase.rpc("create_internal_sales_lead", {
+    p_contact_name: parsed.data.contact_name,
+    p_email: parsed.data.email || null,
+    p_phone: parsed.data.phone || null,
+    p_company_name: parsed.data.company_name || null,
+    p_course_interest: parsed.data.course_interest || null,
+    p_notes: parsed.data.notes || null,
+    p_source_channel: parsed.data.source_channel || null,
+    p_campaign_id: parsed.data.campaign_id || null,
+    p_attribution_notes: parsed.data.attribution_notes || null,
+  });
+
+  if (error || !leadId) {
+    if (error?.message?.includes("contact_method_required")) return { message: "Enter an email address or phone number." };
+    if (error?.message?.includes("invalid_email")) return { message: "Enter a valid email address." };
+    if (error?.message?.includes("invalid_attribution_source")) return { message: "Select a valid source channel." };
+    return { message: error?.message ?? "Unable to create the lead." };
+  }
+
+  revalidatePath("/admin/sales/leads");
+  revalidatePath("/admin/sales");
+  redirect(`/admin/sales/leads/${leadId}`);
+}
 
 export async function setLeadAttribution(leadMetadataId: string, formData: FormData): Promise<void> {
   const profile = await requireRole("editor");

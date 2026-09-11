@@ -102,7 +102,7 @@ export const dynamic = "force-dynamic";
  * sales_tasks does; every task query below filters deleted_at is null.
  */
 
-const LEAD_SOURCES: SalesLeadSourceKind[] = ["enquiry", "proposal_request"];
+const LEAD_SOURCES: SalesLeadSourceKind[] = ["enquiry", "proposal_request", "marketing_contact", "internal"];
 const REPORTABLE_STAGES: SalesOpportunityStage[] = OPPORTUNITY_STAGE_ORDER.filter((s) => s !== "archived");
 const QUALIFIED_OR_LATER = new Set(["qualified", "proposal_sent", "negotiation", "won", "lost"]);
 

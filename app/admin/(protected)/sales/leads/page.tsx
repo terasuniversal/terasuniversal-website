@@ -112,7 +112,11 @@ export default async function SalesLeadsPage({
 
   return (
     <>
-      <PageHead title="Sales Leads" subtitle="Unified inbox — public contact enquiries and proposal requests in one pipeline." />
+      <PageHead
+        title="Sales Leads"
+        subtitle="Unified inbox — public contact enquiries and proposal requests in one pipeline."
+        action={<Link href="/admin/sales/leads/new" className="ta-btn ta-btn-primary">+ Create Lead</Link>}
+      />
 
       <form className="ta-toolbar">
         <div className="ta-search">
@@ -128,6 +132,7 @@ export default async function SalesLeadsPage({
           <option value="enquiry">{SOURCE_LABELS.enquiry}</option>
           <option value="proposal_request">{SOURCE_LABELS.proposal_request}</option>
           <option value="marketing_contact">{SOURCE_LABELS.marketing_contact}</option>
+          <option value="internal">{SOURCE_LABELS.internal}</option>
         </select>
         <select name="assigned" defaultValue={sp.assigned ?? ""} className="ta-filter-select" style={{ maxWidth: 180 }} aria-label="Assigned to filter">
           <option value="">Anyone</option>

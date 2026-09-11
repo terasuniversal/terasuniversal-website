@@ -27,6 +27,10 @@ interface ProposalSource {
   industry: string; category: string; programme: string | null; participants: number | null;
   location: string | null; preferred_month: string | null; budget: string | null; objectives: string; notes: string | null; created_at: string;
 }
+interface InternalSource {
+  contact_name: string; company_name: string | null; email: string | null; phone: string | null;
+  course_interest: string | null; notes: string | null; created_at: string;
+}
 
 function MarketingContactSourceDetail({ source }: { source: MarketingContact }) {
   return (
@@ -39,6 +43,20 @@ function MarketingContactSourceDetail({ source }: { source: MarketingContact }) 
           <Detail label="Consent" value={source.consent_status.replace(/_/g, " ")} />
           <Detail label="Created" value={formatMalaysiaDateTime(source.created_at)} />
         </dl>
+      </div>
+    </Card>
+  );
+}
+
+function InternalSourceDetail({ source }: { source: InternalSource }) {
+  return (
+    <Card title="Internal CRM entry">
+      <div className="ta-card-pad">
+        <dl className="ta-kv">
+          <Detail label="Course / Interest" value={source.course_interest} />
+          <Detail label="Created" value={formatMalaysiaDateTime(source.created_at)} />
+        </dl>
+        {source.notes && <><h4 className="ta-subhead">Notes</h4><p className="ta-pre-wrap">{source.notes}</p></>}
       </div>
     </Card>
   );
@@ -73,6 +91,8 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
         ? supabase.from("proposal_requests").select("*").eq("id", row.source_id).maybeSingle()
         : row.lead_source === "marketing_contact"
           ? supabase.from("marketing_contacts").select("*").eq("id", row.source_id).maybeSingle()
+          : row.lead_source === "internal"
+            ? supabase.from("sales_internal_lead_sources").select("*").eq("id", row.source_id).maybeSingle()
           : Promise.resolve({ data: null }),
     supabase.from("sales_activity").select("*").eq("lead_metadata_id", id).order("created_at", { ascending: true }),
     supabase.from("sales_lead_attributions").select("*, marketing_campaigns(name)").eq("lead_metadata_id", id).maybeSingle(),
@@ -94,7 +114,7 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
     supabase.from("sales_lead_metadata").select("qualification_status, temperature, qualification_reason, disqualification_reason, qualification_changed_at, qualification_changed_by, created_at").eq("id", id).maybeSingle(),
   ]);
 
-  const source = sourceResult.data as EnquirySource | ProposalSource | MarketingContact | null;
+  const source = sourceResult.data as EnquirySource | ProposalSource | MarketingContact | InternalSource | null;
   const activityRows = (activityResult.data ?? []) as Array<{ created_at: string; [key: string]: unknown }>;
   const attributionError = attributionResult.error;
   const campaignsError = campaignsResult.error;
@@ -169,6 +189,8 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
             <ProposalDetail source={source as ProposalSource} />
           ) : row.lead_source === "marketing_contact" && source ? (
             <MarketingContactSourceDetail source={source as MarketingContact} />
+          ) : row.lead_source === "internal" && source ? (
+            <InternalSourceDetail source={source as InternalSource} />
           ) : (
             <Card title="Original submission">
               <EmptyState message="The original submission record could not be found — it may have been removed." />
