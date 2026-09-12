@@ -1,0 +1,47 @@
+{
+  "baseline_version": "v3",
+  "baseline_status": "source_generated_schema_only",
+  "production_project_ref": "iagzkrzeuawaxvacqprk",
+  "captured_at": "2026-09-12",
+  "source_application_main_sha": "72d6741ce4e58d52190a42dcbd2ce0a407432128",
+  "latest_canonical_migration": "20260912005428",
+  "included_schemas": ["public", "app"],
+  "excluded_schemas": ["auth", "storage", "realtime", "vault", "supabase_migrations"],
+  "production_inventory": {
+    "tables": 72,
+    "views": 2,
+    "functions": 161,
+    "triggers": 96,
+    "policies": 162,
+    "public_rls_tables": 72,
+    "non_system_sequences": 12,
+    "enum_types": 7,
+    "security_definer_functions": 108
+  },
+  "data_included": false,
+  "auth_users_included": false,
+  "storage_objects_included": false,
+  "secrets_included": false,
+  "production_modified": false,
+  "canonical_staging_modified": false,
+  "sst_ready": true,
+  "sst_active": false,
+  "historical_migrations_rewritten": false,
+  "schema_sha256": "5A7F123069D41A62966E0007FF9E93B593FB72060AAE389E8CA9A913A8B660EF",
+  "bootstrap_sha256": "522A7E66C547E57734F0804F617401017A7F8E4057F93303D3517DFC624EAF03",
+  "generation": {
+    "source": "Production schema-only Baseline V2 plus exact canonical DDL through 20260912005428, checked against the live Production catalog",
+    "canonical_line_endings": "LF",
+    "business_rows": 0,
+    "auth_rows": 0,
+    "storage_rows": 0
+  },
+  "intentional_exclusions": [
+    "Production business rows",
+    "Auth user and identity rows",
+    "Storage object/file rows",
+    "Supabase-managed schemas and platform metadata",
+    "Reference/seed rows such as staff_module_catalog data",
+    "Environment-specific generated IDs and migration ledger rows"
+  ]
+}
