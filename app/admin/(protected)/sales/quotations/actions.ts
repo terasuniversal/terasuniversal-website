@@ -123,6 +123,8 @@ export async function createQuotation(
     sstApplicable: d.sst_applicable,
     sstRate: d.sst_rate,
   });
+  const sstRate = d.sst_applicable ? d.sst_rate : 0;
+  if (totals.taxableAmount < 0 || totals.total < 0) return { message: "Discount cannot exceed the quotation amount." };
 
   const { data: quotation, error } = await supabase
     .from("sales_quotations")
@@ -133,7 +135,8 @@ export async function createQuotation(
       subtotal: totals.subtotal,
       discount: d.discount,
       sst_applicable: d.sst_applicable,
-      sst_rate: d.sst_rate,
+      sst_rate: sstRate,
+      sst_amount: totals.tax,
       tax: totals.tax,
       total: totals.total,
       terms: d.terms || null,
@@ -220,6 +223,8 @@ export async function updateQuotationDraft(
     sstApplicable: d.sst_applicable,
     sstRate: d.sst_rate,
   });
+  const sstRate = d.sst_applicable ? d.sst_rate : 0;
+  if (totals.taxableAmount < 0 || totals.total < 0) return { message: "Discount cannot exceed the quotation amount." };
 
   const { error } = await supabase
     .from("sales_quotations")
@@ -229,7 +234,8 @@ export async function updateQuotationDraft(
       subtotal: totals.subtotal,
       discount: d.discount,
       sst_applicable: d.sst_applicable,
-      sst_rate: d.sst_rate,
+      sst_rate: sstRate,
+      sst_amount: totals.tax,
       tax: totals.tax,
       total: totals.total,
       terms: d.terms || null,
@@ -374,9 +380,14 @@ export async function createRevision(quotationId: string, _prev: SalesActionStat
       currency: source.currency,
       subtotal: source.subtotal,
       discount: source.discount,
-      sst_applicable: source.sst_applicable,
-      sst_rate: source.sst_rate,
-      tax: source.tax,
+       sst_applicable: source.sst_applicable,
+       sst_rate: source.sst_rate,
+       sst_amount: source.sst_amount,
+       tax_label_snapshot: source.tax_label_snapshot,
+       tax_basis_snapshot: source.tax_basis_snapshot,
+       sst_registration_number_snapshot: source.sst_registration_number_snapshot,
+       sst_effective_date_snapshot: source.sst_effective_date_snapshot,
+       tax: source.tax,
       total: source.total,
       terms: source.terms,
       notes: source.notes,

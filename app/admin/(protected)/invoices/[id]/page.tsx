@@ -32,6 +32,14 @@ function fmtDateTime(d: string | null) {
   return new Date(d).toLocaleString("en-MY", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
+function fmtTaxRate(rate: number) {
+  return Number(rate).toLocaleString("en-MY", { maximumFractionDigits: 2 });
+}
+function taxDisplayLabel(label: string | null, rate: number) {
+  const base = label?.trim() || "SST";
+  return rate > 0 && !/%$/.test(base) ? `${base} (${fmtTaxRate(rate)}%)` : base;
+}
+
 export default async function InvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const profile = await requireRole("editor");
   await requireModuleAccess("invoices");
@@ -57,6 +65,8 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
   const { data: invoice } = await supabase.from("invoices").select("*").eq("id", id).maybeSingle();
   if (!invoice) notFound();
   const inv = invoice as InvoiceRow;
+  const showTax = inv.sst_applicable === true || (inv.sst_applicable === null && Number(inv.tax_amount) > 0);
+  const taxLabel = taxDisplayLabel(inv.tax_label_snapshot, Number(inv.tax_rate));
 
   const { data: quotation } = await supabase.from("sales_quotations").select("id, quotation_no").eq("id", inv.quotation_id).maybeSingle();
   const { data: opportunity } = await supabase.from("sales_opportunities").select("id, opportunity_no, company_name").eq("id", inv.opportunity_id).maybeSingle();
@@ -136,7 +146,8 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
 
           <Card title="Line Items">
             {items.length > 0 ? (
-              <div className="ta-table-wrap">
+              <>
+              <div className="ta-table-wrap ta-invoice-desktop-table">
                 <table className="ta-table">
                   <thead><tr><th>Description</th><th>Qty</th><th>Unit</th><th>Unit Price</th><th>Discount</th><th>Line Total</th></tr></thead>
                   <tbody>
@@ -161,6 +172,27 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
                   </tbody>
                 </table>
               </div>
+              <div className="ta-invoice-mobile-items" aria-label="Invoice line items">
+                {items.map((item) => (
+                  <article className="ta-invoice-mobile-item" key={item.id}>
+                    <div className="ta-invoice-mobile-item-title">
+                      {item.course_name_snapshot && <strong>{item.course_name_snapshot}{item.hrdf_claim ? " (HRDF)" : ""}</strong>}
+                      <span>{item.description}</span>
+                      {item.package_includes_snapshot.length > 0 && (
+                        <small>Package Includes: {item.package_includes_snapshot.map((entry) => String(entry.label ?? entry.key ?? "")).filter(Boolean).join(", ")}</small>
+                      )}
+                    </div>
+                    <dl className="ta-invoice-mobile-item-values">
+                      <div><dt>Qty</dt><dd>{item.quantity}</dd></div>
+                      <div><dt>Unit</dt><dd>{item.unit}</dd></div>
+                      <div><dt>Unit Price</dt><dd>{fmt(item.unit_price)}</dd></div>
+                      <div><dt>Discount</dt><dd>{fmt(item.discount)}</dd></div>
+                      <div><dt>Amount</dt><dd><strong>{fmt(item.line_total)}</strong></dd></div>
+                    </dl>
+                  </article>
+                ))}
+              </div>
+              </>
             ) : (
               <EmptyState message="No line items." />
             )}
@@ -168,7 +200,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
               <dl style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 6, margin: 0, maxWidth: 320, marginLeft: "auto" }}>
                 <dt>Subtotal</dt><dd style={{ margin: 0, textAlign: "right" }}>{fmt(inv.subtotal)}</dd>
                 <dt>Discount</dt><dd style={{ margin: 0, textAlign: "right" }}>− {fmt(inv.discount_amount)}</dd>
-                <dt>Tax {inv.tax_rate > 0 ? `(SST ${inv.tax_rate}%)` : "(not applicable)"}</dt><dd style={{ margin: 0, textAlign: "right" }}>{fmt(inv.tax_amount)}</dd>
+                {showTax && <><dt>{taxLabel}</dt><dd style={{ margin: 0, textAlign: "right" }}>{fmt(inv.tax_amount)}</dd></>}
                 <dt><strong>Grand Total</strong></dt><dd style={{ margin: 0, textAlign: "right" }}><strong>{fmt(inv.grand_total)}</strong></dd>
                 <dt>Amount Paid</dt><dd style={{ margin: 0, textAlign: "right" }}>{fmt(inv.amount_paid)}</dd>
                 <dt><strong>Balance Due</strong></dt><dd style={{ margin: 0, textAlign: "right" }}><strong>{fmt(inv.balance_due)}</strong></dd>
@@ -184,7 +216,8 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
 
           <Card title="Payment History">
             {payments.length > 0 ? (
-              <div className="ta-table-wrap">
+              <>
+              <div className="ta-table-wrap ta-invoice-desktop-table">
                 <table className="ta-table">
                   <thead><tr><th>Paid</th><th>Method</th><th>Amount</th><th>Reference</th><th>Status</th></tr></thead>
                   <tbody>
@@ -219,6 +252,18 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
                   </tbody>
                 </table>
               </div>
+              <div className="ta-invoice-mobile-payments" aria-label="Payment history">
+                {payments.map((p) => (
+                  <article className="ta-invoice-mobile-payment" key={p.id}>
+                    <div><span>Paid</span><strong>{fmtDate(p.paid_at)}</strong></div>
+                    <div><span>Method</span><strong>{PAYMENT_PROVIDER_LABELS[p.payment_provider]}</strong>{p.payment_method && <small>{p.payment_method}</small>}</div>
+                    <div><span>Amount</span><strong>{fmt(p.amount)}</strong></div>
+                    <div><span>Reference</span><strong>{p.payment_provider === "toyyibpay" && p.status === "successful" ? (p.provider_transaction_id ?? p.provider_bill_code ?? "—") : (p.payment_reference ?? p.provider_bill_code ?? "—")}</strong></div>
+                    <div><span>Status</span><Badge status={p.status} /></div>
+                  </article>
+                ))}
+              </div>
+              </>
             ) : (
               <EmptyState icon="💳" message="No payments recorded yet." />
             )}

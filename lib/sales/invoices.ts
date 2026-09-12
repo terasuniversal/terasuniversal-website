@@ -64,6 +64,11 @@ export interface InvoiceRow {
   taxable_amount: number;
   tax_rate: number;
   tax_amount: number;
+  sst_applicable: boolean | null;
+  tax_label_snapshot: string | null;
+  tax_basis_snapshot: string | null;
+  sst_registration_number_snapshot: string | null;
+  sst_effective_date_snapshot: string | null;
   grand_total: number;
   amount_paid: number;
   balance_due: number;

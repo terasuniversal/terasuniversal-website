@@ -330,6 +330,11 @@ export interface SalesQuotationRow {
   discount: number;
   sst_applicable: boolean;
   sst_rate: number;
+  sst_amount: number | null;
+  tax_label_snapshot: string | null;
+  tax_basis_snapshot: string | null;
+  sst_registration_number_snapshot: string | null;
+  sst_effective_date_snapshot: string | null;
   tax: number;
   total: number;
   terms: string | null;
