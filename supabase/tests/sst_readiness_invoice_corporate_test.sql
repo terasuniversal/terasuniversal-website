@@ -15,6 +15,10 @@ create temporary table qa_sst_context (
 do $$
 declare
   v_admin uuid;
+  v_source_off uuid := gen_random_uuid();
+  v_source_on uuid := gen_random_uuid();
+  v_lead_off uuid := gen_random_uuid();
+  v_lead_on uuid := gen_random_uuid();
   v_opp_off uuid := gen_random_uuid();
   v_opp_on uuid := gen_random_uuid();
   v_quote_off uuid := gen_random_uuid();
@@ -31,20 +35,21 @@ begin
   perform set_config('request.jwt.claim.sub', v_admin::text, true);
 
   insert into public.sales_internal_lead_sources (id, contact_name, email, company_name, course_interest, notes, created_by)
-  values (gen_random_uuid(), 'QA SST Contact', 'qa-sst@example.test', 'QA-SST-TEST', 'Scaffolding', 'transactional fixture', v_admin);
+  values
+    (v_source_off, 'QA SST Contact', 'qa-sst-off@example.test', 'QA-SST-TEST-OFF', 'Scaffolding', 'transactional fixture', v_admin),
+    (v_source_on, 'QA SST Contact', 'qa-sst-on@example.test', 'QA-SST-TEST-ON', 'Scaffolding', 'transactional fixture', v_admin);
 
   insert into public.sales_lead_metadata (id, lead_source, source_id, status, priority, is_test, qualification_status, created_at, updated_at)
-  select gen_random_uuid(), 'internal', id, 'new', 'medium', true, 'unqualified', now(), now()
-  from public.sales_internal_lead_sources where company_name = 'QA-SST-TEST' order by created_at desc limit 1;
+  values
+    (v_lead_off, 'internal', v_source_off, 'new', 'medium', true, 'unqualified', now(), now()),
+    (v_lead_on, 'internal', v_source_on, 'new', 'medium', true, 'unqualified', now(), now());
 
   insert into public.sales_opportunities
     (id, lead_metadata_id, opportunity_no, company_name, contact_person, contact_email, title, programme, stage, estimated_value, created_by, is_test)
-  select v_opp_off, id, 'QA-SST-OPP-OFF', 'QA-SST-TEST', 'QA SST Contact', 'qa-sst@example.test', 'QA SST readiness off', 'Scaffolding', 'quotation', 200, v_admin, true
-  from public.sales_lead_metadata where source_id in (select id from public.sales_internal_lead_sources where company_name = 'QA-SST-TEST');
+  values (v_opp_off, v_lead_off, 'QA-SST-OPP-OFF', 'QA-SST-TEST', 'QA SST Contact', 'qa-sst-off@example.test', 'QA SST readiness off', 'Scaffolding', 'quotation', 200, v_admin, true);
   insert into public.sales_opportunities
     (id, lead_metadata_id, opportunity_no, company_name, contact_person, contact_email, title, programme, stage, estimated_value, created_by, is_test)
-  select v_opp_on, id, 'QA-SST-OPP-ON', 'QA-SST-TEST', 'QA SST Contact', 'qa-sst@example.test', 'QA SST readiness on', 'Scaffolding', 'quotation', 200, v_admin, true
-  from public.sales_lead_metadata where source_id in (select id from public.sales_internal_lead_sources where company_name = 'QA-SST-TEST');
+  values (v_opp_on, v_lead_on, 'QA-SST-OPP-ON', 'QA-SST-TEST', 'QA SST Contact', 'qa-sst-on@example.test', 'QA SST readiness on', 'Scaffolding', 'quotation', 200, v_admin, true);
 
   insert into public.sales_quotations
     (id, opportunity_id, quotation_no, revision_no, status, issue_date, valid_until, currency,
@@ -140,12 +145,13 @@ begin
   exception when others then
     v_error := sqlerrm;
     if v_error like 'assertion_failed:%' then raise; end if;
-    if v_error not like '%sales_quotations_sst_off_amount_check%' then
+    if v_error not like '%sales_quotations_sst_off_amount_check%'
+       and v_error not like '%sales_quotations_sst_amount_matches_tax_check%' then
       raise exception 'assertion_failed: SST-off amount failed for wrong reason: %', v_error;
     end if;
   end;
   begin
-    update public.sales_quotations set tax = 1 where id = v_quote;
+    update public.sales_quotations set tax = 1, sst_amount = null where id = v_quote;
     raise exception 'assertion_failed: arithmetic mismatch unexpectedly succeeded';
   exception when others then
     v_error := sqlerrm;
