@@ -194,7 +194,33 @@ export async function loadCertificateRender(id: string): Promise<
   if (!cert) return null;
 
   const c = cert as any;
-  let tpl = c.certificate_templates as { config?: TemplateConfig } | null;
+  const { data: issuanceSnapshot, error: snapshotError } = await supabase
+    .from("certificate_issuance_snapshots")
+    .select("snapshot_version, renderer_version, holder_name, identity_no, identity_last4, course_name, training_start_date, training_end_date, venue, trainer_name, template_id, template_name, template_config, signature_reference, verification_metadata, render_payload")
+    .eq("certificate_id", c.id)
+    .maybeSingle();
+  if (snapshotError) {
+    console.error("certData: issuance snapshot lookup failed", { certificateId: c.id, message: snapshotError.message });
+    throw new Error("Certificate historical snapshot is unavailable; rendering stopped safely.");
+  }
+  const snapshot = (issuanceSnapshot ?? null) as {
+    renderer_version?: string | null;
+    holder_name?: string | null;
+    identity_no?: string | null;
+    course_name?: string | null;
+    training_start_date?: string | null;
+    training_end_date?: string | null;
+    venue?: string | null;
+    trainer_name?: string | null;
+    template_config?: TemplateConfig | null;
+    signature_reference?: string | null;
+    verification_metadata?: Record<string, unknown> | null;
+    render_payload?: Record<string, unknown> | null;
+  } | null;
+  const renderMode = snapshot ? "MODERN_SNAPSHOT" : "LEGACY_FALLBACK";
+  let tpl = snapshot
+    ? { config: snapshot.template_config ?? {} }
+    : c.certificate_templates as { config?: TemplateConfig } | null;
 
   // The great majority of live certificates have template_id = null (issued
   // before per-course template assignment existed), which would otherwise
@@ -207,7 +233,7 @@ export async function loadCertificateRender(id: string): Promise<
   // Erection certificate the moment that template's is_default/is_active
   // flags line up. Only a truly generic template (no design_variant) is
   // eligible as this blind fallback.
-  if (!tpl) {
+  if (!snapshot && !tpl) {
     const { data: def } = await supabase
       .from("certificate_templates")
       .select("config")
@@ -220,6 +246,7 @@ export async function loadCertificateRender(id: string): Promise<
     tpl = def ?? null;
   }
   const config: TemplateConfig = { ...((tpl?.config as TemplateConfig) ?? {}) };
+  if (snapshot?.signature_reference) config.signature_url = snapshot.signature_reference;
 
   // Standard Scaffold family: the shared certificate_templates row deliberately
   // holds no per-programme content of its own (see
@@ -235,7 +262,7 @@ export async function loadCertificateRender(id: string): Promise<
   // (only Basic and Advanced Erector have it on as of this check) and is
   // untouched by this merge -- binding a template is separate from enabling
   // generation from it.
-  if (config.design_variant === "standard_scaffold_certificate") {
+  if (!snapshot && config.design_variant === "standard_scaffold_certificate") {
     const programme = findStandardScaffoldProgrammeByCourseId(c.course_id);
     if (programme) {
       config.programme_title ??= programme.programme_title;
@@ -281,7 +308,7 @@ export async function loadCertificateRender(id: string): Promise<
   // 2026-08-21). Inert today: no live certificate_templates row has this
   // design_variant yet (no migration has been created or applied for this
   // family).
-  if (config.design_variant === "working_at_height_certificate") {
+  if (!snapshot && config.design_variant === "working_at_height_certificate") {
     const programme = findWorkingAtHeightProgrammeByCourseId(c.course_id);
     if (programme) {
       config.programme_title ??= programme.programme_title;
@@ -298,7 +325,11 @@ export async function loadCertificateRender(id: string): Promise<
     config.wah_watermark ??= true;
   }
 
-  const certificateNumber: string = c.certificate_number || c.certificate_no;
+  const verificationMetadata = snapshot?.verification_metadata ?? {};
+  const renderPayload = snapshot?.render_payload ?? {};
+  const certificateNumber: string = String(
+    verificationMetadata.certificate_number ?? renderPayload.certificate_number ?? c.certificate_number ?? c.certificate_no ?? ""
+  );
   const origin = await siteOrigin();
   // Prefer the certificate's own stored verification_url — issuance
   // (app/admin/(protected)/certificates/actions.ts) sets this from
@@ -306,8 +337,12 @@ export async function loadCertificateRender(id: string): Promise<
   // matches on either token or certificate_number, so both resolve the same
   // way. Only build a fresh one from the certificate number for the many
   // legacy rows issued before verification_token/verification_url existed.
-  const verificationUrl: string | null =
-    c.verification_url || (certificateNumber ? `${origin}/verify/${encodeURIComponent(certificateNumber)}` : null);
+  const storedVerificationPath = typeof verificationMetadata.verification_path === "string" ? verificationMetadata.verification_path : null;
+  const verificationUrl: string | null = snapshot
+    ? (storedVerificationPath
+      ? (storedVerificationPath.startsWith("http") ? storedVerificationPath : `${origin}${storedVerificationPath}`)
+      : (certificateNumber ? `${origin}/verify/${encodeURIComponent(certificateNumber)}` : null))
+    : (c.verification_url || (certificateNumber ? `${origin}/verify/${encodeURIComponent(certificateNumber)}` : null));
 
   // Generated once here (not as an <img> pointed at a third-party API) so it
   // renders identically in the browser preview, the print/PDF page, and the
@@ -349,17 +384,21 @@ export async function loadCertificateRender(id: string): Promise<
           : null;
 
   const data: CertData = {
+    render_mode: renderMode,
+    renderer_version: snapshot?.renderer_version ?? null,
     certificate_number: certificateNumber,
-    holder_name: c.holder_name || c.participant_name,
-    course_name: c.course_name ?? c.courses?.title ?? null,
-    programme_duration: c.courses?.duration ?? null,
-    ic_passport: c.identity_no ?? c.participants?.ic_passport_no ?? null,
+    holder_name: snapshot?.holder_name ?? c.holder_name ?? c.participant_name,
+    course_name: snapshot?.course_name ?? c.course_name ?? c.courses?.title ?? null,
+    programme_duration: snapshot
+      ? (typeof renderPayload.programme_duration === "string" ? renderPayload.programme_duration : config.duration_label ?? null)
+      : c.courses?.duration ?? null,
+    ic_passport: snapshot?.identity_no ?? c.identity_no ?? c.participants?.ic_passport_no ?? null,
     participant_id: c.participants?.participant_id ?? null,
-    training_date: fmtDate(c.training_start_date),
-    training_end_date: fmtDate(c.training_end_date),
-    venue: c.venue ?? null,
-    trainer: c.trainer_name ?? c.instructor ?? null,
-    issue_date: fmtDate(c.issue_date),
+    training_date: fmtDate(snapshot?.training_start_date ?? c.training_start_date),
+    training_end_date: fmtDate(snapshot?.training_end_date ?? c.training_end_date),
+    venue: snapshot?.venue ?? c.venue ?? null,
+    trainer: snapshot?.trainer_name ?? c.trainer_name ?? c.instructor ?? null,
+    issue_date: fmtDate(typeof renderPayload.issue_date === "string" ? renderPayload.issue_date : c.issue_date),
     // verify_and_log (the canonical verification RPC — see app/verify/*)
     // matches on either verification_token or certificate_number, so the
     // stored verification_url (built from the token at issuance) and a

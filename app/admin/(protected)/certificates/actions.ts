@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { requireModuleAccess, requireCertificate } from "../../../../lib/auth/session";
 import { siteOrigin } from "../../../../lib/site-origin";
+import { certificateReissueSchema } from "../../../../lib/validation/schemas";
 
 /**
  * Shape returned by v_certificate_eligibility (see the migration that
@@ -181,11 +182,26 @@ export async function revokeCertificate(id: string, formData?: FormData) {
   revalidatePath(`/admin/certificates/${id}`);
 }
 
-export async function reissueCertificate(id: string) {
+export async function reissueCertificate(id: string, formData: FormData) {
   await requireCertificate(true);
   await requireModuleAccess("certificates");
   const supabase = await createSupabaseServerClient();
-  await supabase.from("certificates").update({ status: "valid", issue_date: new Date().toISOString().slice(0, 10) }).eq("id", id);
+  const parsed = certificateReissueSchema.safeParse({
+    event_type: formData.get("event_type"),
+    reason: formData.get("reason"),
+  });
+  if (!parsed.success) throw new Error("Please provide a valid reissue type and reason.");
+  const { event_type: eventType, reason } = parsed.data;
+  const { error } = await supabase.rpc("reissue_certificate", {
+    p_certificate_id: id,
+    p_event_type: eventType,
+    p_reason: reason || null,
+    p_notes: {},
+  });
+  if (error) {
+    console.error("Certificate reissue event failed", { certificateId: id, code: error.code });
+    throw new Error("Unable to record the reissue event.");
+  }
   revalidatePath("/admin/certificates");
   revalidatePath(`/admin/certificates/${id}`);
 }

@@ -29,7 +29,7 @@ function certificatePayload(form, ids = {}) {
   return { ...ids, participant_name: String(form?.participant_name || "").trim(), course_name: String(form?.course_name || "").trim(), certificate_no: String(form?.certificate_no || "").trim().toUpperCase(), training_start_date: form?.course_date || null, training_end_date: form?.course_end_date || null, issue_date: form?.course_date || null, expiry_date: form?.expiry_date || null, status: ["valid", "expired", "revoked"].includes(form?.status) ? form.status : "valid", trainer_name: String(form?.instructor || "").trim() || null, venue: String(form?.venue || "").trim() || null, identity_no: String(form?.identity_no || "").trim().toUpperCase() || null, instructor: String(form?.instructor || "").trim() || null, certificate_file_url: String(form?.certificate_file_url || "").trim() || null, public_verification_enabled: form?.public_verification_enabled !== false };
 }
 
-async function createRecord(client, form) {
+async function createLegacyRecord(client, form) {
   const required = ["participant_name", "identity_no", "course_name", "course_date", "certificate_no"];
   if (required.some((field) => !String(form?.[field] || "").trim())) return "Medan wajib tidak lengkap.";
   const dateError = validateCourseDates(form);
@@ -57,7 +57,7 @@ async function createRecord(client, form) {
 
 export async function GET(request) {
   const auth = await requireAdmin(); if (auth.response) return auth.response;
-  const { data, error } = await auth.client.from("certificates").select("*").order("created_at", { ascending: false });
+  const { data, error } = await auth.client.from("certificates").select("*").is("deleted_at", null).order("created_at", { ascending: false });
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json({ rows: data || [] });
 }
@@ -66,28 +66,22 @@ export async function POST(request) {
   const auth = await requireAdmin({ manage: true }); if (auth.response) return auth.response;
   let body; try { body = await request.json(); } catch { return NextResponse.json({ error: "Permintaan tidak sah." }, { status: 400 }); }
   const action = body?.action;
+  if (action === "create" || action === "update") {
+    return NextResponse.json({ error: "Modern certificate creation/editing must use the canonical eligibility and issuance flow." }, { status: 409 });
+  }
   if (action === "delete") {
-    const { error } = await auth.client.from("certificates").delete().eq("id", body.id);
+    const { error } = await auth.client.from("certificates").update({ deleted_at: new Date().toISOString() }).eq("id", body.id);
     if (error) return NextResponse.json({ error: error.message }, { status: 400 }); return NextResponse.json({ ok: true });
   }
-  if (action === "update") {
-    const dateError = validateCourseDates(body.form);
-    if (dateError) return NextResponse.json({ error: dateError }, { status: 400 });
-    const { error } = await auth.client.from("certificates").update(certificatePayload(body.form)).eq("id", body.id);
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 }); return NextResponse.json({ ok: true });
-  }
-  if (action === "create") {
-    const error = await createRecord(auth.client, body.form || {});
-    if (error) return NextResponse.json({ error }, { status: 400 }); return NextResponse.json({ ok: true });
-  }
-  if (action === "bulk") {
+  if (action === "legacy_import") {
     const sourceRows = Array.isArray(body.rows) ? body.rows : [];
     if (!sourceRows.length) return NextResponse.json({ error: "Tiada rekod untuk diimport." }, { status: 400 });
     if (sourceRows.length > 500) return NextResponse.json({ error: "Maksimum 500 rekod untuk satu import." }, { status: 400 });
     let imported = 0; const errors = [];
-    for (const row of sourceRows) { const error = await createRecord(auth.client, row); if (error) errors.push(`Baris ${row._row || imported + errors.length + 2}: ${error}`); else imported += 1; }
+    for (const row of sourceRows) { const error = await createLegacyRecord(auth.client, row); if (error) errors.push(`Baris ${row._row || imported + errors.length + 2}: ${error}`); else imported += 1; }
     return NextResponse.json({ ok: errors.length === 0, imported, failed: errors.length, errors });
   }
+  if (action === "bulk") return NextResponse.json({ error: "Use the explicit legacy_import action for historical certificate imports." }, { status: 409 });
   if (action === "log") {
     const { error } = await auth.client.from("certificate_import_logs").insert({ created_by: auth.userId, source: body.source === "pdf" ? "pdf" : "csv", source_file_count: Number(body.source_count || 0), row_count: Number(body.row_count || 0), imported_count: Number(body.imported_count || 0), skipped_count: Number(body.skipped_count || 0), error_count: Number(body.error_count || 0), status: body.status || "completed", error_summary: Array.isArray(body.errors) ? body.errors.slice(0, 50) : [] });
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });

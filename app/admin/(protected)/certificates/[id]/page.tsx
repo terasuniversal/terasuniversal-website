@@ -10,6 +10,14 @@ import { revokeCertificate, reissueCertificate, duplicateCertificate, updateCert
 import { EmptyState } from "../../../../../components/admin/ui";
 import { formatMalaysiaDateTime } from "../../../../../lib/date-time";
 
+interface ReissueHistoryRow {
+  id: string;
+  event_type: string;
+  reason: string | null;
+  reissued_at: string;
+  reissued_by: string;
+}
+
 export const metadata = { title: "Certificate — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
 
@@ -30,6 +38,13 @@ await requireModuleAccess("certificates");
     .eq("certificate_id", id)
     .order("verified_at", { ascending: false })
     .limit(15);
+  const { data: reissueHistory, error: reissueHistoryError } = await supabase
+    .from("certificate_reissue_events")
+    .select("id, event_type, reason, reissued_at, reissued_by")
+    .eq("certificate_id", id)
+    .order("reissued_at", { ascending: false })
+    .limit(20);
+  if (reissueHistoryError) throw new Error("Unable to load certificate reissue history.");
 
   return (
     <>
@@ -46,6 +61,7 @@ await requireModuleAccess("certificates");
 
       <div style={{ marginBottom: 16, display: "flex", gap: 10, alignItems: "center" }}>
         <Badge status={cert.status} />
+        {r.data.render_mode && <span style={{ fontSize: 12, color: "var(--ta-muted)" }}>{r.data.render_mode}{r.data.renderer_version ? ` · ${r.data.renderer_version}` : ""}</span>}
         {r.data.verification_url && <a href={r.data.verification_url} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: "var(--ta-info)" }}>Public verification link ↗</a>}
       </div>
 
@@ -83,10 +99,39 @@ await requireModuleAccess("certificates");
               <Card title="Actions">
                 <div className="ta-card-pad" style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                   {cert.status !== "revoked" && <form action={revokeCertificate.bind(null, id)}><button className="ta-btn ta-btn-danger">Revoke</button></form>}
-                  <form action={reissueCertificate.bind(null, id)}><button className="ta-btn ta-btn-gold">Reissue</button></form>
+                  <form action={reissueCertificate.bind(null, id)} style={{ display: "flex", gap: 8, alignItems: "end", flexWrap: "wrap" }}>
+                    <label style={{ fontSize: 12 }}>Event
+                      <select name="event_type" defaultValue="reissue" style={{ display: "block", marginTop: 4 }}>
+                        <option value="reissue">Reissue</option>
+                        <option value="reprint">Reprint</option>
+                      </select>
+                    </label>
+                    <label style={{ fontSize: 12 }}>Reason
+                      <input name="reason" required maxLength={500} style={{ display: "block", marginTop: 4 }} />
+                    </label>
+                    <button className="ta-btn ta-btn-gold">Record event</button>
+                  </form>
                   <form action={duplicateCertificate.bind(null, id)}><button className="ta-btn ta-btn-outline">Duplicate</button></form>
                   <button className="ta-btn ta-btn-outline" disabled title="Email delivery — coming soon">✉ Email (soon)</button>
                   <form action={softDeleteCertificate.bind(null, id)}><button className="ta-btn ta-btn-outline">Delete</button></form>
+                </div>
+              </Card>
+
+              <Card title="Reissue History">
+                <div className="ta-card-pad">
+                  {reissueHistory && reissueHistory.length > 0 ? (
+                    <div className="ta-table-wrap"><table className="ta-table">
+                      <thead><tr><th>When</th><th>Type</th><th>Reason</th><th>Actor</th></tr></thead>
+                      <tbody>{(reissueHistory as ReissueHistoryRow[]).map((event) => (
+                        <tr key={event.id}>
+                          <td style={{ whiteSpace: "nowrap" }}>{formatMalaysiaDateTime(event.reissued_at)}</td>
+                          <td>{event.event_type}</td>
+                          <td>{event.reason ?? "—"}</td>
+                          <td style={{ fontFamily: "monospace", fontSize: 11 }}>{event.reissued_by ?? "—"}</td>
+                        </tr>
+                      ))}</tbody>
+                    </table></div>
+                  ) : <EmptyState icon="↻" message="No reissue or reprint events recorded." />}
                 </div>
               </Card>
 
