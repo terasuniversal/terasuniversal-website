@@ -14,7 +14,7 @@ export default async function StaffDetailPage({ params, searchParams }: { params
   const supabase = await createSupabaseServerClient();
   const [{ data: profile }, { data: access }] = await Promise.all([
     supabase.from("profiles").select("id,email,full_name,department,role,is_active,access_control_enabled").eq("id", id).maybeSingle(),
-    supabase.from("staff_module_access").select("module_key").eq("user_id", id),
+    supabase.from("staff_module_access").select("module_key, access_level").eq("user_id", id),
   ]);
   if (!profile) notFound();
   const sp = await searchParams;
@@ -25,7 +25,7 @@ export default async function StaffDetailPage({ params, searchParams }: { params
       <PageHead title="Staff User" subtitle={`${staff.email} · ${staff.role.replace("_", " ")}`} action={<Link href="/admin/users" className="ta-btn ta-btn-outline">Back to Staff Users</Link>} />
       {(sp.saved || sp.resent) && <p className="ta-card ta-card-pad" role="status">{sp.resent ? "Invitation sent." : "Staff access saved."}</p>}
       <div className="ta-card ta-card-pad">
-        <StaffUserForm profile={{ ...staff, moduleKeys: (access ?? []).map((row: { module_key: string }) => row.module_key) }} />
+        <StaffUserForm profile={{ ...staff, moduleAccess: (access ?? []).map((row: { module_key: string; access_level: string }) => ({ moduleKey: row.module_key, accessLevel: row.access_level })) }} />
       </div>
       <div className="ta-card ta-card-pad" style={{ marginTop: 18 }}>
         <h3 style={{ marginTop: 0 }}>Invitation</h3>

@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createSupabaseServerClient, createSupabaseServiceClient } from "../../../../lib/supabase/server";
 import { requireModuleAccess } from "../../../../lib/auth/session";
-import { MODULE_CATALOG, STAFF_ROLES } from "../../../../lib/auth/rbac";
+import { MODULE_CATALOG, STAFF_ROLES, type ModuleAccessLevel } from "../../../../lib/auth/rbac";
 import type { UserRole } from "../../../../lib/supabase/database.types";
 
 // Matches the live public.staff_department enum exactly (verified against
@@ -18,6 +18,7 @@ const moduleKeys = new Set(MODULE_CATALOG.map((module) => module.key));
 // access_control_enabled=false, custom maps to true. Never inferred from
 // whether module_key checkboxes happen to be present; see actions below.
 const accessModeValues = ["role_default", "custom"] as const;
+const moduleAccessLevels = ["view", "edit", "admin"] as const;
 
 export type StaffActionState = { error?: string };
 
@@ -53,6 +54,24 @@ function getModuleKeys(formData: FormData) {
   return unique.length === requested.length && unique.every((key) => moduleKeys.has(key)) ? unique : null;
 }
 
+function getModuleAccessLevels(formData: FormData, modules: string[]) {
+  const raw = formData.get("module_access");
+  if (raw === null || raw === "") return new Map<string, ModuleAccessLevel>();
+  if (typeof raw !== "string") return null;
+  try {
+    const parsed = z.array(z.object({
+      module_key: z.string(),
+      access_level: z.enum(moduleAccessLevels),
+    })).safeParse(JSON.parse(raw));
+    if (!parsed.success || parsed.data.length !== modules.length) return null;
+    const requestedKeys = parsed.data.map((item) => item.module_key);
+    if (new Set(requestedKeys).size !== requestedKeys.length || requestedKeys.some((key) => !modules.includes(key))) return null;
+    return new Map(parsed.data.map((item) => [item.module_key, item.access_level] as const));
+  } catch {
+    return null;
+  }
+}
+
 /** Service-role client is used ONLY for GoTrue admin operations (invite/delete
  * a user) that have no RLS-respecting equivalent -- never for routine
  * profiles/staff_module_access writes, which go through the guarded RPCs
@@ -73,7 +92,9 @@ function invitationRedirectUrl() {
 function requestedModulesOrError(formData: FormData) {
   const modules = getModuleKeys(formData);
   if (!modules) return { error: "One or more module selections are invalid." } as const;
-  return { modules } as const;
+  const accessLevels = getModuleAccessLevels(formData, modules);
+  if (accessLevels === null) return { error: "One or more module access levels are invalid." } as const;
+  return { modules, accessLevels } as const;
 }
 
 /**
@@ -191,7 +212,7 @@ export async function inviteStaffAction(_prev: StaffActionState, formData: FormD
   if (isCustom) {
     const { error: accessError } = await supabase.rpc("set_staff_module_access", {
       p_user_id: userId,
-      p_modules: requested.modules.map((module_key) => ({ module_key, access_level: "view" })),
+      p_modules: requested.modules.map((module_key) => ({ module_key, access_level: requested.accessLevels.get(module_key) ?? "view" })),
     });
     if (accessError) {
       console.error("inviteStaffAction: set_staff_module_access failed", { message: accessError.message, userId });
@@ -264,16 +285,16 @@ export async function inviteStaffAction(_prev: StaffActionState, formData: FormD
  * Audit: no manual audit call. Both RPC calls fire the existing DB triggers
  * automatically, with the real authenticated actor.
  *
- * Module access is only ever submitted as a set of keys (StaffUserForm has
- * no access-level control), so set_staff_module_access -- which fully
- * replaces the target's staff_module_access rows on every call -- must never
- * be called with a manufactured level. Before writing, this reads the
- * target's CURRENT levels and reuses them for every retained key, defaulting
- * only genuinely new keys to "view"; and it skips the RPC call entirely when
- * the submitted key set is unchanged, so a profile-only edit (department,
- * name, status) never touches staff_module_access or its audit trail. A
- * production incident on 2026-08-21 confirmed the prior always-"view"
- * payload silently downgraded existing edit/admin grants on every save.
+ * Module access is submitted as selected keys plus reviewed access levels,
+ * so set_staff_module_access -- which fully replaces the target's
+ * staff_module_access rows on every call -- must never be called with a
+ * manufactured level. Before writing, this reads the target's CURRENT levels
+ * and reuses them for every retained key, defaulting only genuinely new keys
+ * to "view"; and it skips the RPC call entirely when the submitted key set
+ * is unchanged, so a profile-only edit (department, name, status) never
+ * touches staff_module_access or its audit trail. A production incident on
+ * 2026-08-21 confirmed the prior always-"view" payload silently downgraded
+ * existing edit/admin grants on every save.
  */
 export async function updateStaffAction(_prev: StaffActionState, formData: FormData): Promise<StaffActionState> {
   await requireModuleAccess("users", "admin");
@@ -323,7 +344,7 @@ export async function updateStaffAction(_prev: StaffActionState, formData: FormD
       module_key,
       module_key === "hrdf_claims" && targetIsNonAdmin
         ? "view"
-        : currentLevelByKey.get(module_key) ?? "view",
+        : requested.accessLevels.get(module_key) ?? currentLevelByKey.get(module_key) ?? "view",
     ]),
   );
   const moduleSelectionChanged =

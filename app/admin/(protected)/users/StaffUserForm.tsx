@@ -1,15 +1,25 @@
 "use client";
 
 import { useActionState, useState, type FormEvent } from "react";
-import { DEPARTMENTS, MODULE_CATALOG } from "../../../../lib/auth/rbac";
+import { DEPARTMENTS, MODULE_CATALOG, SALES_STAFF_PRESET, type ModuleAccessLevel } from "../../../../lib/auth/rbac";
 import { inviteStaffAction, updateStaffAction, type StaffActionState } from "./actions";
 import type { Profile, UserRole } from "../../../../lib/supabase/database.types";
 
 type AccessMode = "role_default" | "custom";
 
 type StaffFormProfile = Pick<Profile, "id" | "email" | "full_name" | "department" | "role" | "is_active" | "access_control_enabled"> & {
-  moduleKeys: string[];
+  moduleAccess: Array<{ moduleKey: string; accessLevel: string }>;
 };
+
+const ACCESS_LEVEL_LABELS: Record<ModuleAccessLevel, string> = {
+  view: "View",
+  edit: "Edit",
+  admin: "Admin",
+};
+
+function accessLevelOrView(value: string): ModuleAccessLevel {
+  return value === "edit" || value === "admin" ? value : "view";
+}
 
 export function StaffUserForm({ profile }: { profile?: StaffFormProfile }) {
   const edit = Boolean(profile);
@@ -27,10 +37,27 @@ export function StaffUserForm({ profile }: { profile?: StaffFormProfile }) {
   // either way when the mode is role_default -- see the submit gate below),
   // so toggling back to Custom restores whatever was selected before.
   const [mode, setMode] = useState<AccessMode>(profile?.access_control_enabled ? "custom" : "role_default");
-  const [selected, setSelected] = useState<string[]>(profile?.moduleKeys ?? []);
+  const [selected, setSelected] = useState<string[]>(profile?.moduleAccess.map((item) => item.moduleKey) ?? []);
+  const [levels, setLevels] = useState<Record<string, ModuleAccessLevel>>(
+    Object.fromEntries(profile?.moduleAccess.map((item) => [item.moduleKey, accessLevelOrView(item.accessLevel)]) ?? []),
+  );
+  const [presetApplied, setPresetApplied] = useState(false);
 
   function toggleModule(key: string) {
-    setSelected((current) => current.includes(key) ? current.filter((item) => item !== key) : [...current, key]);
+    setSelected((current) => {
+      if (current.includes(key)) return current.filter((item) => item !== key);
+      setLevels((previous) => ({ ...previous, [key]: previous[key] ?? "view" }));
+      return [...current, key];
+    });
+  }
+
+  function applySalesPreset() {
+    setDepartment(SALES_STAFF_PRESET.department);
+    setRole(SALES_STAFF_PRESET.role);
+    setMode("custom");
+    setSelected(SALES_STAFF_PRESET.modules.map((module) => module.moduleKey));
+    setLevels(Object.fromEntries(SALES_STAFF_PRESET.modules.map((module) => [module.moduleKey, module.accessLevel])));
+    setPresetApplied(true);
   }
 
   const showsAccessControls = role !== "super_admin";
@@ -79,6 +106,17 @@ export function StaffUserForm({ profile }: { profile?: StaffFormProfile }) {
 
       <fieldset style={{ border: "1px solid var(--ta-line)", borderRadius: 12, padding: 16 }}>
         <legend style={{ padding: "0 8px", fontWeight: 700 }}>Module Access</legend>
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
+          <button type="button" className="ta-btn ta-btn-outline ta-btn-sm" onClick={applySalesPreset}>
+            {edit ? "Apply Sales Staff preset" : "Use Sales Staff preset"}
+          </button>
+          <small style={{ color: "var(--ta-muted)" }}>Draft only — review the modules below before saving.</small>
+        </div>
+        {presetApplied && (
+          <p className="ta-card ta-card-pad" role="status" style={{ margin: "0 0 14px", fontSize: 13 }}>
+            Sales Staff draft applied: Editor, Sales, and Custom Module Access are selected. Nothing is saved until you submit this form.
+          </p>
+        )}
         {!showsAccessControls ? (
           <p style={{ color: "var(--ta-muted)", margin: 0 }}>Super Admin is unrestricted and does not require permission rows.</p>
         ) : (
@@ -97,15 +135,20 @@ export function StaffUserForm({ profile }: { profile?: StaffFormProfile }) {
               <p style={{ color: "var(--ta-muted)", margin: 0, fontSize: 13 }}>This staff member gets the default modules for their role. No explicit module list is stored or used.</p>
             ) : (
               <>
+                <input type="hidden" name="module_access" value={JSON.stringify(selected.map((moduleKey) => ({ module_key: moduleKey, access_level: levels[moduleKey] ?? "view" })))} />
                 <div className="ta-grid cols-2">
                   {MODULE_CATALOG.map((module) => (
                     <label key={module.key} style={{ display: "flex", gap: 8, alignItems: "center" }}>
                       <input type="checkbox" name="module_key" value={module.key} checked={selected.includes(module.key)} onChange={() => toggleModule(module.key)} />
                       <span>{module.label}{module.key === "hrdf_claims" ? " (view only for non-admin staff)" : ""}</span>
                       <small style={{ color: "var(--ta-muted)" }}>{module.group}</small>
+                      {selected.includes(module.key) && <small style={{ color: "var(--ta-muted)", minWidth: 38 }}>{ACCESS_LEVEL_LABELS[levels[module.key] ?? "view"]}</small>}
                     </label>
                   ))}
                 </div>
+                <p style={{ color: "var(--ta-muted)", margin: "12px 0 0", fontSize: 13 }}>
+                  Access levels are shown for review. New custom modules default to View; existing saved levels remain unchanged unless this draft replaces the selection.
+                </p>
                 {customWithNoModules && (
                   <p className="ta-error" role="alert" style={{ marginTop: 10, marginBottom: 0 }}>
                     Select at least one module for Custom Module Access, or choose Role Default Access.

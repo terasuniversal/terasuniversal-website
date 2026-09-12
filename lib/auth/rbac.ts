@@ -56,6 +56,17 @@ export interface ModuleDefinition {
   minRole: UserRole;
 }
 
+export type ModuleAccessLevel = "view" | "edit" | "admin";
+
+export interface StaffAccessPreset {
+  id: string;
+  label: string;
+  role: UserRole;
+  department: StaffDepartment;
+  accessControlEnabled: true;
+  modules: readonly { moduleKey: string; accessLevel: Exclude<ModuleAccessLevel, "admin"> }[];
+}
+
 /** Application mirror of public.staff_module_catalog. */
 export const MODULE_CATALOG: ModuleDefinition[] = [
   ["dashboard", "Dashboard", "Overview", "editor"],
@@ -142,6 +153,31 @@ export const SALES_MODULE_KEYS = [
   "sales_reports",
 ] as const;
 
+/**
+ * Snapshot used by Staff User Management only. Applying it changes the form
+ * draft; it is never a dynamic policy and never synchronizes existing staff.
+ * The module keys mirror the live Sales catalog rows, with HRDF deliberately
+ * pinned to view for the non-admin Editor profile this preset creates.
+ */
+export const SALES_STAFF_PRESET = {
+  id: "sales_staff",
+  label: "Sales Staff",
+  role: "editor",
+  department: "sales",
+  accessControlEnabled: true,
+  modules: [
+    { moduleKey: "sales", accessLevel: "view" },
+    { moduleKey: "sales_leads", accessLevel: "edit" },
+    { moduleKey: "sales_opportunities", accessLevel: "edit" },
+    { moduleKey: "sales_quotations", accessLevel: "edit" },
+    { moduleKey: "invoices", accessLevel: "view" },
+    { moduleKey: "hrdf_claims", accessLevel: "view" },
+    { moduleKey: "sales_followups", accessLevel: "edit" },
+    { moduleKey: "sales_tasks", accessLevel: "edit" },
+    { moduleKey: "sales_reports", accessLevel: "view" },
+  ],
+} as const satisfies StaffAccessPreset;
+
 export const DEPARTMENTS: Array<{ value: StaffDepartment; label: string }> = [
   { value: "sales", label: "Sales" },
   { value: "marketing", label: "Marketing" },
@@ -152,7 +188,9 @@ export const DEPARTMENTS: Array<{ value: StaffDepartment; label: string }> = [
   { value: "hr", label: "HR" },
 ];
 
-export const SALES_PRESET = new Set<string>(SALES_MODULE_KEYS);
+// Backward-compatible key-only view for consumers that only need the Sales
+// module set; the form uses SALES_STAFF_PRESET for levels and profile fields.
+export const SALES_PRESET = new Set<string>(SALES_STAFF_PRESET.modules.map((module) => module.moduleKey));
 
 export const STAFF_ROLES: UserRole[] = ["super_admin", "admin", "editor", "trainer"];
 
