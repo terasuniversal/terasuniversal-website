@@ -4,12 +4,17 @@ import { hasMinRole } from "../../../../lib/auth/rbac";
 
 export const runtime = "nodejs";
 
-async function requireAdmin() {
+async function requireAdmin({ manage = false } = {}) {
   const client = await createSupabaseServerClient();
   const { data: userData, error: userError } = await client.auth.getUser();
   if (userError || !userData.user) return { response: NextResponse.json({ error: "Sesi admin telah tamat. Sila log masuk semula." }, { status: 401 }) };
   const { data: profile, error: profileError } = await client.from("profiles").select("role, is_active").eq("id", userData.user.id).maybeSingle();
-  if (profileError || !profile?.is_active || !hasMinRole(profile.role, "editor")) return { response: NextResponse.json({ error: "Akses admin tidak dibenarkan." }, { status: 403 }) };
+  if (profileError || !profile?.is_active || !hasMinRole(profile.role, manage ? "admin" : "editor")) return { response: NextResponse.json({ error: "Akses admin tidak dibenarkan." }, { status: 403 }) };
+  const { data: moduleAllowed, error: moduleError } = await client.rpc("has_module_access_level", {
+    p_module_key: "certificates",
+    p_level: "view",
+  });
+  if (moduleError || moduleAllowed !== true) return { response: NextResponse.json({ error: "Akses admin tidak dibenarkan." }, { status: 403 }) };
   return { client, userId: userData.user.id };
 }
 
@@ -58,7 +63,7 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
-  const auth = await requireAdmin(); if (auth.response) return auth.response;
+  const auth = await requireAdmin({ manage: true }); if (auth.response) return auth.response;
   let body; try { body = await request.json(); } catch { return NextResponse.json({ error: "Permintaan tidak sah." }, { status: 400 }); }
   const action = body?.action;
   if (action === "delete") {

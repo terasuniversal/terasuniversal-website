@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { requireStaff } from "../../../../lib/auth/session";
+import { hasModuleAccess, requireModuleAccess, requireStaff } from "../../../../lib/auth/session";
 import { StatCard, Card, PageHead, Badge, EmptyState } from "../../../../components/admin/ui";
 import { formatMalaysiaLongDate } from "../../../../lib/date-time";
 
@@ -12,9 +12,24 @@ export default async function DashboardPage() {
   const profile = await requireStaff();
   // Trainers don't have a general dashboard — send them to their workspace.
   if (profile.role === "trainer") redirect("/admin/attendance");
+  await requireModuleAccess("dashboard");
   const supabase = await createSupabaseServerClient();
   const today = new Date().toISOString().slice(0, 10);
   const dateLabel = formatMalaysiaLongDate(new Date());
+
+  // Authorize each dashboard data source before building its query. The
+  // module RPC is the server-side boundary; navigation state is display-only.
+  const [canCourses, canSchedules, canParticipants, canCertificates, canAssessment, canNews] = await Promise.all([
+    hasModuleAccess("courses"),
+    hasModuleAccess("schedules"),
+    hasModuleAccess("participants"),
+    hasModuleAccess("certificates"),
+    hasModuleAccess("assessment"),
+    hasModuleAccess("news"),
+  ]);
+  const scheduleSelect = canCourses
+    ? "id, schedule_code, start_date, status, capacity, seats_taken, courses(course_name)"
+    : "id, schedule_code, start_date, status, capacity, seats_taken";
 
   const [
     coursesCount,
@@ -27,28 +42,28 @@ export default async function DashboardPage() {
     recentCertificates,
     recentAssessments,
   ] = await Promise.all([
-    supabase.from("courses").select("*", { count: "exact", head: true }).eq("status", "published").is("deleted_at", null),
-    supabase.from("course_schedules").select("*", { count: "exact", head: true }).gte("start_date", today).is("deleted_at", null).not("status", "in", "(cancelled)"),
-    supabase.from("course_schedules").select("id, schedule_code, start_date, status, capacity, seats_taken, courses(course_name)").gte("start_date", today).is("deleted_at", null).not("status", "in", "(cancelled)").order("start_date", { ascending: true }).limit(6),
-    supabase.from("participants").select("id, full_name, company, status, registered_at").is("deleted_at", null).order("registered_at", { ascending: false }).limit(6),
-    supabase.from("certificates").select("*", { count: "exact", head: true }).eq("status", "valid").is("deleted_at", null),
-    supabase.from("certificates").select("*", { count: "exact", head: true }).eq("status", "draft").is("deleted_at", null),
-    supabase.from("participants").select("*", { count: "exact", head: true }).is("deleted_at", null),
-    supabase.from("certificates").select("id, certificate_number, holder_name, status, issue_date").is("deleted_at", null).order("created_at", { ascending: false }).limit(6),
-    supabase.from("assessments").select("id, assessment_type, result, theory_score, practical_score, competency_status, assessed_at, participants(full_name)").is("deleted_at", null).order("assessed_at", { ascending: false, nullsFirst: false }).limit(6),
+    canCourses ? supabase.from("courses").select("*", { count: "exact", head: true }).eq("status", "published").is("deleted_at", null) : Promise.resolve({ count: 0, data: [] }),
+    canSchedules ? supabase.from("course_schedules").select("*", { count: "exact", head: true }).gte("start_date", today).is("deleted_at", null).not("status", "in", "(cancelled)") : Promise.resolve({ count: 0, data: [] }),
+    canSchedules ? supabase.from("course_schedules").select(scheduleSelect).gte("start_date", today).is("deleted_at", null).not("status", "in", "(cancelled)").order("start_date", { ascending: true }).limit(6) : Promise.resolve({ count: 0, data: [] }),
+    canParticipants ? supabase.from("participants").select("id, full_name, company, status, registered_at").is("deleted_at", null).order("registered_at", { ascending: false }).limit(6) : Promise.resolve({ count: 0, data: [] }),
+    canCertificates ? supabase.from("certificates").select("*", { count: "exact", head: true }).eq("status", "valid").is("deleted_at", null) : Promise.resolve({ count: 0, data: [] }),
+    canCertificates ? supabase.from("certificates").select("*", { count: "exact", head: true }).eq("status", "draft").is("deleted_at", null) : Promise.resolve({ count: 0, data: [] }),
+    canParticipants ? supabase.from("participants").select("*", { count: "exact", head: true }).is("deleted_at", null) : Promise.resolve({ count: 0, data: [] }),
+    canCertificates ? supabase.from("certificates").select("id, certificate_number, holder_name, status, issue_date").is("deleted_at", null).order("created_at", { ascending: false }).limit(6) : Promise.resolve({ count: 0, data: [] }),
+    canAssessment ? supabase.from("assessments").select("id, assessment_type, result, theory_score, practical_score, competency_status, assessed_at, participants(full_name)").is("deleted_at", null).order("assessed_at", { ascending: false, nullsFirst: false }).limit(6) : Promise.resolve({ count: 0, data: [] }),
   ]);
 
   return (
     <>
       <PageHead
         title={`Welcome back, ${(profile.full_name || profile.email).split(" ")[0]}`}
-        subtitle="Your training operations at a glance."
+        subtitle="Your authorized operations at a glance."
         action={
           <div className="ta-page-head-actions">
             <span className="ta-date-chip">{dateLabel}</span>
-            <Link className="ta-btn ta-btn-primary" href="/admin/schedules/new">
+            {canSchedules && <Link className="ta-btn ta-btn-primary" href="/admin/schedules/new">
               + New Schedule
-            </Link>
+            </Link>}
           </div>
         }
       />
@@ -56,20 +71,20 @@ export default async function DashboardPage() {
       <section className="ta-dashboard-intro" aria-label="Dashboard summary">
         <div>
           <strong>Today&apos;s operations</strong>
-          <p>Review upcoming training, participant activity and certificate progress from one workspace.</p>
+          <p>Review the modules available to your account from one workspace.</p>
         </div>
       </section>
 
-      <div className="ta-grid cols-5" style={{ marginBottom: 22 }}>
-        <StatCard icon="🎓" label="Published courses" value={coursesCount.count ?? 0} href="/admin/courses" />
-        <StatCard icon="🗓" label="Upcoming schedules" value={upcomingCount.count ?? 0} href="/admin/schedules" />
-        <StatCard icon="👥" label="Total participants" value={participantsCount.count ?? 0} href="/admin/participants" />
-        <StatCard icon="🏅" label="Certificates issued" value={certsIssued.count ?? 0} href="/admin/certificates" />
-        <StatCard icon="⏳" label="Certificates draft" value={certsPending.count ?? 0} href="/admin/certificates" />
-      </div>
+      {(canCourses || canSchedules || canParticipants || canCertificates) && <div className="ta-grid cols-5" style={{ marginBottom: 22 }}>
+        {canCourses && <StatCard icon="🎓" label="Published courses" value={coursesCount.count ?? 0} href="/admin/courses" />}
+        {canSchedules && <StatCard icon="🗓" label="Upcoming schedules" value={upcomingCount.count ?? 0} href="/admin/schedules" />}
+        {canParticipants && <StatCard icon="👥" label="Total participants" value={participantsCount.count ?? 0} href="/admin/participants" />}
+        {canCertificates && <StatCard icon="🏅" label="Certificates issued" value={certsIssued.count ?? 0} href="/admin/certificates" />}
+        {canCertificates && <StatCard icon="⏳" label="Certificates draft" value={certsPending.count ?? 0} href="/admin/certificates" />}
+      </div>}
 
       <div className="ta-grid cols-3" style={{ marginBottom: 22 }}>
-        <Card title="Upcoming Courses" action={<Link className="ta-btn ta-btn-outline ta-btn-sm" href="/admin/schedules">View all</Link>}>
+        {canSchedules && <Card title="Upcoming Courses" action={<Link className="ta-btn ta-btn-outline ta-btn-sm" href="/admin/schedules">View all</Link>}>
           {upcoming.data && upcoming.data.length > 0 ? (
             <div className="ta-table-wrap">
               <table className="ta-table">
@@ -94,9 +109,9 @@ export default async function DashboardPage() {
               action={<Link className="ta-btn ta-btn-primary ta-btn-sm" href="/admin/schedules/new">+ New Schedule</Link>}
             />
           )}
-        </Card>
+        </Card>}
 
-        <Card title="Latest Participants" action={<Link className="ta-btn ta-btn-outline ta-btn-sm" href="/admin/participants">View all</Link>}>
+        {canParticipants && <Card title="Latest Participants" action={<Link className="ta-btn ta-btn-outline ta-btn-sm" href="/admin/participants">View all</Link>}>
           {latestParticipants.data && latestParticipants.data.length > 0 ? (
             <div className="ta-table-wrap">
               <table className="ta-table">
@@ -113,9 +128,9 @@ export default async function DashboardPage() {
           ) : (
             <EmptyState icon="👥" title="No participants yet" message="Registered participants will appear here." />
           )}
-        </Card>
+        </Card>}
 
-        <Card title="Recent Certificates" action={<Link className="ta-btn ta-btn-outline ta-btn-sm" href="/admin/certificates">View all</Link>}>
+        {canCertificates && <Card title="Recent Certificates" action={<Link className="ta-btn ta-btn-outline ta-btn-sm" href="/admin/certificates">View all</Link>}>
           {recentCertificates.data && recentCertificates.data.length > 0 ? (
             <div className="ta-table-wrap">
               <table className="ta-table">
@@ -134,11 +149,11 @@ export default async function DashboardPage() {
           ) : (
             <EmptyState icon="🏅" title="No certificates yet" message="Generated certificates will appear here." />
           )}
-        </Card>
+        </Card>}
       </div>
 
       <div className="ta-grid cols-2" style={{ marginBottom: 22 }}>
-        <Card title="Recent Assessments" action={<Link className="ta-btn ta-btn-outline ta-btn-sm" href="/admin/attendance">Attendance & Assessment</Link>}>
+        {canAssessment && <Card title="Recent Assessments" action={<Link className="ta-btn ta-btn-outline ta-btn-sm" href="/admin/attendance">Attendance & Assessment</Link>}>
           {recentAssessments.data && recentAssessments.data.length > 0 ? (
             <div className="ta-table-wrap">
               <table className="ta-table">
@@ -161,19 +176,19 @@ export default async function DashboardPage() {
           ) : (
             <EmptyState icon="✅" title="No assessments yet" message="Completed assessments will appear here." />
           )}
-        </Card>
+        </Card>}
 
-        <Card title="Quick Actions">
+        {(canCourses || canSchedules || canParticipants || canCertificates || canNews) && <Card title="Quick Actions">
           <div className="ta-card-pad">
             <div className="ta-quick-actions">
-              <Link className="ta-btn ta-btn-primary" href="/admin/courses/new">+ New Course</Link>
-              <Link className="ta-btn ta-btn-gold" href="/admin/schedules/new">+ New Schedule</Link>
-              <Link className="ta-btn ta-btn-outline" href="/admin/participants">Register Participant</Link>
-              <Link className="ta-btn ta-btn-outline" href="/admin/certificates">Issue Certificate</Link>
-              <Link className="ta-btn ta-btn-outline" href="/admin/news/new">+ News Post</Link>
+              {canCourses && <Link className="ta-btn ta-btn-primary" href="/admin/courses/new">+ New Course</Link>}
+              {canSchedules && <Link className="ta-btn ta-btn-gold" href="/admin/schedules/new">+ New Schedule</Link>}
+              {canParticipants && <Link className="ta-btn ta-btn-outline" href="/admin/participants">Register Participant</Link>}
+              {canCertificates && <Link className="ta-btn ta-btn-outline" href="/admin/certificates">Issue Certificate</Link>}
+              {canNews && <Link className="ta-btn ta-btn-outline" href="/admin/news/new">+ News Post</Link>}
             </div>
           </div>
-        </Card>
+        </Card>}
       </div>
     </>
   );
