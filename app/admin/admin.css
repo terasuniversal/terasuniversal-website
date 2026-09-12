@@ -190,6 +190,19 @@
 .ta-table tr:hover td { background: #fbfcfe; }
 .ta-table-compact th { padding: 9px 16px; }
 .ta-table-compact td { padding: 10px 16px; }
+.ta-invoice-mobile-items, .ta-invoice-mobile-payments { display: none; }
+.ta-invoice-mobile-item, .ta-invoice-mobile-payment { min-width: 0; padding: 16px; border-bottom: 1px solid var(--ta-line); }
+.ta-invoice-mobile-item:last-child, .ta-invoice-mobile-payment:last-child { border-bottom: 0; }
+.ta-invoice-mobile-item-title { display: grid; gap: 4px; min-width: 0; line-height: 1.45; }
+.ta-invoice-mobile-item-title span, .ta-invoice-mobile-item-title small { overflow-wrap: anywhere; }
+.ta-invoice-mobile-item-title small { color: var(--ta-muted); font-size: 12px; }
+.ta-invoice-mobile-item-values { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 16px; margin: 14px 0 0; }
+.ta-invoice-mobile-item-values div, .ta-invoice-mobile-payment div { display: grid; gap: 3px; min-width: 0; }
+.ta-invoice-mobile-item-values dt, .ta-invoice-mobile-payment span { color: var(--ta-muted); font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.ta-invoice-mobile-item-values dd { margin: 0; overflow-wrap: anywhere; }
+.ta-invoice-mobile-item-values div:last-child { grid-column: 1 / -1; }
+.ta-invoice-mobile-payment { display: grid; gap: 10px; }
+.ta-invoice-mobile-payment strong { overflow-wrap: anywhere; }
 
 /* --- Badges -------------------------------------------------------- */
 .ta-badge-pill { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 700; text-transform: capitalize; }
@@ -329,6 +342,10 @@
   .ta-dashboard-intro { align-items: flex-start; flex-direction: column; }
   .ta-card-head { padding: 14px 16px; }
   .ta-card-pad { padding: 16px; }
+}
+@media (max-width: 760px) {
+  .ta-invoice-desktop-table { display: none; }
+  .ta-invoice-mobile-items, .ta-invoice-mobile-payments { display: block; }
 }
 
 /* --- UI-1 refresh ï¿½ additive polish (mobile + shell extras) --------- */

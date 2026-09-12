@@ -22,6 +22,13 @@ function fmtDate(d: string | null) {
   if (!d) return "—";
   return new Date(d).toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric" });
 }
+function fmtTaxRate(rate: number) {
+  return Number(rate).toLocaleString("en-MY", { maximumFractionDigits: 2 });
+}
+function taxDisplayLabel(label: string | null, rate: number) {
+  const base = label?.trim() || "SST";
+  return rate > 0 && !/%$/.test(base) ? `${base} (${fmtTaxRate(rate)}%)` : base;
+}
 
 /**
  * Phase 2E fix: the amount actually received for a payment row -- `amount`
@@ -71,7 +78,7 @@ export default async function InvoicePdfPage({ params }: { params: Promise<{ id:
   // invoice as if it had.
   const payments = ((paymentRows ?? []) as InvoicePaymentRow[]).filter((p) => p.status === "successful");
   const showTax = inv.sst_applicable === true || (inv.sst_applicable === null && Number(inv.tax_amount) > 0);
-  const taxLabel = inv.tax_label_snapshot?.trim() || (inv.tax_rate > 0 ? `SST ${inv.tax_rate}%` : "Tax");
+  const taxLabel = taxDisplayLabel(inv.tax_label_snapshot, Number(inv.tax_rate));
 
   return (
     <div className="inv-pdf-shell" style={{ background: "#eef1f6", minHeight: "100vh", padding: 20, fontFamily: SANS }}>
