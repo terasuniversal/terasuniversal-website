@@ -317,8 +317,18 @@ export async function updateStaffAction(_prev: StaffActionState, formData: FormD
   const currentLevelByKey = new Map(
     (currentAccess ?? []).map((row: { module_key: string; access_level: string }) => [row.module_key, row.access_level]),
   );
+  const targetIsNonAdmin = parsed.data.role !== "admin" && parsed.data.role !== "super_admin";
+  const requestedLevelByKey = new Map(
+    requested.modules.map((module_key) => [
+      module_key,
+      module_key === "hrdf_claims" && targetIsNonAdmin
+        ? "view"
+        : currentLevelByKey.get(module_key) ?? "view",
+    ]),
+  );
   const moduleSelectionChanged =
-    currentLevelByKey.size !== requested.modules.length || requested.modules.some((key) => !currentLevelByKey.has(key));
+    currentLevelByKey.size !== requested.modules.length ||
+    requested.modules.some((key) => currentLevelByKey.get(key) !== requestedLevelByKey.get(key));
   const shouldWriteModules = !isSuperAdminTarget && isCustom && moduleSelectionChanged;
 
   // Modules are written BEFORE update_staff_profile's access_control_enabled
@@ -327,10 +337,7 @@ export async function updateStaffAction(_prev: StaffActionState, formData: FormD
   if (shouldWriteModules) {
     const { error: accessError } = await supabase.rpc("set_staff_module_access", {
       p_user_id: parsed.data.user_id,
-      p_modules: requested.modules.map((module_key) => ({
-        module_key,
-        access_level: currentLevelByKey.get(module_key) ?? "view",
-      })),
+      p_modules: requested.modules.map((module_key) => ({ module_key, access_level: requestedLevelByKey.get(module_key) })),
     });
     if (accessError) {
       console.error("updateStaffAction: set_staff_module_access failed", { message: accessError.message, userId: parsed.data.user_id });

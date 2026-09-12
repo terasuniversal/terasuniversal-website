@@ -101,7 +101,7 @@ export function StaffUserForm({ profile }: { profile?: StaffFormProfile }) {
                   {MODULE_CATALOG.map((module) => (
                     <label key={module.key} style={{ display: "flex", gap: 8, alignItems: "center" }}>
                       <input type="checkbox" name="module_key" value={module.key} checked={selected.includes(module.key)} onChange={() => toggleModule(module.key)} />
-                      <span>{module.label}</span>
+                      <span>{module.label}{module.key === "hrdf_claims" ? " (view only for non-admin staff)" : ""}</span>
                       <small style={{ color: "var(--ta-muted)" }}>{module.group}</small>
                     </label>
                   ))}
