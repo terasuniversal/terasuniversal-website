@@ -90,6 +90,11 @@ export const MODULE_CATALOG: ModuleDefinition[] = [
   // Quotations. No separate "payments" module key -- payments have no
   // list/detail page of their own, always viewed inside an invoice.
   ["invoices", "Invoices", "Sales", "editor"],
+  // Canonical staff_module_catalog row (hrdf_claims, sales, admin). Staff
+  // User Management may explicitly assign it to non-admin staff, but the
+  // HRDF operational actions remain Admin-only and non-admin assignments are
+  // persisted at view level by the staff-management action.
+  ["hrdf_claims", "HRDF Claims", "Sales", "admin"],
   ["sales_followups", "Follow-ups", "Sales", "editor"],
   ["sales_tasks", "Tasks", "Sales", "editor"],
   ["sales_reports", "Sales Reports", "Sales", "editor"],
@@ -163,10 +168,15 @@ export function canAccessModule(
   if (role === "super_admin") return true;
   const min = MODULE_ACCESS[moduleKey];
   if (!min) return false;
+  const hasExplicitModule = typeof (moduleKeys as ReadonlySet<string>).has === "function"
+    ? (moduleKeys as ReadonlySet<string>).has(moduleKey)
+    : (moduleKeys as readonly string[]).includes(moduleKey);
+  // HRDF is metadata-admin by default, but an explicit custom view
+  // assignment is valid for an Editor. Keep the sidebar aligned with
+  // has_module_access_level(), whose explicit branch evaluates the assignment
+  // independently of the catalog role floor.
+  if (moduleKey === "hrdf_claims" && accessControlEnabled) return hasExplicitModule;
   if (!hasMinRole(role, min)) return false;
   if (!accessControlEnabled) return true;
-  if (typeof (moduleKeys as ReadonlySet<string>).has === "function") {
-    return (moduleKeys as ReadonlySet<string>).has(moduleKey);
-  }
-  return (moduleKeys as readonly string[]).includes(moduleKey);
+  return hasExplicitModule;
 }
