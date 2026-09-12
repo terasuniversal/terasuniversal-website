@@ -160,6 +160,42 @@ export interface CourseCommercialProfile {
   updated_at: string;
 }
 
+export type HrdfClaimStatus =
+  | "grant_pending" | "grant_approved" | "grant_rejected"
+  | "training_in_progress" | "training_completed" | "claim_ready"
+  | "claim_submitted" | "claim_approved" | "claim_rejected"
+  | "payment_received" | "cancelled";
+
+export interface HrdfClaim {
+  id: string;
+  invoice_id: string;
+  training_schedule_id: string | null;
+  status: HrdfClaimStatus;
+  hrdf_items_snapshot: Json[];
+  invoice_number_snapshot: string;
+  invoice_total_snapshot: number;
+  currency: string;
+  grant_reference: string | null;
+  grant_application_date: string | null;
+  grant_approved_date: string | null;
+  grant_amount: number | null;
+  claim_reference: string | null;
+  claim_submitted_date: string | null;
+  claim_amount: number | null;
+  approved_amount: number | null;
+  claim_approved_date: string | null;
+  claim_rejected_date: string | null;
+  rejection_reason: string | null;
+  payment_received_date: string | null;
+  payment_received_amount: number;
+  payment_reference: string | null;
+  remarks: string | null;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Enquiry {
   id: string;
   name: string;
@@ -399,6 +435,12 @@ export interface Database {
         Row: CourseCommercialProfile;
         Insert: Partial<CourseCommercialProfile>;
         Update: Partial<CourseCommercialProfile>;
+        Relationships: [];
+      };
+      hrdf_claims: {
+        Row: HrdfClaim;
+        Insert: Partial<HrdfClaim>;
+        Update: Partial<HrdfClaim>;
         Relationships: [];
       };
       enquiries: { Row: Enquiry; Insert: Partial<Enquiry>; Update: Partial<Enquiry>; Relationships: [] };

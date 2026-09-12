@@ -110,6 +110,8 @@ export interface InvoicePaymentRow {
   provider_transaction_id: string | null;
   provider_reference: string | null;
   payment_reference: string | null;
+  payment_source: "customer" | "hrdf" | null;
+  hrdf_claim_id: string | null;
   notes: string | null;
   /** Nullable since Phase 2A: means "the payment actually succeeded" -- a pending ToyyibPay attempt has none yet. */
   paid_at: string | null;
