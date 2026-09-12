@@ -57,6 +57,8 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
   const { data: invoice } = await supabase.from("invoices").select("*").eq("id", id).maybeSingle();
   if (!invoice) notFound();
   const inv = invoice as InvoiceRow;
+  const showTax = inv.sst_applicable === true || (inv.sst_applicable === null && Number(inv.tax_amount) > 0);
+  const taxLabel = inv.tax_label_snapshot?.trim() || (inv.tax_rate > 0 ? `SST ${inv.tax_rate}%` : "Tax");
 
   const { data: quotation } = await supabase.from("sales_quotations").select("id, quotation_no").eq("id", inv.quotation_id).maybeSingle();
   const { data: opportunity } = await supabase.from("sales_opportunities").select("id, opportunity_no, company_name").eq("id", inv.opportunity_id).maybeSingle();
@@ -168,7 +170,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
               <dl style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 6, margin: 0, maxWidth: 320, marginLeft: "auto" }}>
                 <dt>Subtotal</dt><dd style={{ margin: 0, textAlign: "right" }}>{fmt(inv.subtotal)}</dd>
                 <dt>Discount</dt><dd style={{ margin: 0, textAlign: "right" }}>− {fmt(inv.discount_amount)}</dd>
-                <dt>Tax {inv.tax_rate > 0 ? `(SST ${inv.tax_rate}%)` : "(not applicable)"}</dt><dd style={{ margin: 0, textAlign: "right" }}>{fmt(inv.tax_amount)}</dd>
+                {showTax && <><dt>{taxLabel}</dt><dd style={{ margin: 0, textAlign: "right" }}>{fmt(inv.tax_amount)}</dd></>}
                 <dt><strong>Grand Total</strong></dt><dd style={{ margin: 0, textAlign: "right" }}><strong>{fmt(inv.grand_total)}</strong></dd>
                 <dt>Amount Paid</dt><dd style={{ margin: 0, textAlign: "right" }}>{fmt(inv.amount_paid)}</dd>
                 <dt><strong>Balance Due</strong></dt><dd style={{ margin: 0, textAlign: "right" }}><strong>{fmt(inv.balance_due)}</strong></dd>
