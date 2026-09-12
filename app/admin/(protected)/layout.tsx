@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
-import { getCurrentModuleAccess, requireStaff } from "../../../lib/auth/session";
+import { getCurrentModuleAccess, hasModuleAccess, requireStaff } from "../../../lib/auth/session";
 import { createSupabaseServerClient } from "../../../lib/supabase/server";
 import { Sidebar } from "../../../components/admin/Sidebar";
 import { Topbar } from "../../../components/admin/Topbar";
@@ -23,18 +23,23 @@ export default async function ProtectedLayout({ children }: { children: ReactNod
   const moduleKeys = await getCurrentModuleAccess();
   const supabase = await createSupabaseServerClient();
 
+  const [canSeeCertificates, canSeeParticipants] = await Promise.all([
+    hasModuleAccess("certificates"),
+    hasModuleAccess("participants"),
+  ]);
+
   // Sidebar badges: operational counts. Cheap head-only queries.
   const [{ count: pendingCerts }, { count: activeParticipants }] = await Promise.all([
-    supabase
+    canSeeCertificates ? supabase
       .from("certificates")
       .select("*", { count: "exact", head: true })
       .eq("status", "draft")
-      .is("deleted_at", null),
-    supabase
+      .is("deleted_at", null) : Promise.resolve({ count: null }),
+    canSeeParticipants ? supabase
       .from("participants")
       .select("*", { count: "exact", head: true })
       .eq("status", "registered")
-      .is("deleted_at", null),
+      .is("deleted_at", null) : Promise.resolve({ count: null }),
   ]);
 
   return (
@@ -45,8 +50,8 @@ export default async function ProtectedLayout({ children }: { children: ReactNod
         moduleKeys={[...moduleKeys]}
         accessControlEnabled={profile.access_control_enabled}
         badges={{
-          certificates: pendingCerts ?? 0,
-          participants: activeParticipants ?? 0,
+          ...(canSeeCertificates ? { certificates: pendingCerts ?? 0 } : {}),
+          ...(canSeeParticipants ? { participants: activeParticipants ?? 0 } : {}),
         }}
       />
       <div className="ta-main">

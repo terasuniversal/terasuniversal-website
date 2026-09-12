@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { requireRole } from "../../../../lib/auth/session";
+import { hasModuleAccess, requireRole } from "../../../../lib/auth/session";
 import { Badge, Card, EmptyState, PageHead, StatCard } from "../../../../components/admin/ui";
 
 export const metadata = { title: "Search — TERAS UNIVERSAL Admin" };
@@ -13,6 +13,16 @@ const HREF: Record<string, (id: string) => string> = {
   certificate: (id) => `/admin/certificates/${id}`, trainer: (id) => `/admin/trainers/${id}`,
   news: (id) => `/admin/news/${id}`, download: (id) => `/admin/downloads/${id}`, media: () => "/admin/media",
 };
+const SEARCH_MODULES = {
+  course: "courses",
+  participant: "participants",
+  company: "companies",
+  schedule: "schedules",
+  certificate: "certificates",
+  trainer: "trainers",
+  news: "news",
+  download: "downloads",
+} as const;
 
 export default async function SearchPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   await requireRole("editor");
@@ -22,28 +32,37 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   const term = `%${q.replace(/[%_,()]/g, " ")}%`;
   const source = (table: string) => supabase.from(table) as any;
   const results: Result[] = [];
+  const searchAccess = Object.fromEntries(
+    await Promise.all(Object.entries(SEARCH_MODULES).map(async ([category, moduleKey]) => [category, await hasModuleAccess(moduleKey)] as const)),
+  ) as Record<keyof typeof SEARCH_MODULES, boolean>;
 
   if (q) {
     // Schedules: schedule_code is the only flat text on course_schedules, and
     // a generic .or() cannot reliably mix a joined-course filter in here, so
     // resolve matching course IDs first (single batched query — no N+1), then
     // select course_schedules where course_id IN (...) OR schedule_code matches.
-    const courseHits = await source("courses").select("id").or(`title.ilike.${term},course_name.ilike.${term}`).is("deleted_at", null).limit(500);
+    const courseHits = searchAccess.course
+      ? await source("courses").select("id").or(`title.ilike.${term},course_name.ilike.${term}`).is("deleted_at", null).limit(500)
+      : { data: [] };
     const courseIds = ((courseHits.data ?? []) as any[]).map((c: any) => c.id as string);
-    let scheduleQuery = source("course_schedules").select("id, schedule_code, start_date, courses(course_name)").is("deleted_at", null).limit(8);
-    scheduleQuery = courseIds.length > 0
-      ? scheduleQuery.or(`course_id.in.(${courseIds.join(",")}),schedule_code.ilike.${term}`)
-      : scheduleQuery.or(`schedule_code.ilike.${term}`);
+    const scheduleQuery = searchAccess.schedule
+      ? (() => {
+        let query = source("course_schedules").select("id, schedule_code, start_date, courses(course_name)").is("deleted_at", null).limit(8);
+        return courseIds.length > 0
+          ? query.or(`course_id.in.(${courseIds.join(",")}),schedule_code.ilike.${term}`)
+          : query.or(`schedule_code.ilike.${term}`);
+      })()
+      : null;
 
     const [courses, participants, companies, schedules, certificates, trainers, news, downloads] = await Promise.all([
-      source("courses").select("id, title, category").ilike("title", term).is("deleted_at", null).limit(8),
-      source("participants").select("id, full_name, participant_id, company").or(`full_name.ilike.${term},participant_id.ilike.${term},company.ilike.${term}`).is("deleted_at", null).limit(8),
-      source("companies").select("id, company_name, company_id, industry").or(`company_name.ilike.${term},company_id.ilike.${term}`).is("deleted_at", null).limit(8),
-      scheduleQuery,
-      source("certificates").select("id, certificate_number, participant_name, course_name").or(`certificate_number.ilike.${term},participant_name.ilike.${term},course_name.ilike.${term}`).is("deleted_at", null).limit(8),
-      source("trainers").select("id, full_name, trainer_id, specialisation").or(`full_name.ilike.${term},trainer_id.ilike.${term}`).is("deleted_at", null).limit(8),
-      source("news_posts").select("id, title, status").ilike("title", term).is("deleted_at", null).limit(8),
-      source("downloads").select("id, title, category").ilike("title", term).is("deleted_at", null).limit(8),
+      searchAccess.course ? source("courses").select("id, title, category").ilike("title", term).is("deleted_at", null).limit(8) : Promise.resolve({ data: [] }),
+      searchAccess.participant ? source("participants").select("id, full_name, participant_id, company").or(`full_name.ilike.${term},participant_id.ilike.${term},company.ilike.${term}`).is("deleted_at", null).limit(8) : Promise.resolve({ data: [] }),
+      searchAccess.company ? source("companies").select("id, company_name, company_id, industry").or(`company_name.ilike.${term},company_id.ilike.${term}`).limit(8) : Promise.resolve({ data: [] }),
+      searchAccess.schedule ? scheduleQuery : Promise.resolve({ data: [] }),
+      searchAccess.certificate ? source("certificates").select("id, certificate_number, participant_name, course_name").or(`certificate_number.ilike.${term},participant_name.ilike.${term},course_name.ilike.${term}`).is("deleted_at", null).limit(8) : Promise.resolve({ data: [] }),
+      searchAccess.trainer ? source("trainers").select("id, full_name, trainer_id, specialisation").or(`full_name.ilike.${term},trainer_id.ilike.${term}`).limit(8) : Promise.resolve({ data: [] }),
+      searchAccess.news ? source("news_posts").select("id, title, status").ilike("title", term).is("deleted_at", null).limit(8) : Promise.resolve({ data: [] }),
+      searchAccess.download ? source("downloads").select("id, title, category").ilike("title", term).is("deleted_at", null).limit(8) : Promise.resolve({ data: [] }),
     ]);
     const add = (type: string, rows: any[] | null, map: (row: any) => Omit<Result, "entity_type">) => rows?.forEach((row) => results.push({ entity_type: type, ...map(row) }));
     add("course", courses.data, (r) => ({ entity_id: r.id, title: r.title, subtitle: r.category ?? "Course" }));
