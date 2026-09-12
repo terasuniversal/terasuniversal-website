@@ -10,7 +10,6 @@ alter table public.sales_quotations
 
 alter table public.invoices
   add column if not exists sst_applicable boolean,
-  add column if not exists sst_amount numeric(12,2),
   add column if not exists tax_label_snapshot text,
   add column if not exists tax_basis_snapshot text,
   add column if not exists sst_registration_number_snapshot text,
@@ -29,21 +28,17 @@ alter table public.sales_quotations
     check (round(subtotal - discount + tax, 2) = round(total, 2));
 
 alter table public.invoices
-  add constraint invoices_sst_rate_check
-    check (sst_rate is null or (sst_rate >= 0 and sst_rate <= 100)),
-  add constraint invoices_sst_amount_check
-    check (sst_amount is null or sst_amount >= 0),
+  add constraint invoices_tax_rate_check
+    check (tax_rate >= 0 and tax_rate <= 100),
+  add constraint invoices_tax_amount_check
+    check (tax_amount >= 0),
   add constraint invoices_sst_off_amount_check
-    check (sst_applicable is distinct from false or coalesce(sst_amount, 0) = 0),
-  add constraint invoices_sst_amount_matches_tax_check
-    check (sst_amount is null or round(sst_amount, 2) = round(tax_amount, 2)),
+    check (sst_applicable is distinct from false or tax_amount = 0),
   add constraint invoices_total_arithmetic_check
     check (round(taxable_amount + tax_amount, 2) = round(grand_total, 2));
 
 comment on column public.sales_quotations.sst_amount is
   'SST amount saved with this quotation; nullable only for legacy rows and never backfilled.';
-comment on column public.invoices.sst_amount is
-  'SST amount copied from the accepted quotation; nullable only for legacy rows.';
 
 create or replace function app.guard_quotation_sst_snapshot_mutation()
 returns trigger
@@ -96,7 +91,6 @@ begin
      or new.tax_amount is distinct from old.tax_amount
      or new.grand_total is distinct from old.grand_total
      or new.sst_applicable is distinct from old.sst_applicable
-     or new.sst_amount is distinct from old.sst_amount
      or new.tax_label_snapshot is distinct from old.tax_label_snapshot
      or new.tax_basis_snapshot is distinct from old.tax_basis_snapshot
      or new.sst_registration_number_snapshot is distinct from old.sst_registration_number_snapshot
@@ -168,7 +162,7 @@ begin
     customer_email, customer_phone, training_service_address_snapshot,
     billing_name, billing_company, billing_registration_no, billing_address, billing_email, billing_phone,
     currency, subtotal, discount_amount, taxable_amount, tax_rate, tax_amount, grand_total,
-    sst_applicable, sst_amount, tax_label_snapshot, tax_basis_snapshot,
+    sst_applicable, tax_label_snapshot, tax_basis_snapshot,
     sst_registration_number_snapshot, sst_effective_date_snapshot,
     balance_due, notes, payment_terms, created_by
   ) values (
@@ -184,10 +178,10 @@ begin
     coalesce(v_quotation.billing_address, v_company.billing_address, v_company.address),
     coalesce(v_quotation.customer_email, v_opportunity.contact_email),
     coalesce(v_quotation.customer_phone, v_opportunity.contact_phone),
-    v_quotation.currency, v_quotation.subtotal, v_quotation.discount, v_taxable,
-    v_quotation.sst_rate, v_quotation.tax, v_quotation.total,
-    v_quotation.sst_applicable, coalesce(v_quotation.sst_amount, v_quotation.tax),
-    v_quotation.tax_label_snapshot, v_quotation.tax_basis_snapshot,
+     v_quotation.currency, v_quotation.subtotal, v_quotation.discount, v_taxable,
+     v_quotation.sst_rate, v_quotation.tax, v_quotation.total,
+     v_quotation.sst_applicable,
+     v_quotation.tax_label_snapshot, v_quotation.tax_basis_snapshot,
     v_quotation.sst_registration_number_snapshot, v_quotation.sst_effective_date_snapshot,
     v_quotation.total, v_quotation.notes, v_quotation.terms, v_actor
   ) returning id into v_invoice_id;

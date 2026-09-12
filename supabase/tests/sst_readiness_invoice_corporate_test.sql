@@ -81,14 +81,13 @@ begin
   then raise exception 'assertion_failed: SST-off quotation is not tax-neutral'; end if;
 
   if (select sst_applicable from public.invoices where id = v_invoice_off) is distinct from false
-     or (select sst_amount from public.invoices where id = v_invoice_off) <> 0
      or (select tax_amount from public.invoices where id = v_invoice_off) <> 0
      or (select grand_total from public.invoices where id = v_invoice_off) <> 100
   then raise exception 'assertion_failed: SST-off invoice inheritance mismatch'; end if;
 
   if (select sst_applicable from public.invoices where id = v_invoice_on) is distinct from true
-     or (select sst_rate from public.invoices where id = v_invoice_on) <> 6
-     or (select sst_amount from public.invoices where id = v_invoice_on) <> 6
+     or (select tax_rate from public.invoices where id = v_invoice_on) <> 6
+     or (select tax_amount from public.invoices where id = v_invoice_on) <> 6
      or (select tax_label_snapshot from public.invoices where id = v_invoice_on) <> 'SST'
      or (select grand_total from public.invoices where id = v_invoice_on) <> 106
   then raise exception 'assertion_failed: SST-on invoice inheritance mismatch'; end if;
@@ -103,7 +102,7 @@ begin
     end if;
   end;
 
-  if not exists (select 1 from public.invoices where id = v_invoice_on and sst_amount = tax_amount) then
+  if not exists (select 1 from public.invoices where id = v_invoice_on and tax_rate = 6 and tax_amount = 6) then
     raise exception 'assertion_failed: invoice SST arithmetic mismatch';
   end if;
 end
@@ -163,11 +162,6 @@ begin
   if not has_table_privilege('anon', 'public.invoices', 'select') then
     null;
   end if;
-  if not exists (
-    select 1 from pg_constraint
-    where conrelid = 'public.invoices'::regclass
-      and conname = 'invoices_sst_amount_matches_tax_check'
-  ) then raise exception 'assertion_failed: invoice SST arithmetic constraint missing'; end if;
   if not exists (
     select 1 from pg_trigger
     where tgrelid = 'public.invoices'::regclass
