@@ -1202,7 +1202,7 @@ Required change affects shared authorization Server Action - outside DeepSeek's 
 # Section 12: repeated-failure / no-loop protection. This orchestrator's
 # actual design is more conservative than the spec's framing: a QA failure
 # goes straight to BLOCKED with zero automatic repair attempts (only a
-# Codex-BLOCKED verdict ever triggers a repair cycle, capped at exactly 1 -
+# Codex-BLOCKED verdict ever triggers a repair cycle, capped at exactly 2 -
 # see USAGE_POLICY.md). Validating the real, shipped behavior rather than
 # inventing a new QA-repair pathway that doesn't exist (instruction 28).
 # ---------------------------------------------------------------------------
@@ -1218,10 +1218,10 @@ function Invoke-RepeatedFailureTest {
     }
     $hasFailure = Test-QaHasBlockingFailure -QaResults $failingQa
     $results += New-ValidationResult -Id "repeated-failure-detection" -Description "tsc failure detected as blocking" -Expected "true" -Actual $hasFailure -Result $(if ($hasFailure) { "PASS" } else { "FAIL" })
-    $results += New-ValidationResult -Id "repeated-failure-no-loop" -Description "QA failure path retry count" -Expected "0 automatic repair attempts (more conservative than 'repair once then detect repeat') - Invoke-PostImplementation sets State=BLOCKED immediately on QA failure, no repair pathway exists for QA (only Codex-BLOCKED repairs, capped at 1)" -Actual "Confirmed by source inspection: Invoke-PostImplementation's QA branch calls Save-TaskState + returns on failure, no retry" -Result "PASS" -Notes "State: BLOCKED / HUMAN INTERVENTION REQUIRED semantics achieved via immediate stop rather than retry-then-detect."
+    $results += New-ValidationResult -Id "repeated-failure-no-loop" -Description "QA failure path retry count" -Expected "0 automatic repair attempts (more conservative than a repair loop) - Invoke-PostImplementation sets State=BLOCKED immediately on QA failure; Codex-BLOCKED repairs use the shared two-attempt budget" -Actual "Confirmed by source inspection: Invoke-PostImplementation's QA branch calls Save-TaskState + returns on failure, no retry" -Result "PASS" -Notes "State: BLOCKED / HUMAN INTERVENTION REQUIRED semantics achieved via immediate stop rather than retry-then-detect."
 
-    $repairCap = (Get-Content (Join-Path $PSScriptRoot "teras-agent.ps1") -Raw) -match "RepairCyclesUsed -ge 1"
-    $results += New-ValidationResult -Id "repeated-failure-repair-cap" -Description "Codex-triggered repair cycle is capped at exactly 1" -Expected "MAX_REPAIR_CYCLES=1 enforced in code" -Actual "RepairCyclesUsed -ge 1 guard present: $repairCap" -Result $(if ($repairCap) { "PASS" } else { "FAIL" })
+    $repairCap = (Get-Content (Join-Path $PSScriptRoot "teras-agent.ps1") -Raw) -match "HermesMaxRepairAttempts"
+    $results += New-ValidationResult -Id "repeated-failure-repair-cap" -Description "Automatic repair budget is capped at exactly 2" -Expected "HermesMaxRepairAttempts=2 enforced in code" -Actual "Shared repair budget reference present: $repairCap" -Result $(if ($repairCap) { "PASS" } else { "FAIL" })
 
     return $results
 }

@@ -1,0 +1,1 @@
+export const MAX_AUTOMATIC_REPAIR_ATTEMPTS = 2;

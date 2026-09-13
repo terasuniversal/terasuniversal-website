@@ -10,6 +10,8 @@
     as passed. See .ai/MODEL_ROUTING.md's Codex context limiting section.
 #>
 
+. (Join-Path $PSScriptRoot "hermes-execution.ps1")
+
 function Test-CodexAvailable {
     return $null -ne (Get-Command "codex" -ErrorAction SilentlyContinue)
 }
@@ -77,11 +79,16 @@ Recommended Actions:
 "@
 
     Set-Content -Path $path -Value $content -Encoding utf8
+    if (Get-Command Add-AgentHandoffRecord -ErrorAction SilentlyContinue) {
+        Add-AgentHandoffRecord -State $State -FromAgent "Hermes" -ToAgent "Codex" -HandoffType "REVIEW" -HandoffPath $path
+    }
     return $path
 }
 
 function Invoke-CodexReview {
     param([string]$HandoffPath)
+
+    $State = if (Get-Command Get-TaskState -ErrorAction SilentlyContinue) { Get-TaskState } else { $null }
 
     if (-not (Test-CodexAvailable)) {
         Write-Host ""
@@ -97,15 +104,23 @@ function Invoke-CodexReview {
     Write-Host ""
 
     $prompt = Get-Content -Path $HandoffPath -Raw
+    if (-not $State) { Write-Host "Codex review blocked: durable task state is unavailable."; return $false }
+    $lease = Acquire-HermesExecutionLease -State $State -Agent "Codex" -Provider ([string]$State.ReviewerProvider) -Model ([string]$State.ReviewerModel) -Workspace $RepoRoot -RequireDecision
+    if (-not $lease.acquired) { Write-Host "Codex review blocked: $($lease.status) - $($lease.reason)"; return $false }
     Push-Location $RepoRoot
     try {
-        $prompt | & codex exec
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "Codex CLI exited with code $LASTEXITCODE. Independent review marked PENDING."
+        $execution = Invoke-HermesSupervisedProcess -CommandName "codex" -ArgumentList @("exec", "--sandbox", "read-only") -InputText $prompt -State $State -LeaseHandle $lease
+        if ($execution.Output) { $execution.Output | Out-Host }
+        if ($execution.ErrorOutput) { $execution.ErrorOutput | Out-Host }
+        if (-not $execution.Succeeded) {
+            Complete-HermesExecutionLease -LeaseHandle $lease -State $State -Status "FAILED" -Result ([pscustomobject]@{ agent = "Codex"; exitCode = $execution.ExitCode }) | Out-Null
+            Write-Host "Codex CLI exited with code $($execution.ExitCode). Independent review marked PENDING."
             return $false
         }
+        Complete-HermesExecutionLease -LeaseHandle $lease -State $State -Status "COMPLETED" -Result ([pscustomobject]@{ agent = "Codex"; exitCode = 0 }) | Out-Null
         return $true
     } catch {
+        Complete-HermesExecutionLease -LeaseHandle $lease -State $State -Status "FAILED" -Result ([pscustomobject]@{ agent = "Codex"; reason = $_.Exception.Message }) | Out-Null
         Write-Host "Codex CLI invocation failed: $($_.Exception.Message)"
         Write-Host "Independent review marked PENDING."
         return $false

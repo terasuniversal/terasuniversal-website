@@ -10,6 +10,10 @@
     implementation happened.
 #>
 
+. (Join-Path $PSScriptRoot "hermes-repair-policy.ps1")
+
+. (Join-Path $PSScriptRoot "hermes-execution.ps1")
+
 function Test-ClaudeAvailable {
     return $null -ne (Get-Command "claude" -ErrorAction SilentlyContinue)
 }
@@ -102,6 +106,9 @@ When done, write your result to ``.ai/IMPLEMENTATION_REPORT.md`` using the templ
 "@
 
     Set-Content -Path $path -Value $content -Encoding utf8
+    if (Get-Command Add-AgentHandoffRecord -ErrorAction SilentlyContinue) {
+        Add-AgentHandoffRecord -State $State -FromAgent "Hermes" -ToAgent "Claude Code" -HandoffType "IMPLEMENTATION" -HandoffPath $path
+    }
     return $path
 }
 
@@ -114,7 +121,7 @@ function New-RepairHandoff {
     $content = @"
 # REPAIR_HANDOFF.md
 
-> Generated only when Codex review returns BLOCKED. Contains ONLY the blocking issues - not a general re-implementation request. This is repair cycle $($State.RepairCyclesUsed + 1) of a maximum of 1 automatic cycle (MAX_REPAIR_CYCLES=1, see .ai/USAGE_POLICY.md). If this cycle does not resolve the issues, the task stops and requires human intervention - no further automatic loop.
+> Generated only when Codex review returns BLOCKED. Contains ONLY the blocking issues - not a general re-implementation request. This is repair cycle $($State.RepairCyclesUsed + 1) of a maximum of $HermesMaxRepairAttempts automatic cycles. If this cycle does not resolve the issues, the task stops and requires human intervention - no further automatic loop.
 
 ## TASK
 
@@ -139,7 +146,9 @@ Update ``.ai/IMPLEMENTATION_REPORT.md`` to describe what changed for the repair.
 }
 
 function Invoke-ClaudeImplementation {
-    param([string]$HandoffPath)
+    param([string]$HandoffPath, $State = $null)
+
+    if (-not $State -and (Get-Command Get-TaskState -ErrorAction SilentlyContinue)) { $State = Get-TaskState }
 
     if (-not (Test-ClaudeAvailable)) {
         Write-Host ""
@@ -151,27 +160,26 @@ function Invoke-ClaudeImplementation {
         return $false
     }
 
+
     Write-Host ""
     Write-Host "Claude Code CLI detected. Launching with the controlled handoff at:"
     Write-Host "  $HandoffPath"
     Write-Host ""
 
     $prompt = Get-Content -Path $HandoffPath -Raw
-    Push-Location $RepoRoot
-    try {
-        $prompt | & claude -p --safe-mode --no-session-persistence
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "Claude Code CLI exited with code $LASTEXITCODE. Review its output above before continuing."
-            return $false
-        }
+    if (-not $State) { Write-Host "Claude execution blocked: durable task state is unavailable."; return $false }
+    $lease = Acquire-HermesExecutionLease -State $State -Agent "Claude Code" -Provider $State.ImplementerProvider -Model $State.ImplementerModel -RequireDecision
+    if (-not $lease.acquired) { Write-Host "Claude execution blocked: $($lease.status) - $($lease.reason)"; return $false }
+    $result = Invoke-HermesSupervisedProcess -CommandName "claude" -ArgumentList @("-p", "--safe-mode", "--no-session-persistence") -InputText $prompt -State $State -LeaseHandle $lease
+    if ($result.Output) { $result.Output | Out-Host }
+    if ($result.ErrorOutput) { $result.ErrorOutput | Out-Host }
+    if ($result.Succeeded) {
+        [void](Complete-HermesExecutionLease -LeaseHandle $lease -State $State -Status "COMPLETED" -Result ([pscustomobject]@{ agent = "Claude Code"; exitCode = 0 }))
         return $true
-    } catch {
-        Write-Host "Claude Code CLI invocation failed: $($_.Exception.Message)"
-        Write-Host "CURRENT_TASK.md and CLAUDE_HANDOFF.md were generated - run the task manually with Claude Code."
-        return $false
-    } finally {
-        Pop-Location
     }
+    [void](Complete-HermesExecutionLease -LeaseHandle $lease -State $State -Status "FAILED" -Result ([pscustomobject]@{ agent = "Claude Code"; exitCode = $result.ExitCode; error = $result.ErrorOutput }))
+    Write-Host "Claude Code supervised execution failed; lease finalized as FAILED."
+    return $false
 }
 
 function Get-ClaudeReviewCapabilities {
@@ -257,6 +265,9 @@ Then provide concise findings, limited to the listed Codex-generated files and r
 "@
 
     Set-Content -LiteralPath $path -Value $content -Encoding utf8
+    if (Get-Command Add-AgentHandoffRecord -ErrorAction SilentlyContinue) {
+        Add-AgentHandoffRecord -State $State -FromAgent "Codex" -ToAgent "Claude Code" -HandoffType "REVIEW" -HandoffPath $path
+    }
     return $path
 }
 
@@ -275,12 +286,26 @@ function Invoke-ClaudeReadOnlyReview {
 
     if (-not (Test-ClaudeAvailable)) {
         $result.Error = "Claude Code CLI not detected. No fallback agent was invoked."
+        Set-ClaudeReviewRecord -State $State -Status "UNAVAILABLE" -Findings @($result.Error) -Result ([pscustomobject]@{ agent = "Claude Code"; reason = "CLI_NOT_DETECTED" })
+        Save-TaskState -State $State
         return [pscustomobject]$result
     }
 
     $capabilities = Get-ClaudeReviewCapabilities
     if (-not $capabilities.Supported) {
         $result.Error = "Claude reviewer capability check failed: $($capabilities.Reason) No fallback agent was invoked."
+        Set-ClaudeReviewRecord -State $State -Status "UNAVAILABLE" -Findings @($result.Error) -Result ([pscustomobject]@{ agent = "Claude Code"; reason = $capabilities.Reason })
+        Save-TaskState -State $State
+        return [pscustomobject]$result
+    }
+
+    Set-ClaudeReviewRecord -State $State -Status "STARTED" -Findings @() -Result ([pscustomobject]@{ agent = "Claude Code"; handoffPath = $handoffPath })
+    Save-TaskState -State $State
+    $reviewLease = Acquire-HermesExecutionLease -State $State -Agent "Claude Code" -Provider ([string]$State.ReviewerProvider) -Model ([string]$State.ReviewerModel) -Workspace $RepoRoot -RequireDecision
+    if (-not $reviewLease.acquired) {
+        $result.Error = "Claude reviewer lease was not acquired: $($reviewLease.status) - $($reviewLease.reason)"
+        Set-ClaudeReviewRecord -State $State -Status "FAILED" -Findings @($result.Error) -Result ([pscustomobject]@{ agent = "Claude Code"; reason = $reviewLease.status })
+        Save-TaskState -State $State
         return [pscustomobject]$result
     }
 
@@ -297,9 +322,9 @@ function Invoke-ClaudeReadOnlyReview {
     try {
         $ErrorActionPreference = "Continue"
         $reviewArguments = @($capabilities.Arguments)
-        $output = $prompt | & claude @reviewArguments 2>&1
-        $exitCode = $LASTEXITCODE
-        $rendered = ($output | Out-String)
+        $execution = Invoke-HermesSupervisedProcess -CommandName "claude" -ArgumentList $reviewArguments -InputText $prompt -State $State -LeaseHandle $reviewLease
+        $exitCode = $execution.ExitCode
+        $rendered = (@($execution.Output, $execution.ErrorOutput) -join "")
         $result.Output = $rendered
         if ($rendered) { $rendered | Out-Host }
 
@@ -308,6 +333,9 @@ function Invoke-ClaudeReadOnlyReview {
         $result.ChangedFiles = @($reviewDelta.TaskGenerated)
         if ($result.ChangedFiles.Count -gt 0) {
             $result.Error = "Claude reviewer changed files despite read-only controls: $($result.ChangedFiles -join ', ')"
+            Set-ClaudeReviewRecord -State $State -Status "FAILED" -Findings @($result.Error) -Result ([pscustomobject]@{ agent = "Claude Code"; changedFiles = $result.ChangedFiles })
+            Save-TaskState -State $State
+            Complete-HermesExecutionLease -LeaseHandle $reviewLease -State $State -Status "FAILED" -Result ([pscustomobject]@{ agent = "Claude Code"; reason = "changed_files" }) | Out-Null
             return [pscustomobject]$result
         }
 
@@ -317,21 +345,33 @@ function Invoke-ClaudeReadOnlyReview {
             } else {
                 $result.Error = "Claude CLI exited with code $exitCode. No fallback agent was invoked."
             }
+            Set-ClaudeReviewRecord -State $State -Status "FAILED" -Findings @($result.Error) -Result ([pscustomobject]@{ agent = "Claude Code"; exitCode = $exitCode })
+            Save-TaskState -State $State
+            Complete-HermesExecutionLease -LeaseHandle $reviewLease -State $State -Status "FAILED" -Result ([pscustomobject]@{ agent = "Claude Code"; exitCode = $exitCode }) | Out-Null
             return [pscustomobject]$result
         }
 
         $verdictMatch = [regex]::Match($rendered, '(?m)^\s*(PASS_WITH_NOTES|CHANGES_REQUIRED|PASS)\s*$')
         if (-not $verdictMatch.Success) {
             $result.Error = "Claude reviewer returned no supported structured verdict (PASS, PASS_WITH_NOTES, or CHANGES_REQUIRED)."
+            Set-ClaudeReviewRecord -State $State -Status "FAILED" -Findings @($result.Error) -Result ([pscustomobject]@{ agent = "Claude Code"; output = $rendered })
+            Save-TaskState -State $State
+            Complete-HermesExecutionLease -LeaseHandle $reviewLease -State $State -Status "FAILED" -Result ([pscustomobject]@{ agent = "Claude Code"; reason = "missing_verdict" }) | Out-Null
             return [pscustomobject]$result
         }
 
         $result.Succeeded = $true
         $result.Verdict = $verdictMatch.Groups[1].Value
         Add-Content -LiteralPath $handoffPath -Value ("`n## REVIEW RESULT`n`n" + $rendered) -Encoding utf8
+        Set-ClaudeReviewRecord -State $State -Status "COMPLETED" -Findings @($rendered) -Result ([pscustomobject]@{ agent = "Claude Code"; verdict = $result.Verdict; succeeded = $true })
+        Save-TaskState -State $State
+        Complete-HermesExecutionLease -LeaseHandle $reviewLease -State $State -Status "COMPLETED" -Result ([pscustomobject]@{ agent = "Claude Code"; verdict = $result.Verdict }) | Out-Null
         return [pscustomobject]$result
     } catch {
         $result.Error = "Claude CLI invocation failed: $($_.Exception.Message). No fallback agent was invoked."
+        Set-ClaudeReviewRecord -State $State -Status "FAILED" -Findings @($result.Error) -Result ([pscustomobject]@{ agent = "Claude Code"; reason = $_.Exception.Message })
+        Save-TaskState -State $State
+        Complete-HermesExecutionLease -LeaseHandle $reviewLease -State $State -Status "FAILED" -Result ([pscustomobject]@{ agent = "Claude Code"; reason = $_.Exception.Message }) | Out-Null
         return [pscustomobject]$result
     } finally {
         $ErrorActionPreference = $previousErrorActionPreference
@@ -340,7 +380,7 @@ function Invoke-ClaudeReadOnlyReview {
 }
 
 function Get-ClaudeRepairDecision {
-    param([string]$Verdict, [int]$AttemptsUsed, [int]$MaximumAttempts = 2)
+    param([string]$Verdict, [int]$AttemptsUsed, [int]$MaximumAttempts = $HermesMaxRepairAttempts)
 
     if ($Verdict -in @("PASS", "PASS_WITH_NOTES")) { return "NO_REPAIR" }
     if ($Verdict -eq "CHANGES_REQUIRED" -and $AttemptsUsed -lt $MaximumAttempts) { return "REPAIR" }
@@ -385,7 +425,7 @@ function New-CodexRepairHandoff {
     $content = @"
 # CODEX_REPAIR_HANDOFF.md
 
-> Generated after Claude returned CHANGES_REQUIRED. This is bounded repair attempt $Attempt of 2. Codex remains the implementation agent.
+> Generated after Claude returned CHANGES_REQUIRED. This is bounded repair attempt $Attempt of $HermesMaxRepairAttempts. Codex remains the implementation agent.
 
 ## ORIGINAL TASK
 
@@ -418,6 +458,9 @@ Run relevant verification and report the exact files changed. The orchestrator w
 "@
 
     Set-Content -LiteralPath $path -Value $content -Encoding utf8
+    if (Get-Command Add-AgentHandoffRecord -ErrorAction SilentlyContinue) {
+        Add-AgentHandoffRecord -State $State -FromAgent "Claude Code" -ToAgent "Codex" -HandoffType "REPAIR" -HandoffPath $path
+    }
     return $path
 }
 
@@ -510,13 +553,19 @@ Do not expand scope. Do not modify CRM application files, database migrations, S
 "@
 
     Set-Content -Path $path -Value $content -Encoding utf8
+    if (Get-Command Add-AgentHandoffRecord -ErrorAction SilentlyContinue) {
+        Add-AgentHandoffRecord -State $State -FromAgent "Hermes" -ToAgent "Codex" -HandoffType "IMPLEMENTATION" -HandoffPath $path
+    }
     return $path
 }
 
 function Invoke-CodexImplementation {
-    param([string]$HandoffPath)
+    param([string]$HandoffPath, $State = $null)
+
+    if (-not $State -and (Get-Command Get-TaskState -ErrorAction SilentlyContinue)) { $State = Get-TaskState }
 
     if (-not (Test-CodexImplementationAvailable)) {
+        if ($State) { Set-CodexExecutionRecord -State $State -Status "UNAVAILABLE" -Result ([pscustomobject]@{ agent = "Codex"; reason = "CLI_NOT_DETECTED" }); Save-TaskState -State $State }
         Write-Host ""
         Write-Host "Codex CLI not detected."
         Write-Host "The task remains in its current state; no alternate agent will be invoked."
@@ -526,6 +575,7 @@ function Invoke-CodexImplementation {
 
     $capabilities = Get-CodexExecCapabilities
     if (-not $capabilities.Supported) {
+        if ($State) { Set-CodexExecutionRecord -State $State -Status "UNAVAILABLE" -Result ([pscustomobject]@{ agent = "Codex"; reason = $capabilities.Reason }); Save-TaskState -State $State }
         Write-Host "Codex CLI capability check failed: $($capabilities.Reason)"
         Write-Host "No alternate agent was invoked."
         return $false
@@ -543,18 +593,25 @@ function Invoke-CodexImplementation {
 
     $prompt = Get-Content -Path $HandoffPath -Raw
     $execArguments = @($capabilities.Arguments)
+    $lease = $null
+    if ($State) {
+        $lease = Acquire-HermesExecutionLease -State $State -Agent "Codex" -Provider ([string]$State.ImplementerProvider) -Model ([string]$State.ImplementerModel) -Workspace $RepoRoot -RequireDecision
+        if (-not $lease.acquired) {
+            Write-Host "Codex execution was not started: $($lease.status) - $($lease.reason)"
+            return $false
+        }
+    }
     $previousErrorActionPreference = $ErrorActionPreference
     Push-Location $RepoRoot
     try {
-        # Codex may emit non-fatal startup diagnostics on stderr. The
-        # orchestrator normally treats native stderr as terminating; keep
-        # those diagnostics in the captured output and use LASTEXITCODE for
-        # the actual CLI result instead.
         $ErrorActionPreference = "Continue"
-        $output = $prompt | & codex exec @execArguments - 2>&1
-        $exitCode = $LASTEXITCODE
+        $execution = Invoke-HermesSupervisedProcess -CommandName "codex" -ArgumentList (@("exec") + $execArguments) -InputText $prompt -State $State -LeaseHandle $lease
+        $exitCode = $execution.ExitCode
+        $output = @($execution.Output, $execution.ErrorOutput) -join ""
         if ($output) { $output | Out-Host }
         if ($exitCode -ne 0) {
+            if ($State) { Set-CodexExecutionRecord -State $State -Status "FAILED" -Result ([pscustomobject]@{ agent = "Codex"; exitCode = $exitCode; handoffPath = $HandoffPath }); Save-TaskState -State $State }
+            if ($lease) { Complete-HermesExecutionLease -LeaseHandle $lease -State $State -Status "FAILED" -Result ([pscustomobject]@{ agent = "Codex"; exitCode = $exitCode }) | Out-Null }
             $rendered = ($output | Out-String)
             if ($rendered -match '(?i)auth|login|credential|token|unauthor') {
                 Write-Host "Codex CLI is unavailable because authentication is required or invalid."
@@ -564,8 +621,12 @@ function Invoke-CodexImplementation {
             Write-Host "No alternate agent was invoked."
             return $false
         }
+        if ($State) { Set-CodexExecutionRecord -State $State -Status "COMPLETED" -Result ([pscustomobject]@{ agent = "Codex"; exitCode = 0; handoffPath = $HandoffPath }); Save-TaskState -State $State }
+        if ($lease) { Complete-HermesExecutionLease -LeaseHandle $lease -State $State -Status "COMPLETED" -Result ([pscustomobject]@{ agent = "Codex"; exitCode = 0 }) | Out-Null }
         return $true
     } catch {
+        if ($State) { Set-CodexExecutionRecord -State $State -Status "FAILED" -Result ([pscustomobject]@{ agent = "Codex"; reason = $_.Exception.Message; handoffPath = $HandoffPath }); Save-TaskState -State $State }
+        if ($lease) { Complete-HermesExecutionLease -LeaseHandle $lease -State $State -Status "FAILED" -Result ([pscustomobject]@{ agent = "Codex"; reason = $_.Exception.Message }) | Out-Null }
         Write-Host "Codex CLI invocation failed: $($_.Exception.Message)"
         Write-Host "No alternate agent was invoked."
         return $false

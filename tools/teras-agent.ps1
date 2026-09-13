@@ -112,6 +112,13 @@ param(
     [switch]$PreferDeepSeek,
     [switch]$Deploy,
     [switch]$TestMode,
+    [ValidateSet("create_task", "start_task", "run_tests", "request_review")]
+    [string]$McpAction,
+    [string]$McpTaskId,
+    [string]$McpDescription,
+    [string]$McpIdempotencyKey,
+    [ValidateSet("targeted", "full")]
+    [string]$McpTestScope = "targeted",
     [string]$TestDescription = "Fix Template A director signature spacing",
     [int]$TestMenuChoice = 5
 )
@@ -177,7 +184,7 @@ function Show-Menu {
 }
 
 # ---------------------------------------------------------------------------
-# Post-implementation tail: scope check -> QA -> review (+ one repair cycle)
+# Post-implementation tail: scope check -> QA -> review (+ bounded repair cycles)
 # -> AWAITING_APPROVAL -> FINAL_REPORT.md -> approval screen. Shared by the
 # direct pipeline and -Resume so the two never drift apart.
 # ---------------------------------------------------------------------------
@@ -202,19 +209,19 @@ function Invoke-ReviewStage {
         return $State
     }
 
-    if ($State.RepairCyclesUsed -ge 1) {
+    if ($State.RepairCyclesUsed -ge $HermesMaxRepairAttempts) {
         $State.State = "BLOCKED"
         Save-TaskState -State $State
         Write-Host ""
         Write-Host "STATUS: HUMAN INTERVENTION REQUIRED"
-        Write-Host "Codex review is still BLOCKED after the maximum of 1 automatic repair cycle (MAX_REPAIR_CYCLES=1)."
+        Write-Host "Codex review is still BLOCKED after the maximum of $HermesMaxRepairAttempts automatic repair cycles."
         Write-Host "No further agent loop will run automatically."
         Write-Host ""
         return $State
     }
 
     Write-Host ""
-    Write-Host "Codex review returned BLOCKED. Starting repair cycle 1 of 1 (MAX_REPAIR_CYCLES=1)."
+    Write-Host "Codex review returned BLOCKED. Starting repair cycle $($State.RepairCyclesUsed + 1) of $HermesMaxRepairAttempts."
     Write-Host ""
 
     $State.State = "REPAIR"
@@ -226,7 +233,7 @@ function Invoke-ReviewStage {
         Write-Host "Claude Code CLI not detected. REPAIR_HANDOFF.md was generated - run the repair manually, then 'teras-agent -Resume'."
         return $State
     }
-    Invoke-ClaudeImplementation -HandoffPath $repairHandoffPath | Out-Null
+    Invoke-ClaudeImplementation -HandoffPath $repairHandoffPath -State $State | Out-Null
 
     $afterRepair = Get-GitStatusSnapshot
     $delta = Get-ImplementationDelta -Before $PreImplementationSnapshot -After $afterRepair
@@ -260,7 +267,7 @@ function Invoke-ReviewStage {
         return $State
     }
 
-    $State.RepairCyclesUsed = 1
+    $State.RepairCyclesUsed = [int]$State.RepairCyclesUsed + 1
     $State.State = "REVIEWING"
     Save-TaskState -State $State
     $handoffPath2 = New-CodexReviewHandoff -State $State -TaskGeneratedFiles $State.TaskGeneratedFiles
@@ -270,6 +277,9 @@ function Invoke-ReviewStage {
     Save-TaskState -State $State
 
     if ($State.ReviewVerdict -eq "BLOCKED") {
+        if ($State.RepairCyclesUsed -lt $HermesMaxRepairAttempts) {
+            return Invoke-ReviewStage -State $State -Mandatory $Mandatory -Optional $Optional -PreImplementationSnapshot $PreImplementationSnapshot
+        }
         $State.State = "BLOCKED"
         Save-TaskState -State $State
         Write-Host ""
@@ -474,7 +484,7 @@ function Invoke-ClaudeRepairLoop {
         Write-Host "Claude requested changes. Starting bounded Codex repair attempt $attempts of $maximumAttempts."
         Write-Host "Repair safety gate: $($gate.Reason)"
 
-        $ran = Invoke-CodexImplementation -HandoffPath $repairHandoff
+        $ran = Invoke-CodexImplementation -HandoffPath $repairHandoff -State $State
         if (-not $ran) {
             $State.State = "PENDING_CODEX_REPAIR"
             Set-TaskStateProperty -State $State -Name "PendingAgentStep" -Value "CODEX_REPAIR"
@@ -627,16 +637,18 @@ function Invoke-DeepSeekPostCallResult {
             Write-Host ""
         }
         $State.OriginalImplementer = $State.Implementer
-        $State.Implementer = "Claude Code"
-        $State.ImplementerModel = if ($State.Risk -in @("HIGH", "CRITICAL")) { "CLAUDE_DEEP" } else { "CLAUDE_FAST" }
+        $approved = Get-ApprovedRoutingForRisk -Risk $(if ($State.Risk -in @("HIGH", "CRITICAL")) { $State.Risk } else { "MEDIUM" })
+        $State.Implementer = $approved.Implementer
+        $State.ImplementerModel = $approved.ImplementerModel
+        $State.ImplementerProvider = $approved.ImplementerProvider
         $State.State = "IMPLEMENTING"
         Save-TaskState -State $State
 
-        $handoffPath = New-ClaudeHandoff -State $State
-        Write-Host "Escalated to Claude Code ($($State.ImplementerModel)). See .ai/CLAUDE_ESCALATION_HANDOFF.md."
-        $claudeRan = Invoke-ClaudeImplementation -HandoffPath $handoffPath
-        if (-not $claudeRan) {
-            Write-Host "Run manually using .ai/CLAUDE_HANDOFF.md and .ai/CLAUDE_ESCALATION_HANDOFF.md, then 'teras-agent -Resume' again."
+        $handoffPath = if ($State.Implementer -eq "Codex") { New-CodexImplementationHandoff -State $State } else { New-ClaudeHandoff -State $State }
+        Write-Host "Escalated from legacy DeepSeek to approved $($State.ImplementerProvider) $($State.ImplementerModel)."
+        $approvedRan = if ($State.Implementer -eq "Codex") { Invoke-CodexImplementation -HandoffPath $handoffPath -State $State } else { Invoke-ClaudeImplementation -HandoffPath $handoffPath -State $State }
+        if (-not $approvedRan) {
+            Write-Host "Approved model is unavailable; task remains blocked pending an approved model or human action."
             return $true
         }
         Invoke-PostImplementation -State $State -PreSnapshot $PreSnapshot | Out-Null
@@ -678,8 +690,9 @@ function Invoke-DeepSeekImplementerFallback {
     Write-Host "Failure Type:"
     Write-Host $FallbackType
     Write-Host ""
+    $approved = Get-ApprovedRoutingForRisk -Risk $(if ($State.Risk -in @("HIGH", "CRITICAL")) { $State.Risk } else { "MEDIUM" })
     Write-Host "Fallback:"
-    Write-Host "CLAUDE_FAST"
+    Write-Host "$($approved.ImplementerProvider) $($approved.ImplementerModel)"
     Write-Host ""
 
     $failureDetail = if ($FallbackType -eq "STALE_AGENT_RESULT") {
@@ -700,11 +713,12 @@ function Invoke-DeepSeekImplementerFallback {
     # Only a genuine, CURRENT agent escalation (handled above) may ever
     # raise risk.
     $State.OriginalImplementer = $State.Implementer
-    $State.FallbackImplementer = "Claude Code"
+    $State.FallbackImplementer = $approved.Implementer
     $State.ImplementerFallbackReason = $failureDetail
     $State.FallbackType = $FallbackType
-    $State.Implementer = "Claude Code"
-    $State.ImplementerModel = "CLAUDE_FAST"
+    $State.Implementer = $approved.Implementer
+    $State.ImplementerModel = $approved.ImplementerModel
+    $State.ImplementerProvider = $approved.ImplementerProvider
     $State.State = "IMPLEMENTING"
     Save-TaskState -State $State
 
@@ -714,12 +728,12 @@ function Invoke-DeepSeekImplementerFallback {
     # whatever DeepSeek actually attempted plus the real fallback detail,
     # instead of rediscovering the repository from scratch.
     New-ClaudeEscalationHandoff -State $State -Escalation $Escalation -ReasonOverride $failureDetail | Out-Null
-    $handoffPath = New-ClaudeHandoff -State $State
-    Write-Host "Claude FAST will continue with existing context (original task, approved scope, DeepSeek's findings preserved) - see .ai/CLAUDE_ESCALATION_HANDOFF.md."
+    $handoffPath = if ($approved.Implementer -eq "Codex") { New-CodexImplementationHandoff -State $State } else { New-ClaudeHandoff -State $State }
+    Write-Host "$($approved.ImplementerProvider) $($approved.ImplementerModel) will continue with existing context; DeepSeek findings are preserved for reference only."
     Write-Host ""
-    $claudeRan = Invoke-ClaudeImplementation -HandoffPath $handoffPath
-    if (-not $claudeRan) {
-        Write-Host "Claude did not run automatically. Run manually using .ai/CLAUDE_HANDOFF.md and .ai/CLAUDE_ESCALATION_HANDOFF.md, then 'teras-agent -Resume' again."
+    $approvedRan = if ($approved.Implementer -eq "Codex") { Invoke-CodexImplementation -HandoffPath $handoffPath -State $State } else { Invoke-ClaudeImplementation -HandoffPath $handoffPath -State $State }
+    if (-not $approvedRan) {
+        Write-Host "Approved model is unavailable; task remains blocked pending an approved model or human action."
         return
     }
     Invoke-PostImplementation -State $State -PreSnapshot $PreSnapshot | Out-Null
@@ -787,7 +801,7 @@ function Invoke-TaskPipeline {
     $state.State = "IMPLEMENTING"
     Save-TaskState -State $state
 
-    $ran = if ($isDeepSeek) { Invoke-DeepSeekImplementation -HandoffPath $handoffPath -State $state } elseif ($isCodex) { Invoke-CodexImplementation -HandoffPath $handoffPath } else { Invoke-ClaudeImplementation -HandoffPath $handoffPath }
+    $ran = if ($isDeepSeek) { Invoke-DeepSeekImplementation -HandoffPath $handoffPath -State $state } elseif ($isCodex) { Invoke-CodexImplementation -HandoffPath $handoffPath -State $state } else { Invoke-ClaudeImplementation -HandoffPath $handoffPath -State $state }
 
     if ($isDeepSeek) {
         $handled = Invoke-DeepSeekPostCallResult -State $state -Ran $ran -PreSnapshot $preSnapshot
@@ -799,8 +813,11 @@ function Invoke-TaskPipeline {
     }
 
     if (-not $ran) {
-        Write-Host "Implementation step did not run automatically. State remains IMPLEMENTING."
-        Write-Host "Run the task manually with $($state.Implementer) using .ai/$handoffFileName, then 'teras-agent -Resume'."
+        $state.State = "BLOCKED"
+        $state.ImplementerFallbackReason = "APPROVED_MODEL_UNAVAILABLE: $($state.ImplementerProvider) $($state.ImplementerModel) could not be invoked; no unapproved fallback was attempted."
+        $state.BlockingIssues = @($state.BlockingIssues) + $state.ImplementerFallbackReason
+        Save-TaskState -State $state
+        Write-Host "BLOCKED: approved model unavailable; no unapproved fallback was attempted."
         return
     }
 
@@ -943,7 +960,7 @@ function Invoke-Resume {
         }
         $state.State = "IMPLEMENTING_REPAIR"
         Save-TaskState -State $state
-        $repairRan = Invoke-CodexImplementation -HandoffPath $repairPath
+        $repairRan = Invoke-CodexImplementation -HandoffPath $repairPath -State $state
         if (-not $repairRan) {
             $state.State = "PENDING_CODEX_REPAIR"
             Set-TaskStateProperty -State $state -Name "PendingAgentStep" -Value "CODEX_REPAIR"
@@ -973,6 +990,22 @@ function Invoke-Resume {
         $isCodex = ($state.Implementer -eq "Codex")
 
         if ($isDeepSeek) {
+            # Legacy task state must not re-enter the disabled DeepSeek path.
+            # Reconcile it to the approved provider/model before any runner
+            # invocation; HIGH/CRITICAL remains Claude-only.
+            $legacyRisk = if ($state.Risk -in @("HIGH", "CRITICAL")) { $state.Risk } else { "MEDIUM" }
+            $approved = Get-ApprovedRoutingForRisk -Risk $legacyRisk
+            $state.OriginalImplementer = "DeepSeek"
+            $state.Implementer = $approved.Implementer
+            $state.ImplementerModel = $approved.ImplementerModel
+            $state.ImplementerProvider = $approved.ImplementerProvider
+            $state.ImplementerFallbackReason = "Legacy DeepSeek task state reconciled; DeepSeek is disabled for active routing."
+            Save-TaskState -State $state
+            $isDeepSeek = $false
+            $isCodex = ($state.Implementer -eq "Codex")
+        }
+
+        if ($isDeepSeek) {
             # Check for a report from a prior attempt first (agent
             # escalation / provider-adapter failure / already-filled) before
             # attempting the runner again - Invoke-DeepSeekPostCallResult
@@ -996,7 +1029,7 @@ function Invoke-Resume {
         $state.State = "IMPLEMENTING"
         Save-TaskState -State $state
 
-        $ran = if ($isDeepSeek) { Invoke-DeepSeekImplementation -HandoffPath $handoffPath -State $state } elseif ($isCodex) { Invoke-CodexImplementation -HandoffPath $handoffPath } else { Invoke-ClaudeImplementation -HandoffPath $handoffPath }
+        $ran = if ($isDeepSeek) { Invoke-DeepSeekImplementation -HandoffPath $handoffPath -State $state } elseif ($isCodex) { Invoke-CodexImplementation -HandoffPath $handoffPath -State $state } else { Invoke-ClaudeImplementation -HandoffPath $handoffPath -State $state }
 
         if ($isDeepSeek) {
             $handled = Invoke-DeepSeekPostCallResult -State $state -Ran $ran -PreSnapshot $preSnapshot
@@ -1008,7 +1041,11 @@ function Invoke-Resume {
         }
 
         if (-not $ran) {
-            Write-Host "Still not runnable automatically. Run manually, then 'teras-agent -Resume' again."
+            $state.State = "BLOCKED"
+            $state.ImplementerFallbackReason = "APPROVED_MODEL_UNAVAILABLE: $($state.ImplementerProvider) $($state.ImplementerModel) could not be invoked; no unapproved fallback was attempted."
+            $state.BlockingIssues = @($state.BlockingIssues) + $state.ImplementerFallbackReason
+            Save-TaskState -State $state
+            Write-Host "BLOCKED: approved model unavailable; no unapproved fallback was attempted."
             return
         }
     }
@@ -1023,6 +1060,83 @@ function Invoke-TestMode {
     Show-Status
     Write-Host ""
     Write-Host "TestMode complete. Claude/Codex were not launched (DryRun)."
+}
+
+function Write-McpActionResult {
+    param($Value, [int]$ExitCode = 0)
+    Write-Output ("HERMES_MCP_RESULT:" + ($Value | ConvertTo-Json -Depth 12 -Compress))
+    if ($ExitCode -ne 0) { exit $ExitCode }
+}
+
+function Invoke-McpAction {
+    param([string]$Action, [string]$TaskId, [string]$Description, [string]$IdempotencyKey, [string]$TestScope)
+
+    if ([string]::IsNullOrWhiteSpace($IdempotencyKey) -or $IdempotencyKey.Length -gt 128) { throw "A bounded idempotency key is required." }
+    $state = Get-TaskState
+    if ($state.State -ne "NONE" -and (Test-McpActionDuplicate -State $state -Action $Action -IdempotencyKey $IdempotencyKey)) {
+        $existing = Get-McpActionRecord -State $state -Action $Action -IdempotencyKey $IdempotencyKey
+        Write-McpActionResult ([ordered]@{ status = "DUPLICATE"; action = $Action; taskId = $existing[0].taskId; record = $existing[0] })
+        return
+    }
+
+    if ($Action -eq "create_task") {
+        if ([string]::IsNullOrWhiteSpace($Description) -or $Description.Length -gt 4000) { throw "Task description must be 1-4000 characters." }
+        if ($state.State -notin @("NONE", "COMPLETE", "BLOCKED")) { throw "An active Hermes task already exists; create_task is refused." }
+        $menuChoice = Get-AutoMenuChoice -Description $Description
+        $classification = Get-TaskClassification -MenuChoice $menuChoice -Description $Description
+        $state = New-TaskState -TaskId (Get-TaskId) -Description $Description -Classification $classification
+        $state.State = "ROUTED"
+        Save-TaskState -State $state
+        Add-McpActionRecord -State $state -Action $Action -IdempotencyKey $IdempotencyKey -Status "COMPLETED" -Details ([ordered]@{ taskId = $state.TaskId; risk = $state.Risk; implementer = $state.Implementer })
+        Write-McpActionResult ([ordered]@{ status = "CREATED"; taskId = $state.TaskId; state = $state.State; risk = $state.Risk; implementer = $state.Implementer; reviewer = $state.Reviewer })
+        return
+    }
+
+    if ($state.State -eq "NONE" -or [string]::IsNullOrWhiteSpace($state.TaskId) -or $state.TaskId -ne $TaskId) { throw "The requested task does not match the current durable Hermes task." }
+    if ($Action -eq "start_task") {
+        $gate = Test-McpStartAllowed -State $state -TaskId $TaskId
+        if (-not $gate.Allowed) { throw $gate.Reason }
+    }
+    if ($Action -eq "run_tests") {
+        if ($state.State -in @("COMPLETE", "BLOCKED", "APPROVED")) { throw "Task is not in a testable state." }
+        $state.State = "QA"
+        Save-TaskState -State $state
+        $qa = Invoke-QA -ChangedFiles @($state.TaskGeneratedFiles) -Lightweight:($TestScope -eq "targeted")
+        $state.QA = $qa
+        $state.State = if (Test-QaHasBlockingFailure -QaResults $qa) { "BLOCKED" } else { "QA" }
+        Add-McpActionRecord -State $state -Action $Action -IdempotencyKey $IdempotencyKey -Status "COMPLETED" -Details ([ordered]@{ scope = $TestScope; qa = $qa })
+        Write-McpActionResult ([ordered]@{ status = "TESTED"; taskId = $state.TaskId; state = $state.State; qa = $qa })
+        return
+    }
+    if ($Action -eq "request_review") {
+        if ($state.State -in @("COMPLETE", "BLOCKED")) { throw "Task is not reviewable in its current state." }
+        if ($state.Reviewer -notin @("Claude Code", "Codex", "Codex (recommended)")) { throw "No reviewer is assigned to this task." }
+        $state.State = "REVIEWING"
+        Save-TaskState -State $state
+        if ($state.Reviewer -eq "Claude Code") {
+            $review = Invoke-ClaudeReadOnlyReview -State $state -TaskGeneratedFiles @($state.TaskGeneratedFiles)
+            $state.ReviewVerdict = $review.Verdict
+            $details = [ordered]@{ reviewer = "Claude Code"; verdict = $review.Verdict; succeeded = $review.Succeeded; error = $review.Error }
+        } elseif ($state.Reviewer -eq "Codex" -or $state.Reviewer -eq "Codex (recommended)") {
+            $handoff = New-CodexReviewHandoff -State $state -TaskGeneratedFiles @($state.TaskGeneratedFiles)
+            $ran = Invoke-CodexReview -HandoffPath $handoff
+            $state.ReviewVerdict = if ($ran) { Get-ReviewVerdict } else { "PENDING" }
+            $details = [ordered]@{ reviewer = "Codex"; verdict = $state.ReviewVerdict; ran = $ran }
+        }
+        Save-TaskState -State $state
+        Add-McpActionRecord -State $state -Action $Action -IdempotencyKey $IdempotencyKey -Status "COMPLETED" -Details $details
+        Write-McpActionResult ([ordered]@{ status = "REVIEW_REQUESTED"; taskId = $state.TaskId; state = $state.State; review = $details })
+        return
+    }
+    if ($Action -eq "start_task") {
+        Add-McpActionRecord -State $state -Action $Action -IdempotencyKey $IdempotencyKey -Status "STARTED" -Details ([ordered]@{ taskId = $state.TaskId })
+        Invoke-Resume | Out-Null
+        $state = Get-TaskState
+        Add-McpActionRecord -State $state -Action $Action -IdempotencyKey $IdempotencyKey -Status "COMPLETED" -Details ([ordered]@{ state = $state.State })
+        Write-McpActionResult ([ordered]@{ status = "STARTED"; taskId = $state.TaskId; state = $state.State })
+        return
+    }
+    throw "Unsupported MCP action."
 }
 
 function Invoke-MainLoop {
@@ -1050,7 +1164,10 @@ function Invoke-MainLoop {
 # Dispatch
 # ---------------------------------------------------------------------------
 
-if ($Validate) {
+if ($McpAction) {
+    try { Invoke-McpAction -Action $McpAction -TaskId $McpTaskId -Description $McpDescription -IdempotencyKey $McpIdempotencyKey -TestScope $McpTestScope }
+    catch { Write-McpActionResult ([ordered]@{ status = "REJECTED"; action = $McpAction; error = $_.Exception.Message }) 1 }
+} elseif ($Validate) {
     # -Verbose is PowerShell's own built-in common parameter (available on
     # every script even without [CmdletBinding()]) - read it via
     # $VerbosePreference rather than declaring a colliding custom switch.
