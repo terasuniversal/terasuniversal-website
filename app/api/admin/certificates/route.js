@@ -12,7 +12,7 @@ async function requireAdmin({ manage = false } = {}) {
   if (profileError || !profile?.is_active || !hasMinRole(profile.role, manage ? "admin" : "editor")) return { response: NextResponse.json({ error: "Akses admin tidak dibenarkan." }, { status: 403 }) };
   const { data: moduleAllowed, error: moduleError } = await client.rpc("has_module_access_level", {
     p_module_key: "certificates",
-    p_level: "view",
+    p_level: manage ? "admin" : "view",
   });
   if (moduleError || moduleAllowed !== true) return { response: NextResponse.json({ error: "Akses admin tidak dibenarkan." }, { status: 403 }) };
   return { client, userId: userData.user.id };
@@ -51,7 +51,11 @@ async function createLegacyRecord(client, form) {
     courseId = course.id;
   }
 
-  const { error: certificateError } = await client.from("certificates").insert(certificatePayload(form, { participant_id: participant.id, course_id: courseId }));
+  const { error: certificateError } = await client.rpc("import_legacy_certificate", {
+    p_participant_id: participant.id,
+    p_course_id: courseId,
+    p_certificate: certificatePayload(form, { participant_id: participant.id, course_id: courseId }),
+  });
   return certificateError?.message || null;
 }
 
@@ -70,7 +74,7 @@ export async function POST(request) {
     return NextResponse.json({ error: "Modern certificate creation/editing must use the canonical eligibility and issuance flow." }, { status: 409 });
   }
   if (action === "delete") {
-    const { error } = await auth.client.from("certificates").update({ deleted_at: new Date().toISOString() }).eq("id", body.id);
+    const { error } = await auth.client.rpc("set_certificate_deleted", { p_certificate_id: body.id, p_deleted: true });
     if (error) return NextResponse.json({ error: error.message }, { status: 400 }); return NextResponse.json({ ok: true });
   }
   if (action === "legacy_import") {

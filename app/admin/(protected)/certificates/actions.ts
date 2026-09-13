@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { requireModuleAccess, requireCertificate } from "../../../../lib/auth/session";
-import { siteOrigin } from "../../../../lib/site-origin";
 import { certificateReissueSchema } from "../../../../lib/validation/schemas";
 
 /**
@@ -106,9 +105,6 @@ async function insertEligibleCertificate(
   const created = (data as { id: string; verification_token: string }[] | null)?.[0];
   if (!created) return "error";
 
-  const origin = await siteOrigin();
-  await supabase.from("certificates").update({ verification_url: `${origin}/verify/${created.verification_token}` }).eq("id", created.id);
-
   return "ok";
 }
 
@@ -177,7 +173,11 @@ export async function revokeCertificate(id: string, formData?: FormData) {
   await requireModuleAccess("certificates");
   const remarks = formData ? String(formData.get("remarks") ?? "").trim() : "";
   const supabase = await createSupabaseServerClient();
-  await supabase.from("certificates").update({ status: "revoked", remarks: remarks || null }).eq("id", id);
+  const { error } = await supabase.rpc("revoke_certificate", {
+    p_certificate_id: id,
+    p_remarks: remarks || null,
+  });
+  if (error) throw new Error("Unable to revoke certificate.");
   revalidatePath("/admin/certificates");
   revalidatePath(`/admin/certificates/${id}`);
 }
@@ -221,19 +221,10 @@ export async function duplicateCertificate(id: string) {
   await requireModuleAccess("certificates");
   const supabase = await createSupabaseServerClient();
 
-  const { data, error } = await supabase.rpc("duplicate_certificate_with_skill_snapshot" as never, {
+  const { error } = await supabase.rpc("duplicate_certificate_with_skill_snapshot" as never, {
     p_source_certificate_id: id,
   } as never);
   if (error) return;
-  const created = (data as { id: string; verification_token: string }[] | null)?.[0];
-
-  // Stamp verification_url now that we have the new token — matches
-  // generateCertificate's pattern. Without this, the duplicate's QR code
-  // encodes an unresolvable relative path (BUG_REPORT.md BUG-27).
-  if (created) {
-    const origin = await siteOrigin();
-    await supabase.from("certificates").update({ verification_url: `${origin}/verify/${created.verification_token}` }).eq("id", created.id);
-  }
 
   revalidatePath("/admin/certificates");
 }
@@ -244,7 +235,12 @@ export async function updateCertificateMeta(id: string, formData: FormData) {
   const expiry = String(formData.get("expiry_date") ?? "").trim();
   const remarks = String(formData.get("remarks") ?? "").trim();
   const supabase = await createSupabaseServerClient();
-  await supabase.from("certificates").update({ expiry_date: expiry || null, remarks: remarks || null }).eq("id", id);
+  const { error } = await supabase.rpc("update_certificate_metadata", {
+    p_certificate_id: id,
+    p_expiry_date: expiry || null,
+    p_remarks: remarks || null,
+  });
+  if (error) throw new Error("Unable to update certificate metadata.");
   revalidatePath(`/admin/certificates/${id}`);
 }
 
@@ -252,7 +248,11 @@ export async function softDeleteCertificate(id: string) {
   await requireCertificate(true);
   await requireModuleAccess("certificates");
   const supabase = await createSupabaseServerClient();
-  await supabase.from("certificates").update({ deleted_at: new Date().toISOString() }).eq("id", id);
+  const { error } = await supabase.rpc("set_certificate_deleted", {
+    p_certificate_id: id,
+    p_deleted: true,
+  });
+  if (error) throw new Error("Unable to delete certificate.");
   revalidatePath("/admin/certificates");
 }
 
@@ -260,7 +260,11 @@ export async function restoreCertificate(id: string) {
   await requireCertificate(true);
   await requireModuleAccess("certificates");
   const supabase = await createSupabaseServerClient();
-  await supabase.from("certificates").update({ deleted_at: null }).eq("id", id);
+  const { error } = await supabase.rpc("set_certificate_deleted", {
+    p_certificate_id: id,
+    p_deleted: false,
+  });
+  if (error) throw new Error("Unable to restore certificate.");
   revalidatePath("/admin/certificates");
 }
 
@@ -268,12 +272,7 @@ export async function restoreCertificate(id: string) {
 export async function regenerateVerificationToken(id: string) {
   await requireCertificate(true);
   await requireModuleAccess("certificates");
-  const { randomBytes } = await import("crypto");
-  const token = randomBytes(16).toString("hex");
-  const origin = await siteOrigin();
-  const supabase = await createSupabaseServerClient();
-  await supabase.from("certificates").update({ verification_token: token, verification_url: `${origin}/verify/${token}` }).eq("id", id);
-  revalidatePath(`/admin/certificates/${id}`);
+  throw new Error("Verification token regeneration is not supported for immutable certificates.");
 }
 
 /** Enable / disable public verification for this certificate. */
@@ -281,6 +280,10 @@ export async function setVerificationEnabled(id: string, enabled: boolean) {
   await requireCertificate(true);
   await requireModuleAccess("certificates");
   const supabase = await createSupabaseServerClient();
-  await supabase.from("certificates").update({ verification_enabled: enabled }).eq("id", id);
+  const { error } = await supabase.rpc("set_certificate_verification_enabled", {
+    p_certificate_id: id,
+    p_enabled: enabled,
+  });
+  if (error) throw new Error("Unable to update verification settings.");
   revalidatePath(`/admin/certificates/${id}`);
 }
