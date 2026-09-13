@@ -9,6 +9,7 @@ import { loadCertificateRender } from "../certData";
 import { revokeCertificate, reissueCertificate, duplicateCertificate, updateCertificateMeta, softDeleteCertificate, regenerateVerificationToken, setVerificationEnabled } from "../actions";
 import { EmptyState } from "../../../../../components/admin/ui";
 import { formatMalaysiaDateTime } from "../../../../../lib/date-time";
+import { CERTIFICATE_PROVENANCE_META } from "../../../../../lib/certificate-skills";
 
 interface ReissueHistoryRow {
   id: string;
@@ -61,7 +62,11 @@ await requireModuleAccess("certificates");
 
       <div style={{ marginBottom: 16, display: "flex", gap: 10, alignItems: "center" }}>
         <Badge status={cert.status} />
-        {r.data.render_mode && <span style={{ fontSize: 12, color: "var(--ta-muted)" }}>{r.data.render_mode}{r.data.renderer_version ? ` · ${r.data.renderer_version}` : ""}</span>}
+        {r.data.skills_provenance && (
+          <span title={CERTIFICATE_PROVENANCE_META[r.data.skills_provenance].help} style={{ fontSize: 12, color: "var(--ta-muted)" }}>
+            Record Provenance: <strong>{CERTIFICATE_PROVENANCE_META[r.data.skills_provenance].label}</strong>
+          </span>
+        )}
         {r.data.verification_url && <a href={r.data.verification_url} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: "var(--ta-info)" }}>Public verification link ↗</a>}
       </div>
 

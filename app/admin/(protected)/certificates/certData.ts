@@ -3,6 +3,7 @@ import { siteOrigin } from "../../../../lib/site-origin";
 import { generateQrSvg, formatHumanDate } from "../../../../lib/certificate-format";
 import { findStandardScaffoldProgrammeByCourseId } from "../../../../lib/standard-scaffold-programmes";
 import { findWorkingAtHeightProgrammeByCourseId } from "../../../../lib/working-at-height-programme";
+import { resolveCertificateSkills, type CertificateSkillRow } from "../../../../lib/certificate-skills";
 import type { CertData, TemplateConfig } from "../../../../components/admin/CertificateDocument";
 
 // Delegates to the same UTC-safe, round-trip-validated parser the renderers
@@ -14,161 +15,20 @@ function fmtDate(d?: string | null): string | null {
   return d ? formatHumanDate(d) : null;
 }
 
-const CERT_SKILL_AREA_LABELS: Record<string, string> = {
-  theory_session: "Theory Session",
-  practical_training: "Practical Training",
-  safety_awareness: "Safety Awareness",
-  practical_assessment: "Practical Assessment",
-  attendance_requirement: "Attendance Requirement",
-};
-const CERT_SKILL_STATUS_LABELS: Record<string, string> = {
-  not_recorded: "Not Recorded",
-  completed: "Completed",
-  passed: "Passed",
-  failed: "Failed",
-  met: "Met",
-  not_met: "Not Met",
-};
-/**
- * Reading order of the Participant Skills Record table. Both builders below
- * sort by this rather than by the `area` key, which is why it exists: the
- * snapshot builder previously ordered alphabetically, so a snapshot-backed
- * certificate would have listed Attendance Requirement first and Theory
- * Session last — a different row order from every other code path's
- * (chronological) one. Not visible in production yet only because
- * certificate_skill_results is still empty.
- */
-const CERT_SKILL_AREA_ORDER = [
-  "theory_session",
-  "practical_training",
-  "safety_awareness",
-  "practical_assessment",
-  "attendance_requirement",
-] as const;
-
-/**
- * LEGACY FALLBACK ONLY — used for certificates that have no immutable
- * certificate_skill_results snapshot of their own (every certificate issued
- * before Phase 2C, which today is all of them). A Phase-2C-issued certificate
- * never reaches this function; see loadCertificateRender's precedence.
- *
- * Reads the per-area statuses staff actually recorded in
- * participant_skill_results (the Assessment module's Participant Skills Record
- * form — app/admin/(protected)/assessment/actions.ts), which is the same table
- * app.issue_certificate_with_skill_snapshot snapshots from. This function used
- * to hardcode all four areas to "Not Recorded" on the premise that no per-area
- * source existed; that premise is simply out of date — the table has been
- * populated since Phase 2B, so real recorded results were being thrown away
- * and the back page under-reported completed training.
- *
- * Statuses are read, never derived: a combined assessment's pass/competent
- * result is NOT mapped onto these four areas here. Inferring them would
- * overwrite explicitly recorded staff input with a guess, and would invent a
- * per-area result the assessor never entered. An area with no row stays
- * "Not Recorded".
- *
- * Returns null (never fabricates) only when there is no evidence at all —
- * no schedule/participant link, or neither table yields anything — so callers
- * fall through to the template config's own default rows.
- */
-async function buildParticipantSkillsRecord(
-  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
-  scheduleId: string | null | undefined,
-  participantId: string | null | undefined
-): Promise<{ area: string; status: string }[] | null> {
-  if (!scheduleId || !participantId) return null;
-  try {
-    const [skills, eligibility] = await Promise.all([
-      supabase
-        .from("participant_skill_results")
-        .select("area, status")
-        .eq("schedule_id", scheduleId)
-        .eq("participant_id", participantId)
-        .is("deleted_at", null),
-      supabase
-        .from("v_certificate_eligibility")
-        .select("attendance_satisfied")
-        .eq("schedule_id", scheduleId)
-        .eq("participant_id", participantId)
-        .maybeSingle(),
-    ]);
-
-    if (skills.error) {
-      console.error("certData: participant_skill_results lookup failed", { scheduleId, message: skills.error.message });
-    }
-    if (eligibility.error) {
-      console.error("certData: v_certificate_eligibility lookup failed", { scheduleId, message: eligibility.error.message });
-    }
-
-    const recorded = new Map<string, string>();
-    for (const row of (skills.data ?? []) as { area: string; status: string }[]) {
-      recorded.set(row.area, row.status);
-    }
-    const elig = eligibility.error ? null : eligibility.data;
-
-    // No usable evidence from either source — stay out of the way rather than
-    // rendering five "Not Recorded" rows over a template's own configured ones.
-    if (recorded.size === 0 && !elig) return null;
-
-    return CERT_SKILL_AREA_ORDER.map((area) => {
-      if (area === "attendance_requirement") {
-        const status = !elig || elig.attendance_satisfied === null || elig.attendance_satisfied === undefined
-          ? "not_recorded"
-          : elig.attendance_satisfied
-            ? "met"
-            : "not_met";
-        return { area: CERT_SKILL_AREA_LABELS[area], status: CERT_SKILL_STATUS_LABELS[status] };
-      }
-      const raw = recorded.get(area) ?? "not_recorded";
-      return { area: CERT_SKILL_AREA_LABELS[area], status: CERT_SKILL_STATUS_LABELS[raw] ?? raw };
-    });
-  } catch (err) {
-    console.error("certData: participant skills record build threw", { scheduleId, err });
-    return null;
-  }
-}
-
-/**
- * Immutable issuance snapshot (Phase 2C) for the certificate's own id — the
- * authoritative source once it exists; see CertData.certificate_skills_record.
- * Keyed strictly by certificate_id, never by schedule/participant, so a
- * duplicated certificate reads its own copied rows rather than the source's.
- * Returns null (never synthesizes rows) when the certificate has zero
- * snapshot rows — legacy/pre-Phase-2C certificates — or if the query itself
- * fails; either case must fall through to buildParticipantSkillsRecord below,
- * never to a fabricated Completed/Passed value.
- */
 async function buildCertificateSkillsRecord(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   certificateId: string
-): Promise<{ area: string; status: string }[] | null> {
+): Promise<CertificateSkillRow[]> {
   try {
     const { data, error } = await supabase
       .from("certificate_skill_results")
       .select("area, status")
       .eq("certificate_id", certificateId);
-    if (error) {
-      console.error("certData: certificate_skill_results lookup failed", { certificateId, message: error.message });
-      return null;
-    }
-    if (!data || data.length === 0) return null;
-    // Sorted by reading order, not by `area` — see CERT_SKILL_AREA_ORDER. Any
-    // area outside the known set keeps its row and lands after the known ones
-    // rather than being silently dropped.
-    const rank = (area: string) => {
-      const i = CERT_SKILL_AREA_ORDER.indexOf(area as (typeof CERT_SKILL_AREA_ORDER)[number]);
-      return i === -1 ? CERT_SKILL_AREA_ORDER.length : i;
-    };
-    return (data as { area: string; status: string }[])
-      .slice()
-      .sort((a, b) => rank(a.area) - rank(b.area) || a.area.localeCompare(b.area))
-      .map((row) => ({
-        area: CERT_SKILL_AREA_LABELS[row.area] ?? row.area,
-        status: CERT_SKILL_STATUS_LABELS[row.status] ?? row.status,
-      }));
+    if (error) throw new Error("Certificate historical skills are unavailable; rendering stopped safely.");
+    return (data ?? []) as CertificateSkillRow[];
   } catch (err) {
     console.error("certData: certificate_skill_results lookup threw", { certificateId, err });
-    return null;
+    throw new Error("Certificate historical skills are unavailable; rendering stopped safely.");
   }
 }
 
@@ -354,37 +214,12 @@ export async function loadCertificateRender(id: string): Promise<
   // c.participants?.participant_id below, which is the joined participant's
   // display code like "TU-000158") — the eligibility view keys on the uuid.
   const certificateSkillsRecord = await buildCertificateSkillsRecord(supabase, c.id);
-  // Only queried when there's no snapshot to use instead — a Phase-2C-issued
-  // certificate never needs this live lookup at all.
-  const participantSkillsRecord = certificateSkillsRecord
-    ? null
-    : await buildParticipantSkillsRecord(supabase, c.schedule_id, c.participant_id);
-
-  // Single resolution point for every renderer (generic React/HTML and
-  // Template A React/HTML alike -- see components/admin/CertificateDocument.tsx's
-  // CertData.effective_skills_record). Previously each renderer computed its
-  // own precedence independently; the two generic ones only ever looked at
-  // config.skills_record, so a real certificate_skill_results/
-  // participant_skill_results row could never surface on a Standard
-  // Scaffold/Working at Height certificate even though this file was already
-  // loading it. Resolving it once here, after config's own merges (Standard
-  // Scaffold's programme.skills_record fill) have already run, means every
-  // renderer sees the same answer without duplicating the ternary. Read-only
-  // derivation -- does not mutate certificateSkillsRecord/participantSkillsRecord/
-  // config.skills_record themselves. null (not a fallback array) when none of
-  // the three sources has anything, so each renderer's own DEFAULT_SKILLS_RECORD
-  // still supplies the final fallback content exactly as before.
-  const effectiveSkillsRecord: { area: string; status: string }[] | null =
-    certificateSkillsRecord?.length
-      ? certificateSkillsRecord
-      : participantSkillsRecord?.length
-        ? participantSkillsRecord
-        : config.skills_record?.length
-          ? config.skills_record
-          : null;
+  const skillsResolution = resolveCertificateSkills(Boolean(snapshot), certificateSkillsRecord);
 
   const data: CertData = {
     render_mode: renderMode,
+    skills_provenance: skillsResolution.provenance,
+    skills_completeness: skillsResolution.completeness,
     renderer_version: snapshot?.renderer_version ?? null,
     certificate_number: certificateNumber,
     holder_name: snapshot?.holder_name ?? c.holder_name ?? c.participant_name,
@@ -406,8 +241,9 @@ export async function loadCertificateRender(id: string): Promise<
     verification_url: verificationUrl,
     qr_svg: qrSvg,
     certificate_skills_record: certificateSkillsRecord,
-    participant_skills_record: participantSkillsRecord,
-    effective_skills_record: effectiveSkillsRecord,
+    participant_skills_record: null,
+    effective_skills_record: skillsResolution.skills,
+    skills: skillsResolution.skills,
   };
   return { cert, data, config };
 }

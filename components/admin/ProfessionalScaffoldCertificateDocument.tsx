@@ -678,7 +678,7 @@ export function ProfessionalScaffoldCertificateBackPage({ data, config }: { data
   // renderer, by certData.ts::loadCertificateRender -- see CertData.
   // effective_skills_record's own comment. Only the terminal "Not Recorded"
   // default stays local to this renderer.
-  const skillsRecord = data.effective_skills_record?.length ? data.effective_skills_record : DEFAULT_SKILLS_RECORD;
+  const skillsRecord = data.skills?.length ? data.skills : DEFAULT_SKILLS_RECORD;
   const noticeParagraphs = config.important_notice ? config.important_notice.split(/\n{2,}/).filter(Boolean) : DEFAULT_NOTICE_PARAGRAPHS;
 
   const Section = ({ icon, title, children }: { icon: IconKind; title: string; children: ReactNode }) => (

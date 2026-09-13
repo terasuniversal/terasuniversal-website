@@ -8,6 +8,7 @@
     "typecheck": "node scripts/typecheck.mjs",
     "test:certificate-c2b": "node scripts/certificate-c2b-contract.mjs",
     "test:certificate-c2c": "node scripts/certificate-c2b-contract.mjs",
+    "test:certificate-c3b": "node --experimental-strip-types scripts/certificate-c3b-contract.mjs",
     "check:toyyibpay-env": "node --experimental-transform-types scripts/check-toyyibpay-env-resolver.mts",
     "build": "next build",
     "start": "next start"
