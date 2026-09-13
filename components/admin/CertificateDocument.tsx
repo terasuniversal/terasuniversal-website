@@ -21,6 +21,9 @@ import {
  * the bulk ZIP download path — keep both in sync.
  */
 export interface CertData {
+  /** Explicit runtime provenance: modern rows render from the immutable issuance contract. */
+  render_mode?: "MODERN_SNAPSHOT" | "LEGACY_FALLBACK";
+  renderer_version?: string | null;
   certificate_number: string;
   holder_name: string;
   course_name?: string | null;
@@ -32,7 +35,7 @@ export interface CertData {
   venue?: string | null;
   trainer?: string | null;
   issue_date?: string | null;
-  /** Absolute URL already resolved by certData.ts — encodes /verify/{certificate_number}. */
+  /** Absolute URL already resolved by certData.ts from stored verification metadata. */
   verification_url?: string | null;
   /** Inline QR SVG markup, generated once in certData.ts (see generateQrSvg). */
   qr_svg?: string | null;

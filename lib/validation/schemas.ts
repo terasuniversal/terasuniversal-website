@@ -268,6 +268,12 @@ export const certificateSchema = z.object({
 });
 export type CertificateInput = z.infer<typeof certificateSchema>;
 
+export const certificateReissueSchema = z.object({
+  event_type: z.enum(["reissue", "reprint"]),
+  reason: z.string().trim().min(1, "Reason is required").max(500),
+});
+export type CertificateReissueInput = z.infer<typeof certificateReissueSchema>;
+
 // Compatibility validation for the currently deployed legacy certificates
 // table. Keep this separate from certificateSchema: the legacy API uses
 // certificate_no/participant_name and valid|expired|revoked, while the
