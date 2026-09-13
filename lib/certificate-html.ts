@@ -1,6 +1,6 @@
 import type { CertData, TemplateConfig } from "../components/admin/CertificateDocument";
 import { fitHolderNameSize, formatDateRange, isAffirmativeStatus } from "./certificate-format";
-import { renderProfessionalScaffoldCertificateDocument } from "./professional-scaffold-certificate-html";
+import { CERTIFICATE_DESIGN, certificateFamilyLabel } from "./certificate-design-system";
 import {
   scaffoldWatermarkLines,
   type ScaffoldWatermarkLevel,
@@ -21,11 +21,11 @@ import {
  * two pages) so print output looks identical — keep both in sync.
  */
 
-const PAGE_W = 794;
-const PAGE_H = 1123;
+const PAGE_W = CERTIFICATE_DESIGN.page.widthPx;
+const PAGE_H = CERTIFICATE_DESIGN.page.heightPx;
 const REG_NO = "202201038223 (1477529-X)";
 /** Mirrors SANS in CertificateDocument.tsx — see that constant's comment. */
-const SANS = "'Helvetica Neue',Helvetica,Arial,sans-serif";
+const SANS = CERTIFICATE_DESIGN.typography.sans;
 
 const DEFAULT_BODY_TEXT =
   "This programme focuses on developing practical knowledge, safety awareness and safe working practices through structured learning and practical activities.";
@@ -90,9 +90,8 @@ function certificateFrame(navy: string, gold: string): string {
     .map((t) => `<div style="position:absolute;background:${gold};opacity:.45;pointer-events:none;${t}"></div>`)
     .join("");
   return `
-  <div style="position:absolute;inset:9px;border:1.5px solid ${navy};pointer-events:none;"></div>
-  <div style="position:absolute;inset:14px;border:1px solid ${gold};opacity:.4;pointer-events:none;"></div>
-  <div style="position:absolute;inset:19px;border:1px solid ${navy};opacity:.1;pointer-events:none;"></div>
+  <div style="position:absolute;inset:${CERTIFICATE_DESIGN.page.borderInsetPx}px;border:1px solid ${navy};pointer-events:none;"></div>
+  <div style="position:absolute;inset:${CERTIFICATE_DESIGN.page.borderInsetPx + 5}px;border:1px solid ${gold};opacity:.7;pointer-events:none;"></div>
   ${ticks}
   ${brackets}`;
 }
@@ -125,8 +124,8 @@ function certificateWatermark(config: TemplateConfig, color: string, corner: boo
   // Keep the exported certificate just as restrained as the live preview:
   // it is a background watermark, never a graphic competing with the name
   // or programme title.
-  const primaryG = renderWatermarkSet(shapes.primary, color, 1.5, 0.05);
-  const secondaryG = corner ? "" : renderWatermarkSet(shapes.secondary, color, 0.9, 0.03);
+  const primaryG = renderWatermarkSet(shapes.primary, color, 1.5, CERTIFICATE_DESIGN.watermark.primaryOpacity);
+  const secondaryG = corner ? "" : renderWatermarkSet(shapes.secondary, color, 0.9, CERTIFICATE_DESIGN.watermark.secondaryOpacity);
   // Drafting grid + corner registration ticks, front placement only — mirrors
   // WatermarkLayer in CertificateDocument.tsx.
   const strokes = (set: [number, number, number, number][]) =>
@@ -224,7 +223,7 @@ export function renderCertificateFront(data: CertData, config: TemplateConfig): 
   const dateBlock = dateRange
     ? `<p style="font-size:11px;color:#4b5563;margin:16px 0 0;"><span style="color:#8a94a6;letter-spacing:1.3px;font-size:8.5px;font-family:${SANS};text-transform:uppercase;">Conducted from </span>${esc(dateRange)}</p>`
     : "";
-  const qrHtml = config.show_qr !== false && data.qr_svg ? qrBlock(data.qr_svg, navy, gold, 82, true) : "";
+  const qrHtml = config.show_qr !== false && data.qr_svg ? qrBlock(data.qr_svg, navy, gold, CERTIFICATE_DESIGN.qr.sizePx, true) : "";
   const signatureImg = config.signature_url ? `<img src="${esc(config.signature_url)}" alt="" style="max-height:44px;max-width:150px;object-fit:contain;"/>` : "";
   const signatureWell = `<div style="height:44px;display:flex;align-items:flex-end;justify-content:center;padding-bottom:2px;">${signatureImg}</div>`;
   const roleLine = (text: string) => `<div style="color:#8a94a6;font-size:8.5px;letter-spacing:1.3px;font-family:${SANS};text-transform:uppercase;margin-top:3px;">${esc(text)}</div>`;
@@ -260,19 +259,20 @@ export function renderCertificateFront(data: CertData, config: TemplateConfig): 
         ${roleLine("Training Manager")}
       </div>`;
 
-  return `<div style="width:${PAGE_W}px;height:${PAGE_H}px;margin:0 auto;position:relative;background:#fff;box-sizing:border-box;padding:34px;font-family:Georgia,'Times New Roman',serif;color:#1F2937;overflow:hidden;${bgImage}">
+  return `<div style="width:${PAGE_W}px;height:${PAGE_H}px;margin:0 auto;position:relative;background:#fff;box-sizing:border-box;padding:${CERTIFICATE_DESIGN.page.safeMarginPx}px;font-family:${CERTIFICATE_DESIGN.typography.sans};color:${CERTIFICATE_DESIGN.colors.ink};overflow:hidden;${bgImage}">
   ${motif}
   ${certificateFrame(navy, gold)}
-  <div style="position:relative;height:100%;box-sizing:border-box;padding:30px 40px;display:flex;flex-direction:column;text-align:center;">
+  <div style="position:relative;height:100%;box-sizing:border-box;padding:14px 0 0;display:flex;flex-direction:column;text-align:center;">
     ${logo}
-    <div style="letter-spacing:3.4px;font-size:13px;color:${navy};font-weight:700;">TERAS UNIVERSAL SDN. BHD.</div>
+    <div style="letter-spacing:3.4px;font-size:13px;color:${navy};font-weight:700;font-family:'Montserrat','Poppins','Inter',Arial,sans-serif;">TERAS UNIVERSAL SDN. BHD.</div>
     <div style="font-size:8px;color:#8a94a6;margin-top:3px;letter-spacing:1px;font-family:${SANS};">${REG_NO}</div>
     <div style="width:52px;height:1px;background:${gold};margin:11px auto 0;"></div>
-    <h1 style="font-size:44px;margin:19px 0 0;letter-spacing:14px;color:${navy};font-weight:700;line-height:1;text-indent:14px;">CERTIFICATE</h1>
+    <div style="font-size:8px;color:${navy};margin-top:9px;letter-spacing:1.8px;font-weight:700;font-family:${SANS};">${esc(certificateFamilyLabel(config))}</div>
+    <h1 style="font-size:${CERTIFICATE_DESIGN.typography.certificateTitlePx}px;margin:12px 0 0;letter-spacing:5px;color:${navy};font-weight:700;line-height:1.1;font-family:'Montserrat','Poppins','Inter',Arial,sans-serif;">CERTIFICATE</h1>
     <div style="font-size:8.5px;color:#8a94a6;letter-spacing:5px;font-weight:600;font-family:${SANS};text-indent:5px;margin-top:10px;">OF SUCCESSFUL COMPLETION</div>
     <p style="font-size:9.5px;margin:24px 0 9px;color:#8a94a6;letter-spacing:1.8px;font-family:${SANS};text-transform:uppercase;text-indent:1.8px;">This certificate is proudly presented to</p>
     <div style="position:relative;display:inline-block;margin:0 auto;max-width:660px;">
-      <div style="font-size:${nameSize}px;font-weight:700;color:${navy};padding:0 26px 14px;word-break:break-word;line-height:1.22;letter-spacing:.8px;">${esc(data.holder_name)}</div>
+      <div style="font-size:${Math.min(nameSize, CERTIFICATE_DESIGN.typography.participantNamePx)}px;font-weight:700;color:${navy};padding:0 12px 14px;word-break:break-word;line-height:1.18;letter-spacing:.4px;font-family:'Montserrat','Poppins','Inter',Arial,sans-serif;">${esc(data.holder_name)}</div>
       <div style="position:relative;height:1px;background:#d3d9e2;">
         <span style="position:absolute;top:-0.5px;left:50%;transform:translateX(-50%);width:130px;height:2px;background:${gold};"></span>
       </div>
@@ -281,12 +281,12 @@ export function renderCertificateFront(data: CertData, config: TemplateConfig): 
     ${icBlock}
     <p style="font-size:9px;margin:18px 0 0;color:#8a94a6;letter-spacing:1.8px;font-family:${SANS};text-transform:uppercase;text-indent:1.8px;">For successfully completing the</p>
     <div style="width:30px;height:1px;background:${gold};margin:8px auto 10px;"></div>
-    <div style="font-size:23px;font-weight:700;color:${navy};text-transform:uppercase;line-height:1.38;max-width:600px;margin:0 auto;letter-spacing:1.4px;">${esc(data.course_name ?? "")}</div>
+    <div style="font-size:${CERTIFICATE_DESIGN.typography.courseNamePx}px;font-weight:700;color:${navy};text-transform:uppercase;line-height:1.3;max-width:600px;margin:0 auto;letter-spacing:.8px;font-family:'Montserrat','Poppins','Inter',Arial,sans-serif;overflow-wrap:anywhere;">${esc(data.course_name)}</div>
     <div style="width:150px;height:1px;background:${navy};opacity:.22;margin:11px auto 0;"></div>
     ${durationBlock}
     ${dateBlock}
     <p style="font-size:10.5px;line-height:1.85;max-width:520px;margin:17px auto 0;color:#6b7280;">${esc(config.body_text || DEFAULT_BODY_TEXT)}</p>
-    <div style="margin:auto 0 0;border-top:1px solid ${navy};border-bottom:1px solid #e3e7ee;padding:16px 4px 15px;display:flex;gap:22px;text-align:left;align-items:flex-start;">
+    <div style="margin:auto 0 0;border-top:1px solid ${navy};border-bottom:1px solid #e3e7ee;padding:12px 4px 11px;display:flex;gap:18px;text-align:left;align-items:flex-start;">
       ${metaTile("calendar", "Date of Completion", data.issue_date || "—", navy, gold)}
       <div style="width:1px;background:#e3e7ee;align-self:stretch;"></div>
       ${metaTile("refresh", "Skills Update", config.skills_update_recommendation || "Within Three (3) Years", navy, gold)}
@@ -342,7 +342,7 @@ export function renderCertificateBack(data: CertData, config: TemplateConfig): s
       .map((it) => `<li style="display:flex;gap:8px;margin-bottom:4px;"><span style="width:6px;height:1px;background:${gold};margin-top:8px;flex-shrink:0;"></span><span>${esc(it)}</span></li>`)
       .join("")}</ul>`;
   const colDivider = `<div style="width:1px;align-self:stretch;background:#edf0f4;"></div>`;
-  const thStyle = `text-align:left;font-weight:700;color:#8a94a6;font-family:${SANS};font-size:7.5px;letter-spacing:1.1px;text-transform:uppercase;border-bottom:1px solid ${gold};`;
+  const thStyle = `text-align:left;font-weight:700;color:#8a94a6;font-family:${SANS};font-size:8px;letter-spacing:1.1px;text-transform:uppercase;border-bottom:1px solid ${gold};`;
 
   const skillsTable = showSkillsRecord
     ? section(
@@ -372,12 +372,13 @@ export function renderCertificateBack(data: CertData, config: TemplateConfig): s
     ? `<div style="border-left:1px solid #e3e7ee;padding-left:20px;">${qrBlock(data.qr_svg, navy, gold, 56, false)}</div>`
     : "";
 
-  return `<div style="width:${PAGE_W}px;height:${PAGE_H}px;margin:0 auto;position:relative;background:#fff;box-sizing:border-box;padding:34px;font-family:Georgia,'Times New Roman',serif;color:#1F2937;overflow:hidden;">
+  return `<div style="width:${PAGE_W}px;height:${PAGE_H}px;margin:0 auto;position:relative;background:#fff;box-sizing:border-box;padding:${CERTIFICATE_DESIGN.page.safeMarginPx}px;font-family:${CERTIFICATE_DESIGN.typography.sans};color:${CERTIFICATE_DESIGN.colors.ink};overflow:hidden;">
   ${backMotif}
   ${certificateFrame(navy, gold)}
-  <div style="position:relative;height:100%;box-sizing:border-box;padding:30px 40px;display:flex;flex-direction:column;">
-    ${ribbonBanner(`<span style="font-size:9px;font-weight:700;letter-spacing:2.8px;font-family:${SANS};text-indent:2.8px;">PROGRAMME INFORMATION</span>`, navy, gold, "align-self:center;display:block;width:fit-content;margin:0 auto;")}
-    <div style="text-align:center;font-size:18px;font-weight:700;color:${navy};text-transform:uppercase;margin:13px 0 0;line-height:1.3;letter-spacing:1px;">${esc(config.programme_title || data.course_name || "")}</div>
+  <div style="position:relative;height:100%;box-sizing:border-box;padding:14px 0 0;display:flex;flex-direction:column;">
+    ${ribbonBanner(`<span style="font-size:9px;font-weight:700;letter-spacing:2.2px;font-family:${SANS};text-indent:2.2px;">PARTICIPANT SKILLS RECORD</span>`, navy, gold, "align-self:center;display:block;width:fit-content;margin:0 auto;")}
+    <div style="text-align:center;font-size:16px;font-weight:700;color:${navy};text-transform:uppercase;margin:13px 0 0;line-height:1.3;letter-spacing:.8px;font-family:'Montserrat','Poppins','Inter',Arial,sans-serif;overflow-wrap:anywhere;">${esc(config.programme_title || data.course_name || "")}</div>
+    <div style="display:flex;justify-content:center;gap:18px;flex-wrap:wrap;margin:8px 0 0;color:#667085;font-family:${SANS};font-size:8.5px;"><span>Participant: <strong style="color:${navy}">${esc(data.holder_name)}</strong></span><span>Certificate No.: <strong style="color:${navy}">${esc(data.certificate_number)}</strong></span><span>Training period: <strong style="color:${navy}">${esc(formatDateRange(data.training_date, data.training_end_date) || "—")}</strong></span></div>
     <div style="display:flex;margin:10px 0 15px;">
       <span style="width:28px;height:1.5px;background:${gold};"></span>
       <span style="flex:1;height:1px;background:#e3e7ee;align-self:center;"></span>
@@ -438,9 +439,7 @@ export function renderCertificateBody(data: CertData, config: TemplateConfig): s
  * through to the layout below.
  */
 export function renderCertificateDocument(data: CertData, config: TemplateConfig): string {
-  if (config.design_variant === "professional_scaffold_erection_skills") {
-    return renderProfessionalScaffoldCertificateDocument(data, config);
-  }
+
   const title = data.certificate_number || data.holder_name || "Certificate";
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${esc(title)}</title>
 <style>

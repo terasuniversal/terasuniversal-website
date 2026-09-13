@@ -11,6 +11,7 @@ import {
   BLUEPRINT_GRID,
   REGISTRATION_TICKS,
 } from "../../lib/certificate-watermarks";
+import { CERTIFICATE_DESIGN, certificateFamilyLabel } from "../../lib/certificate-design-system";
 
 /**
  * Template-driven certificate renderer (server component, no client JS).
@@ -106,8 +107,8 @@ export interface TemplateConfig {
   contact_website?: string;
 }
 
-const PAGE_W = 794;
-const PAGE_H = 1123;
+const PAGE_W = CERTIFICATE_DESIGN.page.widthPx;
+const PAGE_H = CERTIFICATE_DESIGN.page.heightPx;
 const REG_NO = "202201038223 (1477529-X)";
 /**
  * Micro-typography stack for eyebrows/labels/table headers. The display type
@@ -115,7 +116,7 @@ const REG_NO = "202201038223 (1477529-X)";
  * supporting type is what separates a corporate competency document from a
  * single-serif "template default" look. Mirrored in lib/certificate-html.ts.
  */
-const SANS = "'Helvetica Neue', Helvetica, Arial, sans-serif";
+const SANS = CERTIFICATE_DESIGN.typography.sans;
 
 const DEFAULT_BODY_TEXT =
   "This programme focuses on developing practical knowledge, safety awareness and safe working practices through structured learning and practical activities.";
@@ -175,9 +176,8 @@ function CertificateFrame({ navy, gold }: { navy: string; gold: string }) {
   ];
   return (
     <>
-      <div style={{ position: "absolute", inset: 9, border: `1.5px solid ${navy}`, pointerEvents: "none" }} />
-      <div style={{ position: "absolute", inset: 14, border: `1px solid ${gold}`, opacity: 0.4, pointerEvents: "none" }} />
-      <div style={{ position: "absolute", inset: 19, border: `1px solid ${navy}`, opacity: 0.1, pointerEvents: "none" }} />
+      <div style={{ position: "absolute", inset: CERTIFICATE_DESIGN.page.borderInsetPx, border: `1px solid ${navy}`, pointerEvents: "none" }} />
+      <div style={{ position: "absolute", inset: CERTIFICATE_DESIGN.page.borderInsetPx + 5, border: `1px solid ${gold}`, opacity: 0.7, pointerEvents: "none" }} />
       {ticks.map((t, i) => (
         <div key={`tick${i}`} style={{ position: "absolute", background: gold, opacity: 0.45, pointerEvents: "none", ...t }} />
       ))}
@@ -246,9 +246,9 @@ function WatermarkLayer({ shapes, color, corner = false, showSecondary = true }:
       {/* Primary sits a clear step above the grid so the family motif still
           reads as the subject and the grid stays background — raising both by
           the same amount would have kept it flat and muddy. */}
-      <g stroke={color} strokeWidth="1.5" fill="none" opacity={0.05}>{renderSet(shapes.primary, "p")}</g>
+      <g stroke={color} strokeWidth="1.5" fill="none" opacity={CERTIFICATE_DESIGN.watermark.primaryOpacity}>{renderSet(shapes.primary, "p")}</g>
       {showSecondary && (
-        <g stroke={color} strokeWidth="0.9" fill="none" opacity={0.03}>{renderSet(shapes.secondary, "s")}</g>
+        <g stroke={color} strokeWidth="0.9" fill="none" opacity={CERTIFICATE_DESIGN.watermark.secondaryOpacity}>{renderSet(shapes.secondary, "s")}</g>
       )}
     </svg>
   );
@@ -424,8 +424,8 @@ export function CertificateDocument({ data, config }: { data: CertData; config: 
   return (
     <div
       style={{
-        width: PAGE_W, height: PAGE_H, margin: "0 auto", position: "relative", background: "#fff",
-        boxSizing: "border-box", padding: 34, fontFamily: "Georgia, 'Times New Roman', serif", color: "#1F2937", overflow: "hidden",
+        width: PAGE_W, height: PAGE_H, margin: "0 auto", position: "relative", background: CERTIFICATE_DESIGN.colors.white,
+        boxSizing: "border-box", padding: CERTIFICATE_DESIGN.page.safeMarginPx, fontFamily: CERTIFICATE_DESIGN.typography.sans, color: CERTIFICATE_DESIGN.colors.ink, overflow: "hidden",
         backgroundImage: config.background_url ? `url(${config.background_url})` : undefined,
         backgroundSize: "cover", backgroundPosition: "center",
       }}
@@ -433,22 +433,23 @@ export function CertificateDocument({ data, config }: { data: CertData; config: 
       {!config.background_url && <CertificateWatermark config={config} color={navy} />}
       <CertificateFrame navy={navy} gold={gold} />
 
-      <div style={{ position: "relative", height: "100%", boxSizing: "border-box", padding: "30px 40px", display: "flex", flexDirection: "column", textAlign: "center" }}>
+      <div style={{ position: "relative", height: "100%", boxSizing: "border-box", padding: "14px 0 0", display: "flex", flexDirection: "column", textAlign: "center" }}>
         {/* 105x74 is the asset's own 1144x806 aspect at the requested ~105px
             width — an explicit pair rather than a square box, because a square
             box with objectFit:contain padded ~15px of dead space above and
             below the mark and made the header rhythm read as loose. */}
         {config.logo_url && <img src={config.logo_url} alt="" style={{ width: 105, height: 74, objectFit: "contain", display: "block", margin: "0 auto 6px" }} />}
-        <div style={{ letterSpacing: 3.4, fontSize: 13, color: navy, fontWeight: 700 }}>TERAS UNIVERSAL SDN. BHD.</div>
+        <div style={{ letterSpacing: 3.4, fontSize: 13, color: navy, fontWeight: 700, fontFamily: CERTIFICATE_DESIGN.typography.heading }}>TERAS UNIVERSAL SDN. BHD.</div>
         <div style={{ fontSize: 8, color: "#8a94a6", marginTop: 3, letterSpacing: 1, fontFamily: SANS }}>{REG_NO}</div>
         <div style={{ width: 52, height: 1, background: gold, margin: "11px auto 0" }} />
 
-        <h1 style={{ fontSize: 44, margin: "19px 0 0", letterSpacing: 14, color: navy, fontWeight: 700, lineHeight: 1, textIndent: 14 }}>CERTIFICATE</h1>
+        <div style={{ fontSize: 8, color: navy, marginTop: 9, letterSpacing: 1.8, fontWeight: 700, fontFamily: SANS }}>{certificateFamilyLabel(config)}</div>
+        <h1 style={{ fontSize: CERTIFICATE_DESIGN.typography.certificateTitlePx, margin: "12px 0 0", letterSpacing: 5, color: navy, fontWeight: 700, lineHeight: 1.1, fontFamily: CERTIFICATE_DESIGN.typography.heading }}>CERTIFICATE</h1>
         <div style={{ fontSize: 8.5, color: "#8a94a6", letterSpacing: 5, fontWeight: 600, fontFamily: SANS, textIndent: 5, marginTop: 10 }}>OF SUCCESSFUL COMPLETION</div>
 
         <p style={{ fontSize: 9.5, margin: "24px 0 9px", color: "#8a94a6", letterSpacing: 1.8, fontFamily: SANS, textTransform: "uppercase", textIndent: 1.8 }}>This certificate is proudly presented to</p>
         <div style={{ position: "relative", display: "inline-block", margin: "0 auto", maxWidth: 660 }}>
-          <div style={{ fontSize: nameSize, fontWeight: 700, color: navy, padding: "0 26px 14px", wordBreak: "break-word", lineHeight: 1.22, letterSpacing: 0.8 }}>
+          <div style={{ fontSize: Math.min(nameSize, CERTIFICATE_DESIGN.typography.participantNamePx), fontWeight: 700, color: navy, padding: "0 12px 14px", wordBreak: "break-word", lineHeight: 1.18, letterSpacing: 0.4, fontFamily: CERTIFICATE_DESIGN.typography.heading }}>
             {data.holder_name}
           </div>
           {/* Hairline rule with a short gold centre segment — replaces the
@@ -465,7 +466,7 @@ export function CertificateDocument({ data, config }: { data: CertData; config: 
 
         <p style={{ fontSize: 9, margin: "18px 0 0", color: "#8a94a6", letterSpacing: 1.8, fontFamily: SANS, textTransform: "uppercase", textIndent: 1.8 }}>For successfully completing the</p>
         <div style={{ width: 30, height: 1, background: gold, margin: "8px auto 10px" }} />
-        <div style={{ fontSize: 23, fontWeight: 700, color: navy, textTransform: "uppercase", lineHeight: 1.38, maxWidth: 600, margin: "0 auto", letterSpacing: 1.4 }}>
+        <div style={{ fontSize: CERTIFICATE_DESIGN.typography.courseNamePx, fontWeight: 700, color: navy, textTransform: "uppercase", lineHeight: 1.3, maxWidth: 600, margin: "0 auto", letterSpacing: 0.8, fontFamily: CERTIFICATE_DESIGN.typography.heading, overflowWrap: "anywhere" }}>
           {data.course_name}
         </div>
         <div style={{ width: 150, height: 1, background: navy, opacity: 0.22, margin: "11px auto 0" }} />
@@ -488,7 +489,7 @@ export function CertificateDocument({ data, config }: { data: CertData; config: 
         {/* Record strip: four data cells across a tinted band, hairline-separated.
             A single horizontal strip on its own ground reads as the data block of
             an issued document; the previous 2x2 icon-badge grid read as a form. */}
-        <div style={{ margin: "auto 0 0", borderTop: `1px solid ${navy}`, borderBottom: "1px solid #e3e7ee", padding: "16px 4px 15px", display: "flex", gap: 22, textAlign: "left", alignItems: "flex-start" }}>
+        <div style={{ margin: "auto 0 0", borderTop: `1px solid ${navy}`, borderBottom: "1px solid #e3e7ee", padding: "12px 4px 11px", display: "flex", gap: 18, textAlign: "left", alignItems: "flex-start" }}>
           <MetaTile icon="calendar" label="Date of Completion" value={data.issue_date || "—"} navy={navy} gold={gold} />
           <div style={{ width: 1, background: "#e3e7ee", alignSelf: "stretch" }} />
           <MetaTile icon="refresh" label="Skills Update" value={config.skills_update_recommendation || "Within Three (3) Years"} navy={navy} gold={gold} />
@@ -557,7 +558,7 @@ export function CertificateDocument({ data, config }: { data: CertData; config: 
           <div style={{ width: 1, alignSelf: "stretch", background: "#e3e7ee" }} />
           <StampSeal navy={navy} gold={gold} />
           <div style={{ width: 1, alignSelf: "stretch", background: "#e3e7ee" }} />
-          {config.show_qr !== false && data.qr_svg && <QrBlock svg={data.qr_svg} navy={navy} gold={gold} size={82} caption />}
+          {config.show_qr !== false && data.qr_svg && <QrBlock svg={data.qr_svg} navy={navy} gold={gold} size={CERTIFICATE_DESIGN.qr.sizePx} caption />}
         </div>
         </div>
       </div>
@@ -631,15 +632,20 @@ export function CertificateBackPage({ data, config }: { data: CertData; config: 
   const ColumnDivider = () => <div style={{ width: 1, alignSelf: "stretch", background: "#edf0f4" }} />;
 
   return (
-    <div style={{ width: PAGE_W, height: PAGE_H, margin: "0 auto", position: "relative", background: "#fff", boxSizing: "border-box", padding: 34, fontFamily: "Georgia, 'Times New Roman', serif", color: "#1F2937", overflow: "hidden" }}>
+    <div style={{ width: PAGE_W, height: PAGE_H, margin: "0 auto", position: "relative", background: CERTIFICATE_DESIGN.colors.white, boxSizing: "border-box", padding: CERTIFICATE_DESIGN.page.safeMarginPx, fontFamily: CERTIFICATE_DESIGN.typography.sans, color: CERTIFICATE_DESIGN.colors.ink, overflow: "hidden" }}>
       <CertificateWatermark config={config} color={navy} corner />
       <CertificateFrame navy={navy} gold={gold} />
-      <div style={{ position: "relative", height: "100%", boxSizing: "border-box", padding: "30px 40px", display: "flex", flexDirection: "column" }}>
+      <div style={{ position: "relative", height: "100%", boxSizing: "border-box", padding: "14px 0 0", display: "flex", flexDirection: "column" }}>
         <RibbonBanner navy={navy} gold={gold} style={{ alignSelf: "center" }}>
-          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2.8, fontFamily: SANS, textIndent: 2.8 }}>PROGRAMME INFORMATION</span>
+          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2.2, fontFamily: SANS, textIndent: 2.2 }}>PARTICIPANT SKILLS RECORD</span>
         </RibbonBanner>
-        <div style={{ textAlign: "center", fontSize: 18, fontWeight: 700, color: navy, textTransform: "uppercase", margin: "13px 0 0", lineHeight: 1.3, letterSpacing: 1 }}>
+        <div style={{ textAlign: "center", fontSize: 16, fontWeight: 700, color: navy, textTransform: "uppercase", margin: "13px 0 0", lineHeight: 1.3, letterSpacing: 0.8, fontFamily: CERTIFICATE_DESIGN.typography.heading, overflowWrap: "anywhere" }}>
           {config.programme_title || data.course_name}
+        </div>
+        <div style={{ display: "flex", justifyContent: "center", gap: 18, flexWrap: "wrap", margin: "8px 0 0", color: "#667085", fontFamily: SANS, fontSize: 8.5 }}>
+          <span>Participant: <strong style={{ color: navy }}>{data.holder_name}</strong></span>
+          <span>Certificate No.: <strong style={{ color: navy }}>{data.certificate_number}</strong></span>
+          <span>Training period: <strong style={{ color: navy }}>{formatDateRange(data.training_date, data.training_end_date) || "—"}</strong></span>
         </div>
         {/* Masthead close: a full-width layered rule rather than a floating
             44px gold dash, so the title block terminates with the same
@@ -671,8 +677,8 @@ export function CertificateBackPage({ data, config }: { data: CertData; config: 
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 9.5 }}>
                   <thead>
                     <tr>
-                      <th style={{ textAlign: "left", padding: "0 6px 5px 0", fontWeight: 700, color: "#8a94a6", fontFamily: SANS, fontSize: 7.5, letterSpacing: 1.1, textTransform: "uppercase", borderBottom: `1px solid ${gold}` }}>Assessment Area</th>
-                      <th style={{ textAlign: "left", padding: "0 0 5px 6px", fontWeight: 700, color: "#8a94a6", fontFamily: SANS, fontSize: 7.5, letterSpacing: 1.1, textTransform: "uppercase", borderBottom: `1px solid ${gold}` }}>Status</th>
+                      <th style={{ textAlign: "left", padding: "0 6px 5px 0", fontWeight: 700, color: "#8a94a6", fontFamily: SANS, fontSize: 8, letterSpacing: 1.1, textTransform: "uppercase", borderBottom: `1px solid ${gold}` }}>Assessment Area</th>
+                      <th style={{ textAlign: "left", padding: "0 0 5px 6px", fontWeight: 700, color: "#8a94a6", fontFamily: SANS, fontSize: 8, letterSpacing: 1.1, textTransform: "uppercase", borderBottom: `1px solid ${gold}` }}>Status</th>
                     </tr>
                   </thead>
                   <tbody>
