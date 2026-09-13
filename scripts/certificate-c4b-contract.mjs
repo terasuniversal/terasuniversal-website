@@ -14,8 +14,8 @@ assert.match(design, /borderInsetPx: 38/);
 assert.match(design, /participantNamePx: 40/);
 assert.match(design, /minPrintMm: 28/);
 assert.match(design, /maxPrintMm: 30/);
-assert.match(design, /primaryOpacity: 0\.06/);
-assert.match(design, /secondaryOpacity: 0\.025/);
+assert.match(design, /primaryOpacity: 0\.034/);
+assert.match(design, /secondaryOpacity: 0\.018/);
 for (const family of ["PROFESSIONAL SCAFFOLD ERECTION SKILLS PROGRAMME", "WORKING AT HEIGHT", "SCAFFOLDING INSPECTOR", "SCAFFOLDING ERECTOR"]) {
   assert.match(design, new RegExp(family.replaceAll(" ", "\\s+")));
 }

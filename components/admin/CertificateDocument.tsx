@@ -78,6 +78,8 @@ export interface TemplateConfig {
   /** "dual" (default) = Trainer + Training Manager blocks either side of the stamp, matching the generic template. "single" = one signature block (e.g. Director) beside the stamp only — used by templates that must show exactly one signatory. */
   signature_layout?: "dual" | "single";
   body_text?: string;
+  /** Optional certificate-specific subtitle supplied by the persisted template contract. */
+  certificate_subtitle?: string;
   show_qr?: boolean;
   /** Swaps the generic scaffold-pole background watermark for a level-specific density (Standard Scaffold Erector only, resolved per-course by certData.ts's merge — see lib/certificate-watermarks.ts). Unset everywhere else, which renders the same generic watermark this template always had. */
   watermark_level?: ScaffoldWatermarkLevel;
@@ -110,6 +112,7 @@ export interface TemplateConfig {
 const PAGE_W = CERTIFICATE_DESIGN.page.widthPx;
 const PAGE_H = CERTIFICATE_DESIGN.page.heightPx;
 const REG_NO = "202201038223 (1477529-X)";
+const DEFAULT_LOGO_URL = "/teras-universal-logo.png";
 /**
  * Micro-typography stack for eyebrows/labels/table headers. The display type
  * stays Georgia (serif) — pairing it with a tracked-out sans for the small
@@ -118,8 +121,6 @@ const REG_NO = "202201038223 (1477529-X)";
  */
 const SANS = CERTIFICATE_DESIGN.typography.sans;
 
-const DEFAULT_BODY_TEXT =
-  "This programme focuses on developing practical knowledge, safety awareness and safe working practices through structured learning and practical activities.";
 const DEFAULT_OBJECTIVES =
   "This programme is designed to enhance participants' knowledge, awareness and practical understanding through structured learning and applied training activities.";
 const DEFAULT_COVERAGE = ["Programme Orientation", "Core Skills & Procedures", "Safe Working Practices", "Hazard Awareness", "Practical Activities", "Industry Best Practices"];
@@ -388,18 +389,6 @@ function AuthorisedSignatureLabel() {
  * the two read as siblings rather than one finished element beside one
  * placeholder. Mirrored in lib/certificate-html.ts's stampSeal.
  */
-function StampSeal({ navy, gold }: { navy: string; gold: string }) {
-  return (
-    <div style={{ position: "relative", width: 74, height: 74, marginBottom: 4 }}>
-      <div style={{ position: "absolute", inset: 0, borderRadius: "50%", border: `1px solid ${navy}`, opacity: 0.55 }} />
-      <div style={{ position: "absolute", inset: 5, borderRadius: "50%", border: `1px solid ${gold}`, opacity: 0.6 }} />
-      <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", padding: 8 }}>
-        <span style={{ fontSize: 7, letterSpacing: 1.2, fontFamily: SANS, color: "#9aa3b2", textAlign: "center", textTransform: "uppercase" }}>Company Stamp</span>
-      </div>
-    </div>
-  );
-}
-
 export function CertificateDocument({ data, config }: { data: CertData; config: TemplateConfig }) {
   const navy = config.primary_color || "#0B3A63";
   const gold = config.accent_color || "#D4AF37";
@@ -438,14 +427,19 @@ export function CertificateDocument({ data, config }: { data: CertData; config: 
             width — an explicit pair rather than a square box, because a square
             box with objectFit:contain padded ~15px of dead space above and
             below the mark and made the header rhythm read as loose. */}
-        {config.logo_url && <img src={config.logo_url} alt="" style={{ width: 105, height: 74, objectFit: "contain", display: "block", margin: "0 auto 6px" }} />}
-        <div style={{ letterSpacing: 3.4, fontSize: 13, color: navy, fontWeight: 700, fontFamily: CERTIFICATE_DESIGN.typography.heading }}>TERAS UNIVERSAL SDN. BHD.</div>
-        <div style={{ fontSize: 8, color: "#8a94a6", marginTop: 3, letterSpacing: 1, fontFamily: SANS }}>{REG_NO}</div>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 18, textAlign: "left" }}>
+          <img src={config.logo_url || DEFAULT_LOGO_URL} alt="TERAS Universal" style={{ width: 134, height: 62, objectFit: "contain", objectPosition: "left center", display: "block" }} />
+          <div style={{ paddingTop: 6, textAlign: "right", color: "#8a94a6", fontFamily: SANS, fontSize: 7, letterSpacing: 1.1, lineHeight: 1.55 }}>
+            <div style={{ color: navy, fontWeight: 700, letterSpacing: 1.6 }}>OFFICIAL TERAS UNIVERSAL CERTIFICATE</div>
+            <div style={{ marginTop: 3, opacity: 0.7 }}>REG. NO. {REG_NO}</div>
+          </div>
+        </div>
+        <div style={{ letterSpacing: 2.5, fontSize: 11, color: navy, fontWeight: 700, fontFamily: CERTIFICATE_DESIGN.typography.heading, textAlign: "left", marginTop: 3 }}>TERAS UNIVERSAL SDN. BHD.</div>
         <div style={{ width: 52, height: 1, background: gold, margin: "11px auto 0" }} />
 
         <div style={{ fontSize: 8, color: navy, marginTop: 9, letterSpacing: 1.8, fontWeight: 700, fontFamily: SANS }}>{certificateFamilyLabel(config)}</div>
         <h1 style={{ fontSize: CERTIFICATE_DESIGN.typography.certificateTitlePx, margin: "12px 0 0", letterSpacing: 5, color: navy, fontWeight: 700, lineHeight: 1.1, fontFamily: CERTIFICATE_DESIGN.typography.heading }}>CERTIFICATE</h1>
-        <div style={{ fontSize: 8.5, color: "#8a94a6", letterSpacing: 5, fontWeight: 600, fontFamily: SANS, textIndent: 5, marginTop: 10 }}>OF SUCCESSFUL COMPLETION</div>
+        {config.certificate_subtitle && <div style={{ fontSize: 8.5, color: "#8a94a6", letterSpacing: 3.5, fontWeight: 600, fontFamily: SANS, textIndent: 3.5, marginTop: 10 }}>{config.certificate_subtitle}</div>}
 
         <p style={{ fontSize: 9.5, margin: "24px 0 9px", color: "#8a94a6", letterSpacing: 1.8, fontFamily: SANS, textTransform: "uppercase", textIndent: 1.8 }}>This certificate is proudly presented to</p>
         <div style={{ position: "relative", display: "inline-block", margin: "0 auto", maxWidth: 660 }}>
@@ -482,9 +476,7 @@ export function CertificateDocument({ data, config }: { data: CertData; config: 
           </p>
         )}
 
-        <p style={{ fontSize: 10.5, lineHeight: 1.85, maxWidth: 520, margin: "17px auto 0", color: "#6b7280" }}>
-          {config.body_text || DEFAULT_BODY_TEXT}
-        </p>
+        {config.body_text && <p style={{ fontSize: 10.5, lineHeight: 1.85, maxWidth: 520, margin: "17px auto 0", color: "#6b7280" }}>{config.body_text}</p>}
 
         {/* Record strip: four data cells across a tinted band, hairline-separated.
             A single horizontal strip on its own ground reads as the data block of
@@ -556,7 +548,7 @@ export function CertificateDocument({ data, config }: { data: CertData; config: 
             </div>
           )}
           <div style={{ width: 1, alignSelf: "stretch", background: "#e3e7ee" }} />
-          <StampSeal navy={navy} gold={gold} />
+          <div aria-hidden="true" style={{ width: 88, minHeight: 72 }} />
           <div style={{ width: 1, alignSelf: "stretch", background: "#e3e7ee" }} />
           {config.show_qr !== false && data.qr_svg && <QrBlock svg={data.qr_svg} navy={navy} gold={gold} size={CERTIFICATE_DESIGN.qr.sizePx} caption />}
         </div>
@@ -655,6 +647,25 @@ export function CertificateBackPage({ data, config }: { data: CertData; config: 
           <span style={{ flex: 1, height: 1, background: "#e3e7ee", alignSelf: "center" }} />
         </div>
 
+        {showSkillsRecord && (
+          <div style={{ borderTop: `1px solid ${navy}`, borderBottom: "1px solid #e3e7ee", padding: "10px 12px 8px", marginBottom: 14 }}>
+            <SectionHead icon="doc" title="PARTICIPANT SKILLS RECORD" />
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 9.5 }}>
+              <thead><tr>
+                <th style={{ textAlign: "left", padding: "0 6px 5px 0", fontWeight: 700, color: "#8a94a6", fontFamily: SANS, fontSize: 8, letterSpacing: 1.1, textTransform: "uppercase", borderBottom: `1px solid ${gold}` }}>Assessment Area</th>
+                <th style={{ textAlign: "left", padding: "0 0 5px 6px", fontWeight: 700, color: "#8a94a6", fontFamily: SANS, fontSize: 8, letterSpacing: 1.1, textTransform: "uppercase", borderBottom: `1px solid ${gold}` }}>Status</th>
+              </tr></thead>
+              <tbody>{skillsRecord.map((r, i) => {
+                const affirmative = isAffirmativeStatus(r.status);
+                return <tr key={i} style={{ borderBottom: "1px solid #eef1f5" }}>
+                  <td style={{ padding: "5px 6px 5px 0", color: "#374151" }}>{r.area}</td>
+                  <td style={{ padding: "5px 0 5px 6px", color: affirmative ? navy : "#8a94a6", fontWeight: affirmative ? 700 : 400 }}>{r.status}</td>
+                </tr>;
+              })}</tbody>
+            </table>
+          </div>
+        )}
+
         <div style={{ display: "flex", gap: 26, flex: 1 }}>
           <div style={{ flex: 1 }}>
             <Section icon="target" title="PROGRAMME OBJECTIVES">
@@ -672,29 +683,7 @@ export function CertificateBackPage({ data, config }: { data: CertData; config: 
           <ColumnDivider />
           <div style={{ flex: 1 }}>
             <Section icon="clipboard" title="ASSESSMENT METHOD"><BulletList items={assessment} /></Section>
-            {showSkillsRecord && (
-              <Section icon="doc" title="PARTICIPANT SKILLS RECORD">
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 9.5 }}>
-                  <thead>
-                    <tr>
-                      <th style={{ textAlign: "left", padding: "0 6px 5px 0", fontWeight: 700, color: "#8a94a6", fontFamily: SANS, fontSize: 8, letterSpacing: 1.1, textTransform: "uppercase", borderBottom: `1px solid ${gold}` }}>Assessment Area</th>
-                      <th style={{ textAlign: "left", padding: "0 0 5px 6px", fontWeight: 700, color: "#8a94a6", fontFamily: SANS, fontSize: 8, letterSpacing: 1.1, textTransform: "uppercase", borderBottom: `1px solid ${gold}` }}>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {skillsRecord.map((r, i) => {
-                      const affirmative = isAffirmativeStatus(r.status);
-                      return (
-                        <tr key={i} style={{ borderBottom: "1px solid #eef1f5" }}>
-                          <td style={{ padding: "5px 6px 5px 0", color: "#374151" }}>{r.area}</td>
-                          <td style={{ padding: "5px 0 5px 6px", color: affirmative ? navy : "#8a94a6", fontWeight: affirmative ? 700 : 400 }}>{r.status}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </Section>
-            )}
+
           </div>
         </div>
 

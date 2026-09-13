@@ -24,11 +24,10 @@ import {
 const PAGE_W = CERTIFICATE_DESIGN.page.widthPx;
 const PAGE_H = CERTIFICATE_DESIGN.page.heightPx;
 const REG_NO = "202201038223 (1477529-X)";
+const DEFAULT_LOGO_URL = "/teras-universal-logo.png";
 /** Mirrors SANS in CertificateDocument.tsx — see that constant's comment. */
 const SANS = CERTIFICATE_DESIGN.typography.sans;
 
-const DEFAULT_BODY_TEXT =
-  "This programme focuses on developing practical knowledge, safety awareness and safe working practices through structured learning and practical activities.";
 const DEFAULT_OBJECTIVES =
   "This programme is designed to enhance participants' knowledge, awareness and practical understanding through structured learning and applied training activities.";
 const DEFAULT_COVERAGE = ["Programme Orientation", "Core Skills & Procedures", "Safe Working Practices", "Hazard Awareness", "Practical Activities", "Industry Best Practices"];
@@ -188,16 +187,6 @@ function authorisedSignatureLabel(): string {
   return `<div style="color:#9aa3b2;font-size:6.5px;letter-spacing:1.3px;font-family:${SANS};text-transform:uppercase;margin-bottom:3px;">Authorised Signature</div>`;
 }
 
-/** Mirrors StampSeal in CertificateDocument.tsx — neutral double-ring authentication placeholder; no approved company stamp asset exists, so this stays unbranded. */
-function stampSeal(navy: string, gold: string): string {
-  return `<div style="position:relative;width:74px;height:74px;margin-bottom:4px;">
-    <div style="position:absolute;inset:0;border-radius:50%;border:1px solid ${navy};opacity:.55;"></div>
-    <div style="position:absolute;inset:5px;border-radius:50%;border:1px solid ${gold};opacity:.6;"></div>
-    <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:8px;">
-      <span style="font-size:7px;letter-spacing:1.2px;font-family:${SANS};color:#9aa3b2;text-align:center;text-transform:uppercase;">Company Stamp</span>
-    </div>
-  </div>`;
-}
 
 /** Mirrors RibbonBanner in CertificateDocument.tsx — flat navy label plate ruled top and bottom in gold; see that component's comment for why the offset ring was dropped. */
 function ribbonBanner(inner: string, navy: string, gold: string, wrapStyle = ""): string {
@@ -215,11 +204,12 @@ export function renderCertificateFront(data: CertData, config: TemplateConfig): 
   const bgImage = config.background_url ? `background-image:url('${esc(config.background_url)}');background-size:cover;background-position:center;` : "";
 
   const motif = !config.background_url ? certificateWatermark(config, navy, false) : "";
-  const logo = config.logo_url ? `<img src="${esc(config.logo_url)}" alt="" style="width:105px;height:74px;object-fit:contain;display:block;margin:0 auto 6px;"/>` : "";
+  const logo = `<img src="${esc(config.logo_url || DEFAULT_LOGO_URL)}" alt="TERAS Universal" style="width:134px;height:62px;object-fit:contain;object-position:left center;display:block;"/>`;
   const icBlock = data.ic_passport ? `<p style="font-size:9.5px;color:#8a94a6;margin:10px 0 0;letter-spacing:.6px;font-family:${SANS};">Passport / IC No: ${esc(data.ic_passport)}</p>` : "";
   const durationBlock = showDurationRibbon && duration
     ? ribbonBanner(`<span style="font-size:9px;font-weight:600;letter-spacing:2.4px;font-family:${SANS};text-indent:2.4px;">${esc(duration)}</span>`, navy, gold, "margin:19px auto 0;display:block;width:fit-content;")
     : "";
+  const bodyText = config.body_text ? `<p style="font-size:10.5px;line-height:1.85;max-width:520px;margin:17px auto 0;color:#6b7280;">${esc(config.body_text)}</p>` : "";
   const dateBlock = dateRange
     ? `<p style="font-size:11px;color:#4b5563;margin:16px 0 0;"><span style="color:#8a94a6;letter-spacing:1.3px;font-size:8.5px;font-family:${SANS};text-transform:uppercase;">Conducted from </span>${esc(dateRange)}</p>`
     : "";
@@ -263,13 +253,12 @@ export function renderCertificateFront(data: CertData, config: TemplateConfig): 
   ${motif}
   ${certificateFrame(navy, gold)}
   <div style="position:relative;height:100%;box-sizing:border-box;padding:14px 0 0;display:flex;flex-direction:column;text-align:center;">
-    ${logo}
-    <div style="letter-spacing:3.4px;font-size:13px;color:${navy};font-weight:700;font-family:'Montserrat','Poppins','Inter',Arial,sans-serif;">TERAS UNIVERSAL SDN. BHD.</div>
-    <div style="font-size:8px;color:#8a94a6;margin-top:3px;letter-spacing:1px;font-family:${SANS};">${REG_NO}</div>
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:18px;text-align:left;">${logo}<div style="padding-top:6px;text-align:right;color:#8a94a6;font-family:${SANS};font-size:7px;letter-spacing:1.1px;line-height:1.55;"><div style="color:${navy};font-weight:700;letter-spacing:1.6px;">OFFICIAL TERAS UNIVERSAL CERTIFICATE</div><div style="margin-top:3px;opacity:.7;">REG. NO. ${REG_NO}</div></div></div>
+    <div style="letter-spacing:2.5px;font-size:11px;color:${navy};font-weight:700;font-family:'Montserrat','Poppins','Inter',Arial,sans-serif;text-align:left;margin-top:3px;">TERAS UNIVERSAL SDN. BHD.</div>
     <div style="width:52px;height:1px;background:${gold};margin:11px auto 0;"></div>
     <div style="font-size:8px;color:${navy};margin-top:9px;letter-spacing:1.8px;font-weight:700;font-family:${SANS};">${esc(certificateFamilyLabel(config))}</div>
     <h1 style="font-size:${CERTIFICATE_DESIGN.typography.certificateTitlePx}px;margin:12px 0 0;letter-spacing:5px;color:${navy};font-weight:700;line-height:1.1;font-family:'Montserrat','Poppins','Inter',Arial,sans-serif;">CERTIFICATE</h1>
-    <div style="font-size:8.5px;color:#8a94a6;letter-spacing:5px;font-weight:600;font-family:${SANS};text-indent:5px;margin-top:10px;">OF SUCCESSFUL COMPLETION</div>
+    ${config.certificate_subtitle ? `<div style="font-size:8.5px;color:#8a94a6;letter-spacing:3.5px;font-weight:600;font-family:${SANS};text-indent:3.5px;margin-top:10px;">${esc(config.certificate_subtitle)}</div>` : ""}
     <p style="font-size:9.5px;margin:24px 0 9px;color:#8a94a6;letter-spacing:1.8px;font-family:${SANS};text-transform:uppercase;text-indent:1.8px;">This certificate is proudly presented to</p>
     <div style="position:relative;display:inline-block;margin:0 auto;max-width:660px;">
       <div style="font-size:${Math.min(nameSize, CERTIFICATE_DESIGN.typography.participantNamePx)}px;font-weight:700;color:${navy};padding:0 12px 14px;word-break:break-word;line-height:1.18;letter-spacing:.4px;font-family:'Montserrat','Poppins','Inter',Arial,sans-serif;">${esc(data.holder_name)}</div>
@@ -285,7 +274,7 @@ export function renderCertificateFront(data: CertData, config: TemplateConfig): 
     <div style="width:150px;height:1px;background:${navy};opacity:.22;margin:11px auto 0;"></div>
     ${durationBlock}
     ${dateBlock}
-    <p style="font-size:10.5px;line-height:1.85;max-width:520px;margin:17px auto 0;color:#6b7280;">${esc(config.body_text || DEFAULT_BODY_TEXT)}</p>
+    ${bodyText}
     <div style="margin:auto 0 0;border-top:1px solid ${navy};border-bottom:1px solid #e3e7ee;padding:12px 4px 11px;display:flex;gap:18px;text-align:left;align-items:flex-start;">
       ${metaTile("calendar", "Date of Completion", data.issue_date || "—", navy, gold)}
       <div style="width:1px;background:#e3e7ee;align-self:stretch;"></div>
@@ -301,7 +290,7 @@ export function renderCertificateFront(data: CertData, config: TemplateConfig): 
       ${primarySignatureBlock}
       ${secondarySignatureBlock}
       <div style="width:1px;align-self:stretch;background:#e3e7ee;"></div>
-      ${stampSeal(navy, gold)}
+      <div aria-hidden="true" style="width:88px;min-height:72px;"></div>
       <div style="width:1px;align-self:stretch;background:#e3e7ee;"></div>
       ${qrHtml}
     </div>
@@ -383,6 +372,7 @@ export function renderCertificateBack(data: CertData, config: TemplateConfig): s
       <span style="width:28px;height:1.5px;background:${gold};"></span>
       <span style="flex:1;height:1px;background:#e3e7ee;align-self:center;"></span>
     </div>
+    ${showSkillsRecord ? `<div style="border-top:1px solid ${navy};border-bottom:1px solid #e3e7ee;padding:10px 12px 8px;margin-bottom:14px;">${skillsTable}</div>` : ""}
     <div style="display:flex;gap:26px;flex:1;">
       <div style="flex:1;">
         ${section("target", "PROGRAMME OBJECTIVES", `<p style="margin:0;font-size:10px;line-height:1.7;color:#374151;">${esc(config.objectives_text || DEFAULT_OBJECTIVES)}</p>`)}
@@ -400,7 +390,6 @@ export function renderCertificateBack(data: CertData, config: TemplateConfig): s
       ${colDivider}
       <div style="flex:1;">
         ${section("clipboard", "ASSESSMENT METHOD", bulletList(assessment))}
-        ${skillsTable}
       </div>
     </div>
     <div style="position:relative;border:1px solid #e3e7ee;padding:13px 16px;margin-top:8px;overflow:hidden;background:#FCFDFE;">

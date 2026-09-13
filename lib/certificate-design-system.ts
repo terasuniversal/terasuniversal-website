@@ -16,7 +16,7 @@ export const CERTIFICATE_DESIGN = {
     tablePx: 11,
     footerPx: 10,
   },
-  watermark: { primaryOpacity: 0.06, secondaryOpacity: 0.025, backOpacity: 0.035 },
+  watermark: { primaryOpacity: 0.034, secondaryOpacity: 0.018, backOpacity: 0.028 },
   qr: { sizePx: 106, minPrintMm: 28, maxPrintMm: 30 },
   signature: { widthPx: 190, wellHeightPx: 58, stampSizePx: 112, clearancePx: 30 },
 } as const;
