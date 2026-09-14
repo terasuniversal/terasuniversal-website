@@ -4,6 +4,7 @@ import { CERTIFICATE_DESIGN, certificateFamilyLabel } from "./certificate-design
 import { TERAS_COMPANY_NAME, TERAS_COMPANY_REGISTRATION, TERAS_COMPANY_TAGLINE } from "./teras-company";
 import { resolveCertificateWatermarkAsset } from "./certificate-watermark-assets";
 import { DIRECTOR_SIGNATURE_ASSET, EMBOSS_MEDALLION_LIFT_PX, EMBOSS_MEDALLION_SIZE_PX } from "./certificate-approval-assets";
+import { renderProfessionalScaffoldCertificateDocument } from "./professional-scaffold-certificate-html";
 
 /**
  * Standalone HTML string renderer for a certificate — no React / no
@@ -113,13 +114,13 @@ function metaTile(icon: IconKind, label: string, value: string, navy: string, go
       ${glyph(icon, gold, 10)}
       <span style="font-size:7px;text-transform:uppercase;letter-spacing:1.1px;color:#8a94a6;font-family:${SANS};">${esc(label)}</span>
     </div>
-    <div style="font-size:11.5px;font-weight:700;color:${navy};font-family:Georgia,serif;line-height:1.35;word-break:break-word;">${esc(value)}</div>
+    <div style="font-size:${value.length > 28 ? 9 : value.length > 20 ? 10 : 11.5}px;font-weight:700;color:${navy};font-family:Georgia,serif;line-height:1.35;word-break:break-word;">${esc(value)}</div>
   </div>`;
 }
 
 /** Mirrors QrBlock in CertificateDocument.tsx — svg is pre-generated inline markup, not an <img src>. */
 function qrBlock(svg: string, navy: string, gold: string, size: number, caption: boolean, safeZone = false): string {
-  return `<div style="width:${size + 22}px;text-align:center;${safeZone ? "transform:translate(-30px,-26px);" : ""}">
+  return `<div style="width:${size + 22}px;text-align:center;${safeZone ? "transform:translate(-56px,-26px);" : ""}">
     <div style="font-size:7px;font-weight:700;color:${navy};letter-spacing:1.6px;margin-bottom:2px;font-family:${SANS};">QR VERIFICATION</div>
     <div style="width:22px;height:1px;background:${gold};margin:0 auto 7px;"></div>
     <div style="position:relative;width:${size + 8}px;height:${size + 8}px;margin:0 auto;">
@@ -157,15 +158,15 @@ export function renderCertificateFront(data: CertData, config: TemplateConfig): 
 
   const motif = !config.background_url ? certificateWatermark(config, false) : "";
   const logo = `<img src="${esc(config.logo_url || DEFAULT_LOGO_URL)}" alt="TERAS Universal" style="width:228px;height:106px;margin-left:52px;object-fit:contain;object-position:left center;display:block;mix-blend-mode:multiply;position:relative;z-index:2;"/>`;
-  const icBlock = data.ic_passport ? `<p style="font-size:9.5px;color:#667085;margin:10px 0 0;letter-spacing:.6px;font-family:${SANS};overflow-wrap:anywhere;">IC / Passport No.: ${esc(data.ic_passport)}</p>` : "";
+  const icBlock = data.ic_passport ? `<p style="font-size:9.5px;color:#667085;margin:10px 0 0;letter-spacing:.6px;font-family:${SANS};overflow-wrap:anywhere;">IC / Passport No.: <strong style="color:${navy};font-weight:700;">${esc(data.ic_passport)}</strong></p>` : "";
   const durationBlock = showDurationRibbon && duration
     ? ribbonBanner(`<span style="font-size:9px;font-weight:600;letter-spacing:2.4px;font-family:${SANS};text-indent:2.4px;">${esc(duration)}</span>`, navy, gold, "margin:19px auto 0;display:block;width:fit-content;")
     : "";
   const bodyText = config.body_text ? `<p style="font-size:10.5px;line-height:1.85;max-width:520px;margin:17px auto 0;color:#6b7280;">${esc(config.body_text)}</p>` : "";
   const dateBlock = dateRange
-    ? `<p style="font-size:11px;color:#4b5563;margin:16px 0 0;"><span style="color:#667085;letter-spacing:1.3px;font-size:8.5px;font-family:${SANS};text-transform:uppercase;">Conducted from </span>${esc(dateRange)}</p>`
+    ? `<p style="font-size:11px;color:#4b5563;margin:16px 0 0;line-height:1.45;"><span style="display:block;"><span style="color:#667085;letter-spacing:1.3px;font-size:8.5px;font-family:${SANS};text-transform:uppercase;">Conducted from </span>${esc(dateRange)}</span>${data.venue ? `<span style="display:block;margin-top:2px;">at ${esc(data.venue)}</span>` : ""}</p>`
     : "";
-  const qrHtml = config.show_qr !== false && data.qr_svg ? qrBlock(data.qr_svg, navy, gold, CERTIFICATE_DESIGN.qr.sizePx, true, true) : "";
+
   // Mirrors CertificateDocument: Standard Scaffold is issued by the Director
   // only, including legacy configs without an explicit signature_layout.
   const isSingleSignature = config.signature_layout === "single" || config.design_variant === "standard_scaffold_certificate" || config.design_variant === "working_at_height_certificate";
@@ -181,8 +182,7 @@ export function renderCertificateFront(data: CertData, config: TemplateConfig): 
         ${primarySigLabel}
         ${signatureWell}
         <div style="border-top:1px solid ${navy};margin:4px 0 5px;"></div>
-        <strong style="color:${navy};letter-spacing:.3px;">${esc(config.signature_name || config.signature_title || "Director")}</strong>
-        ${config.signature_name ? roleLine(config.signature_title || "Director") : ""}
+        <strong style="color:${navy};letter-spacing:.3px;">AUTHORISED DIRECTOR</strong>
       </div>`
     : `<div style="text-align:center;font-size:11px;width:auto;max-width:160px;">
         ${primarySigLabel}
@@ -230,8 +230,6 @@ export function renderCertificateFront(data: CertData, config: TemplateConfig): 
     <div style="margin:auto 0 0;border-top:1px solid ${navy};border-bottom:1px solid #e3e7ee;padding:12px 4px 11px;display:flex;gap:18px;text-align:left;align-items:flex-start;">
       ${metaTile("refresh", "Programme Duration", duration || "—", navy, gold)}
       <div style="width:1px;background:#e3e7ee;align-self:stretch;"></div>
-      ${metaTile("calendar", "Training Period", dateRange || "—", navy, gold)}
-      <div style="width:1px;background:#e3e7ee;align-self:stretch;"></div>
       ${metaTile("id", "Venue", data.venue || "—", navy, gold)}
     </div>
     <div style="position:relative;margin-top:18px;padding-top:18px;border-top:1px solid #e3e7ee;">
@@ -246,7 +244,6 @@ export function renderCertificateFront(data: CertData, config: TemplateConfig): 
         ? `<div aria-label="Gold Emboss Medallion Guide" style="position:relative;transform:translateY(-${EMBOSS_MEDALLION_LIFT_PX}px);flex:0 0 auto;width:${EMBOSS_MEDALLION_SIZE_PX}px;height:${EMBOSS_MEDALLION_SIZE_PX}px;border:1.5px solid rgba(201,162,39,.78);border-radius:50%;box-sizing:border-box;background:radial-gradient(circle,transparent 0 62%,rgba(201,162,39,.045) 62% 63%,transparent 63%);"><span style="position:absolute;inset:7px;border:1px solid rgba(201,162,39,.52);border-radius:50%;"></span></div>`
         : `<div aria-hidden="true" style="width:88px;min-height:72px;"></div>`}
       <div style="width:1px;align-self:stretch;background:#e3e7ee;"></div>
-      ${qrHtml}
     </div>
         </div>
       </div>
@@ -312,7 +309,7 @@ export function renderCertificateBack(data: CertData, config: TemplateConfig): s
       <div style="color:${navy};font-weight:700;margin-top:2px;">${esc(value)}</div>
     </div>`;
   const qrHtml = config.show_qr !== false && data.qr_svg
-    ? `<div style="border-left:1px solid #e3e7ee;padding-left:20px;">${qrBlock(data.qr_svg, navy, gold, 56, false, true)}</div>`
+    ? `<div style="border-left:1px solid #e3e7ee;padding-left:20px;">${qrBlock(data.qr_svg, navy, gold, CERTIFICATE_DESIGN.qr.sizePx - 34, true, true)}</div>`
     : "";
 
   return `<div style="width:${PAGE_W}px;height:${PAGE_H}px;margin:0 auto;position:relative;background:#fff;box-sizing:border-box;padding:${CERTIFICATE_DESIGN.page.safeMarginPx}px;font-family:${CERTIFICATE_DESIGN.typography.sans};color:${CERTIFICATE_DESIGN.colors.ink};overflow:hidden;">
@@ -382,7 +379,9 @@ export function renderCertificateBody(data: CertData, config: TemplateConfig): s
  * through to the layout below.
  */
 export function renderCertificateDocument(data: CertData, config: TemplateConfig): string {
-
+  if (config.design_variant === "professional_scaffold_erection_skills") {
+    return renderProfessionalScaffoldCertificateDocument(data, config);
+  }
   const title = data.certificate_number || data.holder_name || "Certificate";
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${esc(title)}</title>
 <style>

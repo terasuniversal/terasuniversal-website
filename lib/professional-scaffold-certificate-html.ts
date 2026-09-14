@@ -216,7 +216,7 @@ function metaTile(icon: IconKind, label: string, value: string, navy: string, go
     ${circleIcon(icon, navy, gold, 40)}
     <div>
       <div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;color:#6b7280;font-weight:600;white-space:nowrap;">${esc(label)}</div>
-      <div style="font-size:16px;font-weight:700;color:${navy};font-family:Georgia,serif;white-space:nowrap;">${esc(value)}</div>
+      <div style="font-size:${value.length > 28 ? 10 : value.length > 20 ? 12 : 16}px;font-weight:700;color:${navy};font-family:Georgia,serif;white-space:nowrap;">${esc(value)}</div>
     </div>
   </div>`;
 }
@@ -268,10 +268,9 @@ export function renderProfessionalScaffoldCertificateFront(data: CertData, confi
   // had almost no source-pixel margin to absorb that).
   const logoSrc = TEMPLATE_A_LOGO_SRC;
   const logo = `<img src="${logoSrc}" alt="" style="width:116px;height:103px;object-fit:contain;margin:0 auto 2px;display:block;"/>`;
-  const icBlock = data.ic_passport ? `<p style="font-size:12.5px;line-height:1.3;color:#6b7280;margin:5px 0 0;">Passport / IC No: ${esc(data.ic_passport)}</p>` : "";
+  const icBlock = data.ic_passport ? `<p style="font-size:12.5px;line-height:1.3;color:#6b7280;margin:5px 0 0;">Passport / IC No: <strong style="color:${navy};font-weight:700;">${esc(data.ic_passport)}</strong></p>` : "";
   const durationBlock = ribbonBanner(`<span style="font-size:15px;font-weight:600;letter-spacing:.6px;">${esc(duration)}</span>`, navy, gold, "margin:8px auto 0;display:block;width:fit-content;", "gold");
-  const dateBlock = dateRange ? `<p style="font-size:12.5px;color:#4b5563;margin:5px 0 0;"><strong style="color:${navy};">Conducted from</strong> ${esc(dateRange)}</p>` : "";
-  const qrHtml = config.show_qr !== false && data.qr_svg ? qrCard(data.qr_svg, navy, gold, 76, true) : "";
+  const dateBlock = dateRange ? `<p style="font-size:12.5px;color:#4b5563;margin:5px 0 0;line-height:1.45;"><span style="display:block;"><strong style="color:${navy};">Conducted from</strong> ${esc(dateRange)}</span>${data.venue ? `<span style="display:block;margin-top:2px;">at ${esc(data.venue)}</span>` : ""}</p>` : "";
   // Mirrors the React renderer's signature block exactly — see the long
   // comment there for why 154x105 (exact 418:285 ratio, no letterboxing), why
   // the asset is used uncropped, and why the negative bottom margin plus
@@ -325,14 +324,13 @@ export function renderProfessionalScaffoldCertificateFront(data: CertData, confi
           ${metaTile("doc", "Certificate No.", data.certificate_number, navy, gold)}
           ${metaTile("id", "Participant ID", data.participant_id || "—", navy, gold)}
         </div>
-        ${qrHtml}
       </div>
       <div style="display:flex;align-items:flex-start;justify-content:space-between;padding-top:2px;">
         <div style="text-align:center;font-size:11.5px;width:248px;">
           ${signatureImg}
           <div style="border-top:1.5px solid ${gold};margin:6px 0 6px;"></div>
           <strong style="color:${navy};font-size:12.5px;white-space:nowrap;display:block;">Muhammad Azri Bin Mohd Latifi Amir</strong>
-          <div style="color:#6b7280;margin-top:3px;">Director</div>
+          <div style="color:#6b7280;margin-top:3px;">AUTHORISED DIRECTOR</div>
         </div>
         <div aria-label="Gold Emboss Medallion Guide" style="position:relative;transform:translateY(-${EMBOSS_MEDALLION_LIFT_PX}px);flex:0 0 auto;width:${EMBOSS_MEDALLION_SIZE_PX}px;height:${EMBOSS_MEDALLION_SIZE_PX}px;border:1.5px solid rgba(201,162,39,.78);border-radius:50%;box-sizing:border-box;background:radial-gradient(circle,transparent 0 62%,rgba(201,162,39,.045) 62% 63%,transparent 63%);"><span style="position:absolute;inset:7px;border:1px solid rgba(201,162,39,.52);border-radius:50%;"></span></div>
       </div>
@@ -387,7 +385,7 @@ export function renderProfessionalScaffoldCertificateBack(data: CertData, config
   const noticeHtml = noticeParagraphs
     .map((p, i) => `<p style="position:relative;margin:${i === 0 ? 0 : "4px 0 0"};font-size:12px;line-height:1.5;color:#4b5563;">${esc(p.replace("{{PROGRAMME_NAME}}", data.course_name || "this programme"))}</p>`)
     .join("");
-  const qrHtml = config.show_qr !== false && data.qr_svg ? qrCard(data.qr_svg, navy, gold, 68, false) : "";
+  const qrHtml = config.show_qr !== false && data.qr_svg ? qrCard(data.qr_svg, navy, gold, 78, true) : "";
 
   return `<div style="width:${PAGE_W};height:${PAGE_H};margin:0 auto;position:relative;background:#FDFCF8;box-sizing:border-box;font-family:Georgia,'Times New Roman',serif;line-height:1.3;color:#1F2937;overflow:hidden;">
   ${pageVignette(navy)}

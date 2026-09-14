@@ -412,7 +412,7 @@ function MetaTile({ icon, label, value, navy, gold }: { icon: IconKind; label: s
       <CircleIcon kind={icon} navy={navy} gold={gold} size={40} />
       <div>
         <div style={{ fontSize: 10.5, textTransform: "uppercase", letterSpacing: 0.6, color: "#6b7280", fontWeight: 600, whiteSpace: "nowrap" }}>{label}</div>
-        <div style={{ fontSize: 16, fontWeight: 700, color: navy, fontFamily: "Georgia, serif", whiteSpace: "nowrap" }}>{value}</div>
+        <div style={{ fontSize: value.length > 28 ? 10 : value.length > 20 ? 12 : 16, fontWeight: 700, color: navy, fontFamily: "Georgia, serif", whiteSpace: "nowrap" }}>{value}</div>
       </div>
     </div>
   );
@@ -514,7 +514,7 @@ export function ProfessionalScaffoldCertificateDocument({ data, config }: { data
             <span style={{ position: "absolute", top: -4.5, left: "50%", transform: "translateX(-50%) rotate(45deg)", width: 8, height: 8, background: gold }} />
           </div>
         </div>
-        {data.ic_passport && <p style={{ fontSize: 12.5, lineHeight: 1.3, color: "#6b7280", margin: "5px 0 0" }}>Passport / IC No: {data.ic_passport}</p>}
+        {data.ic_passport && <p style={{ fontSize: 12.5, lineHeight: 1.3, color: "#6b7280", margin: "5px 0 0" }}>Passport / IC No: <strong style={{ color: navy, fontWeight: 700 }}>{data.ic_passport}</strong></p>}
 
         <p style={{ fontSize: 13.5, lineHeight: 1.3, margin: "8px 0 2px", color: "#4b5563" }}>For successfully completing the</p>
         <div style={{ fontSize: 24, fontWeight: 700, color: navy, textTransform: "uppercase", lineHeight: 1.22, maxWidth: 560, margin: "0 auto" }}>
@@ -523,7 +523,7 @@ export function ProfessionalScaffoldCertificateDocument({ data, config }: { data
         <RibbonBanner navy={navy} gold={gold} variant="gold" style={{ margin: "8px auto 0" }}>
           <span style={{ fontSize: 15, fontWeight: 600, letterSpacing: 0.6 }}>{duration}</span>
         </RibbonBanner>
-        {dateRange && <p style={{ fontSize: 12.5, lineHeight: 1.3, color: "#4b5563", margin: "5px 0 0" }}><strong style={{ color: navy }}>Conducted from</strong> {dateRange}</p>}
+        {dateRange && <p style={{ fontSize: 12.5, lineHeight: 1.45, color: "#4b5563", margin: "5px 0 0" }}><span style={{ display: "block" }}><strong style={{ color: navy }}>Conducted from</strong> {dateRange}</span>{data.venue && <span style={{ display: "block", marginTop: 2 }}>at {data.venue}</span>}</p>}
 
         {config.body_text && <p style={{ fontSize: 12, lineHeight: 1.6, maxWidth: 520, margin: "7px auto 0", color: "#4b5563" }}>
           {config.body_text}
@@ -550,7 +550,7 @@ export function ProfessionalScaffoldCertificateDocument({ data, config }: { data
               <MetaTile icon="doc" label="Certificate No." value={data.certificate_number} navy={navy} gold={gold} />
               <MetaTile icon="id" label="Participant ID" value={data.participant_id || "—"} navy={navy} gold={gold} />
             </div>
-            {config.show_qr !== false && data.qr_svg && <QrCard svg={data.qr_svg} navy={navy} gold={gold} size={76} caption />}
+
           </div>
 
           {/* Signature — Director only, per approved design. No Trainer / Training Manager block.
@@ -607,7 +607,7 @@ export function ProfessionalScaffoldCertificateDocument({ data, config }: { data
               />
               <div style={{ borderTop: `1.5px solid ${gold}`, margin: "6px 0 6px" }} />
               <strong style={{ color: navy, fontSize: 12.5, whiteSpace: "nowrap", display: "block" }}>Muhammad Azri Bin Mohd Latifi Amir</strong>
-              <div style={{ color: "#6b7280", marginTop: 3 }}>Director</div>
+              <div style={{ color: "#6b7280", marginTop: 3 }}>AUTHORISED DIRECTOR</div>
             </div>
             <div aria-label="Gold Emboss Medallion Guide" style={{ position: "relative", transform: `translateY(-${EMBOSS_MEDALLION_LIFT_PX}px)`, flex: "0 0 auto", width: EMBOSS_MEDALLION_SIZE_PX, height: EMBOSS_MEDALLION_SIZE_PX, border: "1.5px solid rgba(201,162,39,.78)", borderRadius: "50%", boxSizing: "border-box", background: "radial-gradient(circle, transparent 0 62%, rgba(201,162,39,.045) 62% 63%, transparent 63%)" }}>
               <span style={{ position: "absolute", inset: 7, border: "1px solid rgba(201,162,39,.52)", borderRadius: "50%" }} />
@@ -796,7 +796,7 @@ export function ProfessionalScaffoldCertificateBackPage({ data, config }: { data
               {config.contact_website && <div style={{ display: "flex", gap: 9, alignItems: "center" }}><CircleIcon kind="globe" navy={navy} gold={gold} size={26} /><span><strong style={{ color: navy }}>Website</strong> {config.contact_website}</span></div>}
               {config.contact_email && <div style={{ display: "flex", gap: 9, alignItems: "center" }}><CircleIcon kind="mail" navy={navy} gold={gold} size={26} /><span><strong style={{ color: navy }}>Email</strong> {config.contact_email}</span></div>}
             </div>
-            {config.show_qr !== false && data.qr_svg && <QrCard svg={data.qr_svg} navy={navy} gold={gold} size={68} caption={false} />}
+            {config.show_qr !== false && data.qr_svg && <QrCard svg={data.qr_svg} navy={navy} gold={gold} size={78} caption />}
           </div>
         </div>
       </div>

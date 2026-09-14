@@ -241,7 +241,7 @@ function MetaTile({ icon, label, value, navy, gold }: { icon: IconKind; label: s
         <Glyph kind={icon} color={gold} size={10} />
         <span style={{ fontSize: 7, textTransform: "uppercase", letterSpacing: 1.1, color: "#8a94a6", fontFamily: SANS }}>{label}</span>
       </div>
-      <div style={{ fontSize: 11.5, fontWeight: 700, color: navy, fontFamily: "Georgia, serif", lineHeight: 1.35, wordBreak: "break-word" }}>{value}</div>
+      <div style={{ fontSize: value.length > 28 ? 9 : value.length > 20 ? 10 : 11.5, fontWeight: 700, color: navy, fontFamily: "Georgia, serif", lineHeight: 1.35, wordBreak: "break-word" }}>{value}</div>
     </div>
   );
 }
@@ -254,7 +254,7 @@ function MetaTile({ icon, label, value, navy, gold }: { icon: IconKind; label: s
  */
 function QrBlock({ svg, navy, gold, size, caption, safeZone = false }: { svg: string; navy: string; gold: string; size: number; caption: boolean; safeZone?: boolean }) {
   return (
-    <div style={{ width: size + 22, textAlign: "center", transform: safeZone ? "translate(-30px, -26px)" : undefined }}>
+    <div style={{ width: size + 22, textAlign: "center", transform: safeZone ? "translate(-56px, -26px)" : undefined }}>
       <div style={{ fontSize: 7, fontWeight: 700, color: navy, letterSpacing: 1.6, marginBottom: 2, fontFamily: SANS }}>QR VERIFICATION</div>
       <div style={{ width: 22, height: 1, background: gold, margin: "0 auto 7px" }} />
       {/* Navy plate inside an offset gold hairline — the same frame language as
@@ -390,7 +390,7 @@ export function CertificateDocument({ data, config }: { data: CertData; config: 
               a single flat line. */}
           <div style={{ height: 1, width: "46%", margin: "4px auto 0", background: "#d3d9e2", opacity: 0.55 }} />
         </div>
-        {data.ic_passport && <p style={{ fontSize: 9.5, color: "#667085", margin: "10px 0 0", letterSpacing: 0.6, fontFamily: SANS, overflowWrap: "anywhere" }}>IC / Passport No.: {data.ic_passport}</p>}
+        {data.ic_passport && <p style={{ fontSize: 9.5, color: "#667085", margin: "10px 0 0", letterSpacing: 0.6, fontFamily: SANS, overflowWrap: "anywhere" }}>IC / Passport No.: <strong style={{ color: navy, fontWeight: 700 }}>{data.ic_passport}</strong></p>}
 
         <p style={{ fontSize: 9, margin: "18px 0 0", color: "#8a94a6", letterSpacing: 1.8, fontFamily: SANS, textTransform: "uppercase", textIndent: 1.8 }}>For successfully completing the</p>
         <div style={{ width: 30, height: 1, background: gold, margin: "8px auto 10px" }} />
@@ -404,20 +404,19 @@ export function CertificateDocument({ data, config }: { data: CertData; config: 
           </RibbonBanner>
         )}
         {dateRange && (
-          <p style={{ fontSize: 11, color: "#4b5563", margin: "16px 0 0" }}>
-            <span style={{ color: "#667085", letterSpacing: 1.3, fontSize: 8.5, fontFamily: SANS, textTransform: "uppercase" }}>Conducted from </span>
-            {dateRange}
+          <p style={{ fontSize: 11, color: "#4b5563", margin: "16px 0 0", lineHeight: 1.45 }}>
+            <span style={{ display: "block" }}><span style={{ color: "#667085", letterSpacing: 1.3, fontSize: 8.5, fontFamily: SANS, textTransform: "uppercase" }}>Conducted from </span>{dateRange}</span>
+            {data.venue && <span style={{ display: "block", marginTop: 2 }}>at {data.venue}</span>}
           </p>
         )}
 
         {config.body_text && <p style={{ fontSize: 10.5, lineHeight: 1.85, maxWidth: 520, margin: "17px auto 0", color: "#6b7280" }}>{config.body_text}</p>}
 
-        {/* Approved V2R2 programme metadata strip: duration, period and venue.
-            Certificate identity is reserved for the lower approval composition. */}
+        {/* Programme duration and venue remain on page 1. The date range is
+            already communicated by Conducted from and is not duplicated as a
+            separate Training Period field. */}
         <div style={{ margin: "auto 0 0", borderTop: `1px solid ${navy}`, borderBottom: "1px solid #e3e7ee", padding: "12px 4px 11px", display: "flex", gap: 18, textAlign: "left", alignItems: "flex-start" }}>
           <MetaTile icon="refresh" label="Programme Duration" value={duration || "—"} navy={navy} gold={gold} />
-          <div style={{ width: 1, background: "#e3e7ee", alignSelf: "stretch" }} />
-          <MetaTile icon="calendar" label="Training Period" value={dateRange || "—"} navy={navy} gold={gold} />
           <div style={{ width: 1, background: "#e3e7ee", alignSelf: "stretch" }} />
           <MetaTile icon="id" label="Venue" value={data.venue || "—"} navy={navy} gold={gold} />
         </div>
@@ -464,16 +463,14 @@ export function CertificateDocument({ data, config }: { data: CertData; config: 
             </div>
             <div style={{ borderTop: `1px solid ${navy}`, margin: "4px 0 5px" }} />
             {singleSig ? (
-              <strong style={{ color: navy, letterSpacing: 0.3 }}>{config.signature_name || config.signature_title || "Director"}</strong>
+              <strong style={{ color: navy, letterSpacing: 0.3 }}>AUTHORISED DIRECTOR</strong>
             ) : (
               <>
                 <strong style={{ color: navy, letterSpacing: 0.3 }}>{config.signature_name || "Trainer"}</strong>
                 <div style={{ color: "#8a94a6", fontSize: 8.5, letterSpacing: 1.3, fontFamily: SANS, textTransform: "uppercase", marginTop: 3 }}>Trainer Signature</div>
               </>
             )}
-            {singleSig && config.signature_name && (
-              <div style={{ color: "#8a94a6", fontSize: 8.5, letterSpacing: 1.3, fontFamily: SANS, textTransform: "uppercase", marginTop: 3 }}>{config.signature_title || "Director"}</div>
-            )}
+
           </div>
           {!singleSig && (
             <div style={{ textAlign: "center", fontSize: 11, width: "auto", maxWidth: 160 }}>
@@ -491,7 +488,6 @@ export function CertificateDocument({ data, config }: { data: CertData; config: 
             </div>
           ) : <div aria-hidden="true" style={{ width: 88, minHeight: 72 }} />}
           <div style={{ width: 1, alignSelf: "stretch", background: "#e3e7ee" }} />
-          {config.show_qr !== false && data.qr_svg && <QrBlock svg={data.qr_svg} navy={navy} gold={gold} size={CERTIFICATE_DESIGN.qr.sizePx} caption safeZone />}
         </div>
         </div>
       </div>
@@ -655,7 +651,7 @@ export function CertificateBackPage({ data, config }: { data: CertData; config: 
             </div>
             {config.show_qr !== false && data.qr_svg && (
               <div style={{ borderLeft: "1px solid #e3e7ee", paddingLeft: 20 }}>
-                <QrBlock svg={data.qr_svg} navy={navy} gold={gold} size={56} caption={false} safeZone />
+                <QrBlock svg={data.qr_svg} navy={navy} gold={gold} size={CERTIFICATE_DESIGN.qr.sizePx - 34} caption safeZone />
               </div>
             )}
           </div>

@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import QRCode from "qrcode";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const publicRoot = pathToFileURL(resolve(repoRoot, "public")).href;
@@ -12,10 +13,13 @@ const { renderCertificateDocument, renderCertificateFront, renderCertificateBack
 const { resolveCertificateSkills } = await import(
   pathToFileURL(resolve(repoRoot, "lib/certificate-skills.ts")).href,
 );
+const { renderProfessionalScaffoldCertificateFront, renderProfessionalScaffoldCertificateBack } = await import(
+  pathToFileURL(resolve(repoRoot, "lib/professional-scaffold-certificate-html.ts")).href,
+);
 
 mkdirSync(out, { recursive: true });
 const logo = `${publicRoot}/certificates/template-a/teras-symbol-v2.png`;
-const qr = '<svg viewBox="0 0 29 29" xmlns="http://www.w3.org/2000/svg"><rect width="29" height="29" fill="white"/><path fill="#0b1f3a" d="M1 1h9v9H1zM3 3v5h5V3zM19 1h9v9h-9zM21 3v5h5V3zM1 19h9v9H1zM3 21v5h5v-5zM13 1h3v3h-3zM12 7h4v3h-4zM12 12h3v3h-3zM17 12h3v3h-3zM22 12h3v3h-3zM13 17h4v4h-4zM19 18h3v3h-3zM24 17h4v4h-4zM12 24h3v4h-3zM17 24h3v3h-3zM22 23h3v5h-3z"/></svg>';
+
 const skills = resolveCertificateSkills(true, [
   { area: "theory_session", status: "completed" },
   { area: "practical_training", status: "completed" },
@@ -47,7 +51,6 @@ const base = {
   venue: "TERAS Training Centre",
   participant_id: "SYNTH-C6-001",
   ic_passport: "P123456789012345678901234567890",
-  qr_svg: qr,
   skills,
 };
 const familySpecs = [
@@ -83,13 +86,19 @@ function shell(body, grayscale = false) {
   return `<!doctype html><html><head><meta charset="utf-8"><style>@page{size:A4 portrait;margin:0}html,body{margin:0;padding:0;background:#fff}@media print{*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}}${grayscale ? "html{filter:grayscale(1)}" : ""}</style></head><body>${body}</body></html>`;
 }
 for (const [name, data, config] of familySpecs) {
-  writeFileSync(resolve(out, `${name}-page1.html`), shell(rewriteAssets(renderCertificateFront(data, config))), "utf8");
-  writeFileSync(resolve(out, `${name}-page2.html`), shell(rewriteAssets(renderCertificateBack(data, config))), "utf8");
-  writeFileSync(resolve(out, `${name}.html`), shell(rewriteAssets(renderCertificateDocument(data, config))), "utf8");
+  const qr_svg = await QRCode.toString(`https://www.terasuniversal.com.my/verify/${data.certificate_number}`, { type: "svg", margin: 1, color: { dark: "#0b1f3a", light: "#ffffff" } });
+  const qaData = { ...data, qr_svg };
+  const renderFront = config.design_variant === "professional_scaffold_erection_skills" ? renderProfessionalScaffoldCertificateFront : renderCertificateFront;
+  const renderBack = config.design_variant === "professional_scaffold_erection_skills" ? renderProfessionalScaffoldCertificateBack : renderCertificateBack;
+  writeFileSync(resolve(out, `${name}-page1.html`), shell(rewriteAssets(renderFront(qaData, config))), "utf8");
+  writeFileSync(resolve(out, `${name}-page2.html`), shell(rewriteAssets(renderBack(qaData, config))), "utf8");
+  writeFileSync(resolve(out, `${name}.html`), shell(rewriteAssets(renderCertificateDocument(qaData, config))), "utf8");
 }
-writeFileSync(resolve(out, "long-content-stress-page1.html"), shell(rewriteAssets(renderCertificateFront(stressData, stressConfig))), "utf8");
-writeFileSync(resolve(out, "long-content-stress-page2.html"), shell(rewriteAssets(renderCertificateBack(stressData, stressConfig))), "utf8");
-writeFileSync(resolve(out, "long-content-stress.html"), shell(rewriteAssets(renderCertificateDocument(stressData, stressConfig))), "utf8");
+const stressQr = await QRCode.toString(`https://www.terasuniversal.com.my/verify/${stressData.certificate_number}`, { type: "svg", margin: 1, color: { dark: "#0b1f3a", light: "#ffffff" } });
+const qaStressData = { ...stressData, qr_svg: stressQr };
+writeFileSync(resolve(out, "long-content-stress-page1.html"), shell(rewriteAssets(renderCertificateFront(qaStressData, stressConfig))), "utf8");
+writeFileSync(resolve(out, "long-content-stress-page2.html"), shell(rewriteAssets(renderCertificateBack(qaStressData, stressConfig))), "utf8");
+writeFileSync(resolve(out, "long-content-stress.html"), shell(rewriteAssets(renderCertificateDocument(qaStressData, stressConfig))), "utf8");
 const intermediateData = base;
 const intermediateConfig = { ...common, design_variant: "standard_scaffold_certificate", watermark_level: "intermediate" };
 writeFileSync(resolve(out, "grayscale-intermediate-page1.html"), shell(rewriteAssets(renderCertificateFront(intermediateData, intermediateConfig)), true), "utf8");

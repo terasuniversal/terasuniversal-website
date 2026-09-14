@@ -64,8 +64,10 @@ assert.match(react, /data\.ic_passport/);
 assert.match(html, /data\.ic_passport/);
 assert.match(react, /data\.course_name/);
 assert.match(html, /data\.course_name/);
-assert.match(react, /translate\(-30px, -26px\)/);
-assert.match(html, /translate\(-30px,-26px\)/);
+assert.match(react, /translate\(-56px, -26px\)/);
+assert.match(html, /translate\(-56px,-26px\)/);
+assert.match(react, /size=\{CERTIFICATE_DESIGN\.qr\.sizePx - 34\} caption safeZone \/>/);
+assert.match(html, /CERTIFICATE_DESIGN\.qr\.sizePx - 34, true, true\)/);
 assert.equal((react.match(/<TaglineFooter navy=/g) || []).length, 2, "React must render the official tagline once on each generic page");
 assert.equal((html.match(/\$\{taglineFooter\(navy, gold\)\}/g) || []).length, 2, "HTML must render the official tagline once on each generic page");
 assert.match(react, /width: 228, height: 106/);
@@ -87,7 +89,7 @@ assert.doesNotMatch(professionalHtml, /CERTIFICATE TYPE FROM TEMPLATE/);
 assert.doesNotMatch(react, /019-519 3834|www\.terasuniversal\.com\.my|admin@terasuniversal\.com\.my/);
 assert.doesNotMatch(html, /019-519 3834|www\.terasuniversal\.com\.my|admin@terasuniversal\.com\.my/);
 
-assert.doesNotMatch(dispatch, /ProfessionalScaffoldCertificateDocument/);
+assert.match(dispatch, /ProfessionalScaffoldCertificateDocument/);
 assert.match(dispatch, /return <CertificateDocument data=\{data\} config=\{config\} \/>/);
 assert.match(dispatch, /return <CertificateBackPage data=\{data\} config=\{config\} \/>/);
 

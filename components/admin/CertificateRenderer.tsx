@@ -1,4 +1,5 @@
 import { CertificateDocument, CertificateBackPage, type CertData, type TemplateConfig } from "./CertificateDocument";
+import { ProfessionalScaffoldCertificateDocument, ProfessionalScaffoldCertificateBackPage } from "./ProfessionalScaffoldCertificateDocument";
 
 
 /**
@@ -10,9 +11,15 @@ import { CertificateDocument, CertificateBackPage, type CertData, type TemplateC
  * design variant only has to be wired here once.
  */
 export function CertificateFront({ data, config }: { data: CertData; config: TemplateConfig }) {
+  if (config.design_variant === "professional_scaffold_erection_skills") {
+    return <ProfessionalScaffoldCertificateDocument data={data} config={config} />;
+  }
   return <CertificateDocument data={data} config={config} />;
 }
 
 export function CertificateBack({ data, config }: { data: CertData; config: TemplateConfig }) {
+  if (config.design_variant === "professional_scaffold_erection_skills") {
+    return <ProfessionalScaffoldCertificateBackPage data={data} config={config} />;
+  }
   return <CertificateBackPage data={data} config={config} />;
 }
