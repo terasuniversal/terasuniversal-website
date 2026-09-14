@@ -69,6 +69,7 @@ $runnerSource = Get-Content (Join-Path $PSScriptRoot "agent-runner.ps1") -Raw
 $pipelineSource = Get-Content (Join-Path $PSScriptRoot "teras-agent.ps1") -Raw
 if ($runnerSource -notmatch "New-CodexRepairHandoff" -or $runnerSource -notmatch "Do not commit, push, merge, deploy, or apply a migration") { throw "Repair handoff governance assertions failed." }
 if ($pipelineSource -notmatch "Invoke-ClaudeRepairLoop" -or $pipelineSource -notmatch "PENDING_CLAUDE_REVIEW" -or $pipelineSource -notmatch "PENDING_CODEX_REPAIR" -or $pipelineSource -notmatch "\$maximumAttempts = 2") { throw "Repair loop control assertions failed." }
-if ($pipelineSource -notmatch 'State\.Implementer -ne "Codex"') { throw "Legacy review loop guard assertion failed." }
+if ($pipelineSource -notmatch 'Risk -in @\("HIGH", "CRITICAL"\)') { throw "Risk-gated review ordering assertion failed." }
+if ($pipelineSource -notmatch 'Invoke-ReviewStage -State \$State -Mandatory \$true') { throw "Mandatory Codex final review assertion failed." }
 
 Write-Output "Repair loop static tests: PASS"

@@ -230,6 +230,7 @@ function Test-DeepSeekHealthyForRouting {
 
 function Get-LowMediumImplementerChoice {
     param([bool]$PreferDeepSeek)
+    throw "DeepSeek is disabled; use Get-PrimaryImplementerChoice."
 
     # Deliberately evaluated into named variables BEFORE the if, not
     # combined inline as `if ($PreferDeepSeek -or (FuncA -and FuncB))` -
@@ -242,10 +243,7 @@ function Get-LowMediumImplementerChoice {
     $isHealthy = Test-DeepSeekHealthyForRouting
     $shouldUseDeepSeek = ($PreferDeepSeek -or ($isEnabled -and $isHealthy))
 
-    if ($shouldUseDeepSeek) {
-        return [pscustomobject]@{ Implementer = "DeepSeek"; ImplementerModel = "DEEPSEEK_FAST" }
-    }
-    return [pscustomobject]@{ Implementer = "Claude Code"; ImplementerModel = "CLAUDE_FAST" }
+    return Get-PrimaryImplementerChoice
 }
 
 # Direct mode ("teras-agent <task description>") has no menu number to start
@@ -266,8 +264,7 @@ function Get-AutoMenuChoice {
 function Get-TaskClassification {
     param(
         [int]$MenuChoice,
-        [string]$Description,
-        [switch]$PreferDeepSeek
+        [string]$Description
     )
 
     # Only Category/Risk come from the menu baseline now - Implementer/Model/
@@ -323,49 +320,49 @@ function Get-TaskClassification {
             # at classification time before any SQL exists, is strictly
             # tighter than treating it as ordinary cert-trust HIGH.
             $category = "Certificate / Verification / Database"
-            $risk = "CRITICAL"; $implementer = "Claude Code"; $model = "CLAUDE_DEEP"
-            $reviewer = "Codex"; $reviewerModel = "CODEX_REVIEW"
+            $risk = "CRITICAL"; $implementer = "Codex"; $model = "CODEX"
+            $reviewer = "Claude Code"; $reviewerModel = "CLAUDE_REVIEW"
             $reasonParts += "Touches certificate verification/trust logic AND database/RLS/auth surface in the same task - combined signal escalates directly to CRITICAL per the certificate-database rule (DATABASE_SAFETY.md)."
         } elseif ($isCertTrust) {
             $category = "Certificate / Verification"
-            $risk = "HIGH"; $implementer = "Claude Code"; $model = "CLAUDE_DEEP"
-            $reviewer = "Codex"; $reviewerModel = "CODEX_REVIEW"
+            $risk = "HIGH"; $implementer = "Codex"; $model = "CODEX"
+            $reviewer = "Claude Code"; $reviewerModel = "CLAUDE_REVIEW"
             $reasonParts += "Touches certificate issuance, verification, validity, or trust logic - a DeepSeek-blocked area (AGENTS.md); Claude DEEP + mandatory Codex review."
         } elseif ($isDbSensitive) {
             $category = "Database / Supabase"
-            $risk = "HIGH"; $implementer = "Claude Code"; $model = "CLAUDE_DEEP"
-            $reviewer = "Codex"; $reviewerModel = "CODEX_REVIEW"
+            $risk = "HIGH"; $implementer = "Codex"; $model = "CODEX"
+            $reviewer = "Claude Code"; $reviewerModel = "CLAUDE_REVIEW"
             $reasonParts += "Touches migrations, RLS/policies, database functions/RPCs, schema, constraints, indexes, or auth - a DeepSeek-blocked area (AGENTS.md); Claude DEEP + mandatory Codex review."
         } elseif ($isDestructive -or $isProduction) {
-            $risk = "HIGH"; $implementer = "Claude Code"; $model = "CLAUDE_DEEP"
-            $reviewer = "Codex"; $reviewerModel = "CODEX_REVIEW"
+            $risk = "HIGH"; $implementer = "Codex"; $model = "CODEX"
+            $reviewer = "Claude Code"; $reviewerModel = "CLAUDE_REVIEW"
             $reasonParts += "Description flags destructive and/or production-scoped impact - a DeepSeek-blocked area; Claude DEEP + mandatory Codex review."
         } elseif ($isAttendanceModule -and (Test-AnyKeyword -Text $Description -Keywords $UiKeywords)) {
             $isPrintArea = $Description.ToLowerInvariant().Contains("print")
             $category = if ($isPrintArea) { "Attendance / UI / Print" } else { "Attendance / UI" }
             $risk = "LOW"
-            $pick = Get-LowMediumImplementerChoice -PreferDeepSeek:$PreferDeepSeek
+            $pick = Get-PrimaryImplementerChoice
             $implementer = $pick.Implementer; $model = $pick.ImplementerModel
             $reviewer = "None"; $reviewerModel = "None"
             $reasonParts += "Explicit attendance-module signal takes precedence over generic visual keyword matching - routed as an Attendance UI change, not Certificate / Visual. $(if ($implementer -eq 'DeepSeek') { 'DeepSeek is enabled and healthy for routine UI/print work on this task.' } else { 'Claude FAST is the default implementer (stable operational mode) - DeepSeek is optional, not a blocker.' })"
         } elseif ($isCertVisual) {
             $category = "Certificate / Visual"
             $risk = "LOW"
-            $pick = Get-LowMediumImplementerChoice -PreferDeepSeek:$PreferDeepSeek
+            $pick = Get-PrimaryImplementerChoice
             $implementer = $pick.Implementer; $model = $pick.ImplementerModel
             $reviewer = "None"; $reviewerModel = "None"
             $reasonParts += "Visual-only certificate change (spacing/placement/appearance) with no issuance or verification logic touched. $(if ($implementer -eq 'DeepSeek') { 'DeepSeek is enabled and healthy for routine visual work on this task.' } else { 'Claude FAST is the default implementer (stable operational mode) - DeepSeek is optional, not a blocker.' })"
         } elseif ($risk -eq "HIGH") {
             # Category defaulted to HIGH (e.g. the Database/Supabase menu
             # option) with no specific keyword detail in the description.
-            $implementer = "Claude Code"; $model = "CLAUDE_DEEP"
-            $reviewer = "Codex"; $reviewerModel = "CODEX_REVIEW"
+            $implementer = "Codex"; $model = "CODEX"
+            $reviewer = "Claude Code"; $reviewerModel = "CLAUDE_REVIEW"
         } elseif ($risk -eq "LOW") {
             # Every DeepSeek-blocked signal above already forces HIGH, so
             # anything still LOW here is, by construction, safe for
             # DeepSeek if selected - but Claude FAST is now the default
             # (stable operational mode: DeepSeek must never block delivery).
-            $pick = Get-LowMediumImplementerChoice -PreferDeepSeek:$PreferDeepSeek
+            $pick = Get-PrimaryImplementerChoice
             $implementer = $pick.Implementer; $model = $pick.ImplementerModel
             $reviewer = "None"; $reviewerModel = "None"
             $reasonParts += if ($implementer -eq "DeepSeek") {
@@ -380,7 +377,7 @@ function Get-TaskClassification {
             # actually matching its routine-work profile within a small,
             # bounded scope (not cross-module) - section 4's criteria.
             $isDeepSeekCandidate = $isDeepSeekSuitable -and (-not $isCrossModule)
-            $pick = if ($isDeepSeekCandidate) { Get-LowMediumImplementerChoice -PreferDeepSeek:$PreferDeepSeek } else { [pscustomobject]@{ Implementer = "Claude Code"; ImplementerModel = "CLAUDE_FAST" } }
+            $pick = Get-PrimaryImplementerChoice
             $implementer = $pick.Implementer; $model = $pick.ImplementerModel
             $reviewer = "None"; $reviewerModel = "None"
             if ($implementer -eq "DeepSeek") {
@@ -405,7 +402,7 @@ function Get-TaskClassification {
 
     $humanApproval = if ($risk -eq "HIGH" -or $risk -eq "CRITICAL") { "REQUIRED" } else { "NOT REQUIRED" }
     $fullRepoAudit = ($MenuChoice -eq 7)
-    $escalationNote = if ($implementer -eq "DeepSeek") { "Claude FAST if DeepSeek requests ESCALATE_TO_CLAUDE" } else { "N/A" }
+    $escalationNote = "N/A - Codex is the sole implementer; Claude review is risk-gated."
 
     return @{
         Category         = $category
@@ -455,6 +452,19 @@ function New-EmptyTaskState {
         PreExistingFiles      = @()
         TaskGeneratedFiles    = @()
         ScopeCheck            = "NOT_CONFIGURED"
+        WorkspaceBoundary     = [pscustomobject]@{
+            LockStatus = "UNLOCKED"
+            CanonicalWorkspace = $null
+            DeclaredAllowedScope = @()
+            DeclaredBlockedScope = @()
+            Branch = $null
+            Upstream = $null
+            AheadOfOriginMain = $null
+            BehindOriginMain = $null
+            DirtyStatusEntries = $null
+            DirtyTrackedContentFiles = $null
+            DirtyUntrackedEntries = $null
+        }
         QA                    = [pscustomobject]@{
             GitDiffCheck = [pscustomobject]@{ Result = "SKIPPED"; Reason = "Not run yet." }
             TypeScript   = [pscustomobject]@{ Result = "SKIPPED"; Reason = "Not run yet." }
@@ -465,6 +475,21 @@ function New-EmptyTaskState {
         ReviewedDiffHash      = $null
         CommitMessage         = $null
         CommitSha             = $null
+
+        # --- Phase 4.7: durable agent execution and handoff state ---
+        CodexExecutionStatus  = "NOT_STARTED"
+        CodexExecutionResult  = $null
+        CodexExecutionStartedAt = $null
+        CodexExecutionCompletedAt = $null
+        ClaudeReviewStatus    = "NOT_STARTED"
+        ClaudeReviewFindings  = @()
+        ClaudeReviewResult    = $null
+        ClaudeReviewStartedAt = $null
+        ClaudeReviewCompletedAt = $null
+        HandoffHistory        = @()
+        ApprovalRequestedAt   = $null
+        PendingHumanApprovals = @()
+        McpActionHistory      = @()
 
         # --- Phase 4: push / preview ---
         Branch                     = $null
@@ -581,7 +606,24 @@ function New-TaskState {
     # Only a mandatory reviewer ("Codex" for HIGH/CRITICAL, "Human" for a
     # Production Audit) starts PENDING - "Codex (recommended)" at MEDIUM
     # risk is optional and must not block approval just because it never ran.
-    $state.ReviewVerdict = if ($Classification.Reviewer -eq "Codex" -or $Classification.Reviewer -eq "Human") { "PENDING" } else { "NOT_REQUIRED" }
+    $state.ReviewVerdict = if ($Classification.Reviewer -in @("Claude Code", "Codex", "Human")) { "PENDING" } else { "NOT_REQUIRED" }
+
+    # Persist canonical work-boundary facts in the existing durable task
+    # record. This is observational only and does not mutate repository files.
+    $state.WorkspaceBoundary.CanonicalWorkspace = $RepoRoot
+    $state.WorkspaceBoundary.Branch = (git -C $RepoRoot branch --show-current 2>$null | Select-Object -First 1)
+    $remote = (git -C $RepoRoot config --get "branch.$($state.WorkspaceBoundary.Branch).remote" 2>$null | Select-Object -First 1)
+    $mergeRef = (git -C $RepoRoot config --get "branch.$($state.WorkspaceBoundary.Branch).merge" 2>$null | Select-Object -First 1)
+    $state.WorkspaceBoundary.Upstream = if ($remote -and $mergeRef) { "$remote/$($mergeRef -replace '^refs/heads/', '')" } else { $null }
+    $dirty = @(git -C $RepoRoot status --porcelain 2>$null)
+    $state.WorkspaceBoundary.DirtyStatusEntries = $dirty.Count
+    $state.WorkspaceBoundary.DirtyUntrackedEntries = @($dirty | Where-Object { $_ -match '^\?\?' }).Count
+    $state.WorkspaceBoundary.DirtyTrackedContentFiles = @($dirty | Where-Object { $_ -and $_ -notmatch '^\?\?' }).Count
+    $compare = @(git -C $RepoRoot rev-list --left-right --count HEAD...origin/main 2>$null)
+    if ($compare.Count -gt 0 -and $compare[0] -match '^\s*(\d+)\s+(\d+)\s*$') {
+        $state.WorkspaceBoundary.AheadOfOriginMain = [int]$Matches[1]
+        $state.WorkspaceBoundary.BehindOriginMain = [int]$Matches[2]
+    }
 
     # Flag the separate database-safety track (db-runner.ps1) whenever the
     # task itself already looks database-shaped. This is a starting guess,
@@ -626,7 +668,28 @@ function New-TaskState {
         }
     }
 
+    if ($Description -match '(?i)P0\.1|canonical work-boundary lock|workspace-stabilization') {
+        $state.WorkspaceBoundary.LockStatus = "LOCKED"
+        $state.AllowedFiles = @("tools/agent-router.ps1", ".ai/task-state.json", ".ai/CURRENT_TASK.md")
+        $state.ScopeSource = "EXPLICIT_TASK_PATHS"
+        $state.ScopeCheck = "PASS"
+        $state.WorkspaceBoundary.DeclaredAllowedScope = @($state.AllowedFiles)
+        $state.WorkspaceBoundary.DeclaredBlockedScope = @(
+            "app/", "components/", "lib/", "data/", "supabase/", "public/", "production systems", "Telegram", "routing policy", "task execution semantics", "commit/push/merge/deploy", "migration apply"
+        )
+        if ($Description -match '(?i)dirty worktree (\d+) status entries, (\d+) tracked real-content files, (\d+) untracked') {
+            $state.WorkspaceBoundary.DirtyStatusEntries = [int]$Matches[1]
+            $state.WorkspaceBoundary.DirtyTrackedContentFiles = [int]$Matches[2]
+            $state.WorkspaceBoundary.DirtyUntrackedEntries = [int]$Matches[3]
+        }
+    }
+
     return $state
+}
+
+function Get-PrimaryImplementerChoice {
+    # Codex is the sole TERAS implementation agent. DeepSeek is disabled.
+    return [pscustomobject]@{ Implementer = "Codex"; ImplementerModel = "CODEX" }
 }
 
 # Real defect fix: a task-state.json written before a schema field existed
@@ -653,8 +716,118 @@ function Repair-TaskStateSchema {
     return $State
 }
 
+function Get-AgentEventTimestamp {
+    return [DateTime]::UtcNow.ToString("o")
+}
+
+function Add-AgentHandoffRecord {
+    param(
+        $State,
+        [string]$FromAgent,
+        [string]$ToAgent,
+        [string]$HandoffType,
+        [string]$HandoffPath,
+        [string]$Status = "RECORDED",
+        [string]$Details = $null
+    )
+
+    Repair-TaskStateSchema -State $State | Out-Null
+    $history = @($State.HandoffHistory)
+    $history += [pscustomobject]@{
+        timestamp = Get-AgentEventTimestamp
+        fromAgent = $FromAgent
+        toAgent = $ToAgent
+        handoffType = $HandoffType
+        handoffPath = $HandoffPath
+        status = $Status
+        details = $Details
+    }
+
+    $State.HandoffHistory = $history
+    if (Get-Command Save-TaskState -ErrorAction SilentlyContinue) {
+        if (-not [string]::IsNullOrWhiteSpace([string]$TaskStatePath)) { Save-TaskState -State $State }
+    }
+}
+
+function Set-CodexExecutionRecord {
+    param($State, [string]$Status, $Result = $null)
+
+    Repair-TaskStateSchema -State $State | Out-Null
+    $now = Get-AgentEventTimestamp
+    if ($Status -eq "STARTED") { $State.CodexExecutionStartedAt = $now }
+    if ($Status -in @("COMPLETED", "FAILED", "UNAVAILABLE")) { $State.CodexExecutionCompletedAt = $now }
+    $State.CodexExecutionStatus = $Status
+    $State.CodexExecutionResult = $Result
+}
+
+function Set-ClaudeReviewRecord {
+    param($State, [string]$Status, $Findings = @(), $Result = $null)
+
+    Repair-TaskStateSchema -State $State | Out-Null
+    $now = Get-AgentEventTimestamp
+    if ($Status -eq "STARTED") { $State.ClaudeReviewStartedAt = $now }
+    if ($Status -in @("COMPLETED", "FAILED", "UNAVAILABLE")) { $State.ClaudeReviewCompletedAt = $now }
+    $State.ClaudeReviewStatus = $Status
+    $State.ClaudeReviewFindings = @($Findings)
+    if ($null -ne $Result) { $State.ClaudeReviewResult = $Result }
+}
+
+function Sync-PendingHumanApprovals {
+    param($State)
+
+    Repair-TaskStateSchema -State $State | Out-Null
+    $pending = @($State.PendingHumanApprovals | Where-Object { $_.kind -ne "TASK_APPROVAL" })
+    if ($State.HumanApprovalRequired -eq "REQUIRED" -and $State.HumanDecision -ne "APPROVED") {
+        if (-not $State.ApprovalRequestedAt) { $State.ApprovalRequestedAt = Get-AgentEventTimestamp }
+        $pending += [pscustomobject]@{ kind = "TASK_APPROVAL"; status = "PENDING"; requestedAt = $State.ApprovalRequestedAt }
+    }
+    $State.PendingHumanApprovals = $pending
+}
+
+function Get-McpActionRecord {
+    param($State, [string]$Action, [string]$IdempotencyKey)
+    Repair-TaskStateSchema -State $State | Out-Null
+    return @($State.McpActionHistory | Where-Object { $_.action -eq $Action -and $_.idempotencyKey -eq $IdempotencyKey } | Select-Object -Last 1)
+}
+
+function Test-McpActionDuplicate {
+    param($State, [string]$Action, [string]$IdempotencyKey)
+    return (@(Get-McpActionRecord -State $State -Action $Action -IdempotencyKey $IdempotencyKey).Count -gt 0)
+}
+
+function Test-McpStartAllowed {
+    param($State, [string]$TaskId)
+    if ($State.State -eq "NONE" -or [string]::IsNullOrWhiteSpace($State.TaskId) -or $State.TaskId -ne $TaskId) {
+        return [pscustomobject]@{ Allowed = $false; Reason = "The requested task does not match the current durable Hermes task." }
+    }
+    if ($State.State -notin @("CREATED", "ROUTED")) {
+        return [pscustomobject]@{ Allowed = $false; Reason = "Task is not in a startable state." }
+    }
+    if ($State.Risk -in @("HIGH", "CRITICAL") -and $State.HumanApprovalRequired -eq "REQUIRED" -and $State.HumanDecision -ne "APPROVED") {
+        return [pscustomobject]@{ Allowed = $false; Reason = "Human approval is required before starting this high-risk task." }
+    }
+    return [pscustomobject]@{ Allowed = $true; Reason = "Task is startable." }
+}
+
+function Add-McpActionRecord {
+    param($State, [string]$Action, [string]$IdempotencyKey, [string]$Status, $Details = $null)
+    Repair-TaskStateSchema -State $State | Out-Null
+    $history = @($State.McpActionHistory)
+    $history += [pscustomobject]@{
+        timestamp = Get-AgentEventTimestamp
+        action = $Action
+        idempotencyKey = $IdempotencyKey
+        taskId = $State.TaskId
+        status = $Status
+        details = $Details
+    }
+    $State.McpActionHistory = $history
+    Save-TaskState -State $State
+}
+
 function Save-TaskState {
     param($State)
+    Sync-PendingHumanApprovals -State $State
     $State | ConvertTo-Json -Depth 10 | Set-Content -Path $TaskStatePath -Encoding utf8
     Write-CurrentTaskMarkdown -State $State
 }
@@ -722,6 +895,19 @@ Blocked Files:
 $(Format-FileList -Files $State.BlockedFiles -EmptyText "(fill in before implementation begins)")
 
 $(if (@($State.ExplicitPathsNotFound).Count -gt 0) { "Explicit path not found:`n$(Format-FileList -Files $State.ExplicitPathsNotFound)`n`nNot auto-approved - confirm the correct path(s) before implementation begins.`n" })Scope Check: $($State.ScopeCheck)
+
+## Canonical Work Boundary
+
+Lock Status: $($State.WorkspaceBoundary.LockStatus)
+Canonical Workspace: $($State.WorkspaceBoundary.CanonicalWorkspace)
+Branch: $($State.WorkspaceBoundary.Branch)
+Upstream: $(if ($State.WorkspaceBoundary.Upstream) { $State.WorkspaceBoundary.Upstream } else { "(none)" })
+Divergence from origin/main: $($State.WorkspaceBoundary.AheadOfOriginMain) ahead / $($State.WorkspaceBoundary.BehindOriginMain) behind
+Dirty Worktree: $($State.WorkspaceBoundary.DirtyStatusEntries) status entries; $($State.WorkspaceBoundary.DirtyTrackedContentFiles) tracked entries; $($State.WorkspaceBoundary.DirtyUntrackedEntries) untracked entries
+Declared Allowed Scope:
+$(Format-FileList -Files $State.WorkspaceBoundary.DeclaredAllowedScope -EmptyText "(none)")
+Declared Blocked Scope:
+$(Format-FileList -Files $State.WorkspaceBoundary.DeclaredBlockedScope -EmptyText "(none)")
 
 ## Changed Files
 
