@@ -1,6 +1,14 @@
 "use client";
 
+import { usePathname } from "next/navigation";
+
 export default function StickyCta() {
+  const pathname = usePathname();
+
+  if (pathname === "/verify" || pathname?.startsWith("/verify/")) {
+    return null;
+  }
+
   return (
     <aside className="sticky-cta" aria-label="Quick contact options">
       <a className="sticky-cta-proposal" href="/request-proposal">Request Proposal</a>

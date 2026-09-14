@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import { createSupabaseServerClient } from "../../../lib/supabase/server";
+import { normalizeVerificationRpcResponse } from "../../../lib/public-verification-rpc";
 import { VerificationResult, VerifyShell, firstIp, type VerifyRow } from "../VerificationResult";
 
 export const dynamic = "force-dynamic";
@@ -47,17 +48,17 @@ export default async function VerifyTokenPage({ params }: { params: Promise<{ to
 
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.rpc("verify_and_log", { p_query: token, p_method: "auto", p_ip: ip, p_ua: ua });
-  if (error) {
-    // Never surface DB internals on a public page, and never log the
-    // submitted value itself — log server-side only, then fall through to
-    // the same "not found" UI a genuine miss would show.
-    console.error("verify_and_log RPC failed", { message: error.message });
+  const normalized = normalizeVerificationRpcResponse<VerifyRow>(data, error);
+  if (normalized.kind === "error") {
+    // Never surface DB internals or the submitted value. Keep the reason
+    // observable in server logs without collapsing it into a confirmed miss.
+    console.error("verify_and_log response failed", { reason: normalized.reason, message: error?.message });
   }
-  const result: VerifyRow | null = !error && data && data.length > 0 ? (data[0] as VerifyRow) : null;
+  const result = normalized.kind === "found" ? normalized.row : null;
 
   return (
     <VerifyShell>
-      <VerificationResult result={result} />
+      <VerificationResult result={result} failure={normalized.kind === "error" ? "runtime" : undefined} />
       <p style={{ textAlign: "center", marginTop: 16 }}>
         <a href="/verify" style={{ color: "#0B2C56", fontSize: 13, textDecoration: "underline" }}>Verify another certificate</a>
       </p>

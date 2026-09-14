@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import { createSupabaseServerClient } from "../../lib/supabase/server";
+import { normalizeVerificationRpcResponse } from "../../lib/public-verification-rpc";
 import { VerificationResult, VerifyShell, firstIp, type VerifyRow } from "./VerificationResult";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +25,7 @@ export default async function VerifyLandingPage({ searchParams }: { searchParams
   const query = (sp.q ?? "").trim();
 
   let result: VerifyRow | null = null;
+  let failure: "runtime" | undefined;
   let searched = false;
   if (query) {
     searched = true;
@@ -32,15 +34,14 @@ export default async function VerifyLandingPage({ searchParams }: { searchParams
     const ua = h.get("user-agent");
     const supabase = await createSupabaseServerClient();
     const { data, error } = await supabase.rpc("verify_and_log", { p_query: query, p_method: "auto", p_ip: ip, p_ua: ua });
-    if (error) {
-      // Never surface DB internals on a public page, and never log the
-      // submitted value itself — it can be a certificate number, token, or
-      // (if a confused visitor pastes one) an IC/passport number. Log
-      // server-side only, then fall through to the same "not found" UI a
-      // genuine miss would show.
-      console.error("verify_and_log RPC failed", { message: error.message });
+    const normalized = normalizeVerificationRpcResponse<VerifyRow>(data, error);
+    if (normalized.kind === "error") {
+      // Never surface DB internals or the submitted value. Keep the reason
+      // observable in server logs without collapsing it into a confirmed miss.
+      console.error("verify_and_log response failed", { reason: normalized.reason, message: error?.message });
+      failure = "runtime";
     }
-    result = !error && data && data.length > 0 ? (data[0] as VerifyRow) : null;
+    result = normalized.kind === "found" ? normalized.row : null;
   }
 
   return (
@@ -63,7 +64,7 @@ export default async function VerifyLandingPage({ searchParams }: { searchParams
         </p>
       )}
 
-      {searched && <VerificationResult result={result} />}
+      {searched && <VerificationResult result={result} failure={failure} />}
     </VerifyShell>
   );
 }

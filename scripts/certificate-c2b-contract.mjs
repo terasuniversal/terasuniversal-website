@@ -46,7 +46,7 @@ assert.match(actions, /rpc\("set_certificate_deleted"/);
 assert.match(actions, /rpc\("set_certificate_verification_enabled"/);
 assert.match(actions, /rpc\("duplicate_certificate_with_skill_snapshot"/);
 assert.doesNotMatch(actions, /duplicate_certificate_with_skill_snapshot[\s\S]*from\("certificates"\)\.update/);
-assert.match(actions, /Verification token regeneration is not supported/);
+assert.doesNotMatch(actions, /regenerateVerificationToken|Verification token regeneration is not supported/);
 assert.match(api, /rpc\("set_certificate_deleted"/);
 assert.match(migration, /revoke all on public\.certificates from anon, authenticated/);
 assert.doesNotMatch(migration, /grant update \(/);
