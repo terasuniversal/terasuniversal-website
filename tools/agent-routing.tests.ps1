@@ -23,6 +23,17 @@ try {
     if ($high.Reviewer -ne "Claude Code" -or $high.ReviewerModel -ne "CLAUDE_REVIEW") { throw "HIGH review route is not Claude Code." }
     $critical = Get-TaskClassification -MenuChoice 4 -Description "Drop production table"
     if ($critical.Reviewer -ne "Claude Code" -or $critical.ReviewerModel -ne "CLAUDE_REVIEW") { throw "CRITICAL review route is not Claude Code." }
+    foreach ($classification in @(
+        (Get-TaskClassification -MenuChoice 3 -Description "Fix admin spacing"),
+        (Get-TaskClassification -MenuChoice 1 -Description "Add a CRM report"),
+        $high,
+        $critical
+    )) {
+        $reason = [string]$classification.Reason
+        if ($reason -match 'DeepSeek is enabled|Claude FAST is the default|Claude DEEP \+ mandatory Codex review') {
+            throw "Route reason contains stale implementer guidance: $reason"
+        }
+    }
 
     $audit = Get-TaskClassification -MenuChoice 7 -Description "Read-only production audit"
     if ($audit.Implementer -ne "Codex" -or $audit.Reviewer -ne "Human") { throw "Production audit route changed unexpectedly." }

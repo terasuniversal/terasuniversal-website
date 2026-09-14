@@ -327,16 +327,16 @@ function Get-TaskClassification {
             $category = "Certificate / Verification"
             $risk = "HIGH"; $implementer = "Codex"; $model = "CODEX"
             $reviewer = "Claude Code"; $reviewerModel = "CLAUDE_REVIEW"
-            $reasonParts += "Touches certificate issuance, verification, validity, or trust logic - a DeepSeek-blocked area (AGENTS.md); Claude DEEP + mandatory Codex review."
+            $reasonParts += "Touches certificate issuance, verification, validity, or trust logic. Codex implements, followed by mandatory Claude specialist review and mandatory Codex final review."
         } elseif ($isDbSensitive) {
             $category = "Database / Supabase"
             $risk = "HIGH"; $implementer = "Codex"; $model = "CODEX"
             $reviewer = "Claude Code"; $reviewerModel = "CLAUDE_REVIEW"
-            $reasonParts += "Touches migrations, RLS/policies, database functions/RPCs, schema, constraints, indexes, or auth - a DeepSeek-blocked area (AGENTS.md); Claude DEEP + mandatory Codex review."
+            $reasonParts += "Touches migrations, RLS/policies, database functions/RPCs, schema, constraints, indexes, or auth. Codex implements, followed by mandatory Claude specialist review and mandatory Codex final review."
         } elseif ($isDestructive -or $isProduction) {
             $risk = "HIGH"; $implementer = "Codex"; $model = "CODEX"
             $reviewer = "Claude Code"; $reviewerModel = "CLAUDE_REVIEW"
-            $reasonParts += "Description flags destructive and/or production-scoped impact - a DeepSeek-blocked area; Claude DEEP + mandatory Codex review."
+            $reasonParts += "Description flags destructive and/or production-scoped impact. Codex implements, followed by mandatory Claude specialist review and mandatory Codex final review."
         } elseif ($isAttendanceModule -and (Test-AnyKeyword -Text $Description -Keywords $UiKeywords)) {
             $isPrintArea = $Description.ToLowerInvariant().Contains("print")
             $category = if ($isPrintArea) { "Attendance / UI / Print" } else { "Attendance / UI" }
@@ -344,49 +344,37 @@ function Get-TaskClassification {
             $pick = Get-PrimaryImplementerChoice
             $implementer = $pick.Implementer; $model = $pick.ImplementerModel
             $reviewer = "None"; $reviewerModel = "None"
-            $reasonParts += "Explicit attendance-module signal takes precedence over generic visual keyword matching - routed as an Attendance UI change, not Certificate / Visual. $(if ($implementer -eq 'DeepSeek') { 'DeepSeek is enabled and healthy for routine UI/print work on this task.' } else { 'Claude FAST is the default implementer (stable operational mode) - DeepSeek is optional, not a blocker.' })"
+            $reasonParts += "Explicit attendance-module signal takes precedence over generic visual keyword matching - routed as an Attendance UI change, not Certificate / Visual. Codex is the sole implementer for this LOW-risk task."
         } elseif ($isCertVisual) {
             $category = "Certificate / Visual"
             $risk = "LOW"
             $pick = Get-PrimaryImplementerChoice
             $implementer = $pick.Implementer; $model = $pick.ImplementerModel
             $reviewer = "None"; $reviewerModel = "None"
-            $reasonParts += "Visual-only certificate change (spacing/placement/appearance) with no issuance or verification logic touched. $(if ($implementer -eq 'DeepSeek') { 'DeepSeek is enabled and healthy for routine visual work on this task.' } else { 'Claude FAST is the default implementer (stable operational mode) - DeepSeek is optional, not a blocker.' })"
+            $reasonParts += "Visual-only certificate change (spacing/placement/appearance) with no issuance or verification logic touched. Codex is the sole implementer for this LOW-risk task."
         } elseif ($risk -eq "HIGH") {
             # Category defaulted to HIGH (e.g. the Database/Supabase menu
             # option) with no specific keyword detail in the description.
             $implementer = "Codex"; $model = "CODEX"
             $reviewer = "Claude Code"; $reviewerModel = "CLAUDE_REVIEW"
         } elseif ($risk -eq "LOW") {
-            # Every DeepSeek-blocked signal above already forces HIGH, so
-            # anything still LOW here is, by construction, safe for
-            # DeepSeek if selected - but Claude FAST is now the default
-            # (stable operational mode: DeepSeek must never block delivery).
+            # Every sensitive signal above already forces HIGH. Anything
+            # still LOW here remains in the Codex-only implementation lane.
             $pick = Get-PrimaryImplementerChoice
             $implementer = $pick.Implementer; $model = $pick.ImplementerModel
             $reviewer = "None"; $reviewerModel = "None"
-            $reasonParts += if ($implementer -eq "DeepSeek") {
-                "Low-risk, narrowly-scoped change with no database, auth, or certificate-trust surface. DeepSeek is enabled and healthy for this routine UI/CRUD work."
-            } else {
-                "Low-risk, narrowly-scoped change with no database, auth, or certificate-trust surface. Claude FAST is the default implementer (stable operational mode) - DeepSeek is optional, not a blocker."
-            }
+            $reasonParts += "Low-risk, narrowly-scoped change with no database, auth, or certificate-trust surface. Codex is the sole implementer."
         } else {
-            # MEDIUM: Claude FAST is the default implementer (stable
-            # operational mode). DeepSeek is only used when explicitly
-            # preferred/enabled+healthy, and even then only for tasks
-            # actually matching its routine-work profile within a small,
-            # bounded scope (not cross-module) - section 4's criteria.
+            # MEDIUM work remains in the Codex-only implementation lane.
             $isDeepSeekCandidate = $isDeepSeekSuitable -and (-not $isCrossModule)
             $pick = Get-PrimaryImplementerChoice
             $implementer = $pick.Implementer; $model = $pick.ImplementerModel
             $reviewer = "None"; $reviewerModel = "None"
-            if ($implementer -eq "DeepSeek") {
-                $reasonParts += "Small, bounded MEDIUM-risk change matching DeepSeek's routine-work profile (CRUD/search/filter/small component) with no security, database, or certificate-trust surface. DeepSeek is enabled and healthy for this task."
-            } elseif ($isCrossModule) {
+            if ($isCrossModule) {
                 $reviewer = "Codex (recommended)"; $reviewerModel = "CODEX_REVIEW (optional)"
-                $reasonParts += "Cross-module scope - routed to Claude FAST; independent review recommended though not mandatory at MEDIUM risk."
+                $reasonParts += "Cross-module scope - Codex implements; an additional Codex review is recommended though not mandatory at MEDIUM risk."
             } else {
-                $reasonParts += "Ordinary MEDIUM-risk work - Claude FAST is the default implementer (stable operational mode)."
+                $reasonParts += "Ordinary MEDIUM-risk work - Codex is the sole implementer."
             }
         }
 
