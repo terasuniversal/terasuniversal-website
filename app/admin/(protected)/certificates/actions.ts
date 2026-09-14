@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { requireModuleAccess, requireCertificate } from "../../../../lib/auth/session";
-import { certificateReissueSchema } from "../../../../lib/validation/schemas";
+import { certificateReissueSchema, certificateRevokeSchema } from "../../../../lib/validation/schemas";
 
 /**
  * Shape returned by v_certificate_eligibility (see the migration that
@@ -171,11 +171,12 @@ export async function bulkGenerate(scheduleId: string): Promise<{ generated: num
 export async function revokeCertificate(id: string, formData?: FormData) {
   await requireCertificate(true);
   await requireModuleAccess("certificates");
-  const remarks = formData ? String(formData.get("remarks") ?? "").trim() : "";
+  const parsed = certificateRevokeSchema.safeParse({ reason: formData?.get("reason") });
+  if (!parsed.success) throw new Error("Please provide a valid revoke reason.");
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.rpc("revoke_certificate", {
     p_certificate_id: id,
-    p_remarks: remarks || null,
+    p_remarks: parsed.data.reason,
   });
   if (error) throw new Error("Unable to revoke certificate.");
   revalidatePath("/admin/certificates");
@@ -221,12 +222,18 @@ export async function duplicateCertificate(id: string) {
   await requireModuleAccess("certificates");
   const supabase = await createSupabaseServerClient();
 
-  const { error } = await supabase.rpc("duplicate_certificate_with_skill_snapshot" as never, {
+  const { data, error } = await supabase.rpc("duplicate_certificate_with_skill_snapshot" as never, {
     p_source_certificate_id: id,
   } as never);
-  if (error) return;
+  if (error) {
+    console.error("Certificate duplicate failed", { certificateId: id, code: error.code });
+    throw new Error("Unable to duplicate certificate.");
+  }
 
   revalidatePath("/admin/certificates");
+  const created = (data as { id?: string }[] | null)?.[0];
+  if (!created?.id) throw new Error("Unable to confirm the duplicated certificate.");
+  return { ok: true as const, certificateId: created.id };
 }
 
 export async function updateCertificateMeta(id: string, formData: FormData) {
@@ -269,12 +276,6 @@ export async function restoreCertificate(id: string) {
 }
 
 /** Regenerate the verification token (invalidates old QR/links). */
-export async function regenerateVerificationToken(id: string) {
-  await requireCertificate(true);
-  await requireModuleAccess("certificates");
-  throw new Error("Verification token regeneration is not supported for immutable certificates.");
-}
-
 /** Enable / disable public verification for this certificate. */
 export async function setVerificationEnabled(id: string, enabled: boolean) {
   await requireCertificate(true);

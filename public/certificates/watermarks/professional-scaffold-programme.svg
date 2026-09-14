@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 560" fill="none">
+  <g fill="#536b85" opacity=".86">
+    <rect x="28" y="36" width="20" height="468" rx="4"/><rect x="124" y="36" width="20" height="468" rx="4"/><rect x="220" y="36" width="20" height="468" rx="4"/><rect x="316" y="36" width="20" height="468" rx="4"/><rect x="412" y="36" width="20" height="468" rx="4"/><rect x="508" y="36" width="20" height="468" rx="4"/><rect x="604" y="36" width="20" height="468" rx="4"/><rect x="700" y="36" width="20" height="468" rx="4"/>
+    <path d="M14 102h712v20H14zM14 188h712v20H14zM14 274h712v20H14zM14 360h712v20H14zM14 446h712v22H14z"/>
+    <path d="M112 178h260v30H112zM400 264h260v30H400zM208 350h260v30H208z"/>
+    <path d="M14 102H-24v366h38zM726 102h40v366h-40z"/>
+  </g>
+  <g stroke="#0b1f3a" stroke-linecap="round" stroke-linejoin="round"><g stroke-width="7" opacity=".94"><path d="M38 42v456M134 42v456M230 42v456M326 42v456M422 42v456M518 42v456M614 42v456M710 42v456"/><path d="M24 112h712M24 198h712M24 284h712M24 370h712M24 456h712"/><path d="M38 112l96 86M134 198L38 284M230 198l96 86M326 284L230 370M422 198l96 86M518 284L422 370M614 198l96 86M134 198l96 86M230 284l96 86M518 198l-96 86M614 284l-96 86"/><path d="M710 112h58v344h-58M38 112H-20v344h58"/></g><g stroke="#536b85" stroke-width="5" opacity=".9"><path d="M14 26h720M14 520h720"/><path d="M86 112v86M182 198v86M278 284v86M374 370v86M470 112v86M566 198v86M662 284v86" stroke-dasharray="11 8"/></g></g>
+  <g fill="#0b1f3a" opacity=".92"><path d="M104 178h276l-12 22H116zM392 264h276l-12 22H404zM200 350h276l-12 22H212z"/><path d="M20 444h56v24H20zM116 444h56v24h-56zM212 444h56v24h-56zM308 444h56v24h-56zM404 444h56v24h-56zM500 444h56v24h-56zM596 444h56v24h-56zM692 444h56v24h-56z"/></g>
+  <g stroke="#0b1f3a" stroke-width="4" opacity=".58"><path d="M122 182l12 18M150 182l12 18M178 182l12 18M206 182l12 18M234 182l12 18M262 182l12 18M290 182l12 18M318 182l12 18M346 182l12 18M402 268l12 18M430 268l12 18M458 268l12 18M486 268l12 18M514 268l12 18M542 268l12 18M570 268l12 18M598 268l12 18M626 268l12 18M210 354l12 18M238 354l12 18M266 354l12 18M294 354l12 18M322 354l12 18M350 354l12 18M378 354l12 18M406 354l12 18M434 354l12 18"/></g>
+</svg>

@@ -6,10 +6,11 @@ import { canManageCertificate } from "../../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, Field } from "../../../../../components/admin/ui";
 import { CertificateFront, CertificateBack } from "../../../../../components/admin/CertificateRenderer";
 import { loadCertificateRender } from "../certData";
-import { revokeCertificate, reissueCertificate, duplicateCertificate, updateCertificateMeta, softDeleteCertificate, regenerateVerificationToken, setVerificationEnabled } from "../actions";
+import { revokeCertificate, reissueCertificate, duplicateCertificate, updateCertificateMeta, softDeleteCertificate, setVerificationEnabled } from "../actions";
 import { EmptyState } from "../../../../../components/admin/ui";
 import { formatMalaysiaDateTime } from "../../../../../lib/date-time";
 import { CERTIFICATE_PROVENANCE_META } from "../../../../../lib/certificate-skills";
+import { CertificateActionDialog } from "../../../../../components/admin/CertificateActionDialog";
 
 interface ReissueHistoryRow {
   id: string;
@@ -103,7 +104,17 @@ await requireModuleAccess("certificates");
             <>
               <Card title="Actions">
                 <div className="ta-card-pad" style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                  {cert.status !== "revoked" && <form action={revokeCertificate.bind(null, id)}><button className="ta-btn ta-btn-danger">Revoke</button></form>}
+                  {cert.status !== "revoked" && <CertificateActionDialog
+                    label="Revoke"
+                    title="Revoke certificate?"
+                    description="This certificate will become invalid in public verification. Record a reason so the operational history remains clear."
+                    confirmLabel="Confirm revoke"
+                    action={revokeCertificate.bind(null, id)}
+                    reasonLabel="Revoke reason"
+                    reasonRequired
+                    reasonPlaceholder="Explain why this certificate is being revoked"
+                    danger
+                  />}
                   <form action={reissueCertificate.bind(null, id)} style={{ display: "flex", gap: 8, alignItems: "end", flexWrap: "wrap" }}>
                     <label style={{ fontSize: 12 }}>Event
                       <select name="event_type" defaultValue="reissue" style={{ display: "block", marginTop: 4 }}>
@@ -116,9 +127,23 @@ await requireModuleAccess("certificates");
                     </label>
                     <button className="ta-btn ta-btn-gold">Record event</button>
                   </form>
-                  <form action={duplicateCertificate.bind(null, id)}><button className="ta-btn ta-btn-outline">Duplicate</button></form>
+                  <CertificateActionDialog
+                    label="Duplicate"
+                    title="Duplicate certificate?"
+                    description="A new certificate identity and verification token will be created. The source certificate and its historical record will remain unchanged."
+                    confirmLabel="Create duplicate"
+                    action={duplicateCertificate.bind(null, id)}
+                    redirectOnSuccess
+                  />
                   <button className="ta-btn ta-btn-outline" disabled title="Email delivery — coming soon">✉ Email (soon)</button>
-                  <form action={softDeleteCertificate.bind(null, id)}><button className="ta-btn ta-btn-outline">Delete</button></form>
+                  <CertificateActionDialog
+                    label="Delete"
+                    title="Delete certificate?"
+                    description="This performs a soft deletion and removes the certificate from normal workflows and public verification. It does not erase historical data."
+                    confirmLabel="Confirm delete"
+                    action={softDeleteCertificate.bind(null, id)}
+                    danger
+                  />
                 </div>
               </Card>
 
@@ -149,9 +174,7 @@ await requireModuleAccess("certificates");
                   <form action={setVerificationEnabled.bind(null, id, cert.verification_enabled === false)}>
                     <button className="ta-btn ta-btn-outline ta-btn-sm">{cert.verification_enabled === false ? "Enable" : "Disable"}</button>
                   </form>
-                  <form action={regenerateVerificationToken.bind(null, id)}>
-                    <button className="ta-btn ta-btn-outline ta-btn-sm" title="Invalidates the current QR / link">↻ Regenerate token</button>
-                  </form>
+
                 </div>
               </Card>
 

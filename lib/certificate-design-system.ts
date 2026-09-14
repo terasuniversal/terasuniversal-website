@@ -4,7 +4,7 @@
  * alter certificate data, provenance, or issuance contracts.
  */
 export const CERTIFICATE_DESIGN = {
-  page: { widthPx: 794, heightPx: 1123, safeMarginPx: 57, borderInsetPx: 38 },
+  page: { widthPx: 794, heightPx: 1123, safeMarginPx: 57, borderInsetPx: 13 },
   colors: { navy: "#0B3A63", gold: "#D4AF37", ink: "#333333", white: "#FFFFFF", muted: "#667085", line: "#D9E0E8" },
   typography: {
     sans: "'Poppins','Inter','Helvetica Neue',Arial,sans-serif",
@@ -16,7 +16,7 @@ export const CERTIFICATE_DESIGN = {
     tablePx: 11,
     footerPx: 10,
   },
-  watermark: { primaryOpacity: 0.034, secondaryOpacity: 0.018, backOpacity: 0.028 },
+  watermark: { primaryOpacity: 0.052, secondaryOpacity: 0.024, backOpacity: 0.040 },
   qr: { sizePx: 106, minPrintMm: 28, maxPrintMm: 30 },
   signature: { widthPx: 190, wellHeightPx: 58, stampSizePx: 112, clearancePx: 30 },
 } as const;

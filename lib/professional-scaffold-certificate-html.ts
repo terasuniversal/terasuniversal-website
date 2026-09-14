@@ -3,6 +3,8 @@ import { fitHolderNameSize, formatDateRange, formatHumanDate, isAffirmativeStatu
 import { TEMPLATE_A_CREST_SRC } from "./template-a-crest";
 import { TEMPLATE_A_LOGO_SRC } from "./template-a-logo";
 import { PRINT_WHEN_READY_SCRIPT } from "./print-when-ready";
+import { TERAS_COMPANY_REGISTRATION } from "./teras-company";
+import { EMBOSS_MEDALLION_LIFT_PX, EMBOSS_MEDALLION_SIZE_PX } from "./certificate-approval-assets";
 
 /**
  * Standalone HTML string mirror of
@@ -17,27 +19,14 @@ import { PRINT_WHEN_READY_SCRIPT } from "./print-when-ready";
 
 const PAGE_W = "210mm";
 const PAGE_H = "297mm";
-const REG_NO = "202201038223 (1477529-X)";
+
 const PAD = 34;
 // Approved handwritten Director signature asset — used whenever
 // config.signature_url is unset. Mirrors the React renderer's fallback.
 const DEFAULT_SIGNATURE_URL = "/signatures/director-signature.png";
 
-const DEFAULT_BODY_TEXT =
-  "This programme focuses on developing practical scaffolding skills, safe work practices and industry best practices through structured theoretical and hands-on practical training.";
-const DEFAULT_OBJECTIVES =
-  "This programme is designed to develop participants' practical scaffolding erection and dismantling skills, safety awareness and hazard identification capability through structured theoretical instruction and hands-on practical training, in accordance with industry best practices.";
-const DEFAULT_COVERAGE = [
-  "Introduction to Scaffolding", "Scaffold Components Identification", "Safe Scaffold Erection",
-  "Safe Scaffold Dismantling", "Working at Height Safety", "Hazard Identification",
-  "Practical Installation Techniques", "Basic Inspection Awareness", "Practical Skills Assessment", "Industry Best Practices",
-];
-const DEFAULT_OUTCOMES = [
-  "Identify scaffolding components correctly", "Apply safe scaffold erection procedures",
-  "Demonstrate proper dismantling techniques", "Recognise workplace hazards",
-  "Perform work using appropriate PPE", "Apply safe working practices during scaffold activities",
-];
-const DEFAULT_ASSESSMENT = ["Attendance", "Theory Learning", "Practical Assessment", "Trainer Observation"];
+
+
 const DEFAULT_SKILLS_RECORD = [
   { area: "Theory Session", status: "Not Recorded" },
   { area: "Practical Training", status: "Not Recorded" },
@@ -45,12 +34,7 @@ const DEFAULT_SKILLS_RECORD = [
   { area: "Practical Assessment", status: "Not Recorded" },
   { area: "Attendance Requirement", status: "Not Recorded" },
 ];
-const DEFAULT_NOTICE_PARAGRAPHS = [
-  "This certificate acknowledges the successful completion of the TERAS Professional Scaffold Erection Skills Programme conducted by Teras Universal Sdn. Bhd.",
-  "It records participation in a structured skills development programme and practical assessment.",
-  "It does not represent or replace any competency certification or licence that may be required under applicable laws, regulations or project-specific requirements.",
-  "Participants are encouraged to attend periodic Skills Update Programmes as part of continuous professional development.",
-];
+
 
 function esc(v: unknown): string {
   return String(v ?? "")
@@ -311,7 +295,7 @@ export function renderProfessionalScaffoldCertificateFront(data: CertData, confi
   <div style="position:relative;height:100%;box-sizing:border-box;padding:${PAD + 2}px ${PAD + 30}px ${PAD + 170}px;display:flex;flex-direction:column;text-align:center;">
     ${logo}
     <div style="letter-spacing:2.4px;font-size:19px;line-height:1.2;color:${navy};font-weight:700;margin-top:4px;">TERAS UNIVERSAL SDN. BHD.</div>
-    <div style="font-size:11px;line-height:1.2;color:#6b7280;margin-top:2px;">${REG_NO}</div>
+    <div style="font-size:11px;line-height:1.2;color:#6b7280;margin-top:2px;">${TERAS_COMPANY_REGISTRATION}</div>
     <h1 style="font-size:73px;margin:14px 0 0;letter-spacing:3px;font-weight:700;line-height:1;font-family:Georgia,'Times New Roman',serif;background:linear-gradient(180deg,#F5D982 0%,${gold} 45%,#B8912A 100%);-webkit-background-clip:text;background-clip:text;color:transparent;text-shadow:0 1px 0 rgba(11,58,99,.1);">CERTIFICATE</h1>
     <div style="display:flex;align-items:center;justify-content:center;gap:14px;margin-top:9px;">
       <span style="width:85px;height:2px;background:${gold};display:inline-block;"></span>
@@ -330,7 +314,7 @@ export function renderProfessionalScaffoldCertificateFront(data: CertData, confi
     <div style="font-size:24px;font-weight:700;color:${navy};text-transform:uppercase;line-height:1.22;max-width:560px;margin:0 auto;">${esc(programmeName ?? "")}</div>
     ${durationBlock}
     ${dateBlock}
-    <p style="font-size:12px;line-height:1.6;max-width:520px;margin:7px auto 0;color:#4b5563;">${esc(config.body_text || DEFAULT_BODY_TEXT)}</p>
+    ${config.body_text ? `<p style="font-size:12px;line-height:1.6;max-width:520px;margin:7px auto 0;color:#4b5563;">${esc(config.body_text)}</p>` : ""}
     <div style="margin-top:auto;display:flex;flex-direction:column;gap:10px;">
       <div style="display:flex;gap:20px;padding-top:6px;text-align:left;position:relative;">
         <div style="flex:1;display:grid;grid-template-columns:1fr 1fr;row-gap:13px;column-gap:18px;align-content:center;position:relative;">
@@ -350,7 +334,7 @@ export function renderProfessionalScaffoldCertificateFront(data: CertData, confi
           <strong style="color:${navy};font-size:12.5px;white-space:nowrap;display:block;">Muhammad Azri Bin Mohd Latifi Amir</strong>
           <div style="color:#6b7280;margin-top:3px;">Director</div>
         </div>
-        <div style="text-align:center;font-size:11px;width:84px;height:84px;border-radius:50%;border:1.5px dashed ${gold};display:flex;align-items:center;justify-content:center;color:#9ca3af;padding:4px;font-weight:600;letter-spacing:.3px;">COMPANY<br/>STAMP</div>
+        <div aria-label="Gold Emboss Medallion Guide" style="position:relative;transform:translateY(-${EMBOSS_MEDALLION_LIFT_PX}px);flex:0 0 auto;width:${EMBOSS_MEDALLION_SIZE_PX}px;height:${EMBOSS_MEDALLION_SIZE_PX}px;border:1.5px solid rgba(201,162,39,.78);border-radius:50%;box-sizing:border-box;background:radial-gradient(circle,transparent 0 62%,rgba(201,162,39,.045) 62% 63%,transparent 63%);"><span style="position:absolute;inset:7px;border:1px solid rgba(201,162,39,.52);border-radius:50%;"></span></div>
       </div>
     </div>
   </div>
@@ -364,16 +348,16 @@ export function renderProfessionalScaffoldCertificateFront(data: CertData, confi
 export function renderProfessionalScaffoldCertificateBack(data: CertData, config: TemplateConfig): string {
   const navy = config.primary_color || "#0B3A63";
   const gold = config.accent_color || "#D4AF37";
-  const coverage = config.coverage_items?.length ? config.coverage_items : DEFAULT_COVERAGE;
-  const outcomes = config.learning_outcomes?.length ? config.learning_outcomes : DEFAULT_OUTCOMES;
-  const assessment = config.assessment_methods?.length ? config.assessment_methods : DEFAULT_ASSESSMENT;
+  const coverage = config.coverage_items || [];
+  const outcomes = config.learning_outcomes || [];
+  const assessment = config.assessment_methods || [];
   // Precedence (certificate_skills_record -> participant_skills_record ->
   // config.skills_record) is now resolved once, identically for every
   // renderer, by certData.ts::loadCertificateRender -- see CertData.
   // effective_skills_record's own comment. Only the terminal "Not Recorded"
   // default stays local to this renderer.
   const skillsRecord = data.skills?.length ? data.skills : DEFAULT_SKILLS_RECORD;
-  const noticeParagraphs = config.important_notice ? config.important_notice.split(/\n{2,}/).filter(Boolean) : DEFAULT_NOTICE_PARAGRAPHS;
+  const noticeParagraphs = config.important_notice?.split(/\n{2,}/).filter(Boolean) || [];
 
   const section = (icon: IconKind, title: string, body: string) =>
     `<div style="margin-bottom:7px;">
@@ -432,7 +416,7 @@ export function renderProfessionalScaffoldCertificateBack(data: CertData, config
     </div>
     <div style="display:flex;gap:24px;flex-shrink:0;">
       <div style="flex:1;">
-        ${section("target", "PROGRAMME OBJECTIVES", `<p style="margin:0;font-size:13.5px;line-height:1.58;color:#374151;">${esc(config.objectives_text || DEFAULT_OBJECTIVES)}</p>`)}
+        ${config.objectives_text ? section("target", "PROGRAMME OBJECTIVES", `<p style="margin:0;font-size:13.5px;line-height:1.58;color:#374151;">${esc(config.objectives_text)}</p>`) : ""}
         ${section("book", "PROGRAMME COVERAGE", checklist(coverage))}
       </div>
       ${colDivider}
@@ -463,9 +447,9 @@ export function renderProfessionalScaffoldCertificateBack(data: CertData, config
       <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;">
         <div style="display:grid;grid-template-columns:1fr 1fr;row-gap:8px;column-gap:24px;font-size:12.5px;line-height:1.45;color:#374151;">
           <div style="display:flex;gap:9px;align-items:center;">${circleIcon("doc", navy, gold, 26)}<span><strong style="color:${navy};">Certificate No.</strong> ${esc(data.certificate_number)}</span></div>
-          <div style="display:flex;gap:9px;align-items:center;">${circleIcon("phone", navy, gold, 26)}<span><strong style="color:${navy};">Contact Number</strong> ${esc(config.contact_phone || "019-519 3834")}</span></div>
-          <div style="display:flex;gap:9px;align-items:center;">${circleIcon("globe", navy, gold, 26)}<span><strong style="color:${navy};">Website</strong> ${esc(config.contact_website || "www.terasuniversal.com.my")}</span></div>
-          <div style="display:flex;gap:9px;align-items:center;">${circleIcon("mail", navy, gold, 26)}<span><strong style="color:${navy};">Email</strong> ${esc(config.contact_email || "admin@terasuniversal.com.my")}</span></div>
+          ${config.contact_phone ? `<div style="display:flex;gap:9px;align-items:center;">${circleIcon("phone", navy, gold, 26)}<span><strong style="color:${navy};">Contact Number</strong> ${esc(config.contact_phone)}</span></div>` : ""}
+          ${config.contact_website ? `<div style="display:flex;gap:9px;align-items:center;">${circleIcon("globe", navy, gold, 26)}<span><strong style="color:${navy};">Website</strong> ${esc(config.contact_website)}</span></div>` : ""}
+          ${config.contact_email ? `<div style="display:flex;gap:9px;align-items:center;">${circleIcon("mail", navy, gold, 26)}<span><strong style="color:${navy};">Email</strong> ${esc(config.contact_email)}</span></div>` : ""}
         </div>
         ${qrHtml}
       </div>

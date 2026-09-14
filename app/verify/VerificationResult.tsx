@@ -1,3 +1,5 @@
+import { formatPublicVerificationDate, resolveTrainingPeriod } from "../../lib/public-verification-training";
+
 /**
  * Public verification result card (server component, no client JS).
  * Renders ONLY publicly-safe fields returned by verify_and_log.
@@ -9,7 +11,10 @@ export interface VerifyRow {
   participant_code_masked: string | null;
   company: string | null;
   course_title: string | null;
-  training_date: string | null;
+  /** Backward-compatible field retained while Production uses the old RPC. */
+  training_date?: string | null;
+  training_start_date?: string | null;
+  training_end_date?: string | null;
   issue_date: string | null;
   expiry_date: string | null;
   status: string;
@@ -17,20 +22,18 @@ export interface VerifyRow {
   verified_at: string;
 }
 
-const fmt = (d: string | null) =>
-  d ? new Date(d).toLocaleDateString("en-MY", { day: "numeric", month: "long", year: "numeric" }) : "—";
-
+const formatDate = (value: string | null) => formatPublicVerificationDate(value) ?? "—";
 const CONTACT = "training@terasuniversal.com.my · +60 19-519 3834";
 
-export function VerificationResult({ result }: { result: VerifyRow | null }) {
+export function VerificationResult({ result, failure }: { result: VerifyRow | null; failure?: "runtime" }) {
   // Not found / disabled → generic invalid message (no data leak).
   if (!result) {
     return (
       <div style={{ border: "2px solid #d64545", borderRadius: 12, padding: 20, background: "rgba(214,69,69,.06)", textAlign: "center" }}>
         <div style={{ fontSize: 26 }}>⚠️</div>
-        <strong style={{ color: "#d64545", fontSize: 16 }}>Certificate Not Found</strong>
+        <strong style={{ color: "#d64545", fontSize: 16 }}>{failure ? "Verification Temporarily Unavailable" : "Certificate Not Found"}</strong>
         <p style={{ color: "#667085", margin: "8px 0 0", fontSize: 13 }}>
-          We couldn&apos;t verify this certificate. Please check the number/token and try again.
+          {failure ? "We couldn&apos;t complete verification right now. Please try again later." : "We couldn&apos;t verify this certificate. Please check the number/token and try again."}
         </p>
         <p style={{ color: "#667085", margin: "10px 0 0", fontSize: 12 }}>
           For further verification, contact TERAS UNIVERSAL: {CONTACT}
@@ -46,6 +49,7 @@ export function VerificationResult({ result }: { result: VerifyRow | null }) {
     : result.status === "expired" ? "Certificate Expired"
     : `Certificate ${result.status}`;
   const color = valid ? "#2e9e5b" : "#d64545";
+  const trainingPeriod = resolveTrainingPeriod(result);
 
   return (
     <div style={{ border: `2px solid ${color}`, borderRadius: 12, padding: 20, background: valid ? "rgba(46,158,91,.06)" : "rgba(214,69,69,.06)" }}>
@@ -60,9 +64,9 @@ export function VerificationResult({ result }: { result: VerifyRow | null }) {
         {result.participant_code_masked && (<><dt style={{ color: "#667085" }}>Participant ID</dt><dd style={{ margin: 0, fontFamily: "monospace" }}>{result.participant_code_masked}</dd></>)}
         {result.company && (<><dt style={{ color: "#667085" }}>Company</dt><dd style={{ margin: 0 }}>{result.company}</dd></>)}
         <dt style={{ color: "#667085" }}>Course</dt><dd style={{ margin: 0 }}>{result.course_title ?? "—"}</dd>
-        {result.training_date && (<><dt style={{ color: "#667085" }}>Training Date</dt><dd style={{ margin: 0 }}>{fmt(result.training_date)}</dd></>)}
-        <dt style={{ color: "#667085" }}>Issue Date</dt><dd style={{ margin: 0 }}>{fmt(result.issue_date)}</dd>
-        {result.expiry_date && (<><dt style={{ color: "#667085" }}>Expiry Date</dt><dd style={{ margin: 0 }}>{fmt(result.expiry_date)}</dd></>)}
+        {trainingPeriod && (<><dt style={{ color: "#667085" }}>Training Period</dt><dd style={{ margin: 0 }}>{trainingPeriod.display}</dd></>)}
+        <dt style={{ color: "#667085" }}>Issue Date</dt><dd style={{ margin: 0 }}>{formatDate(result.issue_date)}</dd>
+        {result.expiry_date && (<><dt style={{ color: "#667085" }}>Expiry Date</dt><dd style={{ margin: 0 }}>{formatDate(result.expiry_date)}</dd></>)}
         <dt style={{ color: "#667085" }}>Verified</dt><dd style={{ margin: 0 }}>{new Date(result.verified_at).toLocaleString("en-MY")}</dd>
       </dl>
 

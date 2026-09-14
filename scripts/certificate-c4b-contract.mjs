@@ -5,21 +5,50 @@ const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf
 const design = read("lib/certificate-design-system.ts");
 const react = read("components/admin/CertificateDocument.tsx");
 const html = read("lib/certificate-html.ts");
+const professionalReact = read("components/admin/ProfessionalScaffoldCertificateDocument.tsx");
+const professionalHtml = read("lib/professional-scaffold-certificate-html.ts");
 const dispatch = read("components/admin/CertificateRenderer.tsx");
+const company = read("lib/teras-company.ts");
+const watermarkAssets = read("lib/certificate-watermark-assets.ts");
+const watermarkFiles = [
+  "public/certificates/watermarks/erector-basic.svg",
+  "public/certificates/watermarks/erector-intermediate.svg",
+  "public/certificates/watermarks/erector-advanced.svg",
+  "public/certificates/watermarks/inspector-basic.svg",
+  "public/certificates/watermarks/inspector-intermediate.svg",
+  "public/certificates/watermarks/inspector-advanced.svg",
+  "public/certificates/watermarks/working-at-height.svg",
+  "public/certificates/watermarks/professional-scaffold-programme.svg",
+].map(read);
 
 assert.match(design, /A4|widthPx: 794/);
 assert.match(design, /heightPx: 1123/);
 assert.match(design, /safeMarginPx: 57/);
-assert.match(design, /borderInsetPx: 38/);
+assert.match(design, /borderInsetPx: 13/);
 assert.match(design, /participantNamePx: 40/);
 assert.match(design, /minPrintMm: 28/);
 assert.match(design, /maxPrintMm: 30/);
-assert.match(design, /primaryOpacity: 0\.034/);
-assert.match(design, /secondaryOpacity: 0\.018/);
+assert.match(design, /primaryOpacity: 0\.052/);
+assert.match(design, /secondaryOpacity: 0\.024/);
+assert.match(design, /backOpacity: 0\.040/);
+assert.match(company, /TERAS_COMPANY_TAGLINE\s*=\s*"BUILDING COMPETENCE\. CREATING OPPORTUNITIES\."/);
+assert.match(watermarkAssets, /resolveCertificateWatermarkAsset/);
+assert.match(watermarkAssets, /primaryOpacity: 0\.052/);
+assert.match(watermarkAssets, /page2Opacity: 0\.040/);
+assert.match(watermarkAssets, /return null/);
+assert.equal(watermarkFiles.length, 8);
+for (const svg of watermarkFiles) {
+  assert.match(svg, /<svg[^>]+viewBox="0 0 800 560"/);
+  assert.doesNotMatch(svg, /<text\b/i);
+}
 for (const family of ["PROFESSIONAL SCAFFOLD ERECTION SKILLS PROGRAMME", "WORKING AT HEIGHT", "SCAFFOLDING INSPECTOR", "SCAFFOLDING ERECTOR"]) {
   assert.match(design, new RegExp(family.replaceAll(" ", "\\s+")));
 }
 
+for (const source of [react, html, professionalReact, professionalHtml]) {
+  assert.doesNotMatch(source, /202201038223|1477529-X/);
+  assert.match(source, /201201003207|TERAS_COMPANY_REGISTRATION/);
+}
 for (const source of [react, html]) {
   assert.match(source, /certificate-design-system/);
   assert.match(source, /PARTICIPANT SKILLS RECORD/);
@@ -31,6 +60,32 @@ for (const source of [react, html]) {
   assert.match(source, /Practical Assessment/);
   assert.match(source, /Attendance Requirement/);
 }
+assert.match(react, /data\.ic_passport/);
+assert.match(html, /data\.ic_passport/);
+assert.match(react, /data\.course_name/);
+assert.match(html, /data\.course_name/);
+assert.match(react, /translate\(-30px, -26px\)/);
+assert.match(html, /translate\(-30px,-26px\)/);
+assert.equal((react.match(/<TaglineFooter navy=/g) || []).length, 2, "React must render the official tagline once on each generic page");
+assert.equal((html.match(/\$\{taglineFooter\(navy, gold\)\}/g) || []).length, 2, "HTML must render the official tagline once on each generic page");
+assert.match(react, /width: 228, height: 106/);
+assert.match(html, /width:228px;height:106px/);
+assert.match(react, /zIndex: 2, display: "flex"/);
+assert.match(react, /width: 228, height: 106, marginLeft: 52/);
+assert.match(html, /position:relative;z-index:2;display:flex/);
+assert.match(html, /width:228px;height:106px;margin-left:52px/);
+assert.match(react, /width: 900, height: 720/);
+assert.match(html, /width:900px;height:720px/);
+assert.match(react, /resolveCertificateWatermarkAsset/);
+assert.match(html, /resolveCertificateWatermarkAsset/);
+assert.match(react, /opacity: corner \? asset\.page2Opacity : asset\.primaryOpacity/);
+assert.match(html, /opacity:\$\{opacity\}/);
+assert.doesNotMatch(react, /CERTIFICATE TYPE FROM TEMPLATE/);
+assert.doesNotMatch(html, /CERTIFICATE TYPE FROM TEMPLATE/);
+assert.doesNotMatch(professionalReact, /CERTIFICATE TYPE FROM TEMPLATE/);
+assert.doesNotMatch(professionalHtml, /CERTIFICATE TYPE FROM TEMPLATE/);
+assert.doesNotMatch(react, /019-519 3834|www\.terasuniversal\.com\.my|admin@terasuniversal\.com\.my/);
+assert.doesNotMatch(html, /019-519 3834|www\.terasuniversal\.com\.my|admin@terasuniversal\.com\.my/);
 
 assert.doesNotMatch(dispatch, /ProfessionalScaffoldCertificateDocument/);
 assert.match(dispatch, /return <CertificateDocument data=\{data\} config=\{config\} \/>/);
