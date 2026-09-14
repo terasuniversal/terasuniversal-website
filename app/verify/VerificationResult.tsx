@@ -82,7 +82,7 @@ export function VerificationResult({ result, failure }: { result: VerifyRow | nu
 /** Shared shell used by both verify pages. */
 export function VerifyShell({ children }: { children: React.ReactNode }) {
   return (
-    <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24, background: "linear-gradient(135deg,#0B2C56,#09203f)", fontFamily: "var(--font-poppins), system-ui, sans-serif" }}>
+    <main className="verification-route" style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24, background: "linear-gradient(135deg,#0B2C56,#09203f)", fontFamily: "var(--font-poppins), system-ui, sans-serif" }}>
       <div style={{ width: "100%", maxWidth: 540, background: "#fff", borderRadius: 16, padding: 34, boxShadow: "0 30px 70px rgba(0,0,0,.3)" }}>
         <img src="/teras-universal-logo.png" alt="TERAS UNIVERSAL" style={{ width: 150, display: "block", margin: "0 auto 16px" }} />
         <h1 style={{ textAlign: "center", color: "#0B2C56", fontSize: 22, margin: "0 0 4px" }}>Certificate Verification</h1>
