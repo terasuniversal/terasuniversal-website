@@ -4782,7 +4782,7 @@ img {
 @media (max-width: 590px) {
   .verification-route {
     min-width: 0;
-    padding: 24px 16px calc(24px + 92px + env(safe-area-inset-bottom, 0px)) !important;
+    padding: 24px 16px !important;
   }
 
   .verification-route > div {
