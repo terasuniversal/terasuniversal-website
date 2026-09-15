@@ -20,6 +20,15 @@ export const dynamic = "force-dynamic";
 
 const SANS = "'Helvetica Neue', Helvetica, Arial, sans-serif";
 
+type CompanyAddressRow = {
+  address: string | null;
+  billing_address: string | null;
+  postcode: string | null;
+  city: string | null;
+  state: string | null;
+  country: string | null;
+};
+
 function formatMoney(value: number, currency: string) {
   const prefix = currency === "MYR" ? "RM" : currency;
   return `${prefix} ${Number(value).toLocaleString("en-MY", { minimumFractionDigits: 2 })}`;
@@ -52,10 +61,26 @@ export default async function SalesQuotationPdfPage({ params }: { params: Promis
   ]);
 
   const opportunity = opportunityRow as SalesOpportunityRow | null;
+  const { data: companyRow } = opportunity?.company_id
+    ? await supabase
+        .from("companies")
+        .select("address, billing_address, postcode, city, state, country")
+        .eq("id", opportunity.company_id)
+        .maybeSingle()
+    : { data: null };
   const items = (itemRows ?? []) as SalesQuotationItemRow[];
   const statusLabel = QUOTATION_STATUS_LABELS[q.status] ?? q.status;
   const creatorName = (preparedByRow as { full_name: string | null } | null)?.full_name?.trim();
   const preparedBy = creatorName || "TERAS UNIVERSAL Sales Team";
+  const company = companyRow as CompanyAddressRow | null;
+  const billingAddress = company?.billing_address?.trim() && company.billing_address.trim() !== "-"
+    ? company.billing_address.trim()
+    : null;
+  const addressParts = [
+    ...(billingAddress ? [billingAddress] : company?.address?.trim() && company.address.trim() !== "-" ? [company.address.trim()] : []),
+    [company?.postcode, company?.city].filter((part) => part?.trim()).join(" "),
+    [company?.state, company?.country].filter((part) => part?.trim()).join(", "),
+  ].filter(Boolean);
 
   return (
     <main className="quote-preview-shell">
@@ -97,7 +122,6 @@ export default async function SalesQuotationPdfPage({ params }: { params: Promis
         .quote-document {
           width: 100%;
           max-width: 794px;
-          min-height: 1123px;
           box-sizing: border-box;
           margin: 0 auto;
           padding: 52px 58px;
@@ -109,7 +133,7 @@ export default async function SalesQuotationPdfPage({ params }: { params: Promis
           justify-content: space-between;
           align-items: flex-start;
           gap: 24px;
-          padding-bottom: 18px;
+          padding-bottom: 14px;
           border-bottom: 3px solid #0b3a63;
         }
         .quote-brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
@@ -119,30 +143,32 @@ export default async function SalesQuotationPdfPage({ params }: { params: Promis
         .quote-title { color: #0b3a63; font-size: 25px; font-weight: 800; letter-spacing: .04em; text-align: right; }
         .quote-number { margin-top: 5px; font-size: 12px; text-align: right; }
         .quote-status { display: inline-block; margin-top: 8px; padding: 4px 8px; border: 1px solid #b7c8d8; color: #0b3a63; font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
-        .quote-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin: 26px 0; font-size: 12px; line-height: 1.6; }
+        .quote-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 18px 0; font-size: 12px; line-height: 1.55; }
         .quote-label { margin-bottom: 4px; color: #667085; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
         .quote-customer-name { font-size: 14px; font-weight: 800; }
+        .quote-address { margin-top: 10px; color: #475467; line-height: 1.45; }
+        .quote-address .quote-label { margin-bottom: 2px; }
         .quote-meta-right { text-align: right; }
         .quote-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 11.5px; }
         .quote-table th { padding: 9px 6px; background: #f3f5f9; color: #344054; font-size: 10px; text-align: left; text-transform: uppercase; }
-        .quote-table td { padding: 10px 6px; border-bottom: 1px solid #e4e7ec; vertical-align: top; }
+        .quote-table td { padding: 8px 6px; border-bottom: 1px solid #e4e7ec; vertical-align: top; }
         .quote-table .number { text-align: right; white-space: nowrap; }
         .quote-table tr { break-inside: avoid; page-break-inside: avoid; }
-        .quote-totals { display: flex; justify-content: flex-end; margin-top: 18px; }
+        .quote-totals { display: flex; justify-content: flex-end; margin-top: 14px; }
         .quote-totals table { width: 270px; border-collapse: collapse; font-size: 12px; }
         .quote-totals td { padding: 4px 0; }
         .quote-totals td:last-child { text-align: right; white-space: nowrap; }
         .quote-grand-total td { padding-top: 8px; border-top: 2px solid #0b3a63; color: #0b3a63; font-size: 14px; font-weight: 800; }
-        .quote-notes { margin-top: 28px; font-size: 11.5px; line-height: 1.55; }
+        .quote-notes { margin-top: 18px; font-size: 11.5px; line-height: 1.55; }
         .quote-notes h2 { margin: 0 0 5px; color: #0b3a63; font-size: 12px; }
         .quote-notes p { margin: 0; white-space: pre-wrap; }
-        .quote-footer { margin-top: 44px; padding-top: 12px; border-top: 1px solid #d0d5dd; color: #667085; font-size: 10px; line-height: 1.5; }
+        .quote-footer { margin-top: 28px; padding-top: 12px; border-top: 2px solid #0b3a63; color: #475467; font-size: 10.5px; line-height: 1.5; }
         @page { size: A4 portrait; margin: 0; }
         @media print {
           html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
           .quote-preview-shell { min-height: 0; padding: 0; background: #fff; }
           .quote-preview-actions { display: none !important; }
-          .quote-document { max-width: none; min-height: 0; margin: 0; padding: 50px 58px; box-shadow: none; }
+          .quote-document { max-width: none; margin: 0; padding: 42px 58px; box-shadow: none; }
           .quote-header, .quote-totals, .quote-notes, .quote-footer { break-inside: avoid; page-break-inside: avoid; }
           .quote-table th:nth-child(4), .quote-table td:nth-child(4) { display: table-cell !important; }
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
@@ -151,7 +177,7 @@ export default async function SalesQuotationPdfPage({ params }: { params: Promis
           .quote-preview-shell { padding: 12px; }
           .quote-preview-actions { align-items: stretch; flex-direction: column-reverse; }
           .quote-preview-actions a, .quote-print-button { width: 100%; }
-          .quote-document { min-height: 0; padding: 28px 20px; }
+          .quote-document { padding: 24px 20px; }
           .quote-header { flex-direction: column; }
           .quote-title, .quote-number { text-align: left; }
           .quote-meta { grid-template-columns: 1fr; gap: 14px; }
@@ -194,6 +220,12 @@ export default async function SalesQuotationPdfPage({ params }: { params: Promis
             {opportunity?.contact_person && <div>{opportunity.contact_person}</div>}
             {opportunity?.contact_email && <div>{opportunity.contact_email}</div>}
             {opportunity?.contact_phone && <div>{opportunity.contact_phone}</div>}
+            {addressParts.length > 0 && (
+              <div className="quote-address">
+                <div className="quote-label">Address</div>
+                <div>{addressParts.map((part, index) => <span key={`${part}-${index}`}>{index > 0 && <br />}{part}</span>)}</div>
+              </div>
+            )}
           </div>
           <div className="quote-meta-right">
             <div><span className="quote-label">Quotation date</span><br />{formatDate(q.issue_date)}</div>
