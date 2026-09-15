@@ -159,8 +159,9 @@ export default async function SalesQuotationPdfPage({ params }: { params: Promis
         .quote-address .quote-label { margin-bottom: 2px; }
         .quote-meta-right { text-align: left; }
         .quote-meta-right .quote-label { display: inline-block; min-width: 86px; margin-right: 5px; }
-        .quote-programme { margin: 0 0 14px; padding: 9px 12px; border-left: 3px solid #e1a925; background: #f8fafc; }
-        .quote-programme-value { color: #172033; font-size: 12.5px; font-weight: 700; }
+        .quote-programme { margin: 0 0 10px; padding: 4px 10px; border-left: 3px solid #e1a925; background: #f8fafc; }
+        .quote-programme .quote-section-label { margin-bottom: 2px; }
+        .quote-programme-value { color: #172033; font-size: 12.5px; font-weight: 700; line-height: 1.25; }
         .quote-table { width: 100%; border-collapse: collapse; margin-top: 0; font-size: 11.5px; }
         .quote-table th { padding: 9px 7px; background: #0b2c56; color: #fff; font-size: 9.5px; text-align: left; text-transform: uppercase; }
         .quote-table td { padding: 8px 6px; border-bottom: 1px solid #e4e7ec; vertical-align: top; }
