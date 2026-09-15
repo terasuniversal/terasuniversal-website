@@ -140,8 +140,8 @@ export default async function SalesQuotationPdfPage({ params }: { params: Promis
           padding-bottom: 18px;
           border-bottom: 4px solid #0b2c56;
         }
-        .quote-brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
-        .quote-brand img { width: 68px; height: 68px; object-fit: contain; }
+        .quote-brand { display: flex; align-items: center; gap: 14px; min-width: 0; }
+        .quote-brand img { width: 78px; height: 78px; object-fit: contain; }
         .quote-company-name { color: #0b2c56; font-size: 19px; font-weight: 800; letter-spacing: .01em; }
         .quote-company-contact { margin-top: 6px; color: #475467; font-size: 10.5px; line-height: 1.55; }
         .quote-header-meta { min-width: 220px; text-align: right; }
@@ -159,7 +159,7 @@ export default async function SalesQuotationPdfPage({ params }: { params: Promis
         .quote-address .quote-label { margin-bottom: 2px; }
         .quote-meta-right { text-align: left; }
         .quote-meta-right .quote-label { display: inline-block; min-width: 86px; margin-right: 5px; }
-        .quote-programme { margin: 0 0 10px; padding: 4px 10px; border-left: 3px solid #e1a925; background: #f8fafc; }
+        .quote-programme { display: block; align-self: start; height: auto; min-height: 0; margin: 0 0 10px; padding: 4px 10px; border-left: 3px solid #e1a925; background: #f8fafc; }
         .quote-programme .quote-section-label { margin-bottom: 2px; }
         .quote-programme-value { color: #172033; font-size: 12.5px; font-weight: 700; line-height: 1.25; }
         .quote-table { width: 100%; border-collapse: collapse; margin-top: 0; font-size: 11.5px; }
@@ -186,6 +186,7 @@ export default async function SalesQuotationPdfPage({ params }: { params: Promis
           .quote-document { max-width: none; margin: 0; padding: 38px 52px; box-shadow: none; }
           .quote-table thead { display: table-header-group; }
           .quote-header, .quote-meta, .quote-programme, .quote-totals, .quote-notes, .quote-closing, .quote-footer { break-inside: avoid; page-break-inside: avoid; }
+          .quote-programme { display: block; height: auto !important; min-height: 0 !important; }
           .quote-footer { background: #0b2c56 !important; color: #f8fafc !important; }
           .quote-table th:nth-child(4), .quote-table td:nth-child(4) { display: table-cell !important; }
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
