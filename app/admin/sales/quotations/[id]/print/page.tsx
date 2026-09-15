@@ -21,6 +21,7 @@ export const dynamic = "force-dynamic";
 const SANS = "'Helvetica Neue', Helvetica, Arial, sans-serif";
 
 type CompanyAddressRow = {
+  registration_no: string | null;
   address: string | null;
   billing_address: string | null;
   postcode: string | null;
@@ -64,7 +65,7 @@ export default async function SalesQuotationPdfPage({ params }: { params: Promis
   const { data: companyRow } = opportunity?.company_id
     ? await supabase
         .from("companies")
-        .select("address, billing_address, postcode, city, state, country")
+        .select("registration_no, address, billing_address, postcode, city, state, country")
         .eq("id", opportunity.company_id)
         .maybeSingle()
     : { data: null };
@@ -81,6 +82,9 @@ export default async function SalesQuotationPdfPage({ params }: { params: Promis
     [company?.postcode, company?.city].filter((part) => part?.trim()).join(" "),
     [company?.state, company?.country].filter((part) => part?.trim()).join(", "),
   ].filter(Boolean);
+  const registrationNo = company?.registration_no?.trim() && company.registration_no.trim() !== "-"
+    ? company.registration_no.trim()
+    : null;
 
   return (
     <main className="quote-preview-shell">
@@ -124,7 +128,7 @@ export default async function SalesQuotationPdfPage({ params }: { params: Promis
           max-width: 794px;
           box-sizing: border-box;
           margin: 0 auto;
-          padding: 52px 58px;
+          padding: 42px 52px;
           background: #fff;
           box-shadow: 0 2px 12px rgba(16, 24, 40, .12);
         }
@@ -132,25 +136,33 @@ export default async function SalesQuotationPdfPage({ params }: { params: Promis
           display: flex;
           justify-content: space-between;
           align-items: flex-start;
-          gap: 24px;
-          padding-bottom: 14px;
-          border-bottom: 3px solid #0b3a63;
+          gap: 32px;
+          padding-bottom: 18px;
+          border-bottom: 4px solid #0b2c56;
         }
         .quote-brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
-        .quote-brand img { width: 58px; height: 58px; object-fit: contain; }
-        .quote-company-name { color: #0b3a63; font-size: 18px; font-weight: 800; }
-        .quote-company-contact { margin-top: 5px; color: #667085; font-size: 10.5px; line-height: 1.5; }
-        .quote-title { color: #0b3a63; font-size: 25px; font-weight: 800; letter-spacing: .04em; text-align: right; }
-        .quote-number { margin-top: 5px; font-size: 12px; text-align: right; }
-        .quote-status { display: inline-block; margin-top: 8px; padding: 4px 8px; border: 1px solid #b7c8d8; color: #0b3a63; font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
-        .quote-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 18px 0; font-size: 12px; line-height: 1.55; }
-        .quote-label { margin-bottom: 4px; color: #667085; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
-        .quote-customer-name { font-size: 14px; font-weight: 800; }
-        .quote-address { margin-top: 10px; color: #475467; line-height: 1.45; }
+        .quote-brand img { width: 68px; height: 68px; object-fit: contain; }
+        .quote-company-name { color: #0b2c56; font-size: 19px; font-weight: 800; letter-spacing: .01em; }
+        .quote-company-contact { margin-top: 6px; color: #475467; font-size: 10.5px; line-height: 1.55; }
+        .quote-header-meta { min-width: 220px; text-align: right; }
+        .quote-title { color: #0b2c56; font-size: 26px; font-weight: 800; letter-spacing: .06em; text-align: right; }
+        .quote-document-meta { display: grid; grid-template-columns: auto auto; gap: 3px 12px; margin: 10px 0 0; font-size: 10.5px; line-height: 1.45; }
+        .quote-document-meta dt { color: #667085; font-size: 9px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+        .quote-document-meta dd { margin: 0; font-weight: 700; }
+        .quote-status { display: inline-block; margin-top: 10px; padding: 4px 9px; background: #0b2c56; color: #fff; font-size: 9px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+        .quote-section-label { margin-bottom: 6px; color: #667085; font-size: 9px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+        .quote-meta { display: grid; grid-template-columns: 1.15fr .85fr; gap: 12px; margin: 18px 0 14px; font-size: 11.5px; line-height: 1.5; }
+        .quote-info-card { padding: 12px 14px; border: 1px solid #d0d5dd; background: #fbfcfe; }
+        .quote-label { margin-bottom: 3px; color: #667085; font-size: 9px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+        .quote-customer-name { color: #172033; font-size: 14px; font-weight: 800; }
+        .quote-address { margin-top: 9px; color: #475467; line-height: 1.4; }
         .quote-address .quote-label { margin-bottom: 2px; }
-        .quote-meta-right { text-align: right; }
-        .quote-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 11.5px; }
-        .quote-table th { padding: 9px 6px; background: #f3f5f9; color: #344054; font-size: 10px; text-align: left; text-transform: uppercase; }
+        .quote-meta-right { text-align: left; }
+        .quote-meta-right .quote-label { display: inline-block; min-width: 86px; margin-right: 5px; }
+        .quote-programme { margin: 0 0 14px; padding: 9px 12px; border-left: 3px solid #e1a925; background: #f8fafc; }
+        .quote-programme-value { color: #172033; font-size: 12.5px; font-weight: 700; }
+        .quote-table { width: 100%; border-collapse: collapse; margin-top: 0; font-size: 11.5px; }
+        .quote-table th { padding: 9px 7px; background: #0b2c56; color: #fff; font-size: 9.5px; text-align: left; text-transform: uppercase; }
         .quote-table td { padding: 8px 6px; border-bottom: 1px solid #e4e7ec; vertical-align: top; }
         .quote-table .number { text-align: right; white-space: nowrap; }
         .quote-table tr { break-inside: avoid; page-break-inside: avoid; }
@@ -163,16 +175,17 @@ export default async function SalesQuotationPdfPage({ params }: { params: Promis
         .quote-notes + .quote-notes { margin-top: 10px; }
         .quote-notes h2 { margin: 0 0 5px; color: #0b3a63; font-size: 12px; }
         .quote-notes p { margin: 0; white-space: pre-wrap; }
-        .quote-footer { margin-top: 24px; padding: 12px 16px; background: #0b1f3a; color: #f8fafc; font-size: 10.5px; line-height: 1.55; }
+        .quote-closing { margin-top: 18px; color: #172033; font-size: 11px; font-weight: 700; }
+        .quote-footer { margin-top: 10px; padding: 12px 16px; background: #0b2c56; color: #f8fafc; font-size: 10.5px; line-height: 1.55; }
         @page { size: A4 portrait; margin: 0; }
         @media print {
           html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
           .quote-preview-shell { min-height: 0; padding: 0; background: #fff; }
           .quote-preview-actions { display: none !important; }
-          .quote-document { max-width: none; margin: 0; padding: 42px 58px; box-shadow: none; }
+          .quote-document { max-width: none; margin: 0; padding: 38px 52px; box-shadow: none; }
           .quote-table thead { display: table-header-group; }
-          .quote-header, .quote-totals, .quote-notes, .quote-footer { break-inside: avoid; page-break-inside: avoid; }
-          .quote-footer { background: #0b1f3a !important; color: #f8fafc !important; }
+          .quote-header, .quote-meta, .quote-programme, .quote-totals, .quote-notes, .quote-closing, .quote-footer { break-inside: avoid; page-break-inside: avoid; }
+          .quote-footer { background: #0b2c56 !important; color: #f8fafc !important; }
           .quote-table th:nth-child(4), .quote-table td:nth-child(4) { display: table-cell !important; }
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         }
@@ -182,7 +195,9 @@ export default async function SalesQuotationPdfPage({ params }: { params: Promis
           .quote-preview-actions a, .quote-print-button { width: 100%; }
           .quote-document { padding: 24px 20px; }
           .quote-header { flex-direction: column; }
-          .quote-title, .quote-number { text-align: left; }
+          .quote-header-meta { width: 100%; text-align: left; }
+          .quote-title { text-align: left; }
+          .quote-document-meta { grid-template-columns: auto auto; }
           .quote-meta { grid-template-columns: 1fr; gap: 14px; }
           .quote-meta-right { text-align: left; }
           .quote-table { font-size: 10px; }
@@ -209,20 +224,23 @@ export default async function SalesQuotationPdfPage({ params }: { params: Promis
               </div>
             </div>
           </div>
-          <div>
+          <div className="quote-header-meta">
             <div className="quote-title">QUOTATION</div>
-            <div className="quote-number">{q.quotation_no} · {revisionLabel(q.revision_no)}</div>
+            <dl className="quote-document-meta">
+              <dt>Quotation No.</dt><dd>{q.quotation_no}</dd>
+              <dt>Revision</dt><dd>{revisionLabel(q.revision_no)}</dd>
+              <dt>Issue Date</dt><dd>{formatDate(q.issue_date)}</dd>
+              <dt>Valid Until</dt><dd>{formatDate(q.valid_until)}</dd>
+            </dl>
             <div className="quote-status">{statusLabel}</div>
           </div>
         </header>
 
         <section className="quote-meta" aria-label="Quotation information">
-          <div>
-            <div className="quote-label">Customer</div>
+          <div className="quote-info-card">
+            <div className="quote-section-label">Customer</div>
             <div className="quote-customer-name">{opportunity?.company_name ?? "—"}</div>
-            {opportunity?.contact_person && <div>{opportunity.contact_person}</div>}
-            {opportunity?.contact_email && <div>{opportunity.contact_email}</div>}
-            {opportunity?.contact_phone && <div>{opportunity.contact_phone}</div>}
+            {registrationNo && <div><span className="quote-label">Registration No.</span> {registrationNo}</div>}
             {addressParts.length > 0 && (
               <div className="quote-address">
                 <div className="quote-label">Address</div>
@@ -230,12 +248,20 @@ export default async function SalesQuotationPdfPage({ params }: { params: Promis
               </div>
             )}
           </div>
-          <div className="quote-meta-right">
-            <div><span className="quote-label">Quotation date</span><br />{formatDate(q.issue_date)}</div>
-            <div><span className="quote-label">Valid until</span><br />{formatDate(q.valid_until)}</div>
-            {opportunity?.programme && <div><span className="quote-label">Programme</span><br />{opportunity.programme}</div>}
+          <div className="quote-info-card quote-meta-right">
+            <div className="quote-section-label">Attention</div>
+            <div className="quote-customer-name">{opportunity?.contact_person ?? "—"}</div>
+            {opportunity?.contact_email && <div><span className="quote-label">Email</span> {opportunity.contact_email}</div>}
+            {opportunity?.contact_phone && <div><span className="quote-label">Phone</span> {opportunity.contact_phone}</div>}
           </div>
         </section>
+
+        {opportunity?.programme && (
+          <section className="quote-programme" aria-label="Programme">
+            <div className="quote-section-label">Programme</div>
+            <div className="quote-programme-value">{opportunity.programme}</div>
+          </section>
+        )}
 
         <table className="quote-table">
           <thead>
@@ -270,8 +296,8 @@ export default async function SalesQuotationPdfPage({ params }: { params: Promis
         {q.notes && <section className="quote-notes"><h2>Notes</h2><p>{q.notes}</p></section>}
         {q.terms && <section className="quote-notes"><h2>Terms</h2><p>{q.terms}</p></section>}
 
+        <div className="quote-closing">Prepared by: {preparedBy}</div>
         <footer className="quote-footer">
-          <div>Prepared by: {preparedBy}</div>
           <div>{brand.tagline}</div>
           <div>This document reflects quotation revision {revisionLabel(q.revision_no)} and status: {statusLabel}.</div>
         </footer>
