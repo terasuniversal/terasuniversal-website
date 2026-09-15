@@ -27,11 +27,22 @@ export function QuotationActionsPanel({
   const [revisionState, revisionAction, revisionPending] = useActionState(createRevision.bind(null, quotationId), INITIAL);
   const [invoiceState, invoiceAction, invoicePending] = useActionState(createInvoiceFromQuotationAction.bind(null, quotationId), INVOICE_INITIAL);
 
+  const documentHref = `/admin/sales/quotations/${quotationId}/print`;
+
   if (!canManage) {
     return (
-      <Card title="Manage Quotation">
-        <div className="ta-card-pad" style={{ color: "var(--ta-muted)", fontSize: 13 }}>Status changes require Admin access.</div>
-      </Card>
+      <>
+        <Card title="Document">
+          <div className="ta-card-pad">
+            <Link href={documentHref} target="_blank" rel="noreferrer" className="ta-btn ta-btn-primary ta-btn-sm">
+              Preview / Print
+            </Link>
+          </div>
+        </Card>
+        <Card title="Manage Quotation">
+          <div className="ta-card-pad" style={{ color: "var(--ta-muted)", fontSize: 13 }}>Status changes require Admin access.</div>
+        </Card>
+      </>
     );
   }
 
