@@ -159,17 +159,20 @@ export default async function SalesQuotationPdfPage({ params }: { params: Promis
         .quote-totals td { padding: 4px 0; }
         .quote-totals td:last-child { text-align: right; white-space: nowrap; }
         .quote-grand-total td { padding-top: 8px; border-top: 2px solid #0b3a63; color: #0b3a63; font-size: 14px; font-weight: 800; }
-        .quote-notes { margin-top: 18px; font-size: 11.5px; line-height: 1.55; }
+        .quote-notes { margin-top: 12px; font-size: 11.5px; line-height: 1.55; }
+        .quote-notes + .quote-notes { margin-top: 10px; }
         .quote-notes h2 { margin: 0 0 5px; color: #0b3a63; font-size: 12px; }
         .quote-notes p { margin: 0; white-space: pre-wrap; }
-        .quote-footer { margin-top: 28px; padding-top: 12px; border-top: 2px solid #0b3a63; color: #475467; font-size: 10.5px; line-height: 1.5; }
+        .quote-footer { margin-top: 24px; padding: 12px 16px; background: #0b1f3a; color: #f8fafc; font-size: 10.5px; line-height: 1.55; }
         @page { size: A4 portrait; margin: 0; }
         @media print {
           html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
           .quote-preview-shell { min-height: 0; padding: 0; background: #fff; }
           .quote-preview-actions { display: none !important; }
           .quote-document { max-width: none; margin: 0; padding: 42px 58px; box-shadow: none; }
+          .quote-table thead { display: table-header-group; }
           .quote-header, .quote-totals, .quote-notes, .quote-footer { break-inside: avoid; page-break-inside: avoid; }
+          .quote-footer { background: #0b1f3a !important; color: #f8fafc !important; }
           .quote-table th:nth-child(4), .quote-table td:nth-child(4) { display: table-cell !important; }
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         }
