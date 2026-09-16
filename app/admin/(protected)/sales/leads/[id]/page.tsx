@@ -88,11 +88,10 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
   const { data: campaignRows, error: campaignsError } = await supabase.from("marketing_campaigns").select("id, name, status").neq("status", "archived").order("name");
   const campaignOptions = (campaignRows ?? []) as { id: string; name: string; status: string }[];
 
-  const { data: staffRows } = await supabase.from("profiles").select("id, full_name").eq("is_active", true).order("full_name");
-  const staff = (staffRows ?? []) as { id: string; full_name: string }[];
-
-  const { data: allProfiles } = await supabase.from("profiles").select("id, full_name");
-  const actorNames = new Map(((allProfiles ?? []) as { id: string; full_name: string }[]).map((p) => [p.id, p.full_name]));
+  const { data: profileRows } = await supabase.from("profiles").select("id, full_name, is_active").order("full_name");
+  const profiles = (profileRows ?? []) as { id: string; full_name: string; is_active: boolean }[];
+  const staff = profiles.filter((p) => p.is_active).map(({ id, full_name }) => ({ id, full_name }));
+  const actorNames = new Map(profiles.map((p) => [p.id, p.full_name]));
 
   const { data: existingOpportunity } = await supabase
     .from("sales_opportunities")
