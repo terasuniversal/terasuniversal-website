@@ -26,13 +26,17 @@ export async function POST(request) {
       return NextResponse.json({ error: "Supabase belum dikonfigurasi." }, { status: 503 });
     }
     const client = await createSupabaseServerClient();
+    // When the staging recovery template contains {{ .Token }}, TERAS
+    // verifies the six-digit code on the reset page instead of depending on
+    // a one-time link surviving email scanners. The redirect remains
+    // available for older/custom templates and other Auth flows.
     const callbackUrl = new URL("/auth/callback", request.url);
     callbackUrl.searchParams.set("next", "/admin/reset-password");
     const { error } = await client.auth.resetPasswordForEmail(cleanEmail, { redirectTo: callbackUrl.toString() });
     // Do not reveal whether an email account exists. This endpoint is public.
     if (error) console.error("[admin:password-reset] request failed", error.message);
-    return NextResponse.json({ ok: true, message: "If this email belongs to an admin account, a reset link has been sent." });
+    return NextResponse.json({ ok: true, message: "If this email belongs to an admin account, a reset code has been sent." });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Reset kata laluan tidak berjaya." }, { status: 500 });
+    return NextResponse.json({ error: "Unable to request a password reset." }, { status: 500 });
   }
 }

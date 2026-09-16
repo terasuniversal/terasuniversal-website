@@ -24,6 +24,9 @@ export default function LoginPage() {
       const response = await fetch("/api/admin/reset-password", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: resetEmail }) });
       const body = await response.json();
       setResetMessage(body.message || body.error || "Unable to request a password reset.");
+      if (response.ok) {
+        window.location.assign(`/admin/reset-password?email=${encodeURIComponent(resetEmail.trim())}`);
+      }
     } catch { setResetMessage("Network error. Please try again."); }
     finally { setResetting(false); }
   }
@@ -70,7 +73,7 @@ export default function LoginPage() {
           <label htmlFor="reset-email" style={{ fontSize: 13, fontWeight: 600 }}>Forgot password?</label>
           <div style={{ display: "flex", gap: 8, marginTop: 7 }}>
             <input id="reset-email" type="email" value={resetEmail} onChange={(event) => setResetEmail(event.target.value)} placeholder="Admin email" autoComplete="email" aria-describedby="reset-message" />
-            <button type="button" className="ta-btn ta-btn-outline ta-btn-sm" onClick={requestReset} disabled={resetting}>{resetting ? "Sending…" : "Send link"}</button>
+            <button type="button" className="ta-btn ta-btn-outline ta-btn-sm" onClick={requestReset} disabled={resetting}>{resetting ? "Sending…" : "Send code"}</button>
           </div>
           <p id="reset-message" aria-live="polite" style={{ minHeight: 18, margin: "7px 0 0", color: "var(--ta-muted)", fontSize: 12 }}>{resetMessage}</p>
         </div>
