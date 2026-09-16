@@ -67,16 +67,20 @@ export async function loginAction(
     // writes must go through the service-role client calling
     // log_event_as_service, which takes the actor explicitly since there's
     // no auth.uid() session context on that client.
-    const service = createSupabaseServiceClient();
-    const { error: auditError } = await service.rpc("log_event_as_service" as never, {
-      p_actor_id: user.id,
-      p_actor_email: user.email ?? parsed.data.email,
-      p_action: "login",
-      p_entity_type: "auth",
-      p_summary: "Admin sign-in",
-    } as never);
-    if (auditError) {
-      console.error("loginAction: failed to write login audit event", { message: auditError.message, userId: user.id });
+    try {
+      const service = createSupabaseServiceClient();
+      const { error: auditError } = await service.rpc("log_event_as_service" as never, {
+        p_actor_id: user.id,
+        p_actor_email: user.email ?? parsed.data.email,
+        p_action: "login",
+        p_entity_type: "auth",
+        p_summary: "Admin sign-in",
+      } as never);
+      if (auditError) {
+        console.warn("loginAction: login audit unavailable", { reason: "audit_write_failed" });
+      }
+    } catch {
+      console.warn("loginAction: login audit unavailable", { reason: "audit_client_unavailable" });
     }
 
     // First-login password change takes priority over every other landing
