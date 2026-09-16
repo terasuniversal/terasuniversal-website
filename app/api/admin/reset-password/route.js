@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -22,11 +22,13 @@ export async function POST(request) {
     const cleanEmail = String(email || "").trim();
     if (!/^\S+@\S+\.\S+$/.test(cleanEmail)) return NextResponse.json({ error: "Masukkan email admin yang sah." }, { status: 400 });
     recentResetRequests.set(ip, now);
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-    if (!url || !key) return NextResponse.json({ error: "Supabase belum dikonfigurasi." }, { status: 503 });
-    const client = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
-    const { error } = await client.auth.resetPasswordForEmail(cleanEmail, { redirectTo: `${new URL(request.url).origin}/admin/reset-password` });
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY && !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY)) {
+      return NextResponse.json({ error: "Supabase belum dikonfigurasi." }, { status: 503 });
+    }
+    const client = await createSupabaseServerClient();
+    const callbackUrl = new URL("/auth/callback", request.url);
+    callbackUrl.searchParams.set("next", "/admin/reset-password");
+    const { error } = await client.auth.resetPasswordForEmail(cleanEmail, { redirectTo: callbackUrl.toString() });
     // Do not reveal whether an email account exists. This endpoint is public.
     if (error) console.error("[admin:password-reset] request failed", error.message);
     return NextResponse.json({ ok: true, message: "If this email belongs to an admin account, a reset link has been sent." });
