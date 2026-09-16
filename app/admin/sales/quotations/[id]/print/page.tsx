@@ -132,6 +132,7 @@ export default async function SalesQuotationPdfPage({ params }: { params: Promis
           background: #fff;
           box-shadow: 0 2px 12px rgba(16, 24, 40, .12);
         }
+        .quote-document > section { padding: 0; }
         .quote-header {
           display: flex;
           justify-content: space-between;
@@ -159,7 +160,7 @@ export default async function SalesQuotationPdfPage({ params }: { params: Promis
         .quote-address .quote-label { margin-bottom: 2px; }
         .quote-meta-right { text-align: left; }
         .quote-meta-right .quote-label { display: inline-block; min-width: 86px; margin-right: 5px; }
-        .quote-programme { display: block; align-self: start; height: auto; min-height: 0; margin: 0 0 10px; padding: 4px 10px; border-left: 3px solid #e1a925; background: #f8fafc; }
+        .quote-document > .quote-programme { display: block; align-self: start; height: auto; min-height: 0; margin: 0 0 10px; padding: 4px 10px; border-left: 3px solid #e1a925; background: #f8fafc; }
         .quote-programme .quote-section-label { margin-bottom: 2px; }
         .quote-programme-value { color: #172033; font-size: 12.5px; font-weight: 700; line-height: 1.25; }
         .quote-table { width: 100%; border-collapse: collapse; margin-top: 0; font-size: 11.5px; }
