@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { requireRole, requireModuleAccess } from "../../../../../lib/auth/session";
-import { PageHead, Card, Badge, EmptyState, Pagination } from "../../../../../components/admin/ui";
+import { PageHead, Card, Badge, EmptyState } from "../../../../../components/admin/ui";
 import { mytEndOfTodayUtc, type SalesLeadInboxRow } from "../../../../../lib/sales/crm";
 import { setLeadFollowUp } from "../leads/actions";
 import { formatMalaysiaDate } from "../../../../../lib/date-time";
@@ -18,7 +18,6 @@ export const dynamic = "force-dynamic";
 const VIEWS = ["overdue", "today", "upcoming"] as const;
 type View = (typeof VIEWS)[number];
 const VIEW_LABELS: Record<View, string> = { overdue: "Overdue", today: "Due Today", upcoming: "Upcoming" };
-const PAGE_SIZE = 30;
 
 function FollowUpInlineForm({ leadMetadataId, followUpAt }: { leadMetadataId: string; followUpAt: string | null }) {
   return (
@@ -55,15 +54,13 @@ function FollowUpInlineForm({ leadMetadataId, followUpAt }: { leadMetadataId: st
 export default async function FollowUpsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string; owner?: string; page?: string }>;
+  searchParams: Promise<{ view?: string; owner?: string }>;
 }) {
   const profile = await requireRole("editor");
   await requireModuleAccess("sales_followups");
   const sp = await searchParams;
   const view: View = (VIEWS as readonly string[]).includes(sp.view ?? "") ? (sp.view as View) : "overdue";
   const owner = sp.owner ?? "mine";
-  const requestedPage = Number(sp.page ?? 1);
-  const page = Number.isFinite(requestedPage) ? Math.max(1, Math.floor(requestedPage)) : 1;
 
   const supabase = await createSupabaseServerClient();
   const { data: staffRows } = await supabase.from("profiles").select("id, full_name").eq("is_active", true).order("full_name");
@@ -78,7 +75,7 @@ export default async function FollowUpsPage({
   // matches followUpState()'s own "none" rule.
   let query = supabase
     .from("v_sales_lead_inbox")
-    .select("*", { count: "exact" })
+    .select("*")
     .not("follow_up_at", "is", null)
     .not("status", "in", "(won,lost,archived)")
     .order("follow_up_at", { ascending: true });
@@ -90,13 +87,9 @@ export default async function FollowUpsPage({
   if (owner === "mine") query = query.eq("assigned_to", profile.id);
   else if (owner !== "all") query = query.eq("assigned_to", owner);
 
-  const { data: rows, count } = await query.range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
+  const { data: rows } = await query.limit(200);
   const leads = (rows ?? []) as SalesLeadInboxRow[];
   const leadIds = leads.map((l) => l.lead_metadata_id);
-
-  const qsBase: Record<string, string> = {};
-  if (view !== "overdue") qsBase.view = view;
-  if (owner !== "mine") qsBase.owner = owner;
 
   // Batch-resolve: which of these leads already have an Opportunity, and
   // each one's most recent activity — two bounded queries, not N+1.
@@ -232,12 +225,6 @@ export default async function FollowUpsPage({
                 );
               })}
             </ul>
-            <Pagination
-              page={page}
-              pageCount={Math.ceil((count ?? 0) / PAGE_SIZE)}
-              basePath="/admin/sales/follow-ups"
-              query={qsBase}
-            />
           </>
         ) : (
           <EmptyState icon="🗓" message="No follow-ups in this view." />

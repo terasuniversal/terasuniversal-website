@@ -1,6 +1,7 @@
 import { Card } from "../../../../../../components/admin/ui";
 import { CRM_ACTIVITY_LABELS, type SalesActivityRow } from "../../../../../../lib/sales/crm";
 import { formatMalaysiaDateTime } from "../../../../../../lib/date-time";
+import { qualificationLabel, temperatureLabel } from "../../../../../../lib/sales/qualification";
 
 /**
  * Reusable activity timeline for the Sales CRM (real data). Oldest G�� newest.
@@ -39,6 +40,15 @@ export function LeadActivityTimeline({
                   </time>
                 </div>
                 {activity.note && <div className="ta-timeline-note">{activity.note}</div>}
+                {activity.type === "qualification_changed" && activity.metadata && (
+                  <div className="ta-timeline-note">{qualificationLabel(String(activity.metadata.old_value ?? "pending"))} → {qualificationLabel(String(activity.metadata.new_value ?? "pending"))}</div>
+                )}
+                {activity.type === "temperature_changed" && activity.metadata && (
+                  <div className="ta-timeline-note">{temperatureLabel(String(activity.metadata.old_value || ""))} → {temperatureLabel(String(activity.metadata.new_value || ""))}</div>
+                )}
+                {activity.type === "priority_changed" && activity.metadata && (
+                  <div className="ta-timeline-note">{String(activity.metadata.old_value ?? "—")} → {String(activity.metadata.new_value ?? "—")}</div>
+                )}
                 <div className="ta-timeline-actor">by {activity.actor_id ? actorNames.get(activity.actor_id) ?? "Staff" : "System"}</div>
               </div>
             </li>

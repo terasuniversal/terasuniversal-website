@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { requireRole, requireModuleAccess } from "../../../../../lib/auth/session";
-import { PageHead, Card, Badge, EmptyState, Pagination } from "../../../../../components/admin/ui";
+import { PageHead, Card, Badge, EmptyState } from "../../../../../components/admin/ui";
 import { dueDateState, mytEndOfTodayUtc, sanitizeSearchTerm, type SalesTaskRow } from "../../../../../lib/sales/crm";
 import { loadStaffOptions } from "./options";
 import { formatMalaysiaDateTime } from "../../../../../lib/date-time";
@@ -12,7 +12,6 @@ export const dynamic = "force-dynamic";
 const VIEWS = ["all", "overdue", "today", "upcoming", "completed"] as const;
 type View = (typeof VIEWS)[number];
 const VIEW_LABELS: Record<View, string> = { all: "All Open", overdue: "Overdue", today: "Due Today", upcoming: "Upcoming", completed: "Completed" };
-const PAGE_SIZE = 30;
 
 function RelatedRecordLink({ task }: { task: SalesTaskRow }) {
   if (task.opportunity_id) return <Link href={`/admin/sales/opportunities/${task.opportunity_id}`}>Opportunity →</Link>;
@@ -24,15 +23,13 @@ function RelatedRecordLink({ task }: { task: SalesTaskRow }) {
 export default async function SalesTasksPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string; owner?: string; q?: string; page?: string }>;
+  searchParams: Promise<{ view?: string; owner?: string; q?: string }>;
 }) {
   const profile = await requireRole("editor");
   await requireModuleAccess("sales_tasks");
   const sp = await searchParams;
   const view: View = (VIEWS as readonly string[]).includes(sp.view ?? "") ? (sp.view as View) : "all";
   const owner = sp.owner ?? "mine";
-  const requestedPage = Number(sp.page ?? 1);
-  const page = Number.isFinite(requestedPage) ? Math.max(1, Math.floor(requestedPage)) : 1;
 
   const supabase = await createSupabaseServerClient();
   const staff = await loadStaffOptions();
@@ -44,7 +41,7 @@ export default async function SalesTasksPage({
 
   let query = supabase
     .from("sales_tasks")
-    .select("*", { count: "exact" })
+    .select("*")
     .is("deleted_at", null)
     .order("due_at", { ascending: true, nullsFirst: false });
 
@@ -65,13 +62,11 @@ export default async function SalesTasksPage({
     if (term) query = query.ilike("title", `%${term}%`);
   }
 
-  const { data: rows, count } = await query.range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
+  const { data: rows } = await query.limit(200);
   const tasks = (rows ?? []) as SalesTaskRow[];
 
   const qsBase: Record<string, string> = {};
   if (sp.q) qsBase.q = sp.q;
-  if (view !== "all") qsBase.view = view;
-  if (owner !== "mine") qsBase.owner = owner;
 
   return (
     <>
@@ -190,12 +185,6 @@ export default async function SalesTasksPage({
                 );
               })}
             </ul>
-            <Pagination
-              page={page}
-              pageCount={Math.ceil((count ?? 0) / PAGE_SIZE)}
-              basePath="/admin/sales/tasks"
-              query={qsBase}
-            />
           </>
         ) : (
           <EmptyState icon="☑" message="No tasks in this view." />

@@ -19,7 +19,12 @@
  * component the real CRM actually renders — can import from this file alone.
  */
 
-export type SalesLeadSourceKind = "enquiry" | "proposal_request" | "marketing_contact";
+import type { Json } from "../supabase/database.types";
+
+// Marketing CRM Phase 1B-D -- 'marketing_contact' added to match the
+// sales_lead_metadata.lead_source CHECK constraint widened in Phase 1B-C
+// (supabase/migrations/20260828100000_widen_sales_lead_source_for_marketing_contacts.sql).
+export type SalesLeadSourceKind = "enquiry" | "proposal_request" | "marketing_contact" | "internal";
 
 /** Same four values/labels as the demo module's FollowUpState — moved here, not duplicated with different meaning. */
 export type FollowUpState = "overdue" | "today" | "upcoming" | "none";
@@ -133,9 +138,31 @@ export type SalesCrmActivityType =
   | "task_created"
   | "task_completed"
   | "task_reopened"
-  | "task_cancelled";
+  | "task_cancelled"
+  | "quotation_cancelled"
+  | "opportunity_reversed"
+  | "invoice_created"
+  | "invoice_issued"
+  | "invoice_partially_paid"
+  | "invoice_paid"
+  | "payment_recorded"
+  | "invoice_cancelled"
+  | "qualification_changed"
+  | "temperature_changed"
+  | "priority_changed";
 
 export const CRM_ACTIVITY_ICONS: Record<SalesCrmActivityType, string> = {
+  qualification_changed: "✓",
+  temperature_changed: "★",
+  priority_changed: "↑",
+  quotation_cancelled: "↩️",
+  opportunity_reversed: "↪️",
+  invoice_created: "🧾",
+  invoice_issued: "📤",
+  invoice_partially_paid: "💳",
+  invoice_paid: "✅",
+  payment_recorded: "💰",
+  invoice_cancelled: "↩️",
   lead_created: "🧲",
   status_changed: "🔁",
   assigned: "👤",
@@ -162,6 +189,17 @@ export const CRM_ACTIVITY_ICONS: Record<SalesCrmActivityType, string> = {
 };
 
 export const CRM_ACTIVITY_LABELS: Record<SalesCrmActivityType, string> = {
+  qualification_changed: "Qualification changed",
+  temperature_changed: "Temperature changed",
+  priority_changed: "Priority changed",
+  quotation_cancelled: "Quotation cancelled",
+  opportunity_reversed: "Opportunity reversed",
+  invoice_created: "Invoice created",
+  invoice_issued: "Invoice issued",
+  invoice_partially_paid: "Invoice partially paid",
+  invoice_paid: "Invoice paid",
+  payment_recorded: "Payment recorded",
+  invoice_cancelled: "Invoice cancelled",
   lead_created: "Lead created",
   status_changed: "Status changed",
   assigned: "Assigned",
@@ -191,6 +229,7 @@ export const SOURCE_LABELS: Record<SalesLeadSourceKind, string> = {
   enquiry: "Contact Enquiry",
   proposal_request: "Proposal Request",
   marketing_contact: "Marketing Contact",
+  internal: "Internal CRM",
 };
 
 /* ------------------------------------------------------------------ */
@@ -198,9 +237,9 @@ export const SOURCE_LABELS: Record<SalesLeadSourceKind, string> = {
 /* ------------------------------------------------------------------ */
 
 /** Matches sales_opportunities.stage's CHECK. Aligned with the Lead pipeline where practical (Task 4). */
-export type SalesOpportunityStage = "new" | "qualified" | "quotation" | "negotiation" | "won" | "lost" | "archived";
+export type SalesOpportunityStage = "new" | "qualified" | "quotation" | "negotiation" | "won" | "lost" | "archived" | "cancelled";
 
-export const OPPORTUNITY_STAGE_ORDER: SalesOpportunityStage[] = ["new", "qualified", "quotation", "negotiation", "won", "lost", "archived"];
+export const OPPORTUNITY_STAGE_ORDER: SalesOpportunityStage[] = ["new", "qualified", "quotation", "negotiation", "won", "lost", "archived", "cancelled"];
 
 export const OPPORTUNITY_STAGE_LABELS: Record<SalesOpportunityStage, string> = {
   new: "New",
@@ -210,6 +249,7 @@ export const OPPORTUNITY_STAGE_LABELS: Record<SalesOpportunityStage, string> = {
   won: "Won",
   lost: "Lost",
   archived: "Archived",
+  cancelled: "Cancelled",
 };
 
 export const OPEN_OPPORTUNITY_STAGES: SalesOpportunityStage[] = ["new", "qualified", "quotation", "negotiation"];
@@ -238,6 +278,8 @@ export interface SalesOpportunityRow {
   updated_at: string;
   won_at: string | null;
   lost_at: string | null;
+  cancelled_at: string | null;
+  cancellation_reason: string | null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -245,9 +287,9 @@ export interface SalesOpportunityRow {
 /* ------------------------------------------------------------------ */
 
 /** Matches sales_quotations.status's CHECK. */
-export type SalesQuotationStatus = "draft" | "sent" | "accepted" | "rejected" | "expired" | "superseded";
+export type SalesQuotationStatus = "draft" | "sent" | "accepted" | "rejected" | "expired" | "superseded" | "cancelled";
 
-export const QUOTATION_STATUS_ORDER: SalesQuotationStatus[] = ["draft", "sent", "accepted", "rejected", "expired", "superseded"];
+export const QUOTATION_STATUS_ORDER: SalesQuotationStatus[] = ["draft", "sent", "accepted", "rejected", "expired", "superseded", "cancelled"];
 
 export const QUOTATION_STATUS_LABELS: Record<SalesQuotationStatus, string> = {
   draft: "Draft",
@@ -256,6 +298,7 @@ export const QUOTATION_STATUS_LABELS: Record<SalesQuotationStatus, string> = {
   rejected: "Rejected",
   expired: "Expired",
   superseded: "Superseded",
+  cancelled: "Cancelled",
 };
 
 export type SalesQuotationUnit = "pax" | "session" | "day" | "lot" | "unit";
@@ -287,6 +330,11 @@ export interface SalesQuotationRow {
   discount: number;
   sst_applicable: boolean;
   sst_rate: number;
+  sst_amount: number | null;
+  tax_label_snapshot: string | null;
+  tax_basis_snapshot: string | null;
+  sst_registration_number_snapshot: string | null;
+  sst_effective_date_snapshot: string | null;
   tax: number;
   total: number;
   terms: string | null;
@@ -299,6 +347,16 @@ export interface SalesQuotationRow {
   accepted_at: string | null;
   rejected_at: string | null;
   superseded_at: string | null;
+  cancelled_at: string | null;
+  cancellation_reason: string | null;
+  customer_company_name: string | null;
+  customer_contact_name: string | null;
+  customer_registration_no: string | null;
+  customer_email: string | null;
+  customer_phone: string | null;
+  billing_address: string | null;
+  training_service_address: string | null;
+  training_details: Json;
 }
 
 export interface SalesQuotationItemRow {
@@ -311,6 +369,10 @@ export interface SalesQuotationItemRow {
   discount: number;
   line_total: number;
   sort_order: number;
+  course_id: string | null;
+  course_name_snapshot: string | null;
+  hrdf_claim: boolean | null;
+  package_includes_snapshot: Json[];
 }
 
 /**
@@ -379,6 +441,7 @@ export interface SalesActivityRow {
   note: string | null;
   actor_id: string | null;
   created_at: string;
+  metadata: Record<string, unknown> | null;
 }
 
 // Sales CRM Phase 4B — Asia/Kuala_Lumpur is a fixed UTC+8 offset year-round

@@ -13,6 +13,7 @@ import {
   revisionLabel,
   sanitizeSearchTerm,
   type SalesOpportunityRow,
+  type SalesLeadSourceKind,
   type SalesActivityRow,
   type SalesQuotationRow,
 } from "../../../../../../lib/sales/crm";
@@ -21,6 +22,8 @@ import { TrainingHandoffPanel } from "./TrainingHandoffPanel";
 import { ClientOnboardingPanel } from "./ClientOnboardingPanel";
 import { matchCourseByProgramme } from "../../../schedules/options";
 import type { CompanyCandidate } from "../actions";
+import type { SalesTaskRow } from "../../../../../../lib/sales/crm";
+import { ageLabel, expectedCloseState, formatMoney, isStalledOpportunity, latestOpportunityActivity, nextOpportunityTask, sinceActivityLabel, weightedPipelineValue } from "../../../../../../lib/sales/opportunity-pipeline";
 
 export const metadata = { title: "Opportunity Detail — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
@@ -47,25 +50,25 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
   if (!opportunity) notFound();
   const opp = opportunity as SalesOpportunityRow;
 
-  const { data: leadRow } = await supabase.from("v_sales_lead_inbox").select("lead_source, source_id, status").eq("lead_metadata_id", opp.lead_metadata_id).maybeSingle();
-
-  const { data: quotationRows } = await supabase
-    .from("sales_quotations")
-    .select("*")
-    .eq("opportunity_id", id)
-    .order("quotation_no", { ascending: true })
-    .order("revision_no", { ascending: true });
-
-  const { data: activityRows } = await supabase
-    .from("sales_activity")
-    .select("*")
-    .eq("opportunity_id", id)
-    .order("created_at", { ascending: true });
-
-  const { data: profileRows } = await supabase.from("profiles").select("id, full_name, is_active").order("full_name");
-  const profiles = (profileRows ?? []) as { id: string; full_name: string; is_active: boolean }[];
-  const staff = profiles.filter((p) => p.is_active).map(({ id, full_name }) => ({ id, full_name }));
-  const actorNames = new Map(profiles.map((p) => [p.id, p.full_name]));
+  const [leadResult, quotationsResult, activityResult, taskResult, staffResult, profilesResult] = await Promise.all([
+    supabase.from("v_sales_lead_inbox").select("lead_source, source_id, status").eq("lead_metadata_id", opp.lead_metadata_id).maybeSingle(),
+    supabase.from("sales_quotations").select("*").eq("opportunity_id", id).order("quotation_no", { ascending: true }).order("revision_no", { ascending: true }),
+    supabase.from("sales_activity").select("*").eq("opportunity_id", id).order("created_at", { ascending: true }),
+    supabase.from("sales_tasks").select("id, title, description, status, priority, due_at, assigned_to, lead_metadata_id, opportunity_id, quotation_id, created_by, completed_at, created_at, updated_at, deleted_at").eq("opportunity_id", id).is("deleted_at", null),
+    supabase.from("profiles").select("id, full_name").eq("is_active", true).order("full_name"),
+    supabase.from("profiles").select("id, full_name"),
+  ]);
+  const leadRow = leadResult.data;
+  const quotationRows = quotationsResult.data;
+  const activityRows = activityResult.data;
+  const opportunityTasks = (taskResult.data ?? []) as SalesTaskRow[];
+  const lastActivityAt = latestOpportunityActivity((activityRows ?? []) as { opportunity_id: string | null; created_at: string }[], opp.created_at);
+  const nextAction = nextOpportunityTask(opportunityTasks);
+  const closeState = expectedCloseState(opp.expected_close_date);
+  const stalled = isStalledOpportunity(opp, opportunityTasks, (activityRows ?? []) as { opportunity_id: string | null; created_at: string }[]);
+  const staff = (staffResult.data ?? []) as { id: string; full_name: string }[];
+  const assignedName = opp.assigned_to ? staff.find((member) => member.id === opp.assigned_to)?.full_name ?? "Assigned staff" : "Unassigned";
+  const actorNames = new Map(((profilesResult.data ?? []) as { id: string; full_name: string }[]).map((p) => [p.id, p.full_name]));
 
   // --------------------------------------------------------------------
   // Sales CRM Phase 3 — Won Opportunity -> Training Operations handoff.
@@ -106,6 +109,9 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
     } else if (leadRow?.lead_source === "enquiry" && leadRow.source_id) {
       const { data: enq } = await supabase.from("enquiries").select("message").eq("id", leadRow.source_id).maybeSingle();
       objectives = enq?.message ?? null;
+    } else if (leadRow?.lead_source === "internal" && leadRow.source_id) {
+      const { data: internalLead } = await supabase.from("sales_internal_lead_sources").select("notes").eq("id", leadRow.source_id).maybeSingle();
+      objectives = internalLead?.notes ?? null;
     }
 
     const matchedCourseId = acceptedQuotation ? await matchCourseByProgramme(opp.programme) : null;
@@ -221,7 +227,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
 
       <div className="ta-lead-meta">
         <Badge status={opp.stage} />
-        {leadRow && <span className="ta-lead-meta-time">Source: {SOURCE_LABELS[leadRow.lead_source as "enquiry" | "proposal_request"]}</span>}
+        {leadRow && <span className="ta-lead-meta-time">Source: {SOURCE_LABELS[leadRow.lead_source as SalesLeadSourceKind]}</span>}
         <span className="ta-lead-meta-time">
           Created {formatMalaysiaDateTime(opp.created_at)}
         </span>
@@ -243,6 +249,20 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
                 <Detail label="Probability" value={opp.probability != null ? `${opp.probability}%` : null} />
                 <Detail label="Estimated Value" value={opp.estimated_value != null ? `RM ${Number(opp.estimated_value).toLocaleString("en-MY", { minimumFractionDigits: 2 })}` : null} />
               </dl>
+            </div>
+          </Card>
+
+          <Card title="Pipeline Intelligence">
+            <div className="ta-card-pad" style={{ display: "grid", gridTemplateColumns: "minmax(130px, 0.8fr) minmax(160px, 1.2fr)", gap: 9 }}>
+              <span style={{ color: "var(--ta-muted)" }}>Stage</span><span><Badge status={opp.stage} /></span>
+              <span style={{ color: "var(--ta-muted)" }}>Owner</span><span>{assignedName}</span>
+              <span style={{ color: "var(--ta-muted)" }}>Estimated Value</span><span>{formatMoney(opp.estimated_value)}</span>
+              <span style={{ color: "var(--ta-muted)" }}>Weighted Value</span><span>{formatMoney(weightedPipelineValue(opp.estimated_value, opp.probability))}</span>
+              <span style={{ color: "var(--ta-muted)" }}>Expected Close</span><span>{opp.expected_close_date ? `${opp.expected_close_date} · ${closeState === "due_soon" ? "Due soon" : closeState === "overdue" ? "Overdue" : "Upcoming"}` : "No date"}</span>
+              <span style={{ color: "var(--ta-muted)" }}>Opportunity Age</span><span>{ageLabel(opp.created_at)}</span>
+              <span style={{ color: "var(--ta-muted)" }}>Last Activity</span><span>{sinceActivityLabel(lastActivityAt, opp.created_at)}</span>
+              <span style={{ color: "var(--ta-muted)" }}>Next Action</span><span>{nextAction ? `${nextAction.title}${nextAction.due_at ? ` · Due ${formatMalaysiaDateTime(nextAction.due_at)}` : ""}` : "No active task"}</span>
+              <span style={{ color: "var(--ta-muted)" }}>Indicators</span><span>{stalled ? <Badge status="stalled" /> : "No stall signal"}{closeState === "overdue" && <Badge status="overdue" />}</span>
             </div>
           </Card>
 

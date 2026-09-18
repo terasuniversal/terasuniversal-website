@@ -4,8 +4,9 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { requireRole, requireModuleAccess } from "../../../../../lib/auth/session";
-import { quotationHeaderSchema, quotationRejectSchema, fieldErrors } from "../../../../../lib/validation/schemas";
+import { quotationHeaderSchema, quotationRejectSchema, fieldErrors, type QuotationHeaderInput } from "../../../../../lib/validation/schemas";
 import { computeQuotationTotals } from "../../../../../lib/sales/crm";
+import { canonicalizePackageSnapshot, commercialName, type CourseCommercialProfileData, type PackageIncludeSnapshot } from "../../../../../lib/sales/course-commercial";
 
 export type SalesActionState = { message?: string; errors?: Record<string, string> };
 
@@ -26,6 +27,11 @@ function parseItemsField(raw: FormDataEntryValue | null): unknown[] {
   }
 }
 
+function parseTrainingDetailsField(raw: FormDataEntryValue | null): unknown {
+  if (typeof raw !== "string" || !raw.trim()) return null;
+  try { return JSON.parse(raw); } catch { return null; }
+}
+
 async function logActivity(supabase: any, leadMetadataId: string | null, opportunityId: string, quotationId: string, type: string, note: string | null, actorId: string) {
   await supabase.from("sales_activity").insert({ lead_metadata_id: leadMetadataId, opportunity_id: opportunityId, quotation_id: quotationId, type, note, actor_id: actorId });
 }
@@ -33,6 +39,46 @@ async function logActivity(supabase: any, leadMetadataId: string | null, opportu
 async function getLeadMetadataId(supabase: any, opportunityId: string): Promise<string | null> {
   const { data } = await supabase.from("sales_opportunities").select("lead_metadata_id").eq("id", opportunityId).maybeSingle();
   return data?.lead_metadata_id ?? null;
+}
+
+async function prepareQuotationItems(supabase: any, items: QuotationHeaderInput["items"]) {
+  const courseIds = [...new Set(items.map((item) => item.course_id).filter((id): id is string => Boolean(id)))];
+  const profilesByCourse = new Map<string, CourseCommercialProfileData>();
+  if (courseIds.length > 0) {
+    const { data, error } = await supabase
+      .from("course_commercial_profiles")
+      .select("id, course_id, standard_display_name, hrdf_display_name, hrdf_claimable, quotation_description, package_includes, accommodation_included_default, accommodation_description_default, meals_included_default, meals_description_default")
+      .in("course_id", courseIds);
+    if (error) return { error: error.message };
+    for (const profile of (data ?? []) as CourseCommercialProfileData[]) profilesByCourse.set(profile.course_id, profile);
+  }
+
+  const rows = [];
+  for (const item of items) {
+    const courseId = item.course_id || null;
+    if (!courseId) {
+      if (item.hrdf_claim) return { error: "HRDF Claim requires a configured course profile." };
+      if (item.package_includes_snapshot.length > 0) return { error: "Package Includes requires a configured course profile." };
+      rows.push({ ...item, course_id: null, course_name_snapshot: null, hrdf_claim: false, package_includes_snapshot: [] });
+      continue;
+    }
+
+    const profile = profilesByCourse.get(courseId);
+    if (!profile) return { error: "The selected course has no commercial profile configured." };
+    if (item.hrdf_claim && (!profile.hrdf_claimable || !profile.hrdf_display_name?.trim())) {
+      return { error: `HRDF Claim is not configured for ${profile.standard_display_name}.` };
+    }
+    const packageSnapshot = canonicalizePackageSnapshot(item.package_includes_snapshot as PackageIncludeSnapshot[], profile);
+    if ("error" in packageSnapshot) return { error: packageSnapshot.error };
+    rows.push({
+      ...item,
+      course_id: courseId,
+      course_name_snapshot: commercialName(profile, item.hrdf_claim),
+      hrdf_claim: item.hrdf_claim,
+      package_includes_snapshot: packageSnapshot,
+    });
+  }
+  return { rows };
 }
 
 /** Task 8: create quotation (revision 0) from an Opportunity — admin+ only, per sales_quotations RLS. */
@@ -44,6 +90,13 @@ export async function createQuotation(
   const profile = await requireRole("admin");
   await requireModuleAccess("sales_quotations");
   const parsed = quotationHeaderSchema.safeParse({
+    customer_company_name: formData.get("customer_company_name") ?? "",
+    customer_contact_name: formData.get("customer_contact_name") ?? "",
+    customer_registration_no: formData.get("customer_registration_no") ?? "",
+    customer_email: formData.get("customer_email") ?? "",
+    customer_phone: formData.get("customer_phone") ?? "",
+    billing_address: formData.get("billing_address") ?? "",
+    training_service_address: formData.get("training_service_address") ?? "",
     valid_until: formData.get("valid_until") ?? "",
     currency: formData.get("currency") || "MYR",
     discount: formData.get("discount") || 0,
@@ -51,17 +104,24 @@ export async function createQuotation(
     sst_rate: formData.get("sst_rate") || 0,
     terms: formData.get("terms") ?? "",
     notes: formData.get("notes") ?? "",
+    training_details: parseTrainingDetailsField(formData.get("training_details")),
     items: parseItemsField(formData.get("items")),
   });
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
   const d = parsed.data;
 
   const supabase = await createSupabaseServerClient();
-  const { data: opportunity } = await supabase.from("sales_opportunities").select("stage").eq("id", opportunityId).maybeSingle();
+  const preparedItems = await prepareQuotationItems(supabase, d.items);
+  if ("error" in preparedItems) return { message: preparedItems.error };
+  const { data: opportunity } = await supabase.from("sales_opportunities").select("*").eq("id", opportunityId).maybeSingle();
   if (!opportunity) return { message: "Opportunity not found." };
-  if (opportunity.stage === "won" || opportunity.stage === "lost") {
+  if (opportunity.stage === "won" || opportunity.stage === "lost" || opportunity.stage === "cancelled") {
     return { message: `This opportunity is already ${opportunity.stage} — a new quotation cannot be created for it.` };
   }
+  const { data: company } = opportunity.company_id
+    ? await supabase.from("companies").select("company_name, registration_no, email, phone, person_in_charge, pic_email, pic_phone, billing_address, address").eq("id", opportunity.company_id).maybeSingle()
+    : { data: null };
+  const submitted = (name: string) => formData.has(name);
 
   const totals = computeQuotationTotals({
     items: d.items.map((i) => ({ quantity: i.quantity, unitPrice: i.unit_price, discount: i.discount })),
@@ -69,6 +129,8 @@ export async function createQuotation(
     sstApplicable: d.sst_applicable,
     sstRate: d.sst_rate,
   });
+  const sstRate = d.sst_applicable ? d.sst_rate : 0;
+  if (totals.taxableAmount < 0 || totals.total < 0) return { message: "Discount cannot exceed the quotation amount." };
 
   const { data: quotation, error } = await supabase
     .from("sales_quotations")
@@ -79,19 +141,28 @@ export async function createQuotation(
       subtotal: totals.subtotal,
       discount: d.discount,
       sst_applicable: d.sst_applicable,
-      sst_rate: d.sst_rate,
+      sst_rate: sstRate,
+      sst_amount: totals.tax,
       tax: totals.tax,
       total: totals.total,
       terms: d.terms || null,
       notes: d.notes || null,
       created_by: profile.id,
+      customer_company_name: submitted("customer_company_name") ? d.customer_company_name || null : company?.company_name || opportunity.company_name || null,
+      customer_contact_name: submitted("customer_contact_name") ? d.customer_contact_name || null : company?.person_in_charge || opportunity.contact_person || null,
+      customer_registration_no: submitted("customer_registration_no") ? d.customer_registration_no || null : company?.registration_no || null,
+      customer_email: submitted("customer_email") ? d.customer_email || null : company?.email || company?.pic_email || opportunity.contact_email || null,
+      customer_phone: submitted("customer_phone") ? d.customer_phone || null : company?.phone || company?.pic_phone || opportunity.contact_phone || null,
+      billing_address: submitted("billing_address") ? d.billing_address || null : company?.billing_address || company?.address || null,
+      training_service_address: submitted("training_service_address") ? d.training_service_address || null : null,
+      training_details: d.training_details,
     })
     .select("id, quotation_no")
     .single();
   if (error) return { message: error.message };
 
   const { error: itemsError } = await supabase.from("sales_quotation_items").insert(
-    d.items.map((item, index) => ({
+    preparedItems.rows.map((item, index) => ({
       quotation_id: quotation.id,
       description: item.description,
       quantity: item.quantity,
@@ -99,6 +170,10 @@ export async function createQuotation(
       unit_price: item.unit_price,
       discount: item.discount,
       sort_order: index,
+      course_id: item.course_id,
+      course_name_snapshot: item.course_name_snapshot,
+      hrdf_claim: item.hrdf_claim,
+      package_includes_snapshot: item.package_includes_snapshot,
     }))
   );
   if (itemsError) return { message: itemsError.message };
@@ -123,6 +198,13 @@ export async function updateQuotationDraft(
   await requireRole("admin");
   await requireModuleAccess("sales_quotations");
   const parsed = quotationHeaderSchema.safeParse({
+    customer_company_name: formData.get("customer_company_name") ?? "",
+    customer_contact_name: formData.get("customer_contact_name") ?? "",
+    customer_registration_no: formData.get("customer_registration_no") ?? "",
+    customer_email: formData.get("customer_email") ?? "",
+    customer_phone: formData.get("customer_phone") ?? "",
+    billing_address: formData.get("billing_address") ?? "",
+    training_service_address: formData.get("training_service_address") ?? "",
     valid_until: formData.get("valid_until") ?? "",
     currency: formData.get("currency") || "MYR",
     discount: formData.get("discount") || 0,
@@ -130,6 +212,7 @@ export async function updateQuotationDraft(
     sst_rate: formData.get("sst_rate") || 0,
     terms: formData.get("terms") ?? "",
     notes: formData.get("notes") ?? "",
+    training_details: parseTrainingDetailsField(formData.get("training_details")),
     items: parseItemsField(formData.get("items")),
   });
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
@@ -139,6 +222,8 @@ export async function updateQuotationDraft(
   const { data: existing } = await supabase.from("sales_quotations").select("status, opportunity_id").eq("id", quotationId).maybeSingle();
   if (!existing) return { message: "Quotation not found." };
   if (existing.status !== "draft") return { message: "Only draft quotations can be edited. Create a revision instead." };
+  const preparedItems = await prepareQuotationItems(supabase, d.items);
+  if ("error" in preparedItems) return { message: preparedItems.error };
 
   const totals = computeQuotationTotals({
     items: d.items.map((i) => ({ quantity: i.quantity, unitPrice: i.unit_price, discount: i.discount })),
@@ -146,6 +231,8 @@ export async function updateQuotationDraft(
     sstApplicable: d.sst_applicable,
     sstRate: d.sst_rate,
   });
+  const sstRate = d.sst_applicable ? d.sst_rate : 0;
+  if (totals.taxableAmount < 0 || totals.total < 0) return { message: "Discount cannot exceed the quotation amount." };
 
   const { error } = await supabase
     .from("sales_quotations")
@@ -155,19 +242,28 @@ export async function updateQuotationDraft(
       subtotal: totals.subtotal,
       discount: d.discount,
       sst_applicable: d.sst_applicable,
-      sst_rate: d.sst_rate,
+      sst_rate: sstRate,
+      sst_amount: totals.tax,
       tax: totals.tax,
       total: totals.total,
       terms: d.terms || null,
       notes: d.notes || null,
       updated_at: new Date().toISOString(),
+      customer_company_name: d.customer_company_name || null,
+      customer_contact_name: d.customer_contact_name || null,
+      customer_registration_no: d.customer_registration_no || null,
+      customer_email: d.customer_email || null,
+      customer_phone: d.customer_phone || null,
+      billing_address: d.billing_address || null,
+      training_service_address: d.training_service_address || null,
+      training_details: d.training_details,
     })
     .eq("id", quotationId);
   if (error) return { message: error.message };
 
   await supabase.from("sales_quotation_items").delete().eq("quotation_id", quotationId);
   const { error: itemsError } = await supabase.from("sales_quotation_items").insert(
-    d.items.map((item, index) => ({
+    preparedItems.rows.map((item, index) => ({
       quotation_id: quotationId,
       description: item.description,
       quantity: item.quantity,
@@ -175,6 +271,10 @@ export async function updateQuotationDraft(
       unit_price: item.unit_price,
       discount: item.discount,
       sort_order: index,
+      course_id: item.course_id,
+      course_name_snapshot: item.course_name_snapshot,
+      hrdf_claim: item.hrdf_claim,
+      package_includes_snapshot: item.package_includes_snapshot,
     }))
   );
   if (itemsError) return { message: itemsError.message };
@@ -263,7 +363,7 @@ export async function createRevision(quotationId: string, _prev: SalesActionStat
 
   const { data: sourceItems } = await supabase
     .from("sales_quotation_items")
-    .select("description, quantity, unit, unit_price, discount, sort_order")
+    .select("description, quantity, unit, unit_price, discount, sort_order, course_id, course_name_snapshot, hrdf_claim, package_includes_snapshot")
     .eq("quotation_id", quotationId)
     .order("sort_order");
 
@@ -289,12 +389,25 @@ export async function createRevision(quotationId: string, _prev: SalesActionStat
       currency: source.currency,
       subtotal: source.subtotal,
       discount: source.discount,
-      sst_applicable: source.sst_applicable,
-      sst_rate: source.sst_rate,
-      tax: source.tax,
+       sst_applicable: source.sst_applicable,
+       sst_rate: source.sst_rate,
+       sst_amount: source.sst_amount,
+       tax_label_snapshot: source.tax_label_snapshot,
+       tax_basis_snapshot: source.tax_basis_snapshot,
+       sst_registration_number_snapshot: source.sst_registration_number_snapshot,
+       sst_effective_date_snapshot: source.sst_effective_date_snapshot,
+       tax: source.tax,
       total: source.total,
       terms: source.terms,
       notes: source.notes,
+      customer_company_name: source.customer_company_name,
+      customer_contact_name: source.customer_contact_name,
+      customer_registration_no: source.customer_registration_no,
+      customer_email: source.customer_email,
+      customer_phone: source.customer_phone,
+      billing_address: source.billing_address,
+      training_service_address: source.training_service_address,
+      training_details: source.training_details,
       created_by: profile.id,
     })
     .select("id, quotation_no")

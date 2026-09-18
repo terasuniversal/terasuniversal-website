@@ -15,7 +15,8 @@ export function CompanySearchBox({ opportunityId }: { opportunityId: string }) {
   return (
     <div>
       <form action={searchAction} style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-        <input name="q" placeholder="Search company name…" style={{ flex: 1 }} />
+        <label htmlFor="opportunity-company-search" className="sr-only">Search company name</label>
+        <input id="opportunity-company-search" name="q" placeholder="Search company name…" style={{ flex: 1 }} />
         <button type="submit" className="ta-btn ta-btn-outline ta-btn-sm" disabled={pending}>
           {pending ? "Searching…" : "Search"}
         </button>

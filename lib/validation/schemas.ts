@@ -436,6 +436,23 @@ export const salesLeadStatusSchema = z
   });
 export type SalesLeadStatusInput = z.infer<typeof salesLeadStatusSchema>;
 
+export const salesLeadCreateSchema = z
+  .object({
+    contact_name: z.string().trim().min(1, "Name is required").max(120),
+    company_name: z.string().trim().max(160).optional().or(z.literal("")),
+    email: z.string().trim().email("Enter a valid email address").max(254).optional().or(z.literal("")),
+    phone: z.string().trim().max(40).optional().or(z.literal("")),
+    course_interest: z.string().trim().max(160).optional().or(z.literal("")),
+    notes: z.string().trim().max(3000).optional().or(z.literal("")),
+    source_channel: z.enum(["", "facebook", "tiktok", "whatsapp", "website", "referral", "other"]),
+    campaign_id: z.string().uuid().optional().or(z.literal("")),
+    attribution_notes: z.string().trim().max(3000).optional().or(z.literal("")),
+  })
+  .refine((value) => !!value.email || !!value.phone, {
+    message: "Email or phone is required",
+    path: ["email"],
+  });
+
 export const salesLeadAssignSchema = z.object({
   assigned_to: z.string().uuid().optional().or(z.literal("")),
 });
@@ -451,6 +468,17 @@ export const salesLeadFollowUpSchema = z.object({
   priority: z.enum(["low", "medium", "high"]).optional(),
 });
 export type SalesLeadFollowUpInput = z.infer<typeof salesLeadFollowUpSchema>;
+
+export const salesLeadQualificationSchema = z.object({
+  qualification_status: z.enum(["pending", "qualified", "unqualified"]),
+  reason: z.string().trim().optional().or(z.literal("")),
+}).superRefine((value, ctx) => {
+  if (value.qualification_status !== "pending" && !value.reason) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["reason"], message: "Select a reason for this qualification decision." });
+  }
+});
+
+export const salesLeadTemperatureSchema = z.object({ temperature: z.enum(["", "hot", "warm", "cold"]) });
 
 /**
  * Sales CRM Phase 2 — sales_opportunities / sales_quotations / sales_quotation_items mutations.
@@ -484,16 +512,49 @@ export const opportunityExpectedCloseSchema = z.object({
 });
 export type OpportunityExpectedCloseInput = z.infer<typeof opportunityExpectedCloseSchema>;
 
+const quotationParticipantNameSchema = z.string().trim().min(2).max(160).regex(/^[\p{L}\p{M}][\p{L}\p{M}\s.'’\-]*$/u, "Enter a plain participant name");
+
+export const quotationTrainingDetailsSchema = z.object({
+  schema_version: z.literal(1),
+  programme: z.object({
+    course_id: z.string().uuid().nullable(), course_name_snapshot: z.string().trim().max(200),
+    start_date: z.string().date().nullable(), end_date: z.string().date().nullable(), duration_label: z.string().trim().max(80),
+  }).strict(),
+  venue: z.object({ type: z.enum(["teras_hq", "in_house"]), name: z.string().trim().max(200), address: z.string().trim().max(1000) }).strict(),
+  participants: z.object({ count: z.coerce.number().int().min(0).max(1000), names: z.array(quotationParticipantNameSchema).max(100), tbc: z.boolean() }).strict(),
+  accommodation: z.object({ included: z.boolean(), description: z.string().trim().max(500), nights: z.coerce.number().int().positive().max(365).nullable() }).strict(),
+  meals: z.object({ included: z.boolean(), meals_per_day: z.coerce.number().int().positive().max(10).nullable(), description: z.string().trim().max(500) }).strict(),
+  inclusions: z.object({ training_notes: z.boolean(), practical_assessment: z.boolean(), certificate: z.boolean(), other: z.array(z.string().trim().min(1).max(200)).max(30) }).strict(),
+}).strict().superRefine((value, ctx) => {
+  if (value.programme.start_date && value.programme.end_date && value.programme.end_date < value.programme.start_date) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["programme", "end_date"], message: "End date must be on or after the start date" });
+  }
+  if (value.participants.names.length > value.participants.count) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["participants", "names"], message: "Participant names cannot exceed participant count" });
+  }
+});
+export type QuotationTrainingDetails = z.infer<typeof quotationTrainingDetailsSchema>;
+
 const quotationItemInputSchema = z.object({
   description: z.string().trim().min(1, "Description is required").max(500),
   quantity: z.coerce.number().positive("Quantity must be greater than 0"),
   unit: z.enum(["pax", "session", "day", "lot", "unit"]),
   unit_price: z.coerce.number().min(0, "Unit price cannot be negative"),
   discount: z.coerce.number().min(0, "Discount cannot be negative").default(0),
+  course_id: z.string().uuid().optional().or(z.literal("")),
+  hrdf_claim: z.boolean().default(false),
+  package_includes_snapshot: z.array(z.object({ key: z.string().trim().min(1).max(80), label: z.string().trim().min(1).max(200) })).default([]),
 });
 export type QuotationItemInput = z.infer<typeof quotationItemInputSchema>;
 
 export const quotationHeaderSchema = z.object({
+  customer_company_name: z.string().trim().max(200).optional().or(z.literal("")),
+  customer_contact_name: z.string().trim().max(200).optional().or(z.literal("")),
+  customer_registration_no: z.string().trim().max(100).optional().or(z.literal("")),
+  customer_email: z.string().trim().email("Enter a valid customer email").max(320).optional().or(z.literal("")),
+  customer_phone: z.string().trim().max(60).optional().or(z.literal("")),
+  billing_address: z.string().trim().max(1000).optional().or(z.literal("")),
+  training_service_address: z.string().trim().max(1000).optional().or(z.literal("")),
   valid_until: z.string().trim().optional().or(z.literal("")),
   currency: z.string().trim().min(1).max(10).default("MYR"),
   discount: z.coerce.number().min(0, "Discount cannot be negative").default(0),
@@ -501,6 +562,7 @@ export const quotationHeaderSchema = z.object({
   sst_rate: z.coerce.number().min(0).max(100).default(0),
   terms: z.string().trim().max(3000).optional().or(z.literal("")),
   notes: z.string().trim().max(3000).optional().or(z.literal("")),
+  training_details: quotationTrainingDetailsSchema,
   items: z.array(quotationItemInputSchema).min(1, "Add at least one line item"),
 });
 export type QuotationHeaderInput = z.infer<typeof quotationHeaderSchema>;

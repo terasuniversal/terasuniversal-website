@@ -7,8 +7,13 @@
     "lint": "node scripts/lint.mjs",
     "typecheck": "node scripts/typecheck.mjs",
     "check:toyyibpay-env": "node --experimental-transform-types scripts/check-toyyibpay-env-resolver.mts",
+    "test:quotation-training-details": "node --experimental-strip-types scripts/quotation-training-details-contract.mts",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "smoke:auth": "playwright test tests/e2e/auth.smoke.spec.ts",
+    "smoke:website": "playwright test tests/e2e/website.smoke.spec.ts",
+    "smoke:crm": "playwright test tests/e2e/crm.smoke.spec.ts",
+    "smoke:all": "playwright test tests/e2e/auth.smoke.spec.ts tests/e2e/website.smoke.spec.ts tests/e2e/crm.smoke.spec.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",
@@ -31,6 +36,7 @@
     "npm": ">=10"
   },
   "devDependencies": {
+    "@playwright/test": "^1.55.0",
     "@types/node": "^20.17.6",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19.2.17",

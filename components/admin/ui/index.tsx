@@ -1,4 +1,4 @@
-import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from "react";
+import { cloneElement, isValidElement, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
 import Link from "next/link";
 
 /* Reusable, dependency-free admin UI primitives. */
@@ -81,6 +81,23 @@ export function EmptyState({
   );
 }
 
+export function ErrorState({
+  message = "We couldn't load this data. Please try again.",
+  action,
+}: {
+  message?: string;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="ta-empty" role="alert">
+      <div className="ta-empty-ico" aria-hidden="true">!</div>
+      <div className="ta-empty-title">Unable to load this view</div>
+      <p>{message}</p>
+      {action && <div className="ta-empty-action">{action}</div>}
+    </div>
+  );
+}
+
 export function PageHead({
   title,
   subtitle,
@@ -153,16 +170,25 @@ export function Field({
   controlId?: string;
   children: ReactNode;
 }) {
-  const id = controlId ?? name;
+  const childHasId = isValidElement<{ id?: string }>(children) ? children.props.id : undefined;
+  const id = childHasId ?? controlId ?? name;
+  const describedBy = [hint ? `${id}-hint` : null, error ? `${id}-error` : null].filter(Boolean).join(" ");
+  const control = isValidElement<{ id?: string; "aria-describedby"?: string; "aria-invalid"?: boolean }>(children)
+    ? cloneElement(children, {
+        id: children.props.id ?? id,
+        "aria-describedby": [children.props["aria-describedby"], describedBy].filter(Boolean).join(" ") || undefined,
+        "aria-invalid": error ? true : children.props["aria-invalid"],
+      })
+    : children;
   return (
     <div className="ta-field">
       <label htmlFor={id}>
         {label}
         {required && <span className="ta-req" aria-hidden="true"> *</span>}
       </label>
-      {children}
-      {hint && <small style={{ color: "var(--ta-muted)" }}>{hint}</small>}
-      {error && <span className="ta-error">{error}</span>}
+      {control}
+      {hint && <small id={`${id}-hint`} style={{ color: "var(--ta-muted)" }}>{hint}</small>}
+      {error && <span id={`${id}-error`} className="ta-error">{error}</span>}
     </div>
   );
 }

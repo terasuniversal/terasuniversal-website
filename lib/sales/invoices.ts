@@ -41,8 +41,15 @@ export interface InvoiceRow {
   id: string;
   invoice_no: string;
   quotation_id: string;
+  quotation_number_snapshot: string | null;
   opportunity_id: string;
   company_id: string | null;
+  customer_company_name: string | null;
+  customer_contact_name: string | null;
+  customer_registration_no: string | null;
+  customer_email: string | null;
+  customer_phone: string | null;
+  training_service_address_snapshot: string | null;
   billing_name: string;
   billing_company: string | null;
   billing_registration_no: string | null;
@@ -57,6 +64,11 @@ export interface InvoiceRow {
   taxable_amount: number;
   tax_rate: number;
   tax_amount: number;
+  sst_applicable: boolean | null;
+  tax_label_snapshot: string | null;
+  tax_basis_snapshot: string | null;
+  sst_registration_number_snapshot: string | null;
+  sst_effective_date_snapshot: string | null;
   grand_total: number;
   amount_paid: number;
   balance_due: number;
@@ -84,6 +96,10 @@ export interface InvoiceItemRow {
   line_total: number;
   sort_order: number;
   source_quotation_item_id: string | null;
+  course_id_snapshot: string | null;
+  course_name_snapshot: string | null;
+  hrdf_claim: boolean | null;
+  package_includes_snapshot: Array<Record<string, unknown>>;
 }
 
 /** Row shape of public.invoice_payments. */
@@ -99,6 +115,8 @@ export interface InvoicePaymentRow {
   provider_transaction_id: string | null;
   provider_reference: string | null;
   payment_reference: string | null;
+  payment_source: "customer" | "hrdf" | null;
+  hrdf_claim_id: string | null;
   notes: string | null;
   /** Nullable since Phase 2A: means "the payment actually succeeded" -- a pending ToyyibPay attempt has none yet. */
   paid_at: string | null;

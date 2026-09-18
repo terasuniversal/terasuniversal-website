@@ -8,16 +8,65 @@ import { redirect } from "next/navigation";
 import { formatMalaysiaDateTime } from "../../../../../lib/date-time";
 import {
   salesLeadStatusSchema,
+  salesLeadCreateSchema,
   salesLeadAssignSchema,
   salesLeadNoteSchema,
   salesLeadFollowUpSchema,
   convertLeadToOpportunitySchema,
   fieldErrors,
   leadAttributionSchema,
+  salesLeadQualificationSchema,
+  salesLeadTemperatureSchema,
 } from "../../../../../lib/validation/schemas";
 import { LOST_REASON_LABELS, type SalesCrmLostReason } from "../../../../../lib/sales/crm";
+import { DISQUALIFICATION_REASONS, DISQUALIFICATION_REASON_LABELS, QUALIFICATION_REASONS, QUALIFICATION_REASON_LABELS } from "../../../../../lib/sales/qualification";
 
 export type SalesActionState = { message?: string; errors?: Record<string, string> };
+
+export async function createLead(
+  _prev: SalesActionState,
+  formData: FormData,
+): Promise<SalesActionState> {
+  await requireRole("editor");
+  await requireModuleAccess("sales_leads");
+
+  const parsed = salesLeadCreateSchema.safeParse({
+    contact_name: formData.get("contact_name"),
+    company_name: formData.get("company_name") ?? "",
+    email: formData.get("email"),
+    phone: formData.get("phone"),
+    course_interest: formData.get("course_interest") ?? "",
+    notes: formData.get("notes") ?? "",
+    source_channel: formData.get("source_channel") ?? "",
+    campaign_id: formData.get("campaign_id") ?? "",
+    attribution_notes: formData.get("attribution_notes") ?? "",
+  });
+  if (!parsed.success) return { errors: fieldErrors(parsed.error) };
+
+  const supabase = await createSupabaseServerClient();
+  const { data: leadId, error } = await supabase.rpc("create_internal_sales_lead", {
+    p_contact_name: parsed.data.contact_name,
+    p_email: parsed.data.email || null,
+    p_phone: parsed.data.phone || null,
+    p_company_name: parsed.data.company_name || null,
+    p_course_interest: parsed.data.course_interest || null,
+    p_notes: parsed.data.notes || null,
+    p_source_channel: parsed.data.source_channel || null,
+    p_campaign_id: parsed.data.campaign_id || null,
+    p_attribution_notes: parsed.data.attribution_notes || null,
+  });
+
+  if (error || !leadId) {
+    if (error?.message?.includes("contact_method_required")) return { message: "Enter an email address or phone number." };
+    if (error?.message?.includes("invalid_email")) return { message: "Enter a valid email address." };
+    if (error?.message?.includes("invalid_attribution_source")) return { message: "Select a valid source channel." };
+    return { message: error?.message ?? "Unable to create the lead." };
+  }
+
+  revalidatePath("/admin/sales/leads");
+  revalidatePath("/admin/sales");
+  redirect(`/admin/sales/leads/${leadId}`);
+}
 
 export async function setLeadAttribution(leadMetadataId: string, formData: FormData): Promise<void> {
   const profile = await requireRole("editor");
@@ -43,9 +92,10 @@ async function logActivity(
   leadMetadataId: string,
   type: string,
   note: string | null,
-  actorId: string
+  actorId: string,
+  metadata?: Record<string, unknown>
 ) {
-  await supabase.from("sales_activity").insert({ lead_metadata_id: leadMetadataId, type, note, actor_id: actorId });
+  await supabase.from("sales_activity").insert({ lead_metadata_id: leadMetadataId, type, note, actor_id: actorId, ...(metadata ? { metadata } : {}) });
 }
 
 /** Status transitions (incl. Mark Won / Mark Lost) — admin+ only, per sales_lead_metadata's RLS. */
@@ -130,6 +180,7 @@ export async function setLeadFollowUp(
   const followUpAt = parsed.data.follow_up_at ? new Date(parsed.data.follow_up_at).toISOString() : null;
 
   const supabase = await createSupabaseServerClient();
+  const { data: existing } = await supabase.from("sales_lead_metadata").select("priority").eq("id", leadMetadataId).maybeSingle();
   const patch: Record<string, unknown> = { follow_up_at: followUpAt, updated_at: new Date().toISOString() };
   if (parsed.data.priority) patch.priority = parsed.data.priority;
   const { error } = await supabase.from("sales_lead_metadata").update(patch).eq("id", leadMetadataId);
@@ -144,7 +195,74 @@ export async function setLeadFollowUp(
       profile.id
     );
   }
+  if (parsed.data.priority && existing?.priority && existing.priority !== parsed.data.priority) {
+    await logActivity(supabase, leadMetadataId, "priority_changed", `Priority changed to ${parsed.data.priority}`, profile.id, { old_value: existing.priority, new_value: parsed.data.priority });
+  }
 
+  revalidateLead(leadMetadataId);
+  return {};
+}
+
+const QUALIFICATION_REASON_SET = new Set<string>(QUALIFICATION_REASONS);
+const DISQUALIFICATION_REASON_SET = new Set<string>(DISQUALIFICATION_REASONS);
+
+export async function updateLeadQualification(
+  leadMetadataId: string,
+  _prev: SalesActionState,
+  formData: FormData
+): Promise<SalesActionState> {
+  const profile = await requireRole("admin");
+  await requireModuleAccess("sales_leads");
+  const parsed = salesLeadQualificationSchema.safeParse({
+    qualification_status: formData.get("qualification_status"),
+    reason: formData.get("reason") ?? "",
+  });
+  if (!parsed.success) return { errors: fieldErrors(parsed.error) };
+  const { qualification_status, reason } = parsed.data;
+  const reasonValue = reason ?? "";
+  if (qualification_status === "qualified" && !QUALIFICATION_REASON_SET.has(reasonValue)) return { message: "Select a valid qualification reason." };
+  if (qualification_status === "unqualified" && !DISQUALIFICATION_REASON_SET.has(reasonValue)) return { message: "Select a valid disqualification reason." };
+  if (qualification_status === "pending" && reasonValue) return { message: "Pending Leads cannot have a qualification reason." };
+
+  const supabase = await createSupabaseServerClient();
+  const { data: current, error: readError } = await supabase.from("sales_lead_metadata").select("qualification_status, qualification_reason, disqualification_reason").eq("id", leadMetadataId).maybeSingle();
+  if (readError || !current) return { message: readError?.message ?? "Lead not found." };
+  if (current.qualification_status === qualification_status && (current.qualification_reason ?? current.disqualification_reason ?? null) === (reasonValue || null)) return {};
+
+  const patch = {
+    qualification_status,
+    qualification_reason: qualification_status === "qualified" ? reasonValue : null,
+    disqualification_reason: qualification_status === "unqualified" ? reasonValue : null,
+    qualification_changed_at: new Date().toISOString(),
+    qualification_changed_by: profile.id,
+    updated_at: new Date().toISOString(),
+  };
+  const { error } = await supabase.from("sales_lead_metadata").update(patch).eq("id", leadMetadataId);
+  if (error) return { message: error.message };
+  const oldValue = current.qualification_status;
+  const label = qualification_status === "qualified" ? QUALIFICATION_REASON_LABELS[reasonValue as keyof typeof QUALIFICATION_REASON_LABELS] : qualification_status === "unqualified" ? DISQUALIFICATION_REASON_LABELS[reasonValue as keyof typeof DISQUALIFICATION_REASON_LABELS] : null;
+  await logActivity(supabase, leadMetadataId, "qualification_changed", `Qualification changed to ${qualification_status}${label ? ` — ${label}` : ""}`, profile.id, { old_value: oldValue, new_value: qualification_status, reason: reasonValue || null });
+  revalidateLead(leadMetadataId);
+  return {};
+}
+
+export async function updateLeadTemperature(
+  leadMetadataId: string,
+  _prev: SalesActionState,
+  formData: FormData
+): Promise<SalesActionState> {
+  const profile = await requireRole("admin");
+  await requireModuleAccess("sales_leads");
+  const parsed = salesLeadTemperatureSchema.safeParse({ temperature: formData.get("temperature") ?? "" });
+  if (!parsed.success) return { errors: fieldErrors(parsed.error) };
+  const nextTemperature = parsed.data.temperature || null;
+  const supabase = await createSupabaseServerClient();
+  const { data: current, error: readError } = await supabase.from("sales_lead_metadata").select("temperature").eq("id", leadMetadataId).maybeSingle();
+  if (readError || !current) return { message: readError?.message ?? "Lead not found." };
+  if ((current.temperature ?? null) === nextTemperature) return {};
+  const { error } = await supabase.from("sales_lead_metadata").update({ temperature: nextTemperature, updated_at: new Date().toISOString() }).eq("id", leadMetadataId);
+  if (error) return { message: error.message };
+  await logActivity(supabase, leadMetadataId, "temperature_changed", `Temperature changed to ${nextTemperature ?? "Not set"}`, profile.id, { old_value: current.temperature, new_value: nextTemperature });
   revalidateLead(leadMetadataId);
   return {};
 }

@@ -5,10 +5,11 @@ import { requireRole, requireModuleAccess } from "../../../../../../lib/auth/ses
 import { isAdmin, isSuperAdmin } from "../../../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, EmptyState } from "../../../../../../components/admin/ui";
 import { FollowUpBadge } from "../../../../../../components/admin/sales/FollowUpBadge";
-import { SOURCE_LABELS, followUpState, type SalesLeadInboxRow, type SalesActivityRow } from "../../../../../../lib/sales/crm";
+import { PRIORITY_LABELS, SOURCE_LABELS, followUpState, type SalesLeadInboxRow, type SalesActivityRow } from "../../../../../../lib/sales/crm";
 import { LeadActionsPanel } from "./LeadActionsPanel";
 import { LeadActivityTimeline } from "./LeadActivityTimeline";
 import { formatMalaysiaDateTime } from "../../../../../../lib/date-time";
+import { ageLabel, daysSinceActivityLabel, qualificationLabel, temperatureLabel, QUALIFICATION_REASON_LABELS, DISQUALIFICATION_REASON_LABELS } from "../../../../../../lib/sales/qualification";
 import { checkLeadRegistrationEligibility } from "../registration-schedules";
 import { setLeadAttribution } from "../actions";
 import { LEAD_ATTRIBUTION_SOURCE_LABELS, LEAD_ATTRIBUTION_SOURCES, type LeadAttributionRow } from "../../../../../../lib/marketing/crm";
@@ -26,6 +27,10 @@ interface ProposalSource {
   industry: string; category: string; programme: string | null; participants: number | null;
   location: string | null; preferred_month: string | null; budget: string | null; objectives: string; notes: string | null; created_at: string;
 }
+interface InternalSource {
+  contact_name: string; company_name: string | null; email: string | null; phone: string | null;
+  course_interest: string | null; notes: string | null; created_at: string;
+}
 
 function MarketingContactSourceDetail({ source }: { source: MarketingContact }) {
   return (
@@ -38,6 +43,20 @@ function MarketingContactSourceDetail({ source }: { source: MarketingContact }) 
           <Detail label="Consent" value={source.consent_status.replace(/_/g, " ")} />
           <Detail label="Created" value={formatMalaysiaDateTime(source.created_at)} />
         </dl>
+      </div>
+    </Card>
+  );
+}
+
+function InternalSourceDetail({ source }: { source: InternalSource }) {
+  return (
+    <Card title="Internal CRM entry">
+      <div className="ta-card-pad">
+        <dl className="ta-kv">
+          <Detail label="Course / Interest" value={source.course_interest} />
+          <Detail label="Created" value={formatMalaysiaDateTime(source.created_at)} />
+        </dl>
+        {source.notes && <><h4 className="ta-subhead">Notes</h4><p className="ta-pre-wrap">{source.notes}</p></>}
       </div>
     </Card>
   );
@@ -65,58 +84,50 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
   if (!lead) notFound();
   const row = lead as SalesLeadInboxRow;
 
-  let source: EnquirySource | ProposalSource | MarketingContact | null = null;
-  if (row.lead_source === "enquiry") {
-    const { data } = await supabase.from("enquiries").select("*").eq("id", row.source_id).maybeSingle();
-    source = data as EnquirySource | null;
-  } else if (row.lead_source === "proposal_request") {
-    const { data } = await supabase.from("proposal_requests").select("*").eq("id", row.source_id).maybeSingle();
-    source = data as ProposalSource | null;
-  } else if (row.lead_source === "marketing_contact") {
-    const { data } = await supabase.from("marketing_contacts").select("*").eq("id", row.source_id).maybeSingle();
-    source = data as MarketingContact | null;
-  }
+  const [sourceResult, activityResult, attributionResult, campaignsResult, staffResult, profilesResult, opportunityResult, moduleAccessResult, nextActionResult, qualificationResult] = await Promise.all([
+    row.lead_source === "enquiry"
+      ? supabase.from("enquiries").select("*").eq("id", row.source_id).maybeSingle()
+      : row.lead_source === "proposal_request"
+        ? supabase.from("proposal_requests").select("*").eq("id", row.source_id).maybeSingle()
+        : row.lead_source === "marketing_contact"
+          ? supabase.from("marketing_contacts").select("*").eq("id", row.source_id).maybeSingle()
+          : row.lead_source === "internal"
+            ? supabase.from("sales_internal_lead_sources").select("*").eq("id", row.source_id).maybeSingle()
+          : Promise.resolve({ data: null }),
+    supabase.from("sales_activity").select("*").eq("lead_metadata_id", id).order("created_at", { ascending: true }),
+    supabase.from("sales_lead_attributions").select("*, marketing_campaigns(name)").eq("lead_metadata_id", id).maybeSingle(),
+    supabase.from("marketing_campaigns").select("id, name, status").neq("status", "archived").order("name"),
+    supabase.from("profiles").select("id, full_name").eq("is_active", true).order("full_name"),
+    supabase.from("profiles").select("id, full_name"),
+    supabase.from("sales_opportunities").select("id, opportunity_no").eq("lead_metadata_id", id).maybeSingle(),
+    supabase.rpc("get_my_module_access"),
+    supabase
+      .from("sales_tasks")
+      .select("id, title, status, priority, due_at")
+      .eq("lead_metadata_id", id)
+      .is("deleted_at", null)
+      .not("status", "in", "(completed,cancelled)")
+      .order("due_at", { ascending: true, nullsFirst: false })
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle(),
+    supabase.from("sales_lead_metadata").select("qualification_status, temperature, qualification_reason, disqualification_reason, qualification_changed_at, qualification_changed_by, created_at").eq("id", id).maybeSingle(),
+  ]);
 
-  const { data: activityRows } = await supabase
-    .from("sales_activity")
-    .select("*")
-    .eq("lead_metadata_id", id)
-    .order("created_at", { ascending: true });
+  const source = sourceResult.data as EnquirySource | ProposalSource | MarketingContact | InternalSource | null;
+  const activityRows = (activityResult.data ?? []) as Array<{ created_at: string; [key: string]: unknown }>;
+  const attributionError = attributionResult.error;
+  const campaignsError = campaignsResult.error;
+  const attribution = attributionResult.data as (LeadAttributionRow & { marketing_campaigns?: { name: string } | null }) | null;
+  const campaignOptions = (campaignsResult.data ?? []) as { id: string; name: string; status: string }[];
+  const staff = (staffResult.data ?? []) as { id: string; full_name: string }[];
+  const actorNames = new Map(((profilesResult.data ?? []) as { id: string; full_name: string }[]).map((p) => [p.id, p.full_name]));
+  const existingOpportunity = opportunityResult.data;
+  const nextAction = nextActionResult.data as { id: string; title: string; status: string; priority: string; due_at: string | null } | null;
+  const qualification = qualificationResult.data as { qualification_status: string; temperature: string | null; qualification_reason: string | null; disqualification_reason: string | null; qualification_changed_at: string | null; qualification_changed_by: string | null; created_at: string } | null;
+  const lastActivityAt = (activityRows ?? []).reduce<string | null>((latest, activity) => !latest || activity.created_at > latest ? activity.created_at : latest, null);
 
-  const { data: attributionData, error: attributionError } = await supabase.from("sales_lead_attributions").select("*, marketing_campaigns(name)").eq("lead_metadata_id", id).maybeSingle();
-  const attribution = attributionData as (LeadAttributionRow & { marketing_campaigns?: { name: string } | null }) | null;
-  const { data: campaignRows, error: campaignsError } = await supabase.from("marketing_campaigns").select("id, name, status").neq("status", "archived").order("name");
-  const campaignOptions = (campaignRows ?? []) as { id: string; name: string; status: string }[];
-
-  const { data: profileRows } = await supabase.from("profiles").select("id, full_name, is_active").order("full_name");
-  const profiles = (profileRows ?? []) as { id: string; full_name: string; is_active: boolean }[];
-  const staff = profiles.filter((p) => p.is_active).map(({ id, full_name }) => ({ id, full_name }));
-  const actorNames = new Map(profiles.map((p) => [p.id, p.full_name]));
-
-  const { data: existingOpportunity } = await supabase
-    .from("sales_opportunities")
-    .select("id, opportunity_no")
-    .eq("lead_metadata_id", id)
-    .maybeSingle();
-
-  // Personal/Company Registration — the lead's registered schedule outcome,
-  // and whether the current staff member may register (needs participants +
-  // schedules + sales_leads module access; the page already enforces editor+).
-  const { data: regMeta } = await supabase
-    .from("sales_lead_metadata")
-    .select("registration_schedule_id")
-    .eq("id", id)
-    .maybeSingle();
-  let registeredSchedule: { id: string; schedule_code: string; course_name: string } | null = null;
-  if (regMeta?.registration_schedule_id) {
-    const { data: rs } = await supabase
-      .from("course_schedules")
-      .select("id, schedule_code, courses(course_name)")
-      .eq("id", regMeta.registration_schedule_id)
-      .maybeSingle();
-    registeredSchedule = rs as any ?? null;
-  }
-  const { data: moduleAccess } = await supabase.rpc("get_my_module_access");
+  const moduleAccess = moduleAccessResult.data;
   const modules = Array.isArray(moduleAccess) ? moduleAccess.map((m: { module_key: string }) => m.module_key) : [];
   const canRegister = modules.includes("sales_leads") && modules.includes("participants") && modules.includes("schedules");
   const registrationEligibility = checkLeadRegistrationEligibility({ status: row.status, is_test: row.is_test });
@@ -158,16 +169,16 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
             {sp.attributionSaved && <div className="ta-alert ta-alert-success" role="status">Marketing attribution saved.</div>}
             <form action={setLeadAttribution.bind(null, id)} className="ta-form-pad">
               <div className="ta-field-row">
-                <label className="ta-field">Source<select name="source" defaultValue={attribution?.source ?? "website"}>{LEAD_ATTRIBUTION_SOURCES.map((source) => <option key={source} value={source}>{LEAD_ATTRIBUTION_SOURCE_LABELS[source]}</option>)}</select></label>
-                <label className="ta-field">Campaign<select name="campaign_id" defaultValue={attribution?.campaign_id ?? ""}><option value="">No campaign</option>{campaignOptions.map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}</select></label>
+                <label className="ta-field" htmlFor="lead-attribution-source">Source<select id="lead-attribution-source" name="source" defaultValue={attribution?.source ?? ""}><option value="">Manual / No attribution</option>{LEAD_ATTRIBUTION_SOURCES.map((source) => <option key={source} value={source}>{LEAD_ATTRIBUTION_SOURCE_LABELS[source]}</option>)}</select></label>
+                <label className="ta-field" htmlFor="lead-attribution-campaign">Campaign<select id="lead-attribution-campaign" name="campaign_id" defaultValue={attribution?.campaign_id ?? ""}><option value="">No campaign</option>{campaignOptions.map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}</select></label>
               </div>
               <div className="ta-field-row">
-                {(["utm_source", "utm_medium", "utm_campaign"] as const).map((field) => <label key={field} className="ta-field">{field.replace("utm_", "UTM ")}<input name={field} defaultValue={attribution?.[field] ?? ""} maxLength={160} /></label>)}
+                {(["utm_source", "utm_medium", "utm_campaign"] as const).map((field) => <label key={field} className="ta-field" htmlFor={`lead-attribution-${field}`}>{field.replace("utm_", "UTM ")}<input id={`lead-attribution-${field}`} name={field} defaultValue={attribution?.[field] ?? ""} maxLength={160} /></label>)}
               </div>
               <div className="ta-field-row">
-                {(["utm_content", "utm_term"] as const).map((field) => <label key={field} className="ta-field">{field.replace("utm_", "UTM ")}<input name={field} defaultValue={attribution?.[field] ?? ""} maxLength={160} /></label>)}
+                {(["utm_content", "utm_term"] as const).map((field) => <label key={field} className="ta-field" htmlFor={`lead-attribution-${field}`}>{field.replace("utm_", "UTM ")}<input id={`lead-attribution-${field}`} name={field} defaultValue={attribution?.[field] ?? ""} maxLength={160} /></label>)}
               </div>
-              <label className="ta-field">Notes<textarea name="notes" rows={2} defaultValue={attribution?.notes ?? ""} /></label>
+              <label className="ta-field" htmlFor="lead-attribution-notes">Notes<textarea id="lead-attribution-notes" name="notes" rows={2} defaultValue={attribution?.notes ?? ""} /></label>
               <div><button type="submit" className="ta-btn ta-btn-outline ta-btn-sm">Save attribution</button>{attribution?.marketing_campaigns?.name && <span className="ta-muted-sub" style={{ marginLeft: 10 }}>Currently linked to {attribution.marketing_campaigns.name}</span>}</div>
             </form>
           </Card>
@@ -178,29 +189,21 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
             <ProposalDetail source={source as ProposalSource} />
           ) : row.lead_source === "marketing_contact" && source ? (
             <MarketingContactSourceDetail source={source as MarketingContact} />
+          ) : row.lead_source === "internal" && source ? (
+            <InternalSourceDetail source={source as InternalSource} />
           ) : (
             <Card title="Original submission">
               <EmptyState message="The original submission record could not be found — it may have been removed." />
             </Card>
           )}
 
-          <LeadActivityTimeline activities={(activityRows ?? []) as SalesActivityRow[]} actorNames={actorNames} />
+          <LeadActivityTimeline activities={(activityRows ?? []) as unknown as SalesActivityRow[]} actorNames={actorNames} />
         </div>
 
         <div className="ta-lead-detail-side">
           {canRegister && (
             <Card title="Registration">
               <div className="ta-card-pad ta-stack">
-                {registeredSchedule ? (
-                  <p style={{ margin: 0, fontSize: 13, color: "var(--ta-muted)" }}>
-                    <strong>Registered to</strong>{" "}
-                    <Link href={`/admin/schedules/${registeredSchedule.id}`} className="ta-link">
-                      {registeredSchedule.course_name} · {registeredSchedule.schedule_code}
-                    </Link>
-                  </p>
-                ) : (
-                  <p style={{ margin: 0, fontSize: 13, color: "var(--ta-muted)" }}>Not registered to a schedule yet.</p>
-                )}
                 {registrationEligibility.eligible ? (
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     <Link href={`/admin/sales/leads/${id}/personal-registration`} className="ta-btn ta-btn-outline ta-btn-sm">
@@ -219,6 +222,38 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
             </Card>
           )}
 
+          <Card title="Next Action">
+            <div className="ta-card-pad ta-stack">
+              {nextAction ? (
+                <>
+                  <strong>{nextAction.title}</strong>
+                  <span className="ta-muted-sub">
+                    {nextAction.due_at ? `Due ${formatMalaysiaDateTime(nextAction.due_at)}` : "No due date"} · {nextAction.status.replace(/_/g, " ")}
+                  </span>
+                  <Link href={`/admin/sales/tasks/${nextAction.id}`} className="ta-btn ta-btn-outline ta-btn-sm">View / update task</Link>
+                </>
+              ) : (
+                <>
+                  <span className="ta-muted-sub">No active next action.</span>
+                  <Link href={`/admin/sales/tasks/new?leadId=${id}`} className="ta-btn ta-btn-outline ta-btn-sm">Add task</Link>
+                </>
+              )}
+            </div>
+          </Card>
+
+          <Card title="Sales Qualification">
+            <div className="ta-card-pad">
+              <dl className="ta-kv">
+                <Detail label="Qualification" value={qualificationLabel(qualification?.qualification_status)} />
+                <Detail label="Reason" value={qualification?.qualification_status === "qualified" ? QUALIFICATION_REASON_LABELS[qualification.qualification_reason as keyof typeof QUALIFICATION_REASON_LABELS] : DISQUALIFICATION_REASON_LABELS[qualification?.disqualification_reason as keyof typeof DISQUALIFICATION_REASON_LABELS]} />
+                <Detail label="Temperature" value={temperatureLabel(qualification?.temperature)} />
+                <Detail label="Priority" value={PRIORITY_LABELS[row.priority]} />
+                <Detail label="Lead age" value={ageLabel(qualification?.created_at ?? row.created_at)} />
+                <Detail label="Last activity" value={daysSinceActivityLabel(lastActivityAt)} />
+              </dl>
+            </div>
+          </Card>
+
           <LeadActionsPanel
             leadMetadataId={row.lead_metadata_id}
             status={row.status}
@@ -231,6 +266,10 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
             defaultOpportunityTitle={row.subject ?? undefined}
             isSuperAdmin={superAdmin}
             isTest={row.is_test}
+            qualificationStatus={qualification?.qualification_status ?? "pending"}
+            temperature={qualification?.temperature ?? null}
+            qualificationReason={qualification?.qualification_reason ?? null}
+            disqualificationReason={qualification?.disqualification_reason ?? null}
           />
         </div>
       </div>

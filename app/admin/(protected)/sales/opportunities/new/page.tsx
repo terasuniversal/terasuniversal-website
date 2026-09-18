@@ -1,5 +1,6 @@
-import { redirect } from "next/navigation";
+import Link from "next/link";
 import { requireRole, requireModuleAccess } from "../../../../../../lib/auth/session";
+import { Card, EmptyState, PageHead } from "../../../../../../components/admin/ui";
 
 /**
  * Production rule: opportunities originate exclusively from Lead → Convert
@@ -12,13 +13,23 @@ import { requireRole, requireModuleAccess } from "../../../../../../lib/auth/ses
  * staff create an opportunity with no real source lead, bypassing the
  * qualification/duplicate-prevention rules the real flow enforces.
  *
- * Smallest safe fix: redirect to the real entry point instead. The demo
- * form/component/mock-data files are untouched on disk, per instruction not
- * to delete demo source modules unnecessarily — only this route no longer
- * serves them.
+ * This route remains intentionally non-creating. It explains the real entry
+ * point instead of silently redirecting staff away from the requested action.
  */
 export default async function SalesNewOpportunityPage() {
   await requireRole("editor");
   await requireModuleAccess("sales_opportunities");
-  redirect("/admin/sales/leads");
+  return (
+    <>
+      <PageHead title="Create Opportunity" subtitle="Opportunities are created from a qualified Lead." />
+      <Card>
+        <EmptyState
+          icon="🎯"
+          title="Start with a qualified Lead"
+          message="Convert a qualified Lead from Lead Detail to create the linked Opportunity and preserve the enquiry history."
+          action={<Link href="/admin/sales/leads" className="ta-btn ta-btn-primary">Go to Leads</Link>}
+        />
+      </Card>
+    </>
+  );
 }

@@ -13,6 +13,13 @@
  */
 
 export type ContentStatus = "draft" | "scheduled" | "published" | "archived";
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[];
 export type UserRole =
   | "super_admin"
   | "admin"
@@ -133,6 +140,60 @@ export interface Course {
   competency_required: boolean;
   certificate_generation_enabled: boolean;
   certificate_template_id: string | null;
+}
+
+export interface CourseCommercialProfile {
+  id: string;
+  course_id: string;
+  standard_display_name: string;
+  hrdf_display_name: string | null;
+  hrdf_claimable: boolean;
+  quotation_description: string;
+  package_includes: Json[];
+  accommodation_included_default: boolean;
+  accommodation_description_default: string | null;
+  meals_included_default: boolean;
+  meals_description_default: string | null;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type HrdfClaimStatus =
+  | "grant_pending" | "grant_approved" | "grant_rejected"
+  | "training_in_progress" | "training_completed" | "claim_ready"
+  | "claim_submitted" | "claim_approved" | "claim_rejected"
+  | "payment_received" | "cancelled";
+
+export interface HrdfClaim {
+  id: string;
+  invoice_id: string;
+  training_schedule_id: string | null;
+  status: HrdfClaimStatus;
+  hrdf_items_snapshot: Json[];
+  invoice_number_snapshot: string;
+  invoice_total_snapshot: number;
+  currency: string;
+  grant_reference: string | null;
+  grant_application_date: string | null;
+  grant_approved_date: string | null;
+  grant_amount: number | null;
+  claim_reference: string | null;
+  claim_submitted_date: string | null;
+  claim_amount: number | null;
+  approved_amount: number | null;
+  claim_approved_date: string | null;
+  claim_rejected_date: string | null;
+  rejection_reason: string | null;
+  payment_received_date: string | null;
+  payment_received_amount: number;
+  payment_reference: string | null;
+  remarks: string | null;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Enquiry {
@@ -274,6 +335,92 @@ export interface SalesLeadAttribution {
   updated_at: string;
 }
 
+export interface SalesInternalLeadSource {
+  id: string;
+  contact_name: string;
+  email: string | null;
+  phone: string | null;
+  company_name: string | null;
+  course_interest: string | null;
+  notes: string | null;
+  created_by: string;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Exact staging-generated row shape for the Sales Lead qualification fields. */
+export interface SalesLeadMetadata {
+  assigned_to: string | null;
+  created_at: string;
+  disqualification_reason: string | null;
+  follow_up_at: string | null;
+  id: string;
+  is_test: boolean;
+  lead_source: string;
+  lost_reason: string | null;
+  priority: string;
+  qualification_changed_at: string | null;
+  qualification_changed_by: string | null;
+  qualification_reason: string | null;
+  qualification_status: string;
+  source_id: string;
+  status: string;
+  temperature: string | null;
+  updated_at: string;
+  won_at: string | null;
+}
+
+export interface SalesLeadMetadataInsert {
+  assigned_to?: string | null;
+  created_at?: string;
+  disqualification_reason?: string | null;
+  follow_up_at?: string | null;
+  id?: string;
+  is_test?: boolean;
+  lead_source: string;
+  lost_reason?: string | null;
+  priority?: string;
+  qualification_changed_at?: string | null;
+  qualification_changed_by?: string | null;
+  qualification_reason?: string | null;
+  qualification_status?: string;
+  source_id: string;
+  status?: string;
+  temperature?: string | null;
+  updated_at?: string;
+  won_at?: string | null;
+}
+
+export type SalesLeadMetadataUpdate = Partial<SalesLeadMetadataInsert>;
+
+/** Exact staging-generated row shape for append-only Sales Activity metadata. */
+export interface SalesActivity {
+  actor_id: string | null;
+  created_at: string;
+  id: string;
+  lead_metadata_id: string;
+  metadata: Json;
+  note: string | null;
+  opportunity_id: string | null;
+  quotation_id: string | null;
+  type: string;
+}
+
+export interface SalesActivityInsert {
+  actor_id?: string | null;
+  created_at?: string;
+  id?: string;
+  lead_metadata_id: string;
+  metadata?: Json;
+  note?: string | null;
+  opportunity_id?: string | null;
+  quotation_id?: string | null;
+  type: string;
+}
+
+export type SalesActivityUpdate = Partial<SalesActivityInsert>;
+
 /**
  * Minimal Database shape so `createServerClient<Database>()` is typed. Tables
  * not listed here fall back to `any` via the index signature, so nothing
@@ -284,6 +431,18 @@ export interface Database {
     Tables: {
       profiles: { Row: Profile; Insert: Partial<Profile>; Update: Partial<Profile>; Relationships: [] };
       courses: { Row: Course; Insert: Partial<Course>; Update: Partial<Course>; Relationships: [] };
+      course_commercial_profiles: {
+        Row: CourseCommercialProfile;
+        Insert: Partial<CourseCommercialProfile>;
+        Update: Partial<CourseCommercialProfile>;
+        Relationships: [];
+      };
+      hrdf_claims: {
+        Row: HrdfClaim;
+        Insert: Partial<HrdfClaim>;
+        Update: Partial<HrdfClaim>;
+        Relationships: [];
+      };
       enquiries: { Row: Enquiry; Insert: Partial<Enquiry>; Update: Partial<Enquiry>; Relationships: [] };
       proposal_requests: {
         Row: ProposalRequest;
@@ -313,6 +472,24 @@ export interface Database {
         Row: SalesLeadAttribution;
         Insert: Partial<SalesLeadAttribution>;
         Update: Partial<SalesLeadAttribution>;
+        Relationships: [];
+      };
+      sales_internal_lead_sources: {
+        Row: SalesInternalLeadSource;
+        Insert: Partial<SalesInternalLeadSource>;
+        Update: Partial<SalesInternalLeadSource>;
+        Relationships: [];
+      };
+      sales_lead_metadata: {
+        Row: SalesLeadMetadata;
+        Insert: SalesLeadMetadataInsert;
+        Update: SalesLeadMetadataUpdate;
+        Relationships: [];
+      };
+      sales_activity: {
+        Row: SalesActivity;
+        Insert: SalesActivityInsert;
+        Update: SalesActivityUpdate;
         Relationships: [];
       };
       participant_skill_results: {

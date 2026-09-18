@@ -134,6 +134,57 @@ export function conversionRate(numerator: number, denominator: number): string {
   return `${((numerator / denominator) * 100).toFixed(1)}%`;
 }
 
+/** Returns true when a quotation belongs to an archived opportunity chain. */
+export function quotationInArchivedChain(
+  quotation: { opportunity_id?: string | null },
+  excludedOppIds: Set<string>
+): boolean {
+  return Boolean(quotation.opportunity_id && excludedOppIds.has(quotation.opportunity_id));
+}
+
+export interface MonthlyTrendRow {
+  month: string;
+  label: string;
+  leads: number;
+  qualified: number;
+  opportunities: number;
+  quotationsSent: number;
+  won: number;
+  lost: number;
+  wonValue: number;
+}
+
+/** Shared Monthly Trend aggregation used by both the report page and CSV export. */
+export function buildMonthlyTrend(input: {
+  range: ReportDateRange;
+  leads: { id: string; created_at: string }[];
+  qualifiedLeadIds: Set<string>;
+  opps: { id: string; created_at: string }[];
+  quotationsSent: { opportunity_id?: string | null; sent_at?: string | null }[];
+  won: { id: string; won_at?: string | null }[];
+  lost: { id: string; lost_at?: string | null }[];
+  accepted: { total: number | string | null; accepted_at?: string | null }[];
+}): MonthlyTrendRow[] {
+  return monthKeysInRange(input.range.startUtc, input.range.endUtc).map((month) => ({
+    month,
+    label: monthKeyLabel(month),
+    leads: input.leads.filter((row) => mytMonthKey(row.created_at) === month).length,
+    qualified: input.leads.filter((row) => mytMonthKey(row.created_at) === month && input.qualifiedLeadIds.has(row.id)).length,
+    opportunities: input.opps.filter((row) => mytMonthKey(row.created_at) === month).length,
+    quotationsSent: new Set(
+      input.quotationsSent
+        .filter((row) => row.sent_at && mytMonthKey(row.sent_at) === month)
+        .map((row) => row.opportunity_id)
+        .filter(Boolean)
+    ).size,
+    won: input.won.filter((row) => row.won_at && mytMonthKey(row.won_at) === month).length,
+    lost: input.lost.filter((row) => row.lost_at && mytMonthKey(row.lost_at) === month).length,
+    wonValue: input.accepted
+      .filter((row) => row.accepted_at && mytMonthKey(row.accepted_at) === month)
+      .reduce((sum, row) => sum + Number(row.total), 0),
+  }));
+}
+
 /* ------------------------------------------------------------------ */
 /* Archive exclusion — ACTIVE-pipeline surfaces only.                  */
 /* ------------------------------------------------------------------ */
