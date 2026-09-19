@@ -15,6 +15,9 @@
     "test:certificate-c3b": "node --experimental-strip-types scripts/certificate-c3b-contract.mjs",
     "test:certificate-c4b": "node scripts/certificate-c4b-contract.mjs",
     "check:toyyibpay-env": "node --experimental-transform-types scripts/check-toyyibpay-env-resolver.mts",
+    "test:quotation-training-details": "node --experimental-strip-types scripts/quotation-training-details-contract.mts",
+    "test:document-system-v1": "node --experimental-strip-types scripts/document-system-v1-contract.mts",
+    "test:document-system-v1-visual": "python scripts/document-system-v1-visual-contract.py",
     "build": "next build",
     "start": "next start"
   },
