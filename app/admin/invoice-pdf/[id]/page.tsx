@@ -6,6 +6,7 @@ import { PAYMENT_PROVIDER_LABELS, type InvoiceRow, type InvoiceItemRow, type Inv
 import { DocumentFooter, DocumentHeader } from "../../../../components/admin/documents/DocumentHeader";
 import { invoicePaymentTerms, paymentInstructions } from "../../../../lib/documents/company";
 import { quotationTrainingDetailsSchema } from "../../../../lib/validation/schemas";
+import { estimateBlockHeight, paginateMeasuredBlocks } from "../../../../lib/documents/pagination";
 
 export const metadata = { title: "Invoice PDF — TERAS UNIVERSAL", robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
@@ -78,8 +79,17 @@ export default async function InvoicePdfPage({ params }: { params: Promise<{ id:
   // invoice as if it had.
   const payments = ((paymentRows ?? []) as InvoicePaymentRow[]).filter((p) => p.status === "successful");
 
-  const itemChunks: InvoiceItemRow[][] = [items.slice(0, 11)];
-  for (let index = 11; index < items.length; index += 4) itemChunks.push(items.slice(index, index + 4));
+  const finalReserve = 290 + estimateBlockHeight(`${inv.payment_terms ?? ""}\n${inv.notes ?? ""}`, 92, 14, 24) + payments.length * 28;
+  const itemBlocks = items.map((item) => ({
+    id: item.id,
+    value: item,
+    height: estimateBlockHeight([item.course_name_snapshot, item.description, item.package_includes_snapshot?.map((entry) => entry.label).join(" · ")].filter(Boolean).join("\n"), 68, 14, 30),
+  }));
+  const itemChunks = paginateMeasuredBlocks(itemBlocks, {
+    firstPageHeight: Math.max(260, 670 - (training ? 170 : 0)),
+    continuationPageHeight: 820,
+    finalPageReserve: finalReserve,
+  });
   const pageCount = itemChunks.length;
   const renderItems = (rows: InvoiceItemRow[]) => (
     <table className="inv-pdf-table" style={{ marginBottom: 16 }}>
@@ -174,7 +184,6 @@ export default async function InvoicePdfPage({ params }: { params: Promise<{ id:
                   {inv.billing_email && <div>{inv.billing_email}</div>}
                   {inv.billing_phone && <div>{inv.billing_phone}</div>}
                 </div>
-                <div />
               </div>
               {training && <section className="inv-pdf-section"><h2 className="inv-pdf-section-title">Training / Programme Summary</h2><div className="inv-pdf-summary"><div><small>Programme</small><strong>{training.programme.course_name_snapshot}</strong></div><div><small>Training Dates</small>{training.programme.start_date || "—"} → {training.programme.end_date || "—"}</div><div><small>Venue</small>{training.venue.name || (training.venue.type === "teras_hq" ? "TERAS HQ" : "In-House")}</div><div><small>Participants</small>{training.participants.count} Pax{training.participants.tbc ? " (TBC)" : ""}</div></div></section>}
             </>}
@@ -189,7 +198,7 @@ export default async function InvoicePdfPage({ params }: { params: Promise<{ id:
                 <tr><td colSpan={2}><div className="inv-pdf-balance"><span>Balance Due</span><span>{fmt(inv.balance_due)}</span></div></td></tr>
               </tbody></table></div>
               {payments.length > 0 && <div style={{ marginBottom: 20 }}><div style={{ fontSize: 11, color: "#667085", textTransform: "uppercase", marginBottom: 6 }}>Payments Received</div><table style={{ width: "100%", fontSize: 11.5, borderCollapse: "collapse" }}><tbody>{payments.map((p) => <tr key={p.id} style={{ borderBottom: "1px solid #eef1f6" }}><td style={{ padding: "4px 0" }}>{fmtDate(p.paid_at)}</td><td style={{ padding: "4px 0" }}>{PAYMENT_PROVIDER_LABELS[p.payment_provider]}{p.payment_reference ? ` (${p.payment_reference})` : ""}</td><td style={{ padding: "4px 0", textAlign: "right" }}>{fmt(receivedAmount(p))}</td></tr>)}</tbody></table></div>}
-              <section className="inv-pdf-section"><h2 className="inv-pdf-section-title">Invoice Terms</h2><div style={{ whiteSpace: "pre-wrap", fontSize: 12 }}>{invoicePaymentTerms(inv.due_date, fmtDate)}</div>{inv.payment_terms && !/quotation.{0,20}valid|valid.{0,20}days/i.test(inv.payment_terms) && <div style={{ whiteSpace: "pre-wrap", marginTop: 6, fontSize: 12 }}>{inv.payment_terms}</div>}</section>
+              <section className="inv-pdf-section"><h2 className="inv-pdf-section-title">Invoice Terms</h2><div style={{ whiteSpace: "pre-wrap", fontSize: 12 }}>{invoicePaymentTerms(inv.due_date, fmtDate)}</div>{inv.payment_terms?.trim() && <div style={{ whiteSpace: "pre-wrap", marginTop: 6, fontSize: 12 }}>{inv.payment_terms.trim()}</div>}</section>
               <div className="inv-pdf-section" style={{ fontSize: 11, color: "#667085" }}><div style={{ textTransform: "uppercase", marginBottom: 4 }}>Payment Instructions</div><div>{paymentInstructions(inv.invoice_no)}</div></div>
               {inv.notes && <div style={{ marginTop: 16, fontSize: 11.5, color: "#667085" }}>{inv.notes}</div>}
             </>}

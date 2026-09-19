@@ -7,6 +7,7 @@ import { revisionLabel, type SalesQuotationItemRow, type SalesQuotationRow } fro
 import { quotationTrainingDetailsSchema } from "../../../../lib/validation/schemas";
 import { DocumentFooter, DocumentHeader } from "../../../../components/admin/documents/DocumentHeader";
 import { quotationTermsText } from "../../../../lib/documents/company";
+import { estimateBlockHeight, paginateMeasuredBlocks } from "../../../../lib/documents/pagination";
 
 export const metadata = { title: "Quotation - TERAS UNIVERSAL", robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
@@ -54,13 +55,18 @@ export default async function QuotationPdfPage({ params }: { params: Promise<{ i
     training: q.training_service_address,
   };
 
-  // Explicit page ownership avoids Chromium's unsupported page counters. The first
-  // page reserves space for the customer/programme summary; continuation pages
-  // carry six rows each, keeping totals and terms together on the final page.
-  const firstPageItems = items.slice(0, 2);
-  const continuationItems = items.slice(2);
-  const itemPages: SalesQuotationItemRow[][] = [firstPageItems];
-  for (let index = 0; index < continuationItems.length; index += 7) itemPages.push(continuationItems.slice(index, index + 7));
+  const termsText = quotationTermsText(q.terms, q.valid_until, formatMalaysiaDate);
+  const finalReserve = 190 + estimateBlockHeight(`${termsText}\n${q.notes ?? ""}`, 92, 14, 18) + (training?.inclusions.training_notes ? 52 : 0);
+  const itemBlocks = items.map((item) => ({
+    id: item.id,
+    value: item,
+    height: estimateBlockHeight([item.course_name_snapshot, item.description, ...packageEntries(item.package_includes_snapshot).map((entry) => entry.label)].join("\n"), 62, 14, 30),
+  }));
+  const itemPages = paginateMeasuredBlocks(itemBlocks, {
+    firstPageHeight: Math.max(220, 650 - finalReserve),
+    continuationPageHeight: 840,
+    finalPageReserve: finalReserve,
+  });
   const pageCount = itemPages.length;
   const identity = [{ label: "Quotation No.", value: q.quotation_no }, { label: "Revision", value: revisionLabel(q.revision_no) }, { label: "Issue Date", value: formatMalaysiaDate(q.issue_date) }, { label: "Valid Until", value: q.valid_until ? formatMalaysiaDate(q.valid_until) : "No expiry" }];
 

@@ -11,8 +11,7 @@ export function quotationValidityText(validUntil: string | null | undefined, for
 }
 
 export function quotationTermsText(terms: string | null | undefined, validUntil: string | null | undefined, formatDate: (value: string) => string): string {
-  const cleanedTerms = terms?.replace(/(?:this\s+)?quotation[^.]{0,100}\bvalid\b[^.]*\.?/gi, "").trim();
-  return [quotationValidityText(validUntil, formatDate), cleanedTerms].filter(Boolean).join("\n\n");
+  return [quotationValidityText(validUntil, formatDate), terms?.trim()].filter(Boolean).join("\n\n");
 }
 
 export function invoicePaymentTerms(dueDate: string | null | undefined, formatDate: (value: string) => string): string {
