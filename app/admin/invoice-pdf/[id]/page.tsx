@@ -5,7 +5,7 @@ import { PRINT_WHEN_READY_SCRIPT } from "../../../../lib/print-when-ready";
 import { PAYMENT_PROVIDER_LABELS, type InvoiceRow, type InvoiceItemRow, type InvoicePaymentRow } from "../../../../lib/sales/invoices";
 import { DocumentFooter, DocumentHeader } from "../../../../components/admin/documents/DocumentHeader";
 import { COMPANY_DOCUMENT_CONFIG, invoicePaymentTerms, paymentInstructions } from "../../../../lib/documents/company";
-import { quotationTrainingDetailsSchema } from "../../../../lib/validation/schemas";
+import { parseQuotationTrainingDetails } from "../../../../lib/documents/quotation-training-details";
 import { estimateBlockHeight, paginateMeasuredBlocks } from "../../../../lib/documents/pagination";
 
 export const metadata = { title: "Invoice PDF — TERAS UNIVERSAL", robots: { index: false, follow: false } };
@@ -65,9 +65,8 @@ export default async function InvoicePdfPage({ params }: { params: Promise<{ id:
   const inv = invoice as InvoiceRow;
   if (inv.status === "draft") notFound();
 
-  const { data: quotation } = await supabase.from("sales_quotations").select("quotation_no, training_details").eq("id", inv.quotation_id).maybeSingle();
-  const trainingResult = quotationTrainingDetailsSchema.safeParse(quotation?.training_details);
-  const training = trainingResult.success ? trainingResult.data : null;
+  const { data: quotation } = await supabase.from("sales_quotations").select("*").eq("id", inv.quotation_id).maybeSingle();
+  const training = parseQuotationTrainingDetails((quotation as { training_details?: unknown } | null)?.training_details);
   const showTax = inv.sst_applicable === true || (inv.sst_applicable === null && Number(inv.tax_amount) > 0);
   const taxLabel = taxDisplayLabel(inv.tax_label_snapshot, Number(inv.tax_rate));
   const { data: itemRows } = await supabase.from("invoice_items").select("*").eq("invoice_id", id).order("sort_order");
@@ -198,7 +197,7 @@ export default async function InvoicePdfPage({ params }: { params: Promise<{ id:
               </div>
               {training && <section className="inv-pdf-section"><h2 className="inv-pdf-section-title">Training / Programme Summary</h2><div className="inv-pdf-summary"><div><small>Programme</small><strong>{training.programme.course_name_snapshot}</strong></div><div><small>Training Dates</small>{training.programme.start_date || "—"} → {training.programme.end_date || "—"}</div><div><small>Venue</small>{training.venue.name || (training.venue.type === "teras_hq" ? "TERAS HQ" : "In-House")}</div><div><small>Participants</small>{training.participants.count} Pax{training.participants.tbc ? " (TBC)" : ""}</div></div></section>}
             </>}
-            {!isFirstPage && <div className="inv-pdf-continuation-header"><img className="inv-pdf-continuation-logo" src="/teras-universal-logo-official.svg" alt="TERAS Universal" /><div className="inv-pdf-continuation-title">INVOICE — Continued</div></div>}
+            {!isFirstPage && <div className="inv-pdf-continuation-header"><img className="inv-pdf-continuation-logo" src="/teras-universal-logo.png" alt="TERAS Universal" /><div className="inv-pdf-continuation-title">INVOICE — Continued</div></div>}
             {renderItems(chunk)}
             {isLastPage && <>
               <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 24 }}><table style={{ fontSize: 12.5, minWidth: 260 }}><tbody>

@@ -8,7 +8,7 @@ import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const OUTPUT = join(ROOT, "artifacts", "document-system-v1-final-review");
-const LOGO_PATH = join(ROOT, "public", "teras-universal-logo-official.svg");
+const LOGO_PATH = join(ROOT, "public", "teras-universal-logo.png");
 const QR_PATH = join(ROOT, "public", "documents", "payment", "teras-universal-duitnow-qr-code.png");
 const NAVY = "#0B3A63";
 const GOLD = "#D4AF37";
@@ -77,7 +77,7 @@ function esc(value: string): string {
 }
 
 function header(title: string, meta: string, logoData: string): string {
-  return `<header class="header"><div class="brand"><img src="data:image/svg+xml;base64,${logoData}" alt="TERAS Universal"><div class="company">${COMPANY}</div><div class="registration">Company Registration No. ${REGISTRATION}</div><div class="address">${ADDRESS}</div></div><div class="meta"><div class="title">${title}</div>${meta}</div></header>`;
+  return `<header class="header"><div class="brand"><img src="data:image/png;base64,${logoData}" alt="TERAS Universal"><div class="company">${COMPANY}</div><div class="registration">Company Registration No. ${REGISTRATION}</div><div class="address">${ADDRESS}</div></div><div class="meta"><div class="title">${title}</div>${meta}</div></header>`;
 }
 
 function footer(number: string): string {
@@ -209,12 +209,12 @@ async function main(): Promise<void> {
   const workspace = await mkdtemp(join(ROOT, ".final-review-"));
   const browser = await chromium.launch({ headless: true });
   try {
-    const logoData = Buffer.from(await readFile(LOGO_PATH, "utf8")).toString("base64");
+    const logoData = (await readFile(LOGO_PATH)).toString("base64");
     const qrData = (await readFile(QR_PATH)).toString("base64");
     const quotationHtml = documentHtml("quotation", logoData);
     const invoiceHtml = documentHtml("invoice", logoData, qrData);
     const receiptHtml = documentHtml("receipt", logoData);
-    assert.ok(!logoData.includes("<svg") && quotationHtml.includes("data:image/svg+xml;base64,"), "official logo must be embedded as a valid SVG data URI");
+    assert.ok(quotationHtml.includes("data:image/png;base64,") && logoData.length > 0, "official logo must be embedded as a valid PNG data URI");
     const quotationPath = join(OUTPUT, "FINAL-quotation-v1.pdf");
     const invoicePath = join(OUTPUT, "FINAL-invoice-v1.pdf");
     const receiptPath = join(OUTPUT, "FINAL-receipt-v1.pdf");
@@ -263,7 +263,7 @@ async function main(): Promise<void> {
       "Generation route / fixture: sanitized canonical final-review fixture",
       "Expected QR: NO",
       "",
-      "OFFICIAL LOGO: public/teras-universal-logo-official.svg",
+      "OFFICIAL LOGO: public/teras-universal-logo.png",
       "OFFICIAL PAYMENT QR: public/documents/payment/teras-universal-duitnow-qr-code.png",
       "QR validation: static DuitNow/payment QR; decode PASS; dynamic amount NO; merchant identity PASS",
       "STAGING mutations: 0",

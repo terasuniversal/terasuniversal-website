@@ -12,7 +12,7 @@ export function DocumentHeader({ type, identity }: DocumentHeaderProps) {
   return (
     <header className="teras-document-header">
       <div className="teras-document-brand">
-        <Image className="teras-document-logo" src="/teras-universal-logo-official.svg" alt="TERAS Universal" width={1184} height={847} />
+        <Image className="teras-document-logo" src="/teras-universal-logo.png" alt="TERAS Universal" width={1144} height={806} />
         <div className="teras-document-company">{COMPANY_DOCUMENT_CONFIG.legalName}</div>
         <div className="teras-document-registration">Company Registration No. {COMPANY_DOCUMENT_CONFIG.registrationNumber}</div>
         <div className="teras-document-address">{COMPANY_DOCUMENT_CONFIG.officeAddress}</div>

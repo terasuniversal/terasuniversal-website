@@ -322,7 +322,7 @@ async function main(): Promise<void> {
   if (reviewArtifactDir) await mkdir(reviewArtifactDir, { recursive: true });
   const browser = await chromium.launch({ headless: true });
   try {
-    const logoData = Buffer.from(await readFile(new URL("../public/teras-universal-logo-official.svg", import.meta.url), "utf8")).toString("base64");
+    const logoData = Buffer.from(await readFile(new URL("../public/teras-universal-logo.png", import.meta.url))).toString("base64");
     const qrData = Buffer.from(await readFile(new URL("../public/documents/payment/teras-universal-duitnow-qr-code.png", import.meta.url))).toString("base64");
     assert.ok(logoData.length > 0, "official TERAS logo asset must be loaded for Invoice fixtures");
     const quotationPath = join(workspace, "quotation-stress.pdf");

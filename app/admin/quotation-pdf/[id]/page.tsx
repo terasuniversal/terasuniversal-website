@@ -4,7 +4,7 @@ import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { PRINT_WHEN_READY_SCRIPT } from "../../../../lib/print-when-ready";
 import { formatMalaysiaDate } from "../../../../lib/date-time";
 import { revisionLabel, type SalesQuotationItemRow, type SalesQuotationRow } from "../../../../lib/sales/crm";
-import { quotationTrainingDetailsSchema } from "../../../../lib/validation/schemas";
+import { parseQuotationTrainingDetails } from "../../../../lib/documents/quotation-training-details";
 import { DocumentFooter, DocumentHeader } from "../../../../components/admin/documents/DocumentHeader";
 import { quotationTermsText } from "../../../../lib/documents/company";
 import { estimateBlockHeight, paginateMeasuredBlocks } from "../../../../lib/documents/pagination";
@@ -37,8 +37,7 @@ export default async function QuotationPdfPage({ params }: { params: Promise<{ i
   const { data: quotation } = await supabase.from("sales_quotations").select("*").eq("id", id).maybeSingle();
   if (!quotation) notFound();
   const q = quotation as SalesQuotationRow;
-  const trainingResult = quotationTrainingDetailsSchema.safeParse(q.training_details);
-  const training = trainingResult.success ? trainingResult.data : null;
+  const training = parseQuotationTrainingDetails((q as unknown as { training_details?: unknown }).training_details);
   const { data: opportunity } = await supabase.from("sales_opportunities").select("opportunity_no, company_name, contact_person, contact_email, contact_phone, company_id").eq("id", q.opportunity_id).maybeSingle();
   const { data: company } = opportunity?.company_id
     ? await supabase.from("companies").select("company_name, registration_no, email, phone, person_in_charge, pic_email, pic_phone, billing_address, address").eq("id", opportunity.company_id).maybeSingle()
