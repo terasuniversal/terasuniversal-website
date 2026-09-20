@@ -128,6 +128,7 @@ export default async function InvoicePdfPage({ params }: { params: Promise<{ id:
         .teras-document-registration, .teras-document-address { color: #667085; font-size: 10px; line-height: 1.45; }
         .teras-document-registration { margin-top: 4px; }
         .teras-document-address { max-width: 290px; margin-top: 5px; }
+        .teras-document-contact { margin-top: 3px; color: #667085; font-size: 9px; line-height: 1.35; white-space: nowrap; }
         .teras-document-identity { text-align: right; }
         .teras-document-title { color: #0B3A63; font-size: 25px; font-weight: 800; letter-spacing: 2px; }
         .teras-document-meta { display: grid; gap: 5px; margin-top: 10px; color: #667085; font-size: 11px; }

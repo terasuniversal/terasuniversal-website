@@ -16,6 +16,7 @@ export function DocumentHeader({ type, identity }: DocumentHeaderProps) {
         <div className="teras-document-company">{COMPANY_DOCUMENT_CONFIG.legalName}</div>
         <div className="teras-document-registration">Company Registration No. {COMPANY_DOCUMENT_CONFIG.registrationNumber}</div>
         <div className="teras-document-address">{COMPANY_DOCUMENT_CONFIG.officeAddress}</div>
+        <div className="teras-document-contact">{COMPANY_DOCUMENT_CONFIG.contactLine}</div>
       </div>
       <div className="teras-document-identity">
         <div className="teras-document-title">{type}</div>

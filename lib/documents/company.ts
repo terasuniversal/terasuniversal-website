@@ -3,6 +3,7 @@ export const COMPANY_DOCUMENT_CONFIG = {
   registrationNumber: "201201003207 (976732-P)",
   registrationSource: "D:/CLOUD/COMPANY/SSM TERBARU.pdf",
   officeAddress: "Lot 1961, Kampung Tanah Merah, Tanah Merah Dalam, 06000 Jitra, Kedah.",
+  contactLine: "Tel: 019-512 3834 · Web: www.terasuniversal.com.my",
   paymentInstructionsFallback: "Please contact TERAS UNIVERSAL SDN. BHD. for official bank transfer details. Quote the invoice number as the payment reference.",
   invoicePaymentQr: {
     assetPath: "/documents/payment/teras-universal-duitnow-qr-code.png",

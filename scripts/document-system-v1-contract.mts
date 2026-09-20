@@ -9,9 +9,11 @@ const config = readFileSync(new URL("../lib/documents/company.ts", import.meta.u
 const primitives = readFileSync(new URL("../components/admin/documents/DocumentHeader.tsx", import.meta.url), "utf8");
 
 assert.match(config, /201201003207 \(976732-P\)/);
+assert.match(config, /Tel: 019-512 3834 · Web: www\.terasuniversal\.com\.my/);
 assert.match(config, /SSM TERBARU\.pdf/);
 assert.match(primitives, /COMPANY_DOCUMENT_CONFIG\.legalName/);
 assert.match(primitives, /DocumentFooter/);
+assert.match(primitives, /COMPANY_DOCUMENT_CONFIG\.contactLine/);
 assert.match(quotation, /DocumentHeader type="QUOTATION"/);
 assert.match(quotation, /quotationTermsText/);
 assert.match(quotation, /pageNumber=\{pageIndex \+ 1\}/);

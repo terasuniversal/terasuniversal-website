@@ -15,6 +15,7 @@ const GOLD = "#D4AF37";
 const COMPANY = "TERAS UNIVERSAL SDN. BHD.";
 const REGISTRATION = "201201003207 (976732-P)";
 const ADDRESS = "Lot 1961, Kampung Tanah Merah, Tanah Merah Dalam, 06000 Jitra, Kedah.";
+const CONTACT = "Tel: 019-512 3834 · Web: www.terasuniversal.com.my";
 const CUSTOMER = "TERAS FINAL REVIEW CUSTOMER";
 const CUSTOMER_COMPANY = "TERAS FINAL REVIEW SDN. BHD.";
 const QUOTATION_NO = "QT-2026-0042";
@@ -36,6 +37,7 @@ const css = `
   .registration, .address { color: #667085; font-size: 9px; line-height: 1.45; }
   .registration { margin-top: 3px; }
   .address { max-width: 250px; margin-top: 4px; }
+  .contact { margin-top: 3px; color: #667085; font-size: 8px; line-height: 1.35; white-space: nowrap; }
   .meta { min-width: 220px; text-align: right; color: #667085; font-size: 10px; }
   .title { color: ${NAVY}; font-size: 24px; font-weight: 800; letter-spacing: 2px; margin-bottom: 10px; }
   .meta-row { display: grid; grid-template-columns: 1fr auto; gap: 18px; margin-top: 5px; }
@@ -77,7 +79,7 @@ function esc(value: string): string {
 }
 
 function header(title: string, meta: string, logoData: string): string {
-  return `<header class="header"><div class="brand"><img src="data:image/png;base64,${logoData}" alt="TERAS Universal"><div class="company">${COMPANY}</div><div class="registration">Company Registration No. ${REGISTRATION}</div><div class="address">${ADDRESS}</div></div><div class="meta"><div class="title">${title}</div>${meta}</div></header>`;
+  return `<header class="header"><div class="brand"><img src="data:image/png;base64,${logoData}" alt="TERAS Universal"><div class="company">${COMPANY}</div><div class="registration">Company Registration No. ${REGISTRATION}</div><div class="address">${ADDRESS}</div><div class="contact">${CONTACT}</div></div><div class="meta"><div class="title">${title}</div>${meta}</div></header>`;
 }
 
 function footer(number: string): string {
@@ -150,6 +152,7 @@ async function assertPdfContracts(paths: { quotation: string; invoice: string; r
     assert.ok(text.includes(COMPANY));
     assert.ok(text.includes(REGISTRATION));
     assert.ok(text.includes(ADDRESS));
+    assert.ok(text.includes(CONTACT));
   }
   for (const stale of ["INV-2026-0003", "19 Sept 2026", "QA-RECEIPT-E2E-20260920"]) {
     assert.ok(![q, i, r].some((text) => text.includes(stale)), `stale metadata leaked: ${stale}`);
