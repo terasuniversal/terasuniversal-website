@@ -21,7 +21,7 @@ import {
 import { LOST_REASON_LABELS, type SalesCrmLostReason } from "../../../../../lib/sales/crm";
 import { DISQUALIFICATION_REASONS, DISQUALIFICATION_REASON_LABELS, QUALIFICATION_REASONS, QUALIFICATION_REASON_LABELS } from "../../../../../lib/sales/qualification";
 
-export type SalesActionState = { message?: string; errors?: Record<string, string> };
+export type SalesActionState = { message?: string; errors?: Record<string, string>; status?: "success" | "error" };
 
 export async function createLead(
   _prev: SalesActionState,
@@ -176,7 +176,7 @@ export async function setLeadFollowUp(
     follow_up_at: formData.get("follow_up_at") ?? "",
     priority: formData.get("priority") || undefined,
   });
-  if (!parsed.success) return { errors: fieldErrors(parsed.error) };
+  if (!parsed.success) return { errors: fieldErrors(parsed.error), status: "error" };
   const followUpAt = parsed.data.follow_up_at ? new Date(parsed.data.follow_up_at).toISOString() : null;
 
   const supabase = await createSupabaseServerClient();
@@ -184,7 +184,7 @@ export async function setLeadFollowUp(
   const patch: Record<string, unknown> = { follow_up_at: followUpAt, updated_at: new Date().toISOString() };
   if (parsed.data.priority) patch.priority = parsed.data.priority;
   const { error } = await supabase.from("sales_lead_metadata").update(patch).eq("id", leadMetadataId);
-  if (error) return { message: error.message };
+  if (error) return { message: "Unable to update the follow-up. Try again.", status: "error" };
 
   if (followUpAt) {
     await logActivity(
@@ -200,7 +200,12 @@ export async function setLeadFollowUp(
   }
 
   revalidateLead(leadMetadataId);
-  return {};
+  const returnTo = formData.get("return_to");
+  if (typeof returnTo === "string" && returnTo.startsWith("/admin/sales/follow-ups")) {
+    const separator = returnTo.includes("?") ? "&" : "?";
+    redirect(`${returnTo}${separator}feedback=${followUpAt ? "saved" : "cleared"}`);
+  }
+  return { message: followUpAt ? "Follow-up saved." : "Follow-up cleared.", status: "success" };
 }
 
 const QUALIFICATION_REASON_SET = new Set<string>(QUALIFICATION_REASONS);

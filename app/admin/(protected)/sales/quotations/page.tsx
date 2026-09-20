@@ -6,6 +6,7 @@ import { FOLLOW_UP_STATE_LABELS, QUOTATION_STATUS_ORDER, QUOTATION_STATUS_LABELS
 import { formatMalaysiaDate, formatMalaysiaDateTime } from "../../../../../lib/date-time";
 import { dueDateState } from "../../../../../lib/sales/crm";
 import { invoiceStatusLabel, paymentVisibilityLabel, pickNextQuotationTask, QUOTATION_EXPIRY_LABELS, quotationExpiryState } from "../../../../../lib/sales/quotation-workflow";
+import { buildQuotationSearchFilter } from "../../../../../lib/sales/search";
 
 export const metadata = { title: "Quotations — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
@@ -30,16 +31,23 @@ export default async function QuotationsPage({
   const page = Math.max(1, Number(sp.page ?? 1));
   const supabase = await createSupabaseServerClient();
 
+  const term = sp.q ? sanitizeSearchTerm(sp.q) : "";
+  let matchingOpportunityIds: string[] = [];
+  if (term) {
+    const { data: matchingOpportunities } = await supabase
+      .from("sales_opportunities")
+      .select("id")
+      .or(`company_name.ilike.%${term}%,contact_person.ilike.%${term}%`);
+    matchingOpportunityIds = (matchingOpportunities ?? []).map((opportunity: { id: string }) => opportunity.id);
+  }
+
   let query = supabase
     .from("sales_quotations")
     .select("*, sales_opportunities(opportunity_no, company_name)", { count: "exact" })
     .order("created_at", { ascending: false })
     .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
 
-  if (sp.q) {
-    const term = sanitizeSearchTerm(sp.q);
-    if (term) query = query.ilike("quotation_no", `%${term}%`);
-  }
+  if (term) query = query.or(buildQuotationSearchFilter(term, matchingOpportunityIds));
   if (sp.status) query = query.eq("status", sp.status);
 
   const { data: rows, count } = await query;
@@ -90,7 +98,7 @@ export default async function QuotationsPage({
       <form className="ta-toolbar" style={{ alignItems: "flex-end" }}>
         <div className="ta-search" style={{ maxWidth: 260 }}>
           <span className="ta-search-ico" aria-hidden="true">⌕</span>
-          <input name="q" defaultValue={sp.q ?? ""} placeholder="Search quotation no…" />
+          <input name="q" defaultValue={sp.q ?? ""} placeholder="Search quotation no, company, contact…" />
         </div>
         <select name="status" defaultValue={sp.status ?? ""} style={{ padding: "9px 10px", borderRadius: 9, border: "1px solid var(--ta-line)" }} aria-label="Status filter">
           <option value="">All statuses</option>
