@@ -15,6 +15,11 @@
     "test:certificate-c3b": "node --experimental-strip-types scripts/certificate-c3b-contract.mjs",
     "test:certificate-c4b": "node scripts/certificate-c4b-contract.mjs",
     "check:toyyibpay-env": "node --experimental-transform-types scripts/check-toyyibpay-env-resolver.mts",
+    "test:quotation-training-details": "node --experimental-strip-types scripts/quotation-training-details-contract.mts",
+    "test:document-system-v1": "node --experimental-strip-types scripts/document-system-v1-contract.mts",
+    "test:document-system-v1-visual": "node --experimental-strip-types scripts/document-system-v1-visual-contract.mts",
+    "test:receipt-v1": "node --experimental-strip-types scripts/receipt-v1-contract.mts",
+    "test:receipt-v1:db": "node --experimental-strip-types scripts/receipt-v1-db-contract.mts",
     "build": "next build",
     "start": "next start"
   },

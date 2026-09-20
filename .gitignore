@@ -8,4 +8,5 @@ node_modules
 tsconfig.tsbuildinfo
 tmp/
 output/
+artifacts/
 *.log

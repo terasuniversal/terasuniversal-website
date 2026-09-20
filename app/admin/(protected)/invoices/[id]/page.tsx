@@ -10,7 +10,9 @@ import {
   type InvoiceRow,
   type InvoiceItemRow,
   type InvoicePaymentRow,
+  type ReceiptRow,
 } from "../../../../../lib/sales/invoices";
+import { generateReceiptAction } from "../actions";
 import { getToyyibpayCapability } from "../../../../../lib/payments/toyyibpay";
 import { InvoiceDraftForm } from "./InvoiceDraftForm";
 import { InvoiceActionsPanel } from "./InvoiceActionsPanel";
@@ -76,6 +78,11 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
   const hrdfClaim = (claimRow ?? null) as HrdfClaim | null;
   const { data: paymentRows } = await supabase.from("invoice_payments").select("*").eq("invoice_id", id).order("created_at", { ascending: false });
   const payments = (paymentRows ?? []) as InvoicePaymentRow[];
+  const successfulPaymentIds = payments.filter((payment) => payment.status === "successful").map((payment) => payment.id);
+  const { data: receiptRows } = successfulPaymentIds.length > 0
+    ? await supabase.from("receipts").select("*").in("invoice_payment_id", successfulPaymentIds)
+    : { data: [] as ReceiptRow[] };
+  const receiptsByPaymentId = new Map(((receiptRows ?? []) as ReceiptRow[]).map((receipt) => [receipt.invoice_payment_id, receipt]));
   // Most recent row already first (query is ordered desc) -- the ToyyibPay
   // card reflects this persisted state directly rather than re-deriving it,
   // so it shows correctly on first load, not just right after a Generate
@@ -244,6 +251,13 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
                               ✓ Provider-verified RM {Number(p.verified_amount).toLocaleString("en-MY", { minimumFractionDigits: 2 })}
                               {p.callback_received_at ? " · via callback" : " · via return-page verification"}
                             </div>
+                          )}
+                          {p.status === "successful" && (
+                            receiptsByPaymentId.get(p.id)
+                              ? <div style={{ marginTop: 6 }}><Link href={`/admin/receipt-pdf/${receiptsByPaymentId.get(p.id)!.id}`} className="ta-btn ta-btn-outline ta-btn-sm">View Receipt</Link></div>
+                              : p.payment_source === "hrdf"
+                                ? <div style={{ marginTop: 6, color: "var(--ta-muted)", fontSize: 12 }}>HRDF receipt unavailable in Receipt V1.</div>
+                                : <form action={generateReceiptAction} style={{ marginTop: 6 }}><input type="hidden" name="payment_id" value={p.id} /><input type="hidden" name="invoice_id" value={id} /><button type="submit" className="ta-btn ta-btn-outline ta-btn-sm">Generate Receipt</button></form>
                           )}
                         </td>
                         <td><Badge status={p.status} /></td>
