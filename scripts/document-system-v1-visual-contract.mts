@@ -25,6 +25,21 @@ const pageCss = `
   .receipt-meta .title { color: #0b3a63; font-size: 20px; margin-bottom: 4mm; }
   .receipt-meta-row { display: grid; grid-template-columns: 1fr auto; gap: 5mm; margin-top: 1.5mm; }
   .receipt-meta-row strong { color: #1a2233; white-space: nowrap; }
+  .invoice-header { display: flex; justify-content: space-between; gap: 18mm; align-items: flex-start; border-bottom: 3px solid #0b3a63; padding-bottom: 6mm; margin-bottom: 6mm; }
+  .invoice-brand { min-width: 0; }
+  .invoice-brand img { width: 42mm; height: auto; display: block; }
+  .invoice-company { margin-top: 2mm; color: #0b3a63; font-size: 10px; font-weight: 800; letter-spacing: .8px; }
+  .invoice-registration, .invoice-address { color: #667085; font-size: 8px; line-height: 1.4; }
+  .invoice-registration { margin-top: 1mm; }
+  .invoice-address { max-width: 62mm; margin-top: 1mm; }
+  .invoice-meta { min-width: 53mm; text-align: right; font-size: 8px; color: #667085; }
+  .invoice-meta .title { color: #0b3a63; font-size: 20px; margin-bottom: 4mm; }
+  .invoice-meta-row { display: grid; grid-template-columns: 1fr auto; gap: 5mm; margin-top: 1.5mm; }
+  .invoice-meta-row strong { color: #1a2233; white-space: nowrap; }
+  .invoice-header.continued { align-items: center; padding-bottom: 3mm; margin-bottom: 4mm; }
+  .invoice-header.continued .invoice-brand img { width: 26mm; }
+  .invoice-header.continued .invoice-company, .invoice-header.continued .invoice-registration, .invoice-header.continued .invoice-address { display: none; }
+  .invoice-header.continued .invoice-meta .title { margin: 0; font-size: 15px; }
   .items { width: 100%; border-collapse: collapse; margin-top: 8mm; font-size: 10px; }
   .items th { background: #0b3a63; color: white; text-align: left; padding: 5px; }
   .items td { border-bottom: 1px solid #d9e1ea; padding: 5px; vertical-align: top; }
@@ -43,11 +58,25 @@ const pageCss = `
   .receipt-fixture-summary td:last-child { text-align: right; white-space: nowrap; }
   .receipt-fixture-balance td { border-top: 2px solid #0b3a63; border-bottom: 2px solid #d4af37; color: #0b3a63; font-weight: 800; }
   .receipt-fixture-refunded { margin-bottom: 4mm; padding: 2mm 3mm; border: 1.5px solid #9a6700; color: #9a6700; font-size: 12px; font-weight: 800; letter-spacing: 1.5px; text-align: center; }
+  .invoice-payment-qr { display: grid; grid-template-columns: 42mm 1fr; gap: 6mm; align-items: center; break-inside: avoid; page-break-inside: avoid; }
+  .invoice-payment-qr > div:first-child { display: grid; justify-items: center; gap: 1.5mm; }
+  .invoice-payment-qr img { display: block; width: 36mm; height: 36mm; max-width: 100%; object-fit: contain; }
+  .invoice-payment-qr-label { color: #0b3a63; font-size: 8px; font-weight: 800; text-align: center; }
+  .invoice-payment-details { display: grid; gap: 2.5mm; font-size: 10px; }
+  .invoice-payment-details small { display: block; margin-bottom: 1mm; color: #667085; font-size: 8px; text-transform: uppercase; }
+  .invoice-payment-reference { color: #0b3a63; font-weight: 800; }
 `;
 
 
 function page(title: string, pageNumber: number, pageCount: number, body: string): string {
   return `<section class="paper"><header class="header"><div>TERAS UNIVERSAL SDN. BHD.</div><div class="title">${title}</div></header>${body}<footer class="footer"><span>TERAS UNIVERSAL SDN. BHD.</span><span>Page ${pageNumber} of ${pageCount}</span></footer></section>`;
+}
+
+function invoicePage(pageNumber: number, pageCount: number, body: string, logoData: string, continued = false): string {
+  const meta = continued
+    ? `<div class="invoice-meta"><div class="title">INVOICE — Continued</div></div>`
+    : `<div class="invoice-meta"><div class="title">INVOICE</div><div class="invoice-meta-row"><span>Invoice No.</span><strong>INV-2026-0042</strong></div><div class="invoice-meta-row"><span>Invoice Date</span><strong>20 Sept 2026</strong></div><div class="invoice-meta-row"><span>Due Date</span><strong>20 Oct 2026</strong></div><div class="invoice-meta-row"><span>Quotation Ref.</span><strong>QT-2026-0042</strong></div></div>`;
+  return `<section class="paper"><header class="invoice-header${continued ? " continued" : ""}"><div class="invoice-brand"><img src="data:image/svg+xml;base64,${logoData}" alt="TERAS Universal"><div class="invoice-company">TERAS UNIVERSAL SDN. BHD.</div><div class="invoice-registration">Company Registration No. 201201003207 (976732-P)</div><div class="invoice-address">Lot 1961, Kampung Tanah Merah,<br>Tanah Merah Dalam,<br>06000 Jitra, Kedah.</div></div>${meta}</header>${body}<footer class="footer"><span>TERAS UNIVERSAL SDN. BHD. · INV-2026-0042</span><span>Page ${pageNumber} of ${pageCount}</span></footer></section>`;
 }
 
 function receiptPage(
@@ -84,11 +113,25 @@ function quotationHtml(): string {
   return `<!doctype html><html><head><style>${pageCss}</style></head><body>${pages.join("")}</body></html>`;
 }
 
-function invoiceHtml(): string {
+function invoiceHtml(logoData: string): string {
   const pages = [
-    page("INVOICE", 1, 3, `<p>Bill To: Long Billing Company<br>${"Long billing address line. ".repeat(18)}</p>${itemTable("Invoice Item", 1, 11, true)}`),
-    page("INVOICE — Continued", 2, 3, itemTable("Invoice Item", 12, 11)),
-    page("INVOICE — Continued", 3, 3, `${itemTable("Invoice Item", 23, 8)}<p class="long">Payment terms: ${"Payment reference and settlement terms preserved. ".repeat(24)}</p><p>Grand Total RM 3,900.00</p><p>Amount Paid RM 1,000.00</p><p>Balance Due RM 2,900.00</p>`),
+    invoicePage(1, 3, `<p>Bill To: Long Billing Company<br>${"Long billing address line. ".repeat(18)}</p>${itemTable("Invoice Item", 1, 11, true)}`, logoData),
+    invoicePage(2, 3, itemTable("Invoice Item", 12, 11), logoData, true),
+    invoicePage(3, 3, `${itemTable("Invoice Item", 23, 8)}<p class="long">Payment terms: ${"Payment reference and settlement terms preserved. ".repeat(24)}</p><p>Grand Total RM 3,900.00</p><p>Amount Paid RM 1,000.00</p><p>Balance Due RM 2,900.00</p>`, logoData, true),
+  ];
+  return `<!doctype html><html><head><style>${pageCss}</style></head><body>${pages.join("")}</body></html>`;
+}
+
+function invoicePaymentInstructionsHtml(qrData: string, multiPage: boolean, logoData: string): string {
+  const instructions = `<section class="receipt-fixture-section"><h2 class="receipt-fixture-title">PAYMENT INSTRUCTIONS</h2><div class="invoice-payment-qr"><div><img src="data:image/png;base64,${qrData}" alt="Official TERAS Universal DuitNow QR"><div class="invoice-payment-qr-label">DuitNow QR<br>Scan to Pay</div></div><div class="invoice-payment-details"><div><small>Bank</small><strong>Maybank · MAE by Maybank2u</strong></div><div><small>Account Name</small><strong>TERAS UNIVERSAL SDN. BHD.</strong></div><div class="invoice-payment-reference"><small>Payment Reference</small>Please use Invoice No. INV-2026-0042 as your payment reference.</div></div></div></section>`;
+  if (!multiPage) {
+    const body = `<p>Bill To: Sanitized Customer Sdn. Bhd.</p>${itemTable("Invoice Item", 1, 2)}<p>Grand Total RM 1,000.00</p>${instructions}`;
+    return `<!doctype html><html><head><style>${pageCss}</style></head><body>${invoicePage(1, 1, body, logoData)}</body></html>`;
+  }
+  const pages = [
+    invoicePage(1, 3, `<p>Bill To: Long Billing Company</p>${itemTable("Invoice Item", 1, 11, true)}`, logoData),
+    invoicePage(2, 3, itemTable("Invoice Item", 12, 11), logoData, true),
+    invoicePage(3, 3, `${itemTable("Invoice Item", 23, 8)}<p>Grand Total RM 3,900.00</p>${instructions}`, logoData, true),
   ];
   return `<!doctype html><html><head><style>${pageCss}</style></head><body>${pages.join("")}</body></html>`;
 }
@@ -152,6 +195,18 @@ async function renderPng(browser: Awaited<ReturnType<typeof chromium.launch>>, h
   try {
     await page.setContent(html, { waitUntil: "load" });
     await page.emulateMedia({ media: "print" });
+    await page.screenshot({ path: outputPath, fullPage: false });
+  } finally {
+    await page.close();
+  }
+}
+
+async function renderPagePng(browser: Awaited<ReturnType<typeof chromium.launch>>, html: string, outputPath: string, pageIndex: number): Promise<void> {
+  const page = await browser.newPage({ viewport: { width: 794, height: 1123 }, deviceScaleFactor: 1 });
+  try {
+    await page.setContent(html, { waitUntil: "load" });
+    await page.emulateMedia({ media: "print" });
+    await page.evaluate((top) => window.scrollTo(0, top), pageIndex * 1123);
     await page.screenshot({ path: outputPath, fullPage: false });
   } finally {
     await page.close();
@@ -227,6 +282,40 @@ async function assertStagingReceiptPdf(path: string): Promise<void> {
   assert.ok(summaryY - footerY > 24, "Payment Summary must not overlap the footer in the generated PDF");
 }
 
+async function assertInvoicePaymentQrPdf(path: string, expectedPages: number, baselinePath: string): Promise<void> {
+  const document = await getDocument({ url: path }).promise;
+  assert.equal(document.numPages, expectedPages, `Invoice QR fixture must have ${expectedPages} page(s)`);
+  const pages: string[] = [];
+  for (let index = 1; index <= document.numPages; index += 1) {
+    const current = await document.getPage(index);
+    const content = await current.getTextContent();
+    pages.push(content.items.map((item) => ("str" in item ? item.str : "")).join(" ").replace(/\s+/g, " "));
+  }
+  const finalText = pages.at(-1) ?? "";
+  assert.ok(pages[0].includes("201201003207 (976732-P)"), "Invoice must include the official company registration number");
+  assert.ok(pages[0].includes("06000 Jitra, Kedah."), "Invoice must include the official company address");
+  if (expectedPages > 1) assert.ok(pages.slice(1).every((text) => text.replace(/\s+/g, "").includes("INVOICE—Continued")), "Invoice continuation pages must retain compact corporate identity");
+  for (const expected of ["PAYMENT INSTRUCTIONS", "DuitNow QR", "Scan to Pay", "Maybank", "TERAS UNIVERSAL SDN. BHD.", "Invoice No. INV-2026-0042"]) {
+    assert.ok(finalText.includes(expected), `Invoice QR PDF missing ${expected}`);
+  }
+  assert.ok(!pages.slice(0, -1).some((text) => text.includes("PAYMENT INSTRUCTIONS")), "Payment Instructions must belong to the final Invoice page");
+  assert.ok(finalText.includes(`Page ${expectedPages} of ${expectedPages}`), "final Invoice page numbering is incorrect");
+  const finalPage = await document.getPage(expectedPages);
+  const finalContent = await finalPage.getTextContent();
+  const items = finalContent.items.filter((item): item is typeof item & { str: string; transform: number[] } => "str" in item && "transform" in item);
+  const yFor = (needle: string) => {
+    const item = items.find((candidate) => candidate.str.replace(/\s+/g, " ").includes(needle));
+    assert.ok(item, `Invoice QR PDF missing coordinate anchor ${needle}`);
+    return item.transform[5];
+  };
+  assert.ok(yFor("PAYMENT INSTRUCTIONS") > yFor(`Page ${expectedPages} of ${expectedPages}`), "QR section must be above the footer");
+  const qrBytes = await readFile(path, "binary");
+  const baselineBytes = await readFile(baselinePath, "binary");
+  assert.ok(qrBytes.includes("/Subtype /Image"), "Invoice QR PDF must contain a rendered QR image");
+  assert.ok(qrBytes.includes("/Width 700") && qrBytes.includes("/Height 699"), "Invoice QR PDF must contain the cropped QR-only asset dimensions");
+  assert.ok(baselineBytes.length > 0, "Invoice corporate-header baseline PDF must be generated");
+}
+
 async function main(): Promise<void> {
   const workspace = await mkdtemp(join(tmpdir(), "teras-document-system-v1-"));
   const reviewArtifactDir = process.env.TERAS_REVIEW_ARTIFACT_DIR;
@@ -234,18 +323,24 @@ async function main(): Promise<void> {
   const browser = await chromium.launch({ headless: true });
   try {
     const logoData = Buffer.from(await readFile(new URL("../public/teras-universal-logo-official.svg", import.meta.url), "utf8")).toString("base64");
+    const qrData = Buffer.from(await readFile(new URL("../public/documents/payment/teras-universal-duitnow-qr-code.png", import.meta.url))).toString("base64");
+    assert.ok(logoData.length > 0, "official TERAS logo asset must be loaded for Invoice fixtures");
     const quotationPath = join(workspace, "quotation-stress.pdf");
     const invoicePath = join(workspace, "invoice-stress.pdf");
     const stagingReceiptPath = join(workspace, "receipt-staging-e2e.pdf");
+    const invoiceQrNormalPath = join(workspace, "invoice-payment-qr-normal.pdf");
+    const invoiceQrMultipagePath = join(workspace, "invoice-payment-qr-multipage.pdf");
     const receiptPaths = ["receipt-partial-payment.pdf", "receipt-paid-in-full.pdf", "receipt-long-content.pdf", "receipt-multipage.pdf", "receipt-refunded.pdf"].map((name) => join(workspace, name));
     await renderPdf(browser, quotationHtml(), quotationPath);
-    await renderPdf(browser, invoiceHtml(), invoicePath);
+    await renderPdf(browser, invoiceHtml(logoData), invoicePath);
     await renderPdf(browser, receiptHtml("partial", logoData), receiptPaths[0]);
     await renderPdf(browser, receiptHtml("paid", logoData), receiptPaths[1]);
     await renderPdf(browser, receiptHtml("long", logoData), receiptPaths[2]);
     await renderPdf(browser, receiptHtml("multipage", logoData), receiptPaths[3]);
     await renderPdf(browser, receiptHtml("refunded", logoData), receiptPaths[4]);
     await renderPdf(browser, stagingReceiptHtml(logoData), stagingReceiptPath);
+    await renderPdf(browser, invoicePaymentInstructionsHtml(qrData, false, logoData), invoiceQrNormalPath);
+    await renderPdf(browser, invoicePaymentInstructionsHtml(qrData, true, logoData), invoiceQrMultipagePath);
     if (reviewArtifactDir) {
       await writeFile(join(reviewArtifactDir, "receipt-partial-payment.pdf"), await readFile(receiptPaths[0]));
       await writeFile(join(reviewArtifactDir, "receipt-paid-in-full.pdf"), await readFile(receiptPaths[1]));
@@ -253,6 +348,10 @@ async function main(): Promise<void> {
       await writeFile(join(reviewArtifactDir, "receipt-multipage.pdf"), await readFile(receiptPaths[3]));
       await writeFile(join(reviewArtifactDir, "receipt-refunded.pdf"), await readFile(receiptPaths[4]));
       await writeFile(join(reviewArtifactDir, "receipt-staging-e2e.pdf"), await readFile(stagingReceiptPath));
+      await writeFile(join(reviewArtifactDir, "invoice-payment-qr-normal.pdf"), await readFile(invoiceQrNormalPath));
+      await writeFile(join(reviewArtifactDir, "invoice-payment-qr-multipage.pdf"), await readFile(invoiceQrMultipagePath));
+      await renderPng(browser, invoicePaymentInstructionsHtml(qrData, false, logoData), join(reviewArtifactDir, "invoice-payment-qr-normal-page1.png"));
+      await renderPagePng(browser, invoicePaymentInstructionsHtml(qrData, true, logoData), join(reviewArtifactDir, "invoice-payment-qr-final-page.png"), 2);
       await renderPng(browser, receiptHtml("partial", logoData), join(reviewArtifactDir, "receipt-partial-payment-page1.png"));
       await renderPng(browser, receiptHtml("paid", logoData), join(reviewArtifactDir, "receipt-paid-in-full-page1.png"));
       await renderPng(browser, receiptHtml("long", logoData), join(reviewArtifactDir, "receipt-long-content-page1.png"));
@@ -268,13 +367,18 @@ async function main(): Promise<void> {
     assertItemsExactlyOnce(invoicePages.join("\n"), "Invoice Item", 1, 30);
     assert.ok(quotationPages.join("\n").includes("Long terms and notes preserved exactly."));
     assert.ok(invoicePages.join("\n").includes("Balance Due"));
+    assert.ok(!quotationPages.join("\n").includes("DuitNow QR"), "Quotation must not contain payment QR content");
 
     const partialPages = await extractPages(receiptPaths[0]);
     const paidPages = await extractPages(receiptPaths[1]);
     const longPages = await extractPages(receiptPaths[2]);
     const multipagePages = await extractPages(receiptPaths[3]);
     const refundedPages = await extractPages(receiptPaths[4]);
+    const invoiceQrBaselinePath = join(workspace, "invoice-qr-baseline.pdf");
+    await renderPdf(browser, invoiceHtml(logoData), invoiceQrBaselinePath);
     await assertStagingReceiptPdf(stagingReceiptPath);
+    await assertInvoicePaymentQrPdf(invoiceQrNormalPath, 1, invoiceQrBaselinePath);
+    await assertInvoicePaymentQrPdf(invoiceQrMultipagePath, 3, invoiceQrBaselinePath);
     assertLabels(partialPages, 1);
     assertLabels(paidPages, 1);
     assertLabels(longPages, longPages.length);
@@ -287,6 +391,7 @@ async function main(): Promise<void> {
     assert.ok(partialPages.join("\n").includes("RCPT-2026-0001"));
     assert.ok(partialPages.join("\n").includes("INV-2026-0003"));
     assert.ok(partialPages.join("\n").includes("RM 3,850.00"));
+    assert.ok(!partialPages.join("\n").includes("DuitNow QR"), "Receipt must not contain payment QR content");
     assert.ok(paidPages.join("\n").includes("PAID IN FULL"));
     assert.ok(paidPages.join("\n").includes("RM 0.00"));
     assert.match(refundedPages.join("\n"), /R\s*E\s*F\s*U\s*N\s*D\s*E\s*D\s+R\s*E\s*C\s*E\s*I\s*P\s*T/);
