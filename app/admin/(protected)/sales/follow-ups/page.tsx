@@ -46,9 +46,9 @@ export default async function FollowUpsPage({
 
   // Resolved (won/lost/archived) leads never show as active follow-ups —
   // matches followUpState()'s own "none" rule.
-  const createQuery = (withCount: boolean) => {
+  const createQuery = (mode: "count" | "rows") => {
     let query = supabase.from("v_sales_lead_inbox");
-    query = withCount ? query.select("*", { count: "exact" }) : query.select("*");
+    query = mode === "count" ? query.select("lead_metadata_id", { count: "exact", head: true }) : query.select("*");
     query = query
       .not("follow_up_at", "is", null)
       .not("status", "in", "(won,lost,archived)")
@@ -64,14 +64,11 @@ export default async function FollowUpsPage({
     return query;
   };
 
-  const requestedRange = pageRange(requestedPage, SALES_QUEUE_PAGE_SIZE);
-  let { data: rows, count = 0 } = await createQuery(true).range(requestedRange.from, requestedRange.to);
+  const { count = 0 } = await createQuery("count");
   const pageCount = pageCountFor(count ?? 0);
   const page = clampPage(requestedPage, pageCount);
-  if (page !== requestedPage && count > 0) {
-    const range = pageRange(page, SALES_QUEUE_PAGE_SIZE);
-    ({ data: rows } = await createQuery(false).range(range.from, range.to));
-  }
+  const range = pageRange(page, SALES_QUEUE_PAGE_SIZE);
+  const { data: rows } = await createQuery("rows").range(range.from, range.to);
   const leads = (rows ?? []) as SalesLeadInboxRow[];
   const returnTo = `/admin/sales/follow-ups?view=${encodeURIComponent(view)}&owner=${encodeURIComponent(owner)}&page=${page}`;
   const leadIds = leads.map((l) => l.lead_metadata_id);

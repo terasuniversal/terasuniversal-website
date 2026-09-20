@@ -41,9 +41,9 @@ export default async function SalesTasksPage({
   const endOfTodayMyt = mytEndOfTodayUtc(now).toISOString();
   const nowIso = now.toISOString();
 
-  const createQuery = (withCount: boolean) => {
+  const createQuery = (mode: "count" | "rows") => {
     let query = supabase.from("sales_tasks");
-    query = withCount ? query.select("*", { count: "exact" }) : query.select("*");
+    query = mode === "count" ? query.select("id", { count: "exact", head: true }) : query.select("*");
     query = query
       .is("deleted_at", null)
       .order("due_at", { ascending: true, nullsFirst: false })
@@ -68,14 +68,11 @@ export default async function SalesTasksPage({
     return query;
   };
 
-  const requestedRange = pageRange(requestedPage, SALES_QUEUE_PAGE_SIZE);
-  let { data: rows, count = 0 } = await createQuery(true).range(requestedRange.from, requestedRange.to);
+  const { count = 0 } = await createQuery("count");
   const pageCount = pageCountFor(count ?? 0);
   const page = clampPage(requestedPage, pageCount);
-  if (page !== requestedPage && count > 0) {
-    const range = pageRange(page, SALES_QUEUE_PAGE_SIZE);
-    ({ data: rows } = await createQuery(false).range(range.from, range.to));
-  }
+  const range = pageRange(page, SALES_QUEUE_PAGE_SIZE);
+  const { data: rows } = await createQuery("rows").range(range.from, range.to);
   const tasks = (rows ?? []) as SalesTaskRow[];
 
   const qsBase: Record<string, string> = {};
