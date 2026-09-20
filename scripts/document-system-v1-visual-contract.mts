@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "@playwright/test";
@@ -14,15 +14,53 @@ const pageCss = `
   .paper:last-child { page-break-after: auto; break-after: auto; }
   .header { border-bottom: 3px solid #0b3a63; padding-bottom: 8mm; color: #0b3a63; }
   .title { font-size: 22px; font-weight: 800; letter-spacing: 2px; }
+  .receipt-header { display: flex; justify-content: space-between; gap: 18mm; align-items: flex-start; }
+  .receipt-brand { min-width: 0; }
+  .receipt-brand img { width: 42mm; height: auto; display: block; }
+  .receipt-company { margin-top: 2mm; font-size: 10px; font-weight: 800; letter-spacing: .8px; }
+  .receipt-registration, .receipt-address { color: #667085; font-size: 8px; line-height: 1.4; }
+  .receipt-registration { margin-top: 1mm; }
+  .receipt-address { max-width: 62mm; margin-top: 1mm; }
+  .receipt-meta { min-width: 53mm; text-align: right; font-size: 8px; color: #667085; }
+  .receipt-meta .title { color: #0b3a63; font-size: 20px; margin-bottom: 4mm; }
+  .receipt-meta-row { display: grid; grid-template-columns: 1fr auto; gap: 5mm; margin-top: 1.5mm; }
+  .receipt-meta-row strong { color: #1a2233; white-space: nowrap; }
   .items { width: 100%; border-collapse: collapse; margin-top: 8mm; font-size: 10px; }
   .items th { background: #0b3a63; color: white; text-align: left; padding: 5px; }
   .items td { border-bottom: 1px solid #d9e1ea; padding: 5px; vertical-align: top; }
   .footer { position: absolute; left: 14mm; right: 14mm; bottom: 8mm; border-top: 1px solid #d9e1ea; padding-top: 3mm; font-size: 8px; display: flex; justify-content: space-between; }
   .long { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .receipt-fixture-section { margin-top: 3.5mm; padding-top: 2mm; border-top: 1px solid #e8edf3; }
+  .receipt-fixture-title { margin: 0 0 2mm; color: #0b3a63; font-size: 10px; font-weight: 800; letter-spacing: 1px; }
+  .receipt-fixture-title::after { content: ""; display: block; width: 7mm; margin-top: 1mm; border-bottom: 2px solid #d4af37; }
+  .receipt-fixture-card { padding: 2mm 3mm; border: 1px solid #e3e9f0; line-height: 1.3; overflow-wrap: anywhere; }
+  .receipt-fixture-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2mm; }
+  .receipt-fixture-amount { margin-top: 3mm; padding: 3mm 5mm; background: #f5f8fb; border-left: 1.5mm solid #d4af37; color: #0b3a63; }
+  .receipt-fixture-amount-label { font-size: 9px; font-weight: 800; letter-spacing: 1px; }
+  .receipt-fixture-amount-value { margin-top: 1.5mm; font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .receipt-fixture-summary { width: 100%; max-width: 95mm; margin-left: auto; border-collapse: collapse; font-size: 10px; font-variant-numeric: tabular-nums; }
+  .receipt-fixture-summary td { padding: 1mm 2mm; border-bottom: 1px solid #e8edf3; }
+  .receipt-fixture-summary td:last-child { text-align: right; white-space: nowrap; }
+  .receipt-fixture-balance td { border-top: 2px solid #0b3a63; border-bottom: 2px solid #d4af37; color: #0b3a63; font-weight: 800; }
+  .receipt-fixture-refunded { margin-bottom: 4mm; padding: 2mm 3mm; border: 1.5px solid #9a6700; color: #9a6700; font-size: 12px; font-weight: 800; letter-spacing: 1.5px; text-align: center; }
 `;
+
 
 function page(title: string, pageNumber: number, pageCount: number, body: string): string {
   return `<section class="paper"><header class="header"><div>TERAS UNIVERSAL SDN. BHD.</div><div class="title">${title}</div></header>${body}<footer class="footer"><span>TERAS UNIVERSAL SDN. BHD.</span><span>Page ${pageNumber} of ${pageCount}</span></footer></section>`;
+}
+
+function receiptPage(
+  pageNumber: number,
+  pageCount: number,
+  body: string,
+  logoData: string,
+  metadata: { receiptNo?: string; receiptDate?: string; invoiceRef?: string } = {},
+): string {
+  const receiptNo = metadata.receiptNo ?? "RCPT-2026-0001";
+  const receiptDate = metadata.receiptDate ?? "19 Sept 2026";
+  const invoiceRef = metadata.invoiceRef ?? "INV-2026-0003";
+  return `<section class="paper"><header class="header receipt-header"><div class="receipt-brand"><img src="data:image/svg+xml;base64,${logoData}" alt="TERAS Universal"><div class="receipt-company">TERAS UNIVERSAL SDN. BHD.</div><div class="receipt-registration">Company Registration No. 201201003207 (976732-P)</div><div class="receipt-address">Lot 1961, Kampung Tanah Merah,<br>Tanah Merah Dalam,<br>06000 Jitra, Kedah.</div></div><div class="receipt-meta"><div class="title">RECEIPT</div><div class="receipt-meta-row"><span>Receipt No.</span><strong>${receiptNo}</strong></div><div class="receipt-meta-row"><span>Receipt Date</span><strong>${receiptDate}</strong></div><div class="receipt-meta-row"><span>Invoice Ref.</span><strong>${invoiceRef}</strong></div></div></header>${body}<footer class="footer"><span>TERAS UNIVERSAL SDN. BHD. · ${receiptNo}</span><span>Page ${pageNumber} of ${pageCount}</span></footer></section>`;
 }
 
 function itemTable(prefix: string, start: number, count: number, long = false): string {
@@ -55,11 +93,66 @@ function invoiceHtml(): string {
   return `<!doctype html><html><head><style>${pageCss}</style></head><body>${pages.join("")}</body></html>`;
 }
 
+function splitReceiptNotes(value: string, wordsPerBlock: number): string[] {
+  const chunks: string[] = [];
+  const paragraphs = value.split(/\n\s*\n/).map((paragraph) => paragraph.trim()).filter(Boolean);
+  let current: string[] = [];
+  let currentWordCount = 0;
+  for (const paragraph of paragraphs) {
+    const words = paragraph.split(/\s+/);
+    if (current.length > 0 && currentWordCount + words.length > wordsPerBlock) {
+      chunks.push(current.join("\n\n"));
+      current = [];
+      currentWordCount = 0;
+    }
+    current.push(paragraph);
+    currentWordCount += words.length;
+  }
+  if (current.length > 0) chunks.push(current.join("\n\n"));
+  return chunks;
+}
+
+function notesForContract(kind: "long" | "multipage"): string {
+  return kind === "long"
+    ? Array.from({ length: 18 }, (_, index) => `Paragraph ${String(index + 1).padStart(2, "0")}: Long receipt notes preserved for customer-facing financial records.`).join("\n\n")
+    : Array.from({ length: 9 }, (_, index) => `Section ${String(index + 1).padStart(2, "0")}: Programme attendance and payment confirmation context is retained without duplicating invoice line items.`).join("\n\n");
+}
+
+function receiptHtml(kind: "partial" | "paid" | "long" | "multipage" | "refunded", logoData: string): string {
+  const isPaid = kind === "paid";
+  const isLong = kind === "long" || kind === "multipage";
+  const isRefunded = kind === "refunded";
+  const customer = isLong && kind === "long" ? "Long Customer / Company Name ".repeat(6) : "Sanitized Customer Sdn. Bhd.";
+  const reference = isLong && kind === "long" ? "PAYMENT-REFERENCE-".repeat(12) : "PAY-2026-0001";
+  const notes = kind === "long" || kind === "multipage" ? notesForContract(kind) : "Payment received and recorded.";
+  const noteChunks = splitReceiptNotes(notes, kind === "multipage" ? 24 : 55);
+  const pageNotes: Array<string | null> = isLong ? [null, ...noteChunks] : noteChunks;
+  const pageCount = pageNotes.length;
+  const pages = pageNotes.map((note, index) => {
+    const body = index === 0
+      ? `${isRefunded ? "<div class=\"receipt-fixture-refunded\">REFUNDED RECEIPT</div>" : ""}<section class="receipt-fixture-section"><h2 class="receipt-fixture-title">RECEIVED FROM</h2><div class="receipt-fixture-card"><strong>${customer}</strong></div></section><section class="receipt-fixture-section"><h2 class="receipt-fixture-title">PAYMENT FOR</h2><div class="receipt-fixture-card"><strong>Invoice Ref. INV-2026-0003</strong><div>Receipt confirmation for payment received against this invoice.</div></div></section><div class="receipt-fixture-amount"><div class="receipt-fixture-amount-label">AMOUNT RECEIVED</div><div class="receipt-fixture-amount-value">RM 3,000.00</div></div><section class="receipt-fixture-section"><h2 class="receipt-fixture-title">PAYMENT DETAILS</h2><div class="receipt-fixture-grid"><div class="receipt-fixture-card"><strong>Payment Method</strong><br>Bank Transfer</div><div class="receipt-fixture-card"><strong>Payment Date</strong><br>19 Sept 2026</div><div class="receipt-fixture-card"><strong>Payment Reference</strong><br><span class="long">${reference}</span></div></div></section><section class="receipt-fixture-section"><h2 class="receipt-fixture-title">PAYMENT SUMMARY</h2><table class="receipt-fixture-summary"><tbody><tr><td>Invoice Total</td><td>RM 8,850.00</td></tr><tr><td>Total Paid To Date</td><td>RM ${isPaid ? "8,850.00" : "5,000.00"}</td></tr><tr class="receipt-fixture-balance"><td>Balance Remaining</td><td>RM ${isPaid ? "0.00" : "3,850.00"}</td></tr></tbody></table>${isPaid ? "<div style=\"margin-top:3mm;color:#0b3a63;font-weight:800;text-align:right\">PAID IN FULL</div>" : ""}</section>${isLong ? "" : `<section class="receipt-fixture-section"><h2 class="receipt-fixture-title">NOTES</h2><div class="receipt-fixture-card long">${note}</div></section>`}`
+      : `<section class="receipt-fixture-section"><h2 class="receipt-fixture-title">${isLong && index === 1 ? "NOTES" : "NOTES — Continued"}</h2><div class="receipt-fixture-card long">${note ?? ""}</div></section>`;
+    return receiptPage(index + 1, pageCount, body, logoData);
+  });
+  return `<!doctype html><html><head><style>${pageCss}</style></head><body>${pages.join("")}</body></html>`;
+}
+
 async function renderPdf(browser: Awaited<ReturnType<typeof chromium.launch>>, html: string, outputPath: string): Promise<void> {
   const page = await browser.newPage();
   try {
     await page.setContent(html, { waitUntil: "load" });
     await page.pdf({ path: outputPath, format: "A4", printBackground: true, margin: { top: "0", right: "0", bottom: "0", left: "0" } });
+  } finally {
+    await page.close();
+  }
+}
+
+async function renderPng(browser: Awaited<ReturnType<typeof chromium.launch>>, html: string, outputPath: string): Promise<void> {
+  const page = await browser.newPage({ viewport: { width: 794, height: 1123 }, deviceScaleFactor: 1 });
+  try {
+    await page.setContent(html, { waitUntil: "load" });
+    await page.emulateMedia({ media: "print" });
+    await page.screenshot({ path: outputPath, fullPage: false });
   } finally {
     await page.close();
   }
@@ -92,14 +185,80 @@ function assertItemsExactlyOnce(text: string, prefix: string, first: number, las
   }
 }
 
+function stagingReceiptHtml(logoData: string): string {
+  const fixture = {
+    receiptNo: "RCPT-2026-0001",
+    receiptDate: "20 Sept 2026",
+    invoiceRef: "INV-2026-0037",
+    amountReceived: "RM 400.00",
+    invoiceTotal: "RM 1,000.00",
+    totalPaid: "RM 400.00",
+    balance: "RM 600.00",
+    paymentDate: "20 Sept 2026",
+  };
+  const body = `<section class="receipt-fixture-section"><h2 class="receipt-fixture-title">RECEIVED FROM</h2><div class="receipt-fixture-grid"><div class="receipt-fixture-card"><strong>TERAS QA Receipt Customer</strong><div>TERAS QA E2E SDN. BHD.</div></div><div class="receipt-fixture-card"><strong>Contact</strong><div>qa-receipt-e2e@example.invalid</div></div></div></section><section class="receipt-fixture-section"><h2 class="receipt-fixture-title">PAYMENT FOR</h2><div class="receipt-fixture-card"><strong>Invoice Ref. ${fixture.invoiceRef}</strong><div>Receipt confirmation for payment received against this invoice.</div></div></section><div class="receipt-fixture-amount"><div class="receipt-fixture-amount-label">AMOUNT RECEIVED</div><div class="receipt-fixture-amount-value">${fixture.amountReceived}</div></div><section class="receipt-fixture-section"><h2 class="receipt-fixture-title">PAYMENT DETAILS</h2><div class="receipt-fixture-grid"><div class="receipt-fixture-card"><strong>Payment Method</strong><br>Bank Transfer</div><div class="receipt-fixture-card"><strong>Payment Date</strong><br>${fixture.paymentDate}</div><div class="receipt-fixture-card"><strong>Payment Reference</strong><br><span class="long">QA-RECEIPT-E2E-20260920</span></div></div></section><section class="receipt-fixture-section"><h2 class="receipt-fixture-title">PAYMENT SUMMARY</h2><table class="receipt-fixture-summary"><tbody><tr><td>Invoice Total</td><td>${fixture.invoiceTotal}</td></tr><tr><td>Total Paid To Date</td><td>${fixture.totalPaid}</td></tr><tr class="receipt-fixture-balance"><td>Balance Remaining</td><td>${fixture.balance}</td></tr></tbody></table></section><section class="receipt-fixture-section"><h2 class="receipt-fixture-title">NOTES</h2><div class="receipt-fixture-card long">QA-RECEIPT-E2E-20260920</div></section>`;
+  return `<!doctype html><html><head><style>${pageCss}</style></head><body>${receiptPage(1, 1, body, logoData, fixture)}</body></html>`;
+}
+
+async function assertStagingReceiptPdf(path: string): Promise<void> {
+  const document = await getDocument({ url: path }).promise;
+  assert.equal(document.numPages, 1, "staging Receipt fixture must remain one PDF page");
+  const page = await document.getPage(1);
+  const content = await page.getTextContent();
+  const items = content.items.filter((item): item is typeof item & { str: string; transform: number[] } => "str" in item && "transform" in item);
+  const text = items.map((item) => item.str).join(" ").replace(/\s+/g, " ");
+  for (const expected of ["PAYMENT SUMMARY", "Invoice Total", "RM 1,000.00", "Total Paid To Date", "RM 400.00", "Balance Remaining", "RM 600.00", "Page 1 of 1"]) {
+    assert.ok(text.includes(expected), `generated staging PDF missing ${expected}`);
+  }
+  assert.ok(!text.includes("PAID IN FULL"), "partial-payment staging PDF must not say PAID IN FULL");
+  assert.ok(text.includes("Bank Transfer") && !text.includes("Bank Transfer — Bank Transfer"), "identical provider/method labels must not be duplicated");
+  assert.equal(text.split("INV-2026-0037").length - 1, 2, "header and Payment For must share the same invoice reference");
+  assert.ok(text.includes("Receipt Date") && text.includes("20 Sept 2026"), "Receipt Date must match the persisted fixture date");
+  assert.ok(text.includes("Payment Date") && (text.split("20 Sept 2026").length - 1) >= 2, "manual payment Receipt Date must equal Payment Date");
+  assert.ok(!text.includes("INV-2026-0003") && !text.includes("19 Sept 2026"), "stale fixture metadata must not leak into staging-like PDF");
+  const yFor = (needle: string) => {
+    const item = items.find((candidate) => candidate.str.replace(/\s+/g, " ").includes(needle));
+    assert.ok(item, `generated staging PDF missing coordinate anchor ${needle}`);
+    return item.transform[5];
+  };
+  const summaryY = yFor("PAYMENT SUMMARY");
+  const footerY = yFor("Page 1 of 1");
+  assert.ok(summaryY > footerY, "Payment Summary must be above the footer in the generated PDF");
+  assert.ok(summaryY - footerY > 24, "Payment Summary must not overlap the footer in the generated PDF");
+}
+
 async function main(): Promise<void> {
   const workspace = await mkdtemp(join(tmpdir(), "teras-document-system-v1-"));
+  const reviewArtifactDir = process.env.TERAS_REVIEW_ARTIFACT_DIR;
+  if (reviewArtifactDir) await mkdir(reviewArtifactDir, { recursive: true });
   const browser = await chromium.launch({ headless: true });
   try {
+    const logoData = Buffer.from(await readFile(new URL("../public/teras-universal-logo-official.svg", import.meta.url), "utf8")).toString("base64");
     const quotationPath = join(workspace, "quotation-stress.pdf");
     const invoicePath = join(workspace, "invoice-stress.pdf");
+    const stagingReceiptPath = join(workspace, "receipt-staging-e2e.pdf");
+    const receiptPaths = ["receipt-partial-payment.pdf", "receipt-paid-in-full.pdf", "receipt-long-content.pdf", "receipt-multipage.pdf", "receipt-refunded.pdf"].map((name) => join(workspace, name));
     await renderPdf(browser, quotationHtml(), quotationPath);
     await renderPdf(browser, invoiceHtml(), invoicePath);
+    await renderPdf(browser, receiptHtml("partial", logoData), receiptPaths[0]);
+    await renderPdf(browser, receiptHtml("paid", logoData), receiptPaths[1]);
+    await renderPdf(browser, receiptHtml("long", logoData), receiptPaths[2]);
+    await renderPdf(browser, receiptHtml("multipage", logoData), receiptPaths[3]);
+    await renderPdf(browser, receiptHtml("refunded", logoData), receiptPaths[4]);
+    await renderPdf(browser, stagingReceiptHtml(logoData), stagingReceiptPath);
+    if (reviewArtifactDir) {
+      await writeFile(join(reviewArtifactDir, "receipt-partial-payment.pdf"), await readFile(receiptPaths[0]));
+      await writeFile(join(reviewArtifactDir, "receipt-paid-in-full.pdf"), await readFile(receiptPaths[1]));
+      await writeFile(join(reviewArtifactDir, "receipt-long-content.pdf"), await readFile(receiptPaths[2]));
+      await writeFile(join(reviewArtifactDir, "receipt-multipage.pdf"), await readFile(receiptPaths[3]));
+      await writeFile(join(reviewArtifactDir, "receipt-refunded.pdf"), await readFile(receiptPaths[4]));
+      await writeFile(join(reviewArtifactDir, "receipt-staging-e2e.pdf"), await readFile(stagingReceiptPath));
+      await renderPng(browser, receiptHtml("partial", logoData), join(reviewArtifactDir, "receipt-partial-payment-page1.png"));
+      await renderPng(browser, receiptHtml("paid", logoData), join(reviewArtifactDir, "receipt-paid-in-full-page1.png"));
+      await renderPng(browser, receiptHtml("long", logoData), join(reviewArtifactDir, "receipt-long-content-page1.png"));
+      await renderPng(browser, receiptHtml("refunded", logoData), join(reviewArtifactDir, "receipt-refunded-page1.png"));
+      await renderPng(browser, stagingReceiptHtml(logoData), join(reviewArtifactDir, "receipt-staging-e2e-page1.png"));
+    }
 
     const quotationPages = await extractPages(quotationPath);
     const invoicePages = await extractPages(invoicePath);
@@ -109,6 +268,35 @@ async function main(): Promise<void> {
     assertItemsExactlyOnce(invoicePages.join("\n"), "Invoice Item", 1, 30);
     assert.ok(quotationPages.join("\n").includes("Long terms and notes preserved exactly."));
     assert.ok(invoicePages.join("\n").includes("Balance Due"));
+
+    const partialPages = await extractPages(receiptPaths[0]);
+    const paidPages = await extractPages(receiptPaths[1]);
+    const longPages = await extractPages(receiptPaths[2]);
+    const multipagePages = await extractPages(receiptPaths[3]);
+    const refundedPages = await extractPages(receiptPaths[4]);
+    await assertStagingReceiptPdf(stagingReceiptPath);
+    assertLabels(partialPages, 1);
+    assertLabels(paidPages, 1);
+    assertLabels(longPages, longPages.length);
+    assertLabels(multipagePages, multipagePages.length);
+    assertLabels(refundedPages, 1);
+    assert.match(partialPages.join("\n"), /A\s*M\s*O\s*U\s*N\s*T\s+R\s*E\s*C\s*E\s*I\s*V\s*E\s*D/);
+    assert.ok(partialPages.join("\n").includes("TERAS UNIVERSAL SDN. BHD."));
+    assert.ok(partialPages.join("\n").includes("201201003207 (976732-P)"));
+    assert.ok(partialPages.join("\n").includes("06000 Jitra, Kedah."));
+    assert.ok(partialPages.join("\n").includes("RCPT-2026-0001"));
+    assert.ok(partialPages.join("\n").includes("INV-2026-0003"));
+    assert.ok(partialPages.join("\n").includes("RM 3,850.00"));
+    assert.ok(paidPages.join("\n").includes("PAID IN FULL"));
+    assert.ok(paidPages.join("\n").includes("RM 0.00"));
+    assert.match(refundedPages.join("\n"), /R\s*E\s*F\s*U\s*N\s*D\s*E\s*D\s+R\s*E\s*C\s*E\s*I\s*P\s*T/);
+    assert.ok(!refundedPages.join("\n").includes("VOIDED RECEIPT"));
+    assert.ok(longPages.join("\n").includes("PAYMENT-REFERENCE-"));
+    const longNoteBlocks = splitReceiptNotes(notesForContract("long"), 55);
+    const observedLongBlocks = longNoteBlocks.filter((block) => longPages.some((page) => page.replace(/\s+/g, " ").includes(block.replace(/\s+/g, " "))));
+    assert.deepEqual(observedLongBlocks, longNoteBlocks);
+    assert.ok(multipagePages.length > 1);
+    assert.notDeepEqual(multipagePages, longPages);
   } finally {
     await browser.close();
     await rm(workspace, { recursive: true, force: true });

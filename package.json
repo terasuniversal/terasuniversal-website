@@ -18,6 +18,8 @@
     "test:quotation-training-details": "node --experimental-strip-types scripts/quotation-training-details-contract.mts",
     "test:document-system-v1": "node --experimental-strip-types scripts/document-system-v1-contract.mts",
     "test:document-system-v1-visual": "node --experimental-strip-types scripts/document-system-v1-visual-contract.mts",
+    "test:receipt-v1": "node --experimental-strip-types scripts/receipt-v1-contract.mts",
+    "test:receipt-v1:db": "node --experimental-strip-types scripts/receipt-v1-db-contract.mts",
     "build": "next build",
     "start": "next start"
   },

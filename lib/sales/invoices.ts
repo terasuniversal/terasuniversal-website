@@ -133,6 +133,38 @@ export interface InvoicePaymentRow {
   created_by: string | null;
 }
 
+export type ReceiptStatus = "issued" | "refunded" | "voided";
+
+export interface ReceiptRow {
+  id: string;
+  receipt_no: string;
+  invoice_id: string;
+  invoice_payment_id: string;
+  receipt_date: string;
+  currency: string;
+  amount_received: number;
+  payment_provider_snapshot: string | null;
+  payment_method_snapshot: string | null;
+  payment_source_snapshot: "customer" | "hrdf" | null;
+  payment_reference_snapshot: string | null;
+  provider_reference_snapshot: string | null;
+  invoice_number_snapshot: string;
+  customer_name_snapshot: string | null;
+  customer_company_snapshot: string | null;
+  customer_registration_no_snapshot: string | null;
+  customer_email_snapshot: string | null;
+  invoice_grand_total_snapshot: number;
+  amount_paid_after_snapshot: number;
+  balance_after_snapshot: number;
+  notes: string | null;
+  status: ReceiptStatus;
+  issued_at: string;
+  refunded_at: string | null;
+  voided_at: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
 /**
  * Overdue is derived, never stored (architecture audit section J/5) -- a
  * cancelled or fully-paid invoice is never overdue regardless of due_date,

@@ -1,7 +1,7 @@
 import Image from "next/image";
 import { COMPANY_DOCUMENT_CONFIG } from "../../../lib/documents/company";
 
-type DocumentType = "QUOTATION" | "INVOICE";
+type DocumentType = "QUOTATION" | "INVOICE" | "RECEIPT";
 
 type DocumentHeaderProps = {
   type: DocumentType;

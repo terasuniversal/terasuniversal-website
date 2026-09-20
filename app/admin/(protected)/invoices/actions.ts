@@ -47,6 +47,15 @@ const RPC_ERROR_MESSAGES: Record<string, string> = {
   payment_exceeds_balance: "This payment amount exceeds the outstanding balance.",
   already_cancelled: "This invoice is already cancelled.",
   cannot_cancel_invoice_with_payments: "An invoice that has received a payment cannot be cancelled directly.",
+  payment_not_found: "Payment not found.",
+  payment_not_successful: "A receipt can only be generated for a successful payment.",
+  toyyibpay_payment_not_verified: "This ToyyibPay payment has not completed verification.",
+  successful_payment_missing_paid_at: "This successful payment has no received date and cannot produce a receipt.",
+  hrdf_receipt_unavailable: "HRDF receipt generation is not available in Receipt V1.",
+  receipt_snapshot_overpayment: "The payment history exceeds the invoice total; receipt generation requires reconciliation.",
+  receipt_snapshot_negative_balance: "The receipt balance could not be validated.",
+  receipt_currency_mismatch: "The payment and invoice currencies do not match; receipt generation was rejected.",
+  receipt_payment_history_invalid: "The invoice has an incomplete verified ToyyibPay payment history; receipt generation requires reconciliation.",
 };
 
 function rpcMessage(error: { message: string } | null): string | undefined {
@@ -250,6 +259,21 @@ export async function recordManualPaymentAction(
 
   revalidateInvoice(invoiceId, existing?.opportunity_id, existing?.quotation_id);
   return {};
+}
+
+export async function generateReceiptAction(formData: FormData): Promise<never> {
+  await requireRole("admin");
+  await requireModuleAccess("invoices");
+  const paymentId = String(formData.get("payment_id") ?? "").trim();
+  if (!/^[0-9a-f-]{36}$/i.test(paymentId)) redirect("/admin/no-access");
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("generate_receipt_for_payment", { p_payment_id: paymentId });
+  if (error) return redirect(`/admin/invoices?error=${encodeURIComponent(rpcMessage(error) ?? "Could not generate receipt.")}`);
+  const result = data as { receipt_id?: string } | null;
+  if (!result?.receipt_id) return redirect("/admin/invoices?error=Could%20not%20generate%20receipt.");
+  revalidatePath(`/admin/invoices/${String(formData.get("invoice_id") ?? "")}`);
+  redirect(`/admin/receipt-pdf/${result.receipt_id}`);
 }
 
 /** Task section 11: controlled cancellation — see cancel_invoice() for the exact draft/issued-only rule. */
