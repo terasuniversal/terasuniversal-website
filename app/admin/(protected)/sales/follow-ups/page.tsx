@@ -3,14 +3,8 @@ import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { requireRole, requireModuleAccess } from "../../../../../lib/auth/session";
 import { PageHead, Card, Badge, EmptyState } from "../../../../../components/admin/ui";
 import { mytEndOfTodayUtc, type SalesLeadInboxRow } from "../../../../../lib/sales/crm";
-import { setLeadFollowUp } from "../leads/actions";
 import { formatMalaysiaDate } from "../../../../../lib/date-time";
-
-/** Plain-form wrapper — the inline table row uses fire-and-revalidate semantics (no field errors to surface here; the full Lead/Opportunity detail page's own follow-up form already handles that case with useActionState). */
-async function saveFollowUp(leadMetadataId: string, formData: FormData): Promise<void> {
-  "use server";
-  await setLeadFollowUp(leadMetadataId, {}, formData);
-}
+import { FollowUpInlineForm } from "./FollowUpInlineForm";
 
 export const metadata = { title: "Follow-ups — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
@@ -19,29 +13,6 @@ const VIEWS = ["overdue", "today", "upcoming"] as const;
 type View = (typeof VIEWS)[number];
 const VIEW_LABELS: Record<View, string> = { overdue: "Overdue", today: "Due Today", upcoming: "Upcoming" };
 
-function FollowUpInlineForm({ leadMetadataId, followUpAt }: { leadMetadataId: string; followUpAt: string | null }) {
-  return (
-    <>
-      <form action={saveFollowUp.bind(null, leadMetadataId)} style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
-        <input
-          type="datetime-local"
-          name="follow_up_at"
-          defaultValue={followUpAt ? followUpAt.slice(0, 16) : ""}
-          style={{ fontSize: 12, padding: "4px 6px", maxWidth: "100%", width: 170 }}
-        />
-        <button type="submit" className="ta-btn ta-btn-outline ta-btn-sm" title="Set / reschedule">
-          Save
-        </button>
-      </form>
-      <form action={saveFollowUp.bind(null, leadMetadataId)} style={{ marginTop: 4 }}>
-        <input type="hidden" name="follow_up_at" value="" />
-        <button type="submit" className="ta-btn ta-btn-outline ta-btn-sm" title="Clear follow-up">
-          Clear
-        </button>
-      </form>
-    </>
-  );
-}
 
 /**
  * Sales CRM Phase 4B — real Follow-up Queue, sourced entirely from
@@ -54,13 +25,14 @@ function FollowUpInlineForm({ leadMetadataId, followUpAt }: { leadMetadataId: st
 export default async function FollowUpsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string; owner?: string }>;
+  searchParams: Promise<{ view?: string; owner?: string; feedback?: string }>;
 }) {
   const profile = await requireRole("editor");
   await requireModuleAccess("sales_followups");
   const sp = await searchParams;
   const view: View = (VIEWS as readonly string[]).includes(sp.view ?? "") ? (sp.view as View) : "overdue";
   const owner = sp.owner ?? "mine";
+  const returnTo = `/admin/sales/follow-ups?view=${encodeURIComponent(view)}&owner=${encodeURIComponent(owner)}`;
 
   const supabase = await createSupabaseServerClient();
   const { data: staffRows } = await supabase.from("profiles").select("id, full_name").eq("is_active", true).order("full_name");
@@ -112,6 +84,8 @@ export default async function FollowUpsPage({
   return (
     <>
       <PageHead title="Follow-ups" subtitle="Real follow-up queue — sourced from Lead/Opportunity follow-up dates, Malaysia time." />
+      {sp.feedback === "saved" && <div className="ta-alert ta-alert-success" role="status">Follow-up saved.</div>}
+      {sp.feedback === "cleared" && <div className="ta-alert ta-alert-success" role="status">Follow-up cleared.</div>}
 
       <form className="ta-toolbar" style={{ flexWrap: "wrap" }}>
         {VIEWS.map((v) => (
@@ -173,7 +147,7 @@ export default async function FollowUpsPage({
                           <Badge status={l.priority} />
                         </td>
                         <td style={{ fontSize: 12.5 }}>
-                          <FollowUpInlineForm leadMetadataId={l.lead_metadata_id} followUpAt={l.follow_up_at} />
+                          <FollowUpInlineForm leadMetadataId={l.lead_metadata_id} followUpAt={l.follow_up_at} returnTo={returnTo} />
                         </td>
                         <td>
                           <Badge status={l.status} />
@@ -214,7 +188,7 @@ export default async function FollowUpsPage({
                       <span>Priority</span>
                       <span><Badge status={l.priority} /></span>
                       <span>Follow-up</span>
-                      <span><FollowUpInlineForm leadMetadataId={l.lead_metadata_id} followUpAt={l.follow_up_at} /></span>
+                      <span><FollowUpInlineForm leadMetadataId={l.lead_metadata_id} followUpAt={l.follow_up_at} returnTo={returnTo} /></span>
                       <span>Last Activity</span>
                       <span>{lastActivity ? `${lastActivity.type.replace(/_/g, " ")} — ${formatMalaysiaDate(lastActivity.created_at)}` : "—"}</span>
                     </div>
