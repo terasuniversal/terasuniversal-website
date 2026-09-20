@@ -21,6 +21,7 @@
     "test:receipt-v1": "node --experimental-strip-types scripts/receipt-v1-contract.mts",
     "test:receipt-v1:db": "node --experimental-strip-types scripts/receipt-v1-db-contract.mts",
     "test:sales-staff-efficiency-fix1": "node --experimental-strip-types scripts/sales-staff-efficiency-fix1-contract.mts",
+    "test:sales-queue-pagination-fix2": "node --experimental-strip-types scripts/sales-queue-pagination-fix2-contract.mts",
     "build": "next build",
     "start": "next start"
   },

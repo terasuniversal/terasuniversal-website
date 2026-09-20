@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { requireRole, requireModuleAccess } from "../../../../../lib/auth/session";
-import { PageHead, Card, Badge, EmptyState } from "../../../../../components/admin/ui";
+import { PageHead, Card, Badge, EmptyState, Pagination } from "../../../../../components/admin/ui";
 import { mytEndOfTodayUtc, type SalesLeadInboxRow } from "../../../../../lib/sales/crm";
+import { clampPage, normalizePage, pageCountFor, pageRange, SALES_QUEUE_PAGE_SIZE } from "../../../../../lib/sales/pagination";
 import { formatMalaysiaDate } from "../../../../../lib/date-time";
 import { FollowUpInlineForm } from "./FollowUpInlineForm";
 
@@ -25,14 +26,14 @@ const VIEW_LABELS: Record<View, string> = { overdue: "Overdue", today: "Due Toda
 export default async function FollowUpsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string; owner?: string; feedback?: string }>;
+  searchParams: Promise<{ view?: string; owner?: string; feedback?: string; page?: string }>;
 }) {
   const profile = await requireRole("editor");
   await requireModuleAccess("sales_followups");
   const sp = await searchParams;
   const view: View = (VIEWS as readonly string[]).includes(sp.view ?? "") ? (sp.view as View) : "overdue";
   const owner = sp.owner ?? "mine";
-  const returnTo = `/admin/sales/follow-ups?view=${encodeURIComponent(view)}&owner=${encodeURIComponent(owner)}`;
+  const requestedPage = normalizePage(sp.page);
 
   const supabase = await createSupabaseServerClient();
   const { data: staffRows } = await supabase.from("profiles").select("id, full_name").eq("is_active", true).order("full_name");
@@ -45,22 +46,34 @@ export default async function FollowUpsPage({
 
   // Resolved (won/lost/archived) leads never show as active follow-ups —
   // matches followUpState()'s own "none" rule.
-  let query = supabase
-    .from("v_sales_lead_inbox")
-    .select("*")
-    .not("follow_up_at", "is", null)
-    .not("status", "in", "(won,lost,archived)")
-    .order("follow_up_at", { ascending: true });
+  const createQuery = (withCount: boolean) => {
+    let query = supabase.from("v_sales_lead_inbox");
+    query = withCount ? query.select("*", { count: "exact" }) : query.select("*");
+    query = query
+      .not("follow_up_at", "is", null)
+      .not("status", "in", "(won,lost,archived)")
+      .order("follow_up_at", { ascending: true })
+      .order("lead_metadata_id", { ascending: true });
 
-  if (view === "overdue") query = query.lt("follow_up_at", nowIso);
-  else if (view === "today") query = query.gte("follow_up_at", nowIso).lt("follow_up_at", endOfTodayMyt);
-  else query = query.gte("follow_up_at", endOfTodayMyt);
+    if (view === "overdue") query = query.lt("follow_up_at", nowIso);
+    else if (view === "today") query = query.gte("follow_up_at", nowIso).lt("follow_up_at", endOfTodayMyt);
+    else query = query.gte("follow_up_at", endOfTodayMyt);
 
-  if (owner === "mine") query = query.eq("assigned_to", profile.id);
-  else if (owner !== "all") query = query.eq("assigned_to", owner);
+    if (owner === "mine") query = query.eq("assigned_to", profile.id);
+    else if (owner !== "all") query = query.eq("assigned_to", owner);
+    return query;
+  };
 
-  const { data: rows } = await query.limit(200);
+  const requestedRange = pageRange(requestedPage, SALES_QUEUE_PAGE_SIZE);
+  let { data: rows, count = 0 } = await createQuery(true).range(requestedRange.from, requestedRange.to);
+  const pageCount = pageCountFor(count ?? 0);
+  const page = clampPage(requestedPage, pageCount);
+  if (page !== requestedPage && count > 0) {
+    const range = pageRange(page, SALES_QUEUE_PAGE_SIZE);
+    ({ data: rows } = await createQuery(false).range(range.from, range.to));
+  }
   const leads = (rows ?? []) as SalesLeadInboxRow[];
+  const returnTo = `/admin/sales/follow-ups?view=${encodeURIComponent(view)}&owner=${encodeURIComponent(owner)}&page=${page}`;
   const leadIds = leads.map((l) => l.lead_metadata_id);
 
   // Batch-resolve: which of these leads already have an Opportunity, and
@@ -204,6 +217,12 @@ export default async function FollowUpsPage({
           <EmptyState icon="🗓" message="No follow-ups in this view." />
         )}
       </Card>
+      <Pagination
+        page={page}
+        pageCount={pageCount}
+        basePath="/admin/sales/follow-ups"
+        query={{ view, owner }}
+      />
     </>
   );
 }

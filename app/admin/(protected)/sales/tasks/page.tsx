@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { requireRole, requireModuleAccess } from "../../../../../lib/auth/session";
-import { PageHead, Card, Badge, EmptyState } from "../../../../../components/admin/ui";
+import { PageHead, Card, Badge, EmptyState, Pagination } from "../../../../../components/admin/ui";
 import { dueDateState, mytEndOfTodayUtc, sanitizeSearchTerm, type SalesTaskRow } from "../../../../../lib/sales/crm";
+import { clampPage, normalizePage, pageCountFor, pageRange, SALES_QUEUE_PAGE_SIZE } from "../../../../../lib/sales/pagination";
 import { loadStaffOptions } from "./options";
 import { formatMalaysiaDateTime } from "../../../../../lib/date-time";
 
@@ -23,13 +24,14 @@ function RelatedRecordLink({ task }: { task: SalesTaskRow }) {
 export default async function SalesTasksPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string; owner?: string; q?: string }>;
+  searchParams: Promise<{ view?: string; owner?: string; q?: string; page?: string }>;
 }) {
   const profile = await requireRole("editor");
   await requireModuleAccess("sales_tasks");
   const sp = await searchParams;
   const view: View = (VIEWS as readonly string[]).includes(sp.view ?? "") ? (sp.view as View) : "all";
   const owner = sp.owner ?? "mine";
+  const requestedPage = normalizePage(sp.page);
 
   const supabase = await createSupabaseServerClient();
   const staff = await loadStaffOptions();
@@ -39,33 +41,46 @@ export default async function SalesTasksPage({
   const endOfTodayMyt = mytEndOfTodayUtc(now).toISOString();
   const nowIso = now.toISOString();
 
-  let query = supabase
-    .from("sales_tasks")
-    .select("*")
-    .is("deleted_at", null)
-    .order("due_at", { ascending: true, nullsFirst: false });
+  const createQuery = (withCount: boolean) => {
+    let query = supabase.from("sales_tasks");
+    query = withCount ? query.select("*", { count: "exact" }) : query.select("*");
+    query = query
+      .is("deleted_at", null)
+      .order("due_at", { ascending: true, nullsFirst: false })
+      .order("id", { ascending: true });
 
-  if (view === "completed") {
-    query = query.eq("status", "completed");
-  } else {
-    query = query.not("status", "in", "(completed,cancelled)");
-    if (view === "overdue") query = query.not("due_at", "is", null).lt("due_at", nowIso);
-    else if (view === "today") query = query.not("due_at", "is", null).gte("due_at", nowIso).lt("due_at", endOfTodayMyt);
-    else if (view === "upcoming") query = query.not("due_at", "is", null).gte("due_at", endOfTodayMyt);
+    if (view === "completed") {
+      query = query.eq("status", "completed");
+    } else {
+      query = query.not("status", "in", "(completed,cancelled)");
+      if (view === "overdue") query = query.not("due_at", "is", null).lt("due_at", nowIso);
+      else if (view === "today") query = query.not("due_at", "is", null).gte("due_at", nowIso).lt("due_at", endOfTodayMyt);
+      else if (view === "upcoming") query = query.not("due_at", "is", null).gte("due_at", endOfTodayMyt);
+    }
+
+    if (owner === "mine") query = query.eq("assigned_to", profile.id);
+    else if (owner !== "all") query = query.eq("assigned_to", owner);
+
+    if (sp.q) {
+      const term = sanitizeSearchTerm(sp.q);
+      if (term) query = query.ilike("title", `%${term}%`);
+    }
+    return query;
+  };
+
+  const requestedRange = pageRange(requestedPage, SALES_QUEUE_PAGE_SIZE);
+  let { data: rows, count = 0 } = await createQuery(true).range(requestedRange.from, requestedRange.to);
+  const pageCount = pageCountFor(count ?? 0);
+  const page = clampPage(requestedPage, pageCount);
+  if (page !== requestedPage && count > 0) {
+    const range = pageRange(page, SALES_QUEUE_PAGE_SIZE);
+    ({ data: rows } = await createQuery(false).range(range.from, range.to));
   }
-
-  if (owner === "mine") query = query.eq("assigned_to", profile.id);
-  else if (owner !== "all") query = query.eq("assigned_to", owner);
-
-  if (sp.q) {
-    const term = sanitizeSearchTerm(sp.q);
-    if (term) query = query.ilike("title", `%${term}%`);
-  }
-
-  const { data: rows } = await query.limit(200);
   const tasks = (rows ?? []) as SalesTaskRow[];
 
   const qsBase: Record<string, string> = {};
+  qsBase.view = view;
+  qsBase.owner = owner;
   if (sp.q) qsBase.q = sp.q;
 
   return (
@@ -190,6 +205,7 @@ export default async function SalesTasksPage({
           <EmptyState icon="☑" message="No tasks in this view." />
         )}
       </Card>
+      <Pagination page={page} pageCount={pageCount} basePath="/admin/sales/tasks" query={qsBase} />
     </>
   );
 }
