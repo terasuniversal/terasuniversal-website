@@ -1,19 +1,61 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { requireModuleAccess, requireAttendance } from "../../../../lib/auth/session";
 
 const STATUS = z.enum(["present", "absent", "late", "excused"]);
+type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
+type AttendanceOperation = "mark" | "mark_all_present" | "bulk_update" | "reset";
+type FailureReason = "invalid_enrollment" | "invalid_date" | "database_error";
 
 /** Server-side guard: the UI's day-navigation strip only lets staff pick an
  * in-range date, but nothing stopped a bound action from being invoked with
  * an out-of-range session_date directly. Reject rather than trust the UI. */
-export async function isSessionDateInRange(supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>, scheduleId: string, sessionDate: string): Promise<boolean> {
-  const { data } = await supabase.from("course_schedules").select("start_date, end_date").eq("id", scheduleId).single();
+export async function isSessionDateInRange(supabase: SupabaseServerClient, scheduleId: string, sessionDate: string): Promise<boolean> {
+  const { data, error } = await supabase.from("course_schedules").select("start_date, end_date").eq("id", scheduleId).single();
+  if (error) throw error;
   if (!data) return false;
   return sessionDate >= data.start_date && sessionDate <= data.end_date;
+}
+
+function mutationFailure(operation: AttendanceOperation, scheduleId: string, sessionDate: string, reason: FailureReason): never {
+  console.error("Attendance mutation failed", { operation, scheduleId, sessionDate, reason });
+  redirect(`/admin/attendance/${scheduleId}?${new URLSearchParams({ date: sessionDate, attendance_error: reason }).toString()}`);
+}
+
+async function requireActiveEnrollment(
+  supabase: SupabaseServerClient,
+  scheduleId: string,
+  participantIds: string[],
+  operation: AttendanceOperation,
+  sessionDate: string,
+) {
+  const uniqueIds = [...new Set(participantIds)];
+  const { data, error } = await supabase
+    .from("schedule_participants")
+    .select("participant_id")
+    .eq("schedule_id", scheduleId)
+    .in("participant_id", uniqueIds)
+    .is("deleted_at", null)
+    .neq("registration_status", "cancelled");
+  if (error) mutationFailure(operation, scheduleId, sessionDate, "database_error");
+  const enrolled = new Set((data ?? []).map((row: { participant_id: string }) => row.participant_id));
+  if (uniqueIds.some((participantId) => !enrolled.has(participantId))) {
+    mutationFailure(operation, scheduleId, sessionDate, "invalid_enrollment");
+  }
+}
+
+async function requireValidSessionDate(supabase: SupabaseServerClient, scheduleId: string, sessionDate: string, operation: AttendanceOperation) {
+  let inRange = false;
+  try {
+    inRange = await isSessionDateInRange(supabase, scheduleId, sessionDate);
+  } catch {
+    mutationFailure(operation, scheduleId, sessionDate, "database_error");
+  }
+  if (!inRange) mutationFailure(operation, scheduleId, sessionDate, "invalid_date");
 }
 
 /**
@@ -27,20 +69,21 @@ export async function isSessionDateInRange(supabase: Awaited<ReturnType<typeof c
  * until the trainer marks one.
  */
 export async function markAttendance(scheduleId: string, sessionDate: string, formData: FormData) {
-  await requireAttendance(true); // trainer or admin
+  await requireAttendance(true);
   await requireModuleAccess("attendance");
   const participantId = String(formData.get("participant_id") ?? "");
   const status = STATUS.safeParse(formData.get("attendance_status"));
-  if (!participantId || !status.success) return;
+  if (!participantId || !status.success) mutationFailure("mark", scheduleId, sessionDate, "invalid_enrollment");
 
   const checkIn = String(formData.get("check_in_time") ?? "").trim();
   const checkOut = String(formData.get("check_out_time") ?? "").trim();
   const remarks = String(formData.get("remarks") ?? "").trim();
 
   const supabase = await createSupabaseServerClient();
-  if (!(await isSessionDateInRange(supabase, scheduleId, sessionDate))) return;
+  await requireValidSessionDate(supabase, scheduleId, sessionDate, "mark");
+  await requireActiveEnrollment(supabase, scheduleId, [participantId], "mark", sessionDate);
 
-  await supabase.from("attendance").upsert(
+  const { error } = await supabase.from("attendance").upsert(
     {
       schedule_id: scheduleId,
       participant_id: participantId,
@@ -50,8 +93,9 @@ export async function markAttendance(scheduleId: string, sessionDate: string, fo
       check_out_time: checkOut ? new Date(checkOut).toISOString() : null,
       remarks: remarks || null,
     },
-    { onConflict: "schedule_id,participant_id,session_date" }
+    { onConflict: "schedule_id,participant_id,session_date" },
   );
+  if (error) mutationFailure("mark", scheduleId, sessionDate, "database_error");
   revalidatePath(`/admin/attendance/${scheduleId}`);
 }
 
@@ -60,9 +104,10 @@ export async function markAllPresent(scheduleId: string, sessionDate: string, fo
   await requireAttendance(true);
   await requireModuleAccess("attendance");
   const ids = formData.getAll("participant_ids").map(String).filter(Boolean);
-  if (ids.length === 0) return;
+  if (ids.length === 0) mutationFailure("mark_all_present", scheduleId, sessionDate, "invalid_enrollment");
   const supabase = await createSupabaseServerClient();
-  if (!(await isSessionDateInRange(supabase, scheduleId, sessionDate))) return;
+  await requireValidSessionDate(supabase, scheduleId, sessionDate, "mark_all_present");
+  await requireActiveEnrollment(supabase, scheduleId, ids, "mark_all_present", sessionDate);
 
   const rows = ids.map((participant_id) => ({
     schedule_id: scheduleId,
@@ -71,7 +116,8 @@ export async function markAllPresent(scheduleId: string, sessionDate: string, fo
     attendance_status: "present" as const,
     check_in_time: new Date().toISOString(),
   }));
-  await supabase.from("attendance").upsert(rows, { onConflict: "schedule_id,participant_id,session_date" });
+  const { error } = await supabase.from("attendance").upsert(rows, { onConflict: "schedule_id,participant_id,session_date" });
+  if (error) mutationFailure("mark_all_present", scheduleId, sessionDate, "database_error");
   revalidatePath(`/admin/attendance/${scheduleId}`);
 }
 
@@ -81,12 +127,14 @@ export async function bulkUpdateAttendance(scheduleId: string, sessionDate: stri
   await requireModuleAccess("attendance");
   const ids = formData.getAll("participant_ids").map(String).filter(Boolean);
   const status = STATUS.safeParse(formData.get("status"));
-  if (ids.length === 0 || !status.success) return;
+  if (ids.length === 0 || !status.success) mutationFailure("bulk_update", scheduleId, sessionDate, "invalid_enrollment");
   const supabase = await createSupabaseServerClient();
-  if (!(await isSessionDateInRange(supabase, scheduleId, sessionDate))) return;
+  await requireValidSessionDate(supabase, scheduleId, sessionDate, "bulk_update");
+  await requireActiveEnrollment(supabase, scheduleId, ids, "bulk_update", sessionDate);
 
   const rows = ids.map((participant_id) => ({ schedule_id: scheduleId, participant_id, session_date: sessionDate, attendance_status: status.data }));
-  await supabase.from("attendance").upsert(rows, { onConflict: "schedule_id,participant_id,session_date" });
+  const { error } = await supabase.from("attendance").upsert(rows, { onConflict: "schedule_id,participant_id,session_date" });
+  if (error) mutationFailure("bulk_update", scheduleId, sessionDate, "database_error");
   revalidatePath(`/admin/attendance/${scheduleId}`);
 }
 
@@ -97,15 +145,17 @@ export async function resetAttendance(scheduleId: string, sessionDate: string, f
   await requireAttendance(true);
   await requireModuleAccess("attendance");
   const ids = formData.getAll("participant_ids").map(String).filter(Boolean);
-  if (ids.length === 0) return;
+  if (ids.length === 0) mutationFailure("reset", scheduleId, sessionDate, "invalid_enrollment");
   const supabase = await createSupabaseServerClient();
-  if (!(await isSessionDateInRange(supabase, scheduleId, sessionDate))) return;
+  await requireValidSessionDate(supabase, scheduleId, sessionDate, "reset");
+  await requireActiveEnrollment(supabase, scheduleId, ids, "reset", sessionDate);
 
-  await supabase
+  const { error } = await supabase
     .from("attendance")
     .delete()
     .eq("schedule_id", scheduleId)
     .eq("session_date", sessionDate)
     .in("participant_id", ids);
+  if (error) mutationFailure("reset", scheduleId, sessionDate, "database_error");
   revalidatePath(`/admin/attendance/${scheduleId}`);
 }

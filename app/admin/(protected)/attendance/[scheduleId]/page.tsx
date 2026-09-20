@@ -16,13 +16,13 @@ export default async function TakeAttendancePage({
   searchParams,
 }: {
   params: Promise<{ scheduleId: string }>;
-  searchParams: Promise<{ date?: string; group?: string }>;
+  searchParams: Promise<{ date?: string; group?: string; attendance_error?: string }>;
 }) {
   await requireModuleAccess("attendance");
   const profile = await requireAttendance(false);
   const canManage = canManageAttendance(profile.role);
   const { scheduleId } = await params;
-  const { date, group: requestedGroup } = await searchParams;
+  const { date, group: requestedGroup, attendance_error: attendanceError } = await searchParams;
   const supabase = await createSupabaseServerClient();
 
   const { data: scheduleRow } = await supabase
@@ -139,6 +139,14 @@ export default async function TakeAttendancePage({
         subtitle={`${courseName} · ${s.schedule_code}`}
         action={<Link href="/admin/attendance" className="ta-btn ta-btn-outline">← Back</Link>}
       />
+
+      {attendanceError && (
+        <div className="ta-alert ta-alert-error" role="alert">
+          {attendanceError === "invalid_enrollment"
+            ? "Attendance was not saved because one or more participants are not actively enrolled in this schedule."
+            : "Attendance was not saved. Please try again or contact an administrator if the problem continues."}
+        </div>
+      )}
 
       <Card title="Schedule">
         <div className="ta-card-pad" style={{ display: "flex", gap: 26, flexWrap: "wrap" }}>
