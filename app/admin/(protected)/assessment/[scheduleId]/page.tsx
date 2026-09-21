@@ -16,7 +16,7 @@ export default async function AssessSchedulePage({
   searchParams,
 }: {
   params: Promise<{ scheduleId: string }>;
-  searchParams: Promise<{ group?: string }>;
+  searchParams: Promise<{ group?: string; assessment_error?: string }>;
 }) {
   await requireModuleAccess("assessment");
   const profile = await requireAssessment(false);
@@ -32,7 +32,7 @@ export default async function AssessSchedulePage({
   // requireRole("editor"), so the row link is hidden below that.
   const canViewParticipants = isEditor(profile.role);
   const { scheduleId } = await params;
-  const { group: requestedGroup } = await searchParams;
+  const { group: requestedGroup, assessment_error: assessmentError } = await searchParams;
   const supabase = await createSupabaseServerClient();
 
   const { data: scheduleRow } = await supabase
@@ -131,6 +131,22 @@ export default async function AssessSchedulePage({
         subtitle={`${courseName} · ${s.schedule_code}`}
         action={<Link href="/admin/assessment" className="ta-btn ta-btn-outline">← Back</Link>}
       />
+
+      {assessmentError && (
+        <div className="ta-alert ta-alert-error" role="alert">
+          {assessmentError === "invalid_enrollment"
+            ? "Assessment was not saved because one or more participants are not actively enrolled in this schedule."
+            : assessmentError === "assessment_locked"
+              ? "Assessment was not changed because one or more selected assessments are locked."
+              : assessmentError === "unauthorized_unlock"
+                ? "Only an active Super Admin can unlock assessments."
+                : assessmentError === "invalid_group"
+                  ? "Assessment was not changed because the group context is invalid or no longer matches the schedule."
+                  : assessmentError === "invalid_input"
+                    ? "Assessment was not changed because the submitted data is invalid."
+                    : "Assessment mutation failed. Please try again or contact an administrator."}
+        </div>
+      )}
 
       <Card title="Schedule">
         <div className="ta-card-pad" style={{ display: "flex", gap: 26, flexWrap: "wrap" }}>
