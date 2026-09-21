@@ -40,21 +40,27 @@ export async function loadScheduleGroups(
 }
 
 export const UNGROUPED = "ungrouped" as const;
+export const ALL_GROUPS = "all" as const;
 export type GroupSelection = ScheduleGroup | typeof UNGROUPED | null;
 
 /**
  * Resolves a raw `?group=` value against THIS schedule's own groups only —
  * never trusts the query string directly. A value that doesn't match any of
  * `groups` (wrong id, another schedule's group, deleted group, garbage
- * input) safely falls back to null ("All Groups") rather than leaking
- * another schedule's roster or erroring. `UNGROUPED` is a reserved literal
- * (not a valid uuid, so it can never collide with a real group id) selecting
- * enrolled participants with no group assignment.
+ * input) safely falls back to null for display-only screen rendering. Export
+ * routes must call isValidRequestedGroup first and reject invalid input rather
+ * than allowing that display fallback to widen a data output.
  */
 export function resolveRequestedGroup(groups: ScheduleGroup[], requested: string | undefined | null): GroupSelection {
-  if (!requested) return null;
+  if (!requested || requested === ALL_GROUPS) return null;
   if (requested === UNGROUPED) return UNGROUPED;
   return groups.find((g) => g.id === requested) ?? null;
+}
+
+/** Returns whether a query value is an explicit valid scope for this schedule. */
+export function isValidRequestedGroup(groups: ScheduleGroup[], requested: string | undefined | null): boolean {
+  if (requested == null || requested === ALL_GROUPS || requested === UNGROUPED) return true;
+  return groups.some((g) => g.id === requested);
 }
 
 export interface AssessorLine {
