@@ -79,7 +79,7 @@ export function AttendanceTable({
       )}
 
       <div className="ta-table-wrap">
-        <table className="ta-table">
+        <table className="ta-table ta-attendance-desktop">
           <thead>
             <tr>
               {canManage && <th style={{ width: 34 }}><input type="checkbox" checked={allChecked} onChange={toggleAll} aria-label="Select all" /></th>}
@@ -104,13 +104,13 @@ export function AttendanceTable({
                   <td colSpan={5}>
                     <MutationForm action={markForDate} pendingLabel="Saving…" idleLabel="Save" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                       <input type="hidden" name="participant_id" value={r.participant_id} />
-                      <select name="attendance_status" defaultValue={r.attendance_status ?? "present"} style={{ padding: "6px 8px", borderRadius: 7, border: "1px solid var(--ta-line)" }} aria-label="Status">
+                      <select name="attendance_status" defaultValue={r.attendance_status ?? "present"} style={{ padding: "6px 8px", borderRadius: 7, border: "1px solid var(--ta-line)" }} aria-label={`Status for ${r.participant?.full_name ?? "participant"}`}>
                         {!r.attendance_status && <option value="" disabled>Not recorded</option>}
                         {STATUSES.map((s) => <option key={s} value={s}>{label(s)}</option>)}
                       </select>
-                      <input type="datetime-local" name="check_in_time" defaultValue={toLocalInput(r.check_in_time)} style={inp} aria-label="Check-in" />
-                      <input type="datetime-local" name="check_out_time" defaultValue={toLocalInput(r.check_out_time)} style={inp} aria-label="Check-out" />
-                      <input name="remarks" defaultValue={r.remarks ?? ""} placeholder="Remarks" style={{ ...inp, width: 140 }} aria-label="Remarks" />
+                      <input type="datetime-local" name="check_in_time" defaultValue={toLocalInput(r.check_in_time)} style={inp} aria-label={`Check-in for ${r.participant?.full_name ?? "participant"}`} />
+                      <input type="datetime-local" name="check_out_time" defaultValue={toLocalInput(r.check_out_time)} style={inp} aria-label={`Check-out for ${r.participant?.full_name ?? "participant"}`} />
+                      <input name="remarks" defaultValue={r.remarks ?? ""} placeholder="Remarks" style={{ ...inp, width: 140 }} aria-label={`Remarks for ${r.participant?.full_name ?? "participant"}`} />
                       <MutationSubmitButton>Save</MutationSubmitButton>
                     </MutationForm>
                   </td>
@@ -126,6 +126,65 @@ export function AttendanceTable({
             ))}
           </tbody>
         </table>
+      </div>
+
+      <div className="ta-attendance-mobile" aria-label="Mobile attendance participant editing">
+        {filtered.map((r) => {
+          const participantName = r.participant?.full_name ?? "Participant";
+          return (
+            <article key={r.participant_id} className="ta-card ta-attendance-mobile-row">
+              <div className="ta-attendance-mobile-identity">
+                {canManage && (
+                  <input
+                    type="checkbox"
+                    checked={selected.has(r.participant_id)}
+                    onChange={() => toggle(r.participant_id)}
+                    aria-label={`Select ${participantName}`}
+                  />
+                )}
+                <div>
+                  <strong>{participantName}</strong>
+                  <div className="ta-cell-sub">
+                    <code>{r.participant?.participant_id}</code>
+                    {r.participant?.company ? ` · ${r.participant.company}` : ""}
+                  </div>
+                </div>
+              </div>
+              {canManage ? (
+                <MutationForm action={markForDate} pendingLabel="Saving…" idleLabel="Save" className="ta-attendance-mobile-form">
+                  <input type="hidden" name="participant_id" value={r.participant_id} />
+                  <label>
+                    <span>Status</span>
+                    <select name="attendance_status" defaultValue={r.attendance_status ?? "present"} aria-label={`Status for ${participantName}`}>
+                      {!r.attendance_status && <option value="" disabled>Not recorded</option>}
+                      {STATUSES.map((s) => <option key={s} value={s}>{label(s)}</option>)}
+                    </select>
+                  </label>
+                  <label>
+                    <span>Check-in</span>
+                    <input type="datetime-local" name="check_in_time" defaultValue={toLocalInput(r.check_in_time)} aria-label={`Check-in for ${participantName}`} />
+                  </label>
+                  <label>
+                    <span>Check-out</span>
+                    <input type="datetime-local" name="check_out_time" defaultValue={toLocalInput(r.check_out_time)} aria-label={`Check-out for ${participantName}`} />
+                  </label>
+                  <label className="ta-attendance-mobile-remarks">
+                    <span>Remarks</span>
+                    <input name="remarks" defaultValue={r.remarks ?? ""} placeholder="Remarks" aria-label={`Remarks for ${participantName}`} />
+                  </label>
+                  <MutationSubmitButton>Save</MutationSubmitButton>
+                </MutationForm>
+              ) : (
+                <dl className="ta-attendance-mobile-readonly">
+                  <div><dt>Status</dt><dd>{r.attendance_status ? <Badge status={r.attendance_status} /> : "Not recorded"}</dd></div>
+                  <div><dt>Check-in</dt><dd>{r.check_in_time ? formatMalaysiaDateTime(r.check_in_time) : "—"}</dd></div>
+                  <div><dt>Check-out</dt><dd>{r.check_out_time ? formatMalaysiaDateTime(r.check_out_time) : "—"}</dd></div>
+                  <div><dt>Remarks</dt><dd>{r.remarks ?? "—"}</dd></div>
+                </dl>
+              )}
+            </article>
+          );
+        })}
       </div>
     </>
   );
