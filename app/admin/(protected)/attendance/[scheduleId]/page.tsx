@@ -249,9 +249,9 @@ export default async function TakeAttendancePage({
             <button type="submit" className="ta-btn ta-btn-outline ta-btn-sm">↩ Undo all for this date</button>
           </form>
           <div className="ta-spacer" />
-          <a href={`/admin/attendance/${scheduleId}/export?format=csv&date=${sessionDate}`} className="ta-btn ta-btn-outline ta-btn-sm">⬇ CSV</a>
-          <a href={`/admin/attendance/${scheduleId}/export?format=excel&date=${sessionDate}`} className="ta-btn ta-btn-outline ta-btn-sm">⬇ Excel</a>
-          <a href={`/admin/attendance/${scheduleId}/print${requestedGroup ? `?group=${requestedGroup}` : ""}`} target="_blank" className="ta-btn ta-btn-outline ta-btn-sm">🖨 Print Attendance Sheet</a>
+          <a href={`/admin/attendance/${scheduleId}/export?format=csv&date=${sessionDate}${requestedGroup ? `&group=${encodeURIComponent(requestedGroup)}` : ""}`} className="ta-btn ta-btn-outline ta-btn-sm">⬇ CSV (selected date)</a>
+          <a href={`/admin/attendance/${scheduleId}/export?format=excel&date=${sessionDate}${requestedGroup ? `&group=${encodeURIComponent(requestedGroup)}` : ""}`} className="ta-btn ta-btn-outline ta-btn-sm">⬇ Excel (selected date)</a>
+          <a href={`/admin/attendance/${scheduleId}/print${requestedGroup ? `?group=${encodeURIComponent(requestedGroup)}` : ""}`} target="_blank" className="ta-btn ta-btn-outline ta-btn-sm">🖨 Print whole schedule</a>
           <Link href={`/admin/attendance/${scheduleId}/import?date=${sessionDate}`} className="ta-btn ta-btn-outline ta-btn-sm">⬆ Import</Link>
         </div>
       )}
