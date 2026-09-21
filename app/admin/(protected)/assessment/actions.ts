@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { requireModuleAccess, requireAssessment } from "../../../../lib/auth/session";
@@ -12,9 +13,45 @@ import { UNGROUPED } from "../../../../lib/scheduleGroupContext";
 const RESULT = z.enum(["pending", "pass", "fail"]);
 const COMPETENCY = z.enum(["pending_review", "competent", "not_yet_competent"]);
 const TYPE = z.enum(["theory", "practical", "combined"]);
+type AssessmentFailure = "invalid_input" | "invalid_enrollment" | "assessment_locked" | "unauthorized_unlock" | "invalid_group" | "database_error";
 const score = z
   .union([z.literal(""), z.coerce.number().min(0).max(100)])
   .transform((v) => (v === "" ? null : v));
+
+function mutationFailure(scheduleId: string, reason: AssessmentFailure, groupId?: string | typeof UNGROUPED | null): never {
+  console.error("Assessment mutation failed", { scheduleId, reason });
+  const params = new URLSearchParams({ assessment_error: reason });
+  if (groupId && groupId !== UNGROUPED) params.set("group", groupId);
+  redirect(`/admin/assessment/${scheduleId}?${params.toString()}`);
+}
+
+async function requireActiveEnrollment(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  scheduleId: string,
+  participantIds: string[],
+  groupId: string | typeof UNGROUPED | null,
+) {
+  if (participantIds.length === 0) return;
+  const { data, error } = await supabase
+    .from("schedule_participants")
+    .select("participant_id, schedule_group_id, deleted_at, registration_status")
+    .eq("schedule_id", scheduleId)
+    .in("participant_id", participantIds);
+  if (error) mutationFailure(scheduleId, "database_error", groupId);
+
+  type EnrollmentRow = { participant_id: string; schedule_group_id: string | null; deleted_at: string | null; registration_status: string };
+  const membershipByParticipant = new Map<string, EnrollmentRow>(
+    (data ?? []).map((row: EnrollmentRow) => [row.participant_id, row])
+  );
+  const allValid = participantIds.every((participantId) => {
+    const row = membershipByParticipant.get(participantId);
+    if (!row || row.deleted_at !== null || row.registration_status === "cancelled") return false;
+    if (groupId === null) return true;
+    if (groupId === UNGROUPED) return row.schedule_group_id === null;
+    return row.schedule_group_id === groupId;
+  });
+  if (!allValid) mutationFailure(scheduleId, groupId === null ? "invalid_enrollment" : "invalid_group", groupId);
+}
 
 /**
  * Assessment is roster-driven, not auto-created on enrollment: an enrolled
@@ -28,7 +65,7 @@ export async function updateAssessment(scheduleId: string, formData: FormData) {
   const profile = await requireAssessment(true);
   await requireModuleAccess("assessment");
   const participantId = String(formData.get("participant_id") ?? "");
-  if (!participantId) return;
+  if (!participantId) mutationFailure(scheduleId, "invalid_input");
 
   const parsed = z
     .object({
@@ -51,43 +88,21 @@ export async function updateAssessment(scheduleId: string, formData: FormData) {
       competency_status: formData.get("competency_status") ?? "",
       remarks: String(formData.get("remarks") ?? ""),
     });
-  if (!parsed.success) return;
+  if (!parsed.success) mutationFailure(scheduleId, "invalid_input");
 
   const supabase = await createSupabaseServerClient();
+  await requireActiveEnrollment(supabase, scheduleId, [participantId], null);
 
-  // Enrollment-integrity hardening: never trust participant_id from the form
-  // alone. A participant must have an ACTIVE enrollment in THIS schedule
-  // (not soft-deleted, not cancelled) before an assessment row can be
-  // created or updated for them -- otherwise a crafted participant_id could
-  // create an assessments row for someone never enrolled here, or one whose
-  // enrollment was later cancelled. Blocked the same way a locked row is
-  // below: a silent no-op, matching this action's existing convention (it's
-  // a plain form action, not wired to useActionState, so there is no
-  // client-visible error channel to populate here).
-  const { data: enrollment } = await supabase
-    .from("schedule_participants")
-    .select("participant_id")
-    .eq("schedule_id", scheduleId)
-    .eq("participant_id", participantId)
-    .is("deleted_at", null)
-    .neq("registration_status", "cancelled")
-    .maybeSingle();
-  if (!enrollment) return;
-
-  // The client hides the edit form when locked, but nothing previously
-  // stopped a direct call to this action from writing over a locked row.
-  // No unlock/override flow exists here besides unlockAssessments (Super
-  // Admin only, a separate explicit action) -- reject rather than trust
-  // the disabled UI.
-  const { data: existing } = await supabase
+  const { data: existing, error: existingError } = await supabase
     .from("assessments")
     .select("locked")
     .eq("schedule_id", scheduleId)
     .eq("participant_id", participantId)
     .maybeSingle();
-  if (existing?.locked) return;
+  if (existingError) mutationFailure(scheduleId, "database_error");
+  if (existing?.locked) mutationFailure(scheduleId, "assessment_locked");
 
-  await supabase.from("assessments").upsert(
+  const { error } = await supabase.from("assessments").upsert(
     {
       schedule_id: scheduleId,
       participant_id: participantId,
@@ -104,6 +119,7 @@ export async function updateAssessment(scheduleId: string, formData: FormData) {
     },
     { onConflict: "schedule_id,participant_id" }
   );
+  if (error) mutationFailure(scheduleId, "database_error");
   revalidatePath(`/admin/assessment/${scheduleId}`);
 }
 
@@ -141,7 +157,7 @@ export async function bulkUpdateResult(scheduleId: string, groupId: string | typ
   await requireModuleAccess("assessment");
   const ids = Array.from(new Set(formData.getAll("ids").map(String).filter(Boolean)));
   const result = RESULT.safeParse(formData.get("result"));
-  if (ids.length === 0 || !result.success) return;
+  if (ids.length === 0 || !result.success) mutationFailure(scheduleId, "invalid_input", groupId);
   const supabase = await createSupabaseServerClient();
 
   // Validate the requested group actually belongs to this schedule before
@@ -149,52 +165,40 @@ export async function bulkUpdateResult(scheduleId: string, groupId: string | typ
   // reject, not silently widen back to "all participants" the way the
   // read-side page falls back for display.
   if (groupId !== null && groupId !== UNGROUPED) {
-    const { data: groupRow } = await supabase
+    const { data: groupRow, error: groupError } = await supabase
       .from("schedule_groups")
       .select("id")
       .eq("id", groupId)
       .eq("schedule_id", scheduleId)
       .is("deleted_at", null)
       .maybeSingle();
-    if (!groupRow) return;
+    if (groupError) mutationFailure(scheduleId, "database_error", groupId);
+    if (!groupRow) mutationFailure(scheduleId, "invalid_group", groupId);
   }
 
-  const { data: rows } = await supabase
+  const { data: rows, error: rowsError } = await supabase
     .from("assessments")
     .select("id, participant_id, locked")
     .eq("schedule_id", scheduleId)
     .in("id", ids);
+  if (rowsError) mutationFailure(scheduleId, "database_error", groupId);
   const candidates = (rows ?? []) as { id: string; participant_id: string; locked: boolean }[];
   // Every submitted id must have resolved to a real, same-schedule row --
   // a foreign-schedule or bogus id fails the whole operation.
-  if (candidates.length !== ids.length) return;
+  if (candidates.length !== ids.length) mutationFailure(scheduleId, "invalid_enrollment", groupId);
 
   const participantIds = candidates.map((c) => c.participant_id);
-  const { data: membership } = await supabase
-    .from("schedule_participants")
-    .select("participant_id, schedule_group_id, deleted_at, registration_status")
-    .eq("schedule_id", scheduleId)
-    .in("participant_id", participantIds);
-  const membershipByParticipant = new Map<string, { schedule_group_id: string | null; deleted_at: string | null; registration_status: string }>(
-    (membership ?? []).map((m: any) => [m.participant_id, m])
-  );
-
-  const allValid = candidates.every((c) => {
-    const m = membershipByParticipant.get(c.participant_id);
-    const activelyEnrolled = !!m && m.deleted_at === null && m.registration_status !== "cancelled";
-    if (!activelyEnrolled) return false;
-    if (groupId === null) return true; // All Groups: active same-schedule enrollment is sufficient.
-    if (groupId === UNGROUPED) return m!.schedule_group_id === null;
-    return m!.schedule_group_id === groupId;
-  });
-  if (!allValid) return;
-
-  const unlockedIds = candidates.filter((r) => !r.locked).map((r) => r.id);
-  if (unlockedIds.length === 0) return;
+  await requireActiveEnrollment(supabase, scheduleId, participantIds, groupId);
+  if (candidates.some((row) => row.locked)) mutationFailure(scheduleId, "assessment_locked", groupId);
 
   // Derive competency from the pass/fail choice for convenience.
   const competency = result.data === "pass" ? "competent" : result.data === "fail" ? "not_yet_competent" : "pending_review";
-  await supabase.from("assessments").update({ result: result.data, competency_status: competency }).in("id", unlockedIds);
+  const { error } = await supabase
+    .from("assessments")
+    .update({ result: result.data, competency_status: competency })
+    .eq("schedule_id", scheduleId)
+    .in("id", ids);
+  if (error) mutationFailure(scheduleId, "database_error", groupId);
   revalidatePath(`/admin/assessment/${scheduleId}`);
 }
 
@@ -204,24 +208,55 @@ export async function lockAssessments(scheduleId: string, formData: FormData) {
   await requireModuleAccess("assessment");
   const ids = formData.getAll("ids").map(String).filter(Boolean);
   const profile = await getCurrentProfile();
+  if (!profile) mutationFailure(scheduleId, "database_error");
   const supabase = await createSupabaseServerClient();
-  let q = supabase.from("assessments").update({ locked: true, locked_at: new Date().toISOString(), locked_by: profile?.id ?? null }).eq("schedule_id", scheduleId);
-  if (ids.length > 0) q = q.in("id", ids);
-  await q;
+  const { data: rows, error: rowsError } = await supabase
+    .from("assessments")
+    .select("id, participant_id, locked")
+    .eq("schedule_id", scheduleId)
+    .in(ids.length > 0 ? "id" : "schedule_id", ids.length > 0 ? ids : [scheduleId]);
+  if (rowsError) mutationFailure(scheduleId, "database_error");
+  const candidates = (rows ?? []) as { id: string; participant_id: string; locked: boolean }[];
+  if (ids.length > 0 && candidates.length !== ids.length) mutationFailure(scheduleId, "invalid_enrollment");
+  await requireActiveEnrollment(supabase, scheduleId, candidates.map((row) => row.participant_id), null);
+  const targetIds = candidates.filter((row) => !row.locked).map((row) => row.id);
+  if (targetIds.length > 0) {
+    const { error } = await supabase
+      .from("assessments")
+      .update({ locked: true, locked_at: new Date().toISOString(), locked_by: profile.id })
+      .eq("schedule_id", scheduleId)
+      .in("id", targetIds);
+    if (error) mutationFailure(scheduleId, "database_error");
+  }
   revalidatePath(`/admin/assessment/${scheduleId}`);
 }
 
-/** Unlock — Super Admin only. RLS only requires trainer+ on assessments
- * UPDATE (see SCHEDULES_ARCHITECTURE_DECISION.md §N); this app-layer check
- * is the actual enforcement for the super-admin-only unlock rule. */
+/** Unlock — an explicit Super Admin-only lock transition. */
 export async function unlockAssessments(scheduleId: string, formData: FormData) {
+  await requireAssessment(true);
+  await requireModuleAccess("assessment");
   const profile = await getCurrentProfile();
-  if (!profile || !isSuperAdmin(profile.role)) return;
+  if (!profile || !profile.is_active || !isSuperAdmin(profile.role)) mutationFailure(scheduleId, "unauthorized_unlock");
   const ids = formData.getAll("ids").map(String).filter(Boolean);
   const supabase = await createSupabaseServerClient();
-  let q = supabase.from("assessments").update({ locked: false, locked_at: null, locked_by: null }).eq("schedule_id", scheduleId);
-  if (ids.length > 0) q = q.in("id", ids);
-  await q;
+  const { data: rows, error: rowsError } = await supabase
+    .from("assessments")
+    .select("id, participant_id, locked")
+    .eq("schedule_id", scheduleId)
+    .in(ids.length > 0 ? "id" : "schedule_id", ids.length > 0 ? ids : [scheduleId]);
+  if (rowsError) mutationFailure(scheduleId, "database_error");
+  const candidates = (rows ?? []) as { id: string; participant_id: string; locked: boolean }[];
+  if (ids.length > 0 && candidates.length !== ids.length) mutationFailure(scheduleId, "invalid_enrollment");
+  await requireActiveEnrollment(supabase, scheduleId, candidates.map((row) => row.participant_id), null);
+  const targetIds = candidates.filter((row) => row.locked).map((row) => row.id);
+  if (targetIds.length > 0) {
+    const { error } = await supabase
+      .from("assessments")
+      .update({ locked: false, locked_at: null, locked_by: null })
+      .eq("schedule_id", scheduleId)
+      .in("id", targetIds);
+    if (error) mutationFailure(scheduleId, "database_error");
+  }
   revalidatePath(`/admin/assessment/${scheduleId}`);
 }
 
@@ -275,7 +310,7 @@ export async function updateParticipantSkillResults(
   // UI (the per-row Skills Record form), so it shares the same mutation
   // integrity boundary -- a participant with no active enrollment in this
   // schedule must be blocked before any participant_skill_results write.
-  const { data: enrollment } = await supabase
+  const { data: enrollment, error: enrollmentError } = await supabase
     .from("schedule_participants")
     .select("participant_id")
     .eq("schedule_id", scheduleId)
@@ -283,16 +318,18 @@ export async function updateParticipantSkillResults(
     .is("deleted_at", null)
     .neq("registration_status", "cancelled")
     .maybeSingle();
+  if (enrollmentError) return { error: "Unable to validate enrollment. Please try again." };
   if (!enrollment) return { error: "This participant is not actively enrolled in this schedule." };
 
   // Same lock check as updateAssessment: the UI hides the form when locked,
   // but a direct call must not be able to write over a locked assessment.
-  const { data: existing } = await supabase
+  const { data: existing, error: existingError } = await supabase
     .from("assessments")
     .select("locked")
     .eq("schedule_id", scheduleId)
     .eq("participant_id", participantId)
     .maybeSingle();
+  if (existingError) return { error: "Unable to validate the assessment lock. Please try again." };
   if (existing?.locked) return { error: "This participant's assessment is locked." };
 
   const nowIso = new Date().toISOString();
