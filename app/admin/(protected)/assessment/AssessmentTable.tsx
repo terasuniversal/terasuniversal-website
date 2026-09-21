@@ -142,6 +142,7 @@ export function AssessmentTable({
   const [q, setQ] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkResult, setBulkResult] = useState("pass");
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const filtered = q.trim()
     ? rows.filter((r) => (r.participant?.full_name + " " + r.participant?.participant_id + " " + (r.participant?.company ?? "")).toLowerCase().includes(q.toLowerCase()))
@@ -150,6 +151,11 @@ export function AssessmentTable({
   const allChecked = selectableIds.length > 0 && selectableIds.every((id) => selected.has(id));
   const toggle = (id: string) => setSelected((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const toggleAll = () => setSelected(allChecked ? new Set() : new Set(selectableIds));
+  const toggleExpanded = (participantId: string) => setExpanded((previous) => {
+    const next = new Set(previous);
+    next.has(participantId) ? next.delete(participantId) : next.add(participantId);
+    return next;
+  });
 
   return (
     <>
@@ -185,7 +191,7 @@ export function AssessmentTable({
       )}
 
       <div className="ta-table-wrap">
-        <table className="ta-table">
+        <table className="ta-table ta-assessment-desktop">
           <thead>
             <tr>
               {canManage && <th style={{ width: 34 }}><input type="checkbox" checked={allChecked} onChange={toggleAll} aria-label="Select all" /></th>}
@@ -206,7 +212,7 @@ export function AssessmentTable({
               return (
                 <Fragment key={r.participant_id}>
                 <tr>
-                  {canManage && <td>{r.id && <input type="checkbox" checked={selected.has(r.id)} onChange={() => toggle(r.id!)} aria-label="Select" />}</td>}
+                  {canManage && <td>{r.id && <input type="checkbox" checked={selected.has(r.id)} onChange={() => toggle(r.id!)} aria-label={`Select ${r.participant?.full_name ?? "participant"}`} />}</td>}
                   {editable ? (
                     <td colSpan={8}>
                       <MutationForm action={updateAssessment.bind(null, scheduleId)} pendingLabel="Saving…" idleLabel="Save" style={{ display: "grid", gridTemplateColumns: "1.4fr .7fr .7fr .6fr .8fr 1fr 1.2fr auto", gap: 8, alignItems: "center" }}>
@@ -281,6 +287,73 @@ export function AssessmentTable({
             })}
           </tbody>
         </table>
+      </div>
+
+      <div className="ta-assessment-mobile" aria-label="Mobile assessment participant rows">
+        {filtered.map((r) => {
+          const participantName = r.participant?.full_name ?? "Participant";
+          const isExpanded = expanded.has(r.participant_id);
+          const editable = canManage && !r.locked;
+          return (
+            <article key={r.participant_id} className="ta-card ta-assessment-mobile-row">
+              <div className="ta-assessment-mobile-summary">
+                {canManage && r.id && (
+                  <input
+                    type="checkbox"
+                    checked={selected.has(r.id)}
+                    onChange={() => toggle(r.id!)}
+                    aria-label={`Select ${participantName}`}
+                  />
+                )}
+                <div className="ta-assessment-mobile-summary-main">
+                  <strong>{participantName}</strong>
+                  <span className="ta-cell-sub">
+                    {r.participant?.participant_id}
+                    {r.locked ? " · 🔒 locked" : ""}
+                    {!r.id ? " · not assessed" : ""}
+                  </span>
+                </div>
+                <span className="ta-assessment-mobile-summary-value"><small>Theory</small>{r.theory_score ?? "—"}</span>
+                <span className="ta-assessment-mobile-summary-value"><small>Practical</small>{r.practical_score ?? "—"}</span>
+                <span className="ta-assessment-mobile-summary-value"><small>Overall</small>{overallScore(r.theory_score, r.practical_score)}</span>
+                <span className="ta-assessment-mobile-summary-value"><small>Result</small><Badge status={r.result} /></span>
+                <span className="ta-assessment-mobile-summary-value"><small>Competency</small>{r.competency_status ? <Badge status={r.competency_status} /> : "—"}</span>
+                <button type="button" className="ta-btn ta-btn-outline ta-btn-sm ta-assessment-mobile-toggle" onClick={() => toggleExpanded(r.participant_id)} aria-expanded={isExpanded} aria-controls={`assessment-details-${r.participant_id}`}>
+                  {r.locked ? (isExpanded ? "Hide details" : "View details") : (isExpanded ? "Collapse" : "Edit / Expand")}
+                </button>
+              </div>
+              {isExpanded && (
+                <div id={`assessment-details-${r.participant_id}`} className="ta-assessment-mobile-details">
+                  {editable ? (
+                    <MutationForm action={updateAssessment.bind(null, scheduleId)} pendingLabel="Saving…" idleLabel="Save" className="ta-assessment-mobile-form">
+                      <input type="hidden" name="participant_id" value={r.participant_id} />
+                      <label><span>Type</span><select name="assessment_type" defaultValue={r.assessment_type ?? ""} aria-label={`Assessment type for ${participantName}`}><option value="">— (awareness / no type)</option>{TYPES.map((t) => <option key={t} value={t}>{label(t)}</option>)}</select></label>
+                      <label><span>Theory Score</span><input name="theory_score" type="number" min="0" max="100" step="0.01" defaultValue={r.theory_score ?? ""} aria-label={`Theory score for ${participantName}`} /></label>
+                      <label><span>Theory Result</span><select name="theory_result" defaultValue={r.theory_result} aria-label={`Theory result for ${participantName}`}>{RESULTS.map((s) => <option key={s} value={s}>{label(s)}</option>)}</select></label>
+                      <label><span>Practical Score</span><input name="practical_score" type="number" min="0" max="100" step="0.01" defaultValue={r.practical_score ?? ""} aria-label={`Practical score for ${participantName}`} /></label>
+                      <label><span>Practical Result</span><select name="practical_result" defaultValue={r.practical_result} aria-label={`Practical result for ${participantName}`}>{RESULTS.map((s) => <option key={s} value={s}>{label(s)}</option>)}</select></label>
+                      <label><span>Overall Result</span><select name="result" defaultValue={r.result} aria-label={`Overall result for ${participantName}`}>{RESULTS.map((s) => <option key={s} value={s}>{label(s)}</option>)}</select></label>
+                      <label><span>Competency</span><select name="competency_status" defaultValue={r.competency_status ?? ""} aria-label={`Competency for ${participantName}`}><option value="">— (not applicable)</option>{COMPETENCIES.map((s) => <option key={s} value={s}>{label(s)}</option>)}</select></label>
+                      <label className="ta-assessment-mobile-remarks"><span>Remarks</span><input name="remarks" defaultValue={r.remarks ?? ""} placeholder="Remarks" aria-label={`Remarks for ${participantName}`} /></label>
+                      <MutationSubmitButton>Save</MutationSubmitButton>
+                    </MutationForm>
+                  ) : (
+                    <dl className="ta-assessment-mobile-readonly">
+                      <div><dt>Theory Score</dt><dd>{r.theory_score ?? "—"}</dd></div>
+                      <div><dt>Theory Result</dt><dd><Badge status={r.theory_result} /></dd></div>
+                      <div><dt>Practical Score</dt><dd>{r.practical_score ?? "—"}</dd></div>
+                      <div><dt>Practical Result</dt><dd><Badge status={r.practical_result} /></dd></div>
+                      <div><dt>Overall Result</dt><dd><Badge status={r.result} /></dd></div>
+                      <div><dt>Competency</dt><dd>{r.competency_status ? <Badge status={r.competency_status} /> : "—"}</dd></div>
+                      <div className="ta-assessment-mobile-remarks"><dt>Remarks</dt><dd>{r.remarks ?? "—"}</dd></div>
+                      {r.locked && <div className="ta-assessment-mobile-locked" role="status">🔒 This assessment is locked and read-only.</div>}
+                    </dl>
+                  )}
+                </div>
+              )}
+            </article>
+          );
+        })}
       </div>
     </>
   );
