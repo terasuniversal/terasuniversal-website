@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
 import { requireAttendance } from "../../../../../../lib/auth/session";
 import { PrintButton } from "./PrintButton";
-import { loadAttendanceGroups, resolveRequestedGroup, computeAssessorDisplay, UNGROUPED } from "../../groupFilter";
+import { loadAttendanceGroups, resolveRequestedGroup, isValidRequestedGroup, computeAssessorDisplay, UNGROUPED } from "../../groupFilter";
 
 export const metadata = {
   title: "Print Attendance Sheet — TERAS UNIVERSAL Admin",
@@ -62,9 +62,9 @@ export default async function AttendancePrintPage({
 
   // Schedule Groups V1 — same server-validated selection as the Take
   // Attendance page (groupFilter.ts); an invalid/cross-schedule ?group=
-  // value falls back to "All Groups" rather than leaking another
-  // schedule's roster onto this printout.
+  // value is rejected rather than widened to "All Groups".
   const groups = await loadAttendanceGroups(supabase, scheduleId);
+  if (!isValidRequestedGroup(groups, requestedGroup)) notFound();
   const selection = resolveRequestedGroup(groups, requestedGroup);
   const selectedGroup = selection && selection !== UNGROUPED ? selection : null;
 
@@ -123,7 +123,8 @@ export default async function AttendancePrintPage({
   const { data: attAll } = await supabase
     .from("attendance")
     .select("participant_id, session_date, attendance_status, remarks")
-    .eq("schedule_id", scheduleId);
+    .eq("schedule_id", scheduleId)
+    .is("deleted_at", null);
 
   // D1…Dn columns come only from REAL distinct session_date values, ascending.
   const sessionDates = Array.from(new Set((attAll ?? []).map((a: any) => a.session_date))).sort() as string[];

@@ -57,6 +57,12 @@ export function resolveRequestedGroup(groups: AttendanceGroup[], requested: stri
   return groups.find((g) => g.id === requested) ?? null;
 }
 
+/** Export/print callers must reject an invalid group instead of widening it to
+ * All Groups. The screen deliberately keeps its safe display fallback above. */
+export function isValidRequestedGroup(groups: AttendanceGroup[], requested: string | undefined | null): boolean {
+  return !requested || requested === UNGROUPED || groups.some((g) => g.id === requested);
+}
+
 export interface AssessorLine {
   label: string;
   assessor: string;
