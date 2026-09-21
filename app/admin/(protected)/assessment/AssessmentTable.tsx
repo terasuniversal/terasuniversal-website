@@ -6,6 +6,7 @@ import { Badge } from "../../../../components/admin/ui";
 import { updateAssessment, bulkUpdateResult, lockAssessments, unlockAssessments, updateParticipantSkillResults, type SkillsFormState } from "./actions";
 import { participantSkillResultSchema } from "../../../../lib/validation/schemas";
 import { UNGROUPED } from "../../../../lib/scheduleGroupContext";
+import { MutationForm, MutationSubmitButton } from "../../../../components/admin/MutationForm";
 
 export interface AsmRow {
   id: string | null; // null = not assessed yet (roster-driven, no auto-create)
@@ -163,22 +164,22 @@ export function AssessmentTable({
         <div className="ta-card ta-card-pad" style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
           <strong>{selected.size} selected</strong>
           <div style={{ flex: 1 }} />
-          <form action={bulkUpdateResult.bind(null, scheduleId, groupId)} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <MutationForm action={bulkUpdateResult.bind(null, scheduleId, groupId)} pendingLabel="Applying…" idleLabel="Set result" style={{ display: "flex", gap: 8, alignItems: "center" }}>
             {[...selected].map((id) => <input key={id} type="hidden" name="ids" value={id} />)}
             <select name="result" value={bulkResult} onChange={(e) => setBulkResult(e.target.value)} style={selStyle}>
               {RESULTS.map((s) => <option key={s} value={s}>{label(s)}</option>)}
             </select>
-            <button type="submit" className="ta-btn ta-btn-primary ta-btn-sm">Set result</button>
-          </form>
-          <form action={lockAssessments.bind(null, scheduleId)}>
+            <MutationSubmitButton>Set result</MutationSubmitButton>
+          </MutationForm>
+          <MutationForm action={lockAssessments.bind(null, scheduleId)} pendingLabel="Locking…" idleLabel="Lock">
             {[...selected].map((id) => <input key={id} type="hidden" name="ids" value={id} />)}
-            <button type="submit" className="ta-btn ta-btn-outline ta-btn-sm">🔒 Lock</button>
-          </form>
+            <MutationSubmitButton className="ta-btn ta-btn-outline ta-btn-sm">🔒 Lock</MutationSubmitButton>
+          </MutationForm>
           {isSuperAdmin && (
-            <form action={unlockAssessments.bind(null, scheduleId)}>
+            <MutationForm action={unlockAssessments.bind(null, scheduleId)} pendingLabel="Unlocking…" idleLabel="Unlock">
               {[...selected].map((id) => <input key={id} type="hidden" name="ids" value={id} />)}
-              <button type="submit" className="ta-btn ta-btn-outline ta-btn-sm">🔓 Unlock</button>
-            </form>
+              <MutationSubmitButton className="ta-btn ta-btn-outline ta-btn-sm">🔓 Unlock</MutationSubmitButton>
+            </MutationForm>
           )}
         </div>
       )}
@@ -208,7 +209,7 @@ export function AssessmentTable({
                   {canManage && <td>{r.id && <input type="checkbox" checked={selected.has(r.id)} onChange={() => toggle(r.id!)} aria-label="Select" />}</td>}
                   {editable ? (
                     <td colSpan={8}>
-                      <form action={updateAssessment.bind(null, scheduleId)} style={{ display: "grid", gridTemplateColumns: "1.4fr .7fr .7fr .6fr .8fr 1fr 1.2fr auto", gap: 8, alignItems: "center" }}>
+                      <MutationForm action={updateAssessment.bind(null, scheduleId)} pendingLabel="Saving…" idleLabel="Save" style={{ display: "grid", gridTemplateColumns: "1.4fr .7fr .7fr .6fr .8fr 1fr 1.2fr auto", gap: 8, alignItems: "center" }}>
                         <input type="hidden" name="participant_id" value={r.participant_id} />
                         <div>
                           <strong>{r.participant?.full_name}</strong>
@@ -247,8 +248,8 @@ export function AssessmentTable({
                           {COMPETENCIES.map((s) => <option key={s} value={s}>{label(s)}</option>)}
                         </select>
                         <input name="remarks" defaultValue={r.remarks ?? ""} placeholder="Remarks" style={inp} aria-label="Remarks" />
-                        <button type="submit" className="ta-btn ta-btn-primary ta-btn-sm">Save</button>
-                      </form>
+                        <MutationSubmitButton>Save</MutationSubmitButton>
+                      </MutationForm>
                     </td>
                   ) : (
                     <>

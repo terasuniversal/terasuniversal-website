@@ -9,6 +9,7 @@ import { getCurrentProfile } from "../../../../lib/auth/session";
 import { isSuperAdmin } from "../../../../lib/auth/rbac";
 import { participantSkillResultSchema } from "../../../../lib/validation/schemas";
 import { UNGROUPED } from "../../../../lib/scheduleGroupContext";
+import type { MutationState } from "../../../../components/admin/MutationForm";
 
 const RESULT = z.enum(["pending", "pass", "fail"]);
 const COMPETENCY = z.enum(["pending_review", "competent", "not_yet_competent"]);
@@ -61,7 +62,7 @@ async function requireActiveEnrollment(
  * SCHEDULES_ARCHITECTURE_DECISION.md §I). Awareness programmes can leave
  * theory_score/practical_score/competency_status all null.
  */
-export async function updateAssessment(scheduleId: string, formData: FormData) {
+export async function updateAssessment(scheduleId: string, _prev: MutationState, formData: FormData): Promise<MutationState> {
   const profile = await requireAssessment(true);
   await requireModuleAccess("assessment");
   const participantId = String(formData.get("participant_id") ?? "");
@@ -121,6 +122,7 @@ export async function updateAssessment(scheduleId: string, formData: FormData) {
   );
   if (error) mutationFailure(scheduleId, "database_error");
   revalidatePath(`/admin/assessment/${scheduleId}`);
+  return { message: "Assessment saved." };
 }
 
 /**
@@ -152,7 +154,7 @@ export async function updateAssessment(scheduleId: string, formData: FormData) {
  * cancelled, or wrong-group ones. Never rely on the UI's "select all in
  * view" -- the DB round-trip re-derives every fact this action needs.
  */
-export async function bulkUpdateResult(scheduleId: string, groupId: string | typeof UNGROUPED | null, formData: FormData) {
+export async function bulkUpdateResult(scheduleId: string, groupId: string | typeof UNGROUPED | null, _prev: MutationState, formData: FormData): Promise<MutationState> {
   await requireAssessment(true);
   await requireModuleAccess("assessment");
   const ids = Array.from(new Set(formData.getAll("ids").map(String).filter(Boolean)));
@@ -200,10 +202,11 @@ export async function bulkUpdateResult(scheduleId: string, groupId: string | typ
     .in("id", ids);
   if (error) mutationFailure(scheduleId, "database_error", groupId);
   revalidatePath(`/admin/assessment/${scheduleId}`);
+  return { message: "Results updated." };
 }
 
 /** Lock rows (selected or all) — prevents further edits until unlocked. */
-export async function lockAssessments(scheduleId: string, formData: FormData) {
+export async function lockAssessments(scheduleId: string, _prev: MutationState, formData: FormData): Promise<MutationState> {
   await requireAssessment(true);
   await requireModuleAccess("assessment");
   const ids = formData.getAll("ids").map(String).filter(Boolean);
@@ -229,10 +232,11 @@ export async function lockAssessments(scheduleId: string, formData: FormData) {
     if (error) mutationFailure(scheduleId, "database_error");
   }
   revalidatePath(`/admin/assessment/${scheduleId}`);
+  return { message: "Assessment locked." };
 }
 
 /** Unlock — an explicit Super Admin-only lock transition. */
-export async function unlockAssessments(scheduleId: string, formData: FormData) {
+export async function unlockAssessments(scheduleId: string, _prev: MutationState, formData: FormData): Promise<MutationState> {
   await requireAssessment(true);
   await requireModuleAccess("assessment");
   const profile = await getCurrentProfile();
@@ -258,6 +262,7 @@ export async function unlockAssessments(scheduleId: string, formData: FormData) 
     if (error) mutationFailure(scheduleId, "database_error");
   }
   revalidatePath(`/admin/assessment/${scheduleId}`);
+  return { message: "Assessment unlocked." };
 }
 
 export type SkillsFormState = { message?: string; error?: string };
@@ -348,7 +353,7 @@ export async function updateParticipantSkillResults(
   const { error } = await supabase
     .from("participant_skill_results")
     .upsert(rows, { onConflict: "schedule_id,participant_id,area" });
-  if (error) return { error: error.message };
+  if (error) return { error: "Skills record could not be saved. No change was confirmed. Please try again." };
 
   revalidatePath(`/admin/assessment/${scheduleId}`);
   return { message: "Skills record saved." };

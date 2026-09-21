@@ -5,7 +5,7 @@ import { requireModuleAccess, requireAttendance } from "../../../../../lib/auth/
 import { canManageAttendance } from "../../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, EmptyState, StatCard } from "../../../../../components/admin/ui";
 import { AttendanceTable, type AttRow } from "../AttendanceTable";
-import { markAllPresent, resetAttendance } from "../actions";
+import { AttendanceScheduleActions } from "./AttendanceScheduleActions";
 import { loadAttendanceGroups, resolveRequestedGroup, computeAssessorDisplay, UNGROUPED } from "../groupFilter";
 
 export const metadata = { title: "Take Attendance — TERAS UNIVERSAL Admin" };
@@ -143,8 +143,14 @@ export default async function TakeAttendancePage({
       {attendanceError && (
         <div className="ta-alert ta-alert-error" role="alert">
           {attendanceError === "invalid_enrollment"
-            ? "Attendance was not saved because one or more participants are not actively enrolled in this schedule."
-            : "Attendance was not saved. Please try again or contact an administrator if the problem continues."}
+            ? "This participant is not actively enrolled in this schedule."
+            : attendanceError === "invalid_date"
+              ? "Attendance was not saved because the selected session date is outside this schedule."
+              : attendanceError === "invalid_input"
+                ? "Attendance could not be saved because one or more submitted values are invalid."
+                : attendanceError === "unauthorized"
+                  ? "You do not have permission to update attendance for this schedule."
+                  : "Attendance could not be saved. No change was confirmed. Please try again."}
         </div>
       )}
 
@@ -240,14 +246,7 @@ export default async function TakeAttendancePage({
 
       {canManage && rows.length > 0 && (
         <div className="ta-toolbar">
-          <form action={markAllPresent.bind(null, scheduleId, sessionDate)}>
-            {rows.map((r) => <input key={r.participant_id} type="hidden" name="participant_ids" value={r.participant_id} />)}
-            <button type="submit" className="ta-btn ta-btn-gold ta-btn-sm">✓ Mark all present ({sessionDate})</button>
-          </form>
-          <form action={resetAttendance.bind(null, scheduleId, sessionDate)}>
-            {rows.map((r) => <input key={r.participant_id} type="hidden" name="participant_ids" value={r.participant_id} />)}
-            <button type="submit" className="ta-btn ta-btn-outline ta-btn-sm">↩ Undo all for this date</button>
-          </form>
+          <AttendanceScheduleActions scheduleId={scheduleId} sessionDate={sessionDate} participantIds={rows.map((r) => r.participant_id)} />
           <div className="ta-spacer" />
           <a href={`/admin/attendance/${scheduleId}/export?format=csv&date=${sessionDate}${requestedGroup ? `&group=${encodeURIComponent(requestedGroup)}` : ""}`} className="ta-btn ta-btn-outline ta-btn-sm">⬇ CSV (selected date)</a>
           <a href={`/admin/attendance/${scheduleId}/export?format=excel&date=${sessionDate}${requestedGroup ? `&group=${encodeURIComponent(requestedGroup)}` : ""}`} className="ta-btn ta-btn-outline ta-btn-sm">⬇ Excel (selected date)</a>
