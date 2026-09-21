@@ -5,7 +5,7 @@ import { requireModuleAccess, requireAssessment } from "../../../../../lib/auth/
 import { canManageAssessment, canManageCertificate, isEditor, isSuperAdmin } from "../../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, EmptyState, StatCard } from "../../../../../components/admin/ui";
 import { AssessmentTable, type AsmRow } from "../AssessmentTable";
-import { lockAssessments, unlockAssessments } from "../actions";
+import { AssessmentScheduleActions } from "./AssessmentScheduleActions";
 import { loadScheduleGroups, resolveRequestedGroup, computeAssessorDisplay, ALL_GROUPS, UNGROUPED } from "../../../../../lib/scheduleGroupContext";
 
 export const metadata = { title: "Assessment — TERAS UNIVERSAL Admin" };
@@ -135,7 +135,7 @@ export default async function AssessSchedulePage({
       {assessmentError && (
         <div className="ta-alert ta-alert-error" role="alert">
           {assessmentError === "invalid_enrollment"
-            ? "Assessment was not saved because one or more participants are not actively enrolled in this schedule."
+            ? "Participant is not actively enrolled in this schedule."
             : assessmentError === "assessment_locked"
               ? "Assessment was not changed because one or more selected assessments are locked."
               : assessmentError === "unauthorized_unlock"
@@ -143,8 +143,8 @@ export default async function AssessSchedulePage({
                 : assessmentError === "invalid_group"
                   ? "Assessment was not changed because the group context is invalid or no longer matches the schedule."
                   : assessmentError === "invalid_input"
-                    ? "Assessment was not changed because the submitted data is invalid."
-                    : "Assessment mutation failed. Please try again or contact an administrator."}
+                    ? "Assessment could not be saved because one or more values are invalid."
+                    : "Assessment could not be saved. No change was confirmed. Please try again."}
         </div>
       )}
 
@@ -218,16 +218,7 @@ export default async function AssessSchedulePage({
 
       {canManage && lockableIds.length > 0 && (
         <div className="ta-toolbar">
-          <form action={lockAssessments.bind(null, scheduleId)}>
-            {lockableIds.map((id) => <input key={id} type="hidden" name="ids" value={id} />)}
-            <button type="submit" className="ta-btn ta-btn-outline ta-btn-sm">🔒 Lock all assessed</button>
-          </form>
-          {superAdmin && (
-            <form action={unlockAssessments.bind(null, scheduleId)}>
-              {lockableIds.map((id) => <input key={id} type="hidden" name="ids" value={id} />)}
-              <button type="submit" className="ta-btn ta-btn-outline ta-btn-sm">🔓 Unlock all</button>
-            </form>
-          )}
+          <AssessmentScheduleActions scheduleId={scheduleId} assessmentIds={lockableIds} isSuperAdmin={superAdmin} />
           <div className="ta-spacer" />
           <a href={`/admin/assessment/${scheduleId}/export?format=csv${requestedGroup ? `&group=${requestedGroup}` : ""}`} className="ta-btn ta-btn-outline ta-btn-sm">⬇ CSV</a>
           <a href={`/admin/assessment/${scheduleId}/export?format=excel${requestedGroup ? `&group=${requestedGroup}` : ""}`} className="ta-btn ta-btn-outline ta-btn-sm">⬇ Excel</a>

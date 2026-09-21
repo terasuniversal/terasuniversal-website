@@ -4,6 +4,8 @@ import { useState } from "react";
 import { Badge } from "../../../../components/admin/ui";
 import { markAttendance, bulkUpdateAttendance, resetAttendance } from "./actions";
 import { formatMalaysiaDateTime } from "../../../../lib/date-time";
+import { utcIsoToMalaysiaDateTimeLocal } from "../../../../lib/malaysia-date-time";
+import { MutationForm, MutationSubmitButton } from "../../../../components/admin/MutationForm";
 
 export interface AttRow {
   participant_id: string;
@@ -19,9 +21,7 @@ const label = (s: string) => s.replace(/_/g, " ");
 /** timestamptz → value for <input type="datetime-local"> */
 function toLocalInput(iso: string | null) {
   if (!iso) return "";
-  const d = new Date(iso);
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+  return utcIsoToMalaysiaDateTimeLocal(iso);
 }
 
 export function AttendanceTable({
@@ -64,17 +64,17 @@ export function AttendanceTable({
         <div className="ta-card ta-card-pad" style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
           <strong>{selected.size} selected</strong>
           <div style={{ flex: 1 }} />
-          <form action={bulkForDate} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <MutationForm action={bulkForDate} pendingLabel="Applying…" idleLabel="Apply to selected" style={{ display: "flex", gap: 8, alignItems: "center" }}>
             {[...selected].map((id) => <input key={id} type="hidden" name="participant_ids" value={id} />)}
             <select name="status" value={bulkStatus} onChange={(e) => setBulkStatus(e.target.value)} style={{ padding: "7px 9px", borderRadius: 8, border: "1px solid var(--ta-line)" }}>
               {STATUSES.map((s) => <option key={s} value={s}>{label(s)}</option>)}
             </select>
-            <button type="submit" className="ta-btn ta-btn-primary ta-btn-sm">Apply to selected</button>
-          </form>
-          <form action={resetForDate}>
+            <MutationSubmitButton>Apply to selected</MutationSubmitButton>
+          </MutationForm>
+          <MutationForm action={resetForDate} pendingLabel="Reverting…" idleLabel="Undo selected">
             {[...selected].map((id) => <input key={id} type="hidden" name="participant_ids" value={id} />)}
-            <button type="submit" className="ta-btn ta-btn-outline ta-btn-sm" title="Undo / clear for this date">↩ Undo selected</button>
-          </form>
+            <MutationSubmitButton className="ta-btn ta-btn-outline ta-btn-sm">↩ Undo selected</MutationSubmitButton>
+          </MutationForm>
         </div>
       )}
 
@@ -102,7 +102,7 @@ export function AttendanceTable({
                 <td>{r.participant?.company ?? "—"}</td>
                 {canManage ? (
                   <td colSpan={5}>
-                    <form action={markForDate} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                    <MutationForm action={markForDate} pendingLabel="Saving…" idleLabel="Save" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                       <input type="hidden" name="participant_id" value={r.participant_id} />
                       <select name="attendance_status" defaultValue={r.attendance_status ?? "present"} style={{ padding: "6px 8px", borderRadius: 7, border: "1px solid var(--ta-line)" }} aria-label="Status">
                         {!r.attendance_status && <option value="" disabled>Not recorded</option>}
@@ -111,8 +111,8 @@ export function AttendanceTable({
                       <input type="datetime-local" name="check_in_time" defaultValue={toLocalInput(r.check_in_time)} style={inp} aria-label="Check-in" />
                       <input type="datetime-local" name="check_out_time" defaultValue={toLocalInput(r.check_out_time)} style={inp} aria-label="Check-out" />
                       <input name="remarks" defaultValue={r.remarks ?? ""} placeholder="Remarks" style={{ ...inp, width: 140 }} aria-label="Remarks" />
-                      <button type="submit" className="ta-btn ta-btn-primary ta-btn-sm">Save</button>
-                    </form>
+                      <MutationSubmitButton>Save</MutationSubmitButton>
+                    </MutationForm>
                   </td>
                 ) : (
                   <>
