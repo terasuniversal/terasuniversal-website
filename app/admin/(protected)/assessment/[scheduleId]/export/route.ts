@@ -4,6 +4,7 @@ import { getCurrentProfile, hasModuleAccess } from "../../../../../../lib/auth/s
 import { canViewAssessment } from "../../../../../../lib/auth/rbac";
 import { loadScheduleGroups, resolveRequestedGroup, isValidRequestedGroup, computeAssessorDisplay, UNGROUPED } from "../../../../../../lib/scheduleGroupContext";
 import { maskIdentification } from "../../../../../../lib/identityMask";
+import { estimateAssessmentRowHeightMm, paginateAssessmentRows } from "../../../../../../lib/documents/assessmentPagination";
 
 /**
  * Export a schedule's assessment results (every enrolled participant, not
@@ -185,7 +186,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       : `<colgroup><col style="width:5%"><col style="width:20%"><col style="width:13%"><col style="width:8%"><col style="width:8%"><col style="width:8%"><col style="width:9%"><col style="width:9%"><col style="width:11%"><col style="width:9%"></colgroup>`;
     const printHead = `<th class="no">No.</th><th>Participant Name</th><th class="ic">Masked IC / Passport</th>${showGroupColumn ? "<th>Group</th>" : ""}<th>Theory Score</th><th>Theory Result</th><th>Practical Score</th><th>Practical Result</th><th>Overall Result</th><th>Competency Status</th><th>Remarks</th>`;
     const rowHtml = (r: PrintRow) =>
-      `<tr><td class="no">${r.no}</td><td>${esc(r.name)}</td><td class="ic">${esc(r.ic)}</td>${showGroupColumn ? `<td>${esc(r.group)}</td>` : ""}<td class="no">${esc(r.theoryScore)}</td><td>${esc(r.theoryResult)}</td><td class="no">${esc(r.practicalScore)}</td><td>${esc(r.practicalResult)}</td><td>${esc(r.result)}</td><td class="competency">${esc(r.competency)}</td><td>${esc(r.remarks)}</td></tr>`;
+      `<tr><td class="no">${r.no}</td><td class="asm-name">${esc(r.name)}</td><td class="ic">${esc(r.ic)}</td>${showGroupColumn ? `<td class="asm-group">${esc(r.group)}</td>` : ""}<td class="no">${esc(r.theoryScore)}</td><td>${esc(r.theoryResult)}</td><td class="no">${esc(r.practicalScore)}</td><td>${esc(r.practicalResult)}</td><td>${esc(r.result)}</td><td class="competency">${esc(r.competency)}</td><td class="asm-remarks">${esc(r.remarks)}</td></tr>`;
     const tableHtml = (rows: PrintRow[]) => `<table>${colgroup}<thead><tr>${printHead}</tr></thead><tbody>${rows.map(rowHtml).join("")}</tbody></table>`;
 
     const title = `${s?.courses?.course_name ?? "Training"} — Assessment Result`;
@@ -266,12 +267,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // rather than greedy (see paginate) as a second layer of margin for
     // per-schedule text variance (a long name wrapping to 2 lines, etc.).
     //
-    // ROW_HEIGHT_MM is deliberately budgeted above a single-line row's real
-    // ~6.9mm: a long participant name wraps to two lines in its column, and
-    // real Chrome output proved that packing a page to the single-line
-    // maximum overflows once several rows wrap.
+    // A single-line row is approximately 6.9mm, but a flat row budget is not
+    // safe: long names and remarks can wrap to multiple lines in their cells.
+    // The content-aware estimator below adds height for each estimated line.
     const PAGE_HEIGHT_MM = 186; // A4 landscape 210mm - 12mm top/bottom @page margin
-    const ROW_HEIGHT_MM = 8; // ~6.9mm single-line + headroom for names that wrap to 2 lines
     const FULL_HEADER_MM = 42; // brand bar + body padding + 2-row meta grid + thead (measured ~41.6mm)
     const CONTINUATION_HEADER_MM = 15; // compact "(continued)" line + body padding + thead (measured ~13.3mm)
     const SIGNOFF_BASE_MM = 5; // .asm-signoff margin/border/padding + heading (measured ~5.0mm)
@@ -291,83 +290,22 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // single-page output is untouched by this constant.
     const FIRST_PAGE_MULTI_PAGE_SAFETY_MM = 48;
     type PrintPage = { rows: PrintRow[]; header: "full" | "compact"; includeSignOff: boolean };
-    const capacityFor = (header: "full" | "compact", withSignOff: boolean, extraMarginMm = 0) =>
-      Math.max(
-        1,
-        Math.floor(
-          (PAGE_HEIGHT_MM -
-            (header === "full" ? FULL_HEADER_MM : CONTINUATION_HEADER_MM) -
-            (withSignOff ? signOffHeightMm : 0) -
-            extraMarginMm) /
-            ROW_HEIGHT_MM
-        )
-      );
-
-    /**
-     * Chooses the fewest pages that can hold the roster, then spreads rows
-     * as EVENLY as each page's own capacity allows instead of filling each
-     * page to its maximum. An exact even split (e.g. 15/15 for 30 rows) is
-     * no longer a requirement here -- FIRST_PAGE_MULTI_PAGE_SAFETY_MM above
-     * deliberately shrinks page 1's real capacity below an even share, so
-     * the "push overflow forward" step below routinely lands the first page
-     * a few rows short of even (e.g. 12/18) and carries the rest onto later
-     * pages, which have real headroom to spare. That's intentional, not a
-     * bug: a merely uneven split is an approved outcome; a stranded single
-     * row, a sign-off-only page, or a blank page are not, and this is what
-     * actually prevents those.
-     *
-     * The greedy version this replaces packed the last page to its exact
-     * theoretical capacity, leaving zero slack -- so any row taller than the
-     * estimate (a wrapped name) pushed the tail onto an extra page. Real
-     * Chrome output confirmed this: a computed 19-row final page rendered as
-     * 18 rows + an orphaned page. Purely arithmetic -- no participant
-     * identity, group id, or roster size is special-cased.
-     */
-    function paginate(rows: PrintRow[]): PrintPage[] {
-      if (rows.length === 0) return [];
-      if (rows.length <= capacityFor("full", true)) return [{ rows, header: "full", includeSignOff: true }];
-
-      for (let pageCount = 2; ; pageCount++) {
-        const caps = Array.from({ length: pageCount }, (_, i) =>
-          capacityFor(i === 0 ? "full" : "compact", i === pageCount - 1, i === 0 ? FIRST_PAGE_MULTI_PAGE_SAFETY_MM : 0)
-        );
-        if (caps.reduce((a, b) => a + b, 0) < rows.length) continue;
-
-        // Even split, then push any per-page overflow forward; the last page
-        // is the tightest (it also carries the sign-off), so it is settled
-        // first by pushing its excess backward.
-        const base = Math.floor(rows.length / pageCount);
-        const counts = Array.from({ length: pageCount }, (_, i) => base + (i < rows.length % pageCount ? 1 : 0));
-        for (let i = pageCount - 1; i > 0; i--) {
-          const over = counts[i] - caps[i];
-          if (over > 0) {
-            counts[i] -= over;
-            counts[i - 1] += over;
-          }
-        }
-        for (let i = 0; i < pageCount - 1; i++) {
-          const over = counts[i] - caps[i];
-          if (over > 0) {
-            counts[i] -= over;
-            counts[i + 1] += over;
-          }
-        }
-        if (counts.some((c, i) => c > caps[i]) || counts.some((c) => c < 1)) continue; // infeasible -> try one more page
-
-        const pages: PrintPage[] = [];
-        let cursor = 0;
-        for (let i = 0; i < pageCount; i++) {
-          pages.push({
-            rows: rows.slice(cursor, cursor + counts[i]),
-            header: i === 0 ? "full" : "compact",
-            includeSignOff: i === pageCount - 1,
-          });
-          cursor += counts[i];
-        }
-        return pages;
-      }
-    }
-    const printPages = paginate(printRows);
+    const CONTINUATION_CONTENT_SAFETY_MM = 26;
+    const measuredRows = printRows.map((row) => ({
+      value: row,
+      heightMm: estimateAssessmentRowHeightMm(row, showGroupColumn),
+    }));
+    const rowPages = paginateAssessmentRows(measuredRows, {
+      firstPageHeightMm: PAGE_HEIGHT_MM - FULL_HEADER_MM,
+      continuationPageHeightMm: PAGE_HEIGHT_MM - CONTINUATION_HEADER_MM - CONTINUATION_CONTENT_SAFETY_MM,
+      finalPageReserveMm: signOffHeightMm,
+      firstPageSafetyMm: FIRST_PAGE_MULTI_PAGE_SAFETY_MM,
+    });
+    const printPages: PrintPage[] = rowPages.map((rows, pageIndex) => ({
+      rows,
+      header: pageIndex === 0 ? "full" : "compact",
+      includeSignOff: pageIndex === rowPages.length - 1,
+    }));
     const pageHtml = (page: PrintPage, pageIndex: number) => `
 <div class="asm-print-page">
   ${
@@ -441,6 +379,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   th, td { border: 1px solid #c9cfd9; padding: 5px 7px; text-align: left; vertical-align: middle; white-space: normal; word-break: normal; overflow-wrap: normal; line-height: 1.35; }
   th { background: #0B3A63; color: #fff; font-size: 9.5px; text-transform: uppercase; letter-spacing: .02em; }
   th.no, td.no { text-align: center; }
+  /* Long formal-report values must wrap inside their assigned columns. This is
+     intentionally scoped to Name, Group, and Remarks; fixed-format masked IC
+     values remain single-line unless their own evidence requires otherwise. */
+  td.asm-name, td.asm-group, td.asm-remarks { overflow-wrap: anywhere; word-break: break-word; }
   /* IC/passport numbers are short, fixed-format strings (e.g.
      980605-04-5321) -- always safe to keep on one line given the column's
      dedicated width, unlike a person's name which has no such bound. */
