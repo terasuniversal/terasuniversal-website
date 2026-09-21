@@ -2,7 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
 import { getCurrentProfile, hasModuleAccess } from "../../../../../../lib/auth/session";
 import { canViewAssessment } from "../../../../../../lib/auth/rbac";
-import { loadScheduleGroups, resolveRequestedGroup, computeAssessorDisplay, UNGROUPED } from "../../../../../../lib/scheduleGroupContext";
+import { loadScheduleGroups, resolveRequestedGroup, isValidRequestedGroup, computeAssessorDisplay, UNGROUPED } from "../../../../../../lib/scheduleGroupContext";
+import { maskIdentification } from "../../../../../../lib/identityMask";
 
 /**
  * Export a schedule's assessment results (every enrolled participant, not
@@ -29,11 +30,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     .single();
   const s = scheduleRow as any;
 
-  // Schedule Groups V1 — same server-validated selection as the Assessment
-  // page (lib/scheduleGroupContext.ts); an invalid/cross-schedule ?group=
-  // value falls back to "All Groups" rather than leaking another schedule's
-  // roster into this export.
+  // Schedule Groups V1 — exports reject invalid scope values instead of using
+  // the Assessment screen's display-only fallback to All Groups.
   const groups = await loadScheduleGroups(supabase, scheduleId);
+  if (!isValidRequestedGroup(groups, requestedGroup)) {
+    return new NextResponse("Invalid assessment group", { status: 400 });
+  }
   const selection = resolveRequestedGroup(groups, requestedGroup);
   const selectedGroup = selection && selection !== UNGROUPED ? selection : null;
 
@@ -130,7 +132,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     ...(groups.length > 0 ? ([["group", "Group"]] as [keyof (typeof flat)[number], string][]) : []),
     ["assessment_type", "Type"], ["theory_score", "Theory"], ["theory_result", "Theory Result"],
     ["practical_score", "Practical"], ["practical_result", "Practical Result"],
-    ["overall_score", "Overall"], ["result", "Result"], ["competency_status", "Competency"], ["remarks", "Remarks"],
+    ["overall_score", "Overall (Computed)"], ["result", "Overall Result"], ["competency_status", "Competency Status"], ["remarks", "Remarks"],
   ];
 
   const groupSuffix = selectedGroup ? ` — ${selectedGroup.name}` : selection === UNGROUPED ? " — Ungrouped" : "";
@@ -153,28 +155,22 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const showGroupColumn = groups.length > 0 && selection === null;
     type PrintRow = {
       no: number; name: string; ic: string; group: string;
-      theory: string; practical: string;
+      theoryScore: string; theoryResult: string; practicalScore: string; practicalResult: string;
       result: string; competency: string; remarks: string;
     };
-    // Theory/Practical print as the manually-entered PASS/FAIL/PENDING
-    // component result (theory_result/practical_result), never the raw
-    // score -- scores stay in the CRM/CSV only, per the approved V4 design.
-    // No score -> result derivation happens here or anywhere else; a null
-    // component result (a row saved before this feature existed) falls back
-    // to "pending", matching this column's own DB default. Result/
-    // Competency keep their existing null-fallback ("—" for an unset
-    // competency_status, matching the on-screen AssessmentTable.tsx
-    // convention) and are otherwise just uppercased/space-formatted for the
-    // formal document, not re-derived.
+    // Scores and component results are read independently from their persisted
+    // fields. No result or competency value is derived from a score.
     const printRows: PrintRow[] = roster.map((r: any, i: number) => {
       const a = byParticipant.get(r.participant_id);
       return {
         no: i + 1,
         name: r.participants?.full_name ?? "",
-        ic: String(r.participants?.ic_passport_no ?? "").trim() || "—",
+        ic: maskIdentification(r.participants?.ic_passport_no),
         group: groupNameByParticipant.get(r.participant_id) ?? "Ungrouped",
-        theory: (a?.theory_result ?? "pending").toUpperCase(),
-        practical: (a?.practical_result ?? "pending").toUpperCase(),
+        theoryScore: a?.theory_score == null ? "—" : String(a.theory_score),
+        theoryResult: (a?.theory_result ?? "pending").toUpperCase(),
+        practicalScore: a?.practical_score == null ? "—" : String(a.practical_score),
+        practicalResult: (a?.practical_result ?? "pending").toUpperCase(),
         result: (a?.result ?? "pending").toUpperCase(),
         competency: a?.competency_status ? String(a.competency_status).replace(/_/g, " ").toUpperCase() : "—",
         remarks: a?.remarks ?? "",
@@ -185,17 +181,23 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // in landscape instead of wrapping mid-word. Two width sets because the
     // column count itself differs with/without the Group column.
     const colgroup = showGroupColumn
-      ? `<colgroup><col style="width:4%"><col style="width:20%"><col style="width:13%"><col style="width:8%"><col style="width:7%"><col style="width:7%"><col style="width:8%"><col style="width:11%"><col style="width:22%"></colgroup>`
-      : `<colgroup><col style="width:5%"><col style="width:24%"><col style="width:15%"><col style="width:8%"><col style="width:8%"><col style="width:9%"><col style="width:12%"><col style="width:19%"></colgroup>`;
-    const printHead = `<th class="no">No.</th><th>Participant Name</th><th class="ic">IC / Passport</th>${showGroupColumn ? "<th>Group</th>" : ""}<th>Theory</th><th>Practical</th><th>Result</th><th>Competency</th><th>Remarks</th>`;
+      ? `<colgroup><col style="width:4%"><col style="width:17%"><col style="width:11%"><col style="width:8%"><col style="width:7%"><col style="width:7%"><col style="width:7%"><col style="width:7%"><col style="width:8%"><col style="width:10%"><col style="width:14%"></colgroup>`
+      : `<colgroup><col style="width:5%"><col style="width:20%"><col style="width:13%"><col style="width:8%"><col style="width:8%"><col style="width:8%"><col style="width:9%"><col style="width:9%"><col style="width:11%"><col style="width:9%"></colgroup>`;
+    const printHead = `<th class="no">No.</th><th>Participant Name</th><th class="ic">Masked IC / Passport</th>${showGroupColumn ? "<th>Group</th>" : ""}<th>Theory Score</th><th>Theory Result</th><th>Practical Score</th><th>Practical Result</th><th>Overall Result</th><th>Competency Status</th><th>Remarks</th>`;
     const rowHtml = (r: PrintRow) =>
-      `<tr><td class="no">${r.no}</td><td>${esc(r.name)}</td><td class="ic">${esc(r.ic)}</td>${showGroupColumn ? `<td>${esc(r.group)}</td>` : ""}<td class="no">${esc(r.theory)}</td><td class="no">${esc(r.practical)}</td><td>${esc(r.result)}</td><td class="competency">${esc(r.competency)}</td><td>${esc(r.remarks)}</td></tr>`;
+      `<tr><td class="no">${r.no}</td><td>${esc(r.name)}</td><td class="ic">${esc(r.ic)}</td>${showGroupColumn ? `<td>${esc(r.group)}</td>` : ""}<td class="no">${esc(r.theoryScore)}</td><td>${esc(r.theoryResult)}</td><td class="no">${esc(r.practicalScore)}</td><td>${esc(r.practicalResult)}</td><td>${esc(r.result)}</td><td class="competency">${esc(r.competency)}</td><td>${esc(r.remarks)}</td></tr>`;
     const tableHtml = (rows: PrintRow[]) => `<table>${colgroup}<thead><tr>${printHead}</tr></thead><tbody>${rows.map(rowHtml).join("")}</tbody></table>`;
 
-    const title = `${s?.courses?.course_name ?? "Training"} — Assessment Sheet`;
+    const title = `${s?.courses?.course_name ?? "Training"} — Assessment Result`;
     const fmtDate = (d: string | null | undefined) =>
       d ? new Date(d + "T00:00:00").toLocaleDateString("en-MY", { day: "numeric", month: "long", year: "numeric" }) : "Not Recorded";
     const groupHeaderValue = selectedGroup ? selectedGroup.name : selection === UNGROUPED ? "Ungrouped" : null;
+    const scopeHeaderValue = groupHeaderValue ?? "All Groups";
+    const generatedDateTime = new Intl.DateTimeFormat("en-MY", {
+      timeZone: "Asia/Kuala_Lumpur",
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date());
 
     // Effective assessor per approved decision 7: never assessments.assessor_id
     // (that stays per-participant data-entry attribution) -- always the group
@@ -366,34 +368,37 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       }
     }
     const printPages = paginate(printRows);
-    const pageHtml = (page: PrintPage) => `
+    const pageHtml = (page: PrintPage, pageIndex: number) => `
 <div class="asm-print-page">
   ${
     page.header === "full"
-      ? `<header class="asm-head"><strong>TERAS UNIVERSAL SDN. BHD.</strong><h1>ASSESSMENT SHEET</h1></header>
+      ? `<header class="asm-head"><strong>TERAS UNIVERSAL SDN. BHD.</strong><h1>ASSESSMENT RESULT</h1><p>Assessment Record</p></header>
   <div class="asm-body">
     <dl class="asm-meta">
       <div><dt>Programme / Course:</dt><dd>${esc(s?.courses?.course_name ?? "—")}</dd></div>
       ${s?.courses?.course_code ? `<div><dt>Course Code:</dt><dd>${esc(s.courses.course_code)}</dd></div>` : ""}
       <div><dt>Schedule / Batch:</dt><dd>${esc(s?.schedule_code ?? "—")}</dd></div>
+      <div><dt>Scope:</dt><dd>${esc(scopeHeaderValue)}</dd></div>
       ${groupHeaderValue ? `<div><dt>Group:</dt><dd>${esc(groupHeaderValue)}</dd></div>` : ""}
       <div><dt>Assessment Date:</dt><dd>${esc(fmtDate(s?.exam_date))}</dd></div>
       <div><dt>Venue:</dt><dd>${esc(s?.venue || "—")}</dd></div>
       <div><dt>${esc(trainerHeaderLabel)}:</dt><dd>${esc(trainerHeaderValue)}</dd></div>
       <div><dt>Effective Assessor:</dt><dd>${esc(effectiveAssessorHeaderValue)}</dd></div>
+      <div><dt>Generated:</dt><dd>${esc(generatedDateTime)} (Malaysia)</dd></div>
     </dl>`
       : `<div class="asm-body asm-body-compact">
     <p class="asm-continued">TERAS UNIVERSAL — ${esc(title)} (continued)</p>`
   }
     ${tableHtml(page.rows)}
     ${page.includeSignOff ? signOffSection : ""}
+    <div class="asm-page-number">Page ${pageIndex + 1} of ${printPages.length}</div>
   </div>
 </div>`;
 
     const html = `<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title>
 <style>
   @page { size: A4 landscape; margin: 12mm 14mm; }
-  body { font-family: Arial, Helvetica, sans-serif; color: #1a1a1a; margin: 0; }
+  body { font-family: Arial, Helvetica, sans-serif; color: #1a1a1a; margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   /* Each .asm-print-page is a fully self-contained, deterministically-sized
      printed page (see the route handler's paginate() comment) -- every one
      except the last gets an explicit page break, instead of letting the
@@ -401,6 +406,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
      is explicit too (break-after: auto is the default, but stated here so
      nothing relies on that default silently): there is no page after it, so
      nothing should ever force one. */
+  .asm-print-page { position: relative; }
   .asm-print-page:not(:last-of-type) { break-after: page; page-break-after: always; }
   .asm-print-page:last-of-type { break-after: auto; page-break-after: auto; }
   /* Chrome print output showed a 15-row sheet landing ~1-2mm over one page.
@@ -417,6 +423,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   .asm-head { background: #0B3A63; color: #fff; padding: 5px 16px; border-bottom: 3px solid #D4AF37; }
   .asm-head strong { display: block; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: #D4AF37; }
   .asm-head h1 { margin: 1px 0 0; font-size: 17px; font-weight: 800; letter-spacing: .04em; }
+  .asm-head p { margin: 2px 0 0; font-size: 9px; letter-spacing: .08em; text-transform: uppercase; color: #fff; }
   .asm-body { padding: 4px 16px 0; }
   .asm-body-compact { padding-top: 8px; }
   .asm-continued { margin: 0 0 6px; font-size: 11px; font-weight: 700; color: #0B3A63; }
@@ -503,6 +510,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
      186mm budget. 2mm keeps the pre-filled name comfortably clear of the
      top border without carrying the other 6mm as pure dead space. */
   .asm-sig-value { height: auto; min-height: 12mm; padding-top: 2mm; font-weight: 600; overflow-wrap: anywhere; }
+  .asm-page-number { position: absolute; right: 16px; bottom: 1mm; color: #667085; font-size: 8px; }
   .asm-empty { padding: 0 16px 16px; color: #0B3A63; font-weight: 600; }
 </style>
 </head><body onload="window.print()">
@@ -510,19 +518,22 @@ ${
   printRows.length > 0
     ? printPages.map(pageHtml).join("")
     : `<div class="asm-print-page">
-  <header class="asm-head"><strong>TERAS UNIVERSAL SDN. BHD.</strong><h1>ASSESSMENT SHEET</h1></header>
+  <header class="asm-head"><strong>TERAS UNIVERSAL SDN. BHD.</strong><h1>ASSESSMENT RESULT</h1><p>Assessment Record</p></header>
   <div class="asm-body">
     <dl class="asm-meta">
       <div><dt>Programme / Course:</dt><dd>${esc(s?.courses?.course_name ?? "—")}</dd></div>
       ${s?.courses?.course_code ? `<div><dt>Course Code:</dt><dd>${esc(s.courses.course_code)}</dd></div>` : ""}
       <div><dt>Schedule / Batch:</dt><dd>${esc(s?.schedule_code ?? "—")}</dd></div>
+      <div><dt>Scope:</dt><dd>${esc(scopeHeaderValue)}</dd></div>
       ${groupHeaderValue ? `<div><dt>Group:</dt><dd>${esc(groupHeaderValue)}</dd></div>` : ""}
       <div><dt>Assessment Date:</dt><dd>${esc(fmtDate(s?.exam_date))}</dd></div>
       <div><dt>Venue:</dt><dd>${esc(s?.venue || "—")}</dd></div>
       <div><dt>${esc(trainerHeaderLabel)}:</dt><dd>${esc(trainerHeaderValue)}</dd></div>
       <div><dt>Effective Assessor:</dt><dd>${esc(effectiveAssessorHeaderValue)}</dd></div>
+      <div><dt>Generated:</dt><dd>${esc(generatedDateTime)} (Malaysia)</dd></div>
     </dl>
     <p class="asm-empty">${groupHeaderValue ? "No participants assigned to this group." : "No participants enrolled in this schedule yet."}</p>
+    <div class="asm-page-number">Page 1 of 1</div>
   </div>
 </div>`
 }

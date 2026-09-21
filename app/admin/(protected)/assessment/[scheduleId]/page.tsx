@@ -6,7 +6,7 @@ import { canManageAssessment, canManageCertificate, isEditor, isSuperAdmin } fro
 import { PageHead, Card, Badge, EmptyState, StatCard } from "../../../../../components/admin/ui";
 import { AssessmentTable, type AsmRow } from "../AssessmentTable";
 import { lockAssessments, unlockAssessments } from "../actions";
-import { loadScheduleGroups, resolveRequestedGroup, computeAssessorDisplay, UNGROUPED } from "../../../../../lib/scheduleGroupContext";
+import { loadScheduleGroups, resolveRequestedGroup, computeAssessorDisplay, ALL_GROUPS, UNGROUPED } from "../../../../../lib/scheduleGroupContext";
 
 export const metadata = { title: "Assessment — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
@@ -184,7 +184,7 @@ export default async function AssessSchedulePage({
         <div className="ta-toolbar" style={{ flexWrap: "wrap" }}>
           <span style={{ color: "var(--ta-muted)", fontSize: 13 }}>Group:</span>
           <Link
-            href={`/admin/assessment/${scheduleId}`}
+            href={`/admin/assessment/${scheduleId}?group=${ALL_GROUPS}`}
             className={`ta-btn ta-btn-sm ${selection === null ? "ta-btn-primary" : "ta-btn-outline"}`}
           >
             All Groups
