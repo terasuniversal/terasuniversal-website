@@ -427,6 +427,7 @@ const PRINT_STYLE = `
 .att-col-day { width: 4%; text-align: center; padding: 5px 2px; }
 .att-col-sig { width: 14%; }
 .att-col-rem { width: 16%; font-size: 10px; overflow-wrap: anywhere; }
+.att-col-name, .att-col-ic { overflow-wrap: anywhere; word-break: break-word; }
 .att-table th.att-col-no, .att-table td.att-col-no,
 .att-table th.att-col-day, .att-table td.att-day-cell { text-align: center; }
 .att-day-cell { font-weight: 700; font-size: 10.5px; }
@@ -435,7 +436,7 @@ const PRINT_STYLE = `
 .att-sig-cell { height: 26px; }
 
 .att-confirm {
-  margin-top: 8px; border-top: 2px solid var(--att-navy); padding-top: 6px; padding-bottom: 0;
+  margin-top: 4px; border-top: 2px solid var(--att-navy); padding-top: 4px; padding-bottom: 0;
 }
 /* globals.css:6755 scopes section{padding-block:86px} to body:has(.teras-admin)
    — specificity (0,2,2) — which outranks the bare .att-confirm (0,1,0) and
@@ -444,7 +445,7 @@ const PRINT_STYLE = `
    padding override below is re-scoped to (0,3,0) so it wins. */
 .att-print-sheet .att-print-doc .att-confirm { padding-top: 6px; padding-bottom: 0; }
 .att-confirm-grid {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 28px;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 18px;
 }
 /* Columns stay intact if a genuinely large roster forces a page break; the
    container itself is allowed to flow so it is never yanked wholesale to the
@@ -456,14 +457,14 @@ const PRINT_STYLE = `
 }
 .att-print-sheet .att-confirm h2 {
   font-family: var(--font-montserrat), var(--font-poppins), Arial, sans-serif;
-  font-size: 11px; color: var(--att-navy); letter-spacing: .08em; margin: 0 0 4px;
+  font-size: 10px; color: var(--att-navy); letter-spacing: .08em; margin: 0 0 2px;
 }
-.att-confirm-line { display: flex; gap: 10px; align-items: flex-end; margin-bottom: 5px; font-size: 11.5px; }
-.att-confirm-line > span:first-child { min-width: 105px; font-weight: 700; color: var(--att-navy); }
+.att-confirm-line { display: flex; gap: 6px; align-items: flex-end; margin-bottom: 2px; font-size: 10px; }
+.att-confirm-line > span:first-child { min-width: 85px; font-weight: 700; color: var(--att-navy); }
 /* Filled when text is present (e.g. trainer name from course_schedules),
    otherwise just the blank handwriting rule. */
 .att-line {
-  flex: 1; border-bottom: 1.2px solid #1a1a1a; min-height: 13px; line-height: 13px;
+  flex: 1; border-bottom: 1.2px solid #1a1a1a; min-height: 11px; line-height: 11px;
   font-weight: 600; color: #1a1a1a; padding: 0 2px;
 }
 /* globals.css ships a bare footer{background:var(--navy);padding:56px 0 22px}
@@ -482,12 +483,10 @@ const PRINT_STYLE = `
    (globals.css + admin.css + Montserrat/Poppins + admin shell) via
    headless-Chrome print media for an 11-participant, 10-session sheet:
    header 52 · metadata 60 (two rows) · legend 18 · thead 20 · 11 rows ≈ 374
-   (26–40px each, names wrapping to two lines) · confirmation 85 · footer 24
-   ≈ 633px, ~85px spare — fits a single A4 landscape page. (Before the
-   padding override above, globals' body:has(.teras-admin) section rule
-   silently added 172px and pushed the sheet to two pages.) A roster whose
-   names all wrap to three lines can still legitimately roll to a second
-   page, with the header row repeating — correct behaviour, not a regression. */
+   (26–40px each, names wrapping to two lines) · compact confirmation/footer
+   ≈ 70–85px. Real Chromium validation shows 10–15-session sheets can still
+   legitimately roll to additional pages; the header row repeats and rows do
+   not split — correct behaviour, not a column-allocation regression. */
 @page { size: A4 landscape; margin: 10mm 12mm; }
 
 @media print {
