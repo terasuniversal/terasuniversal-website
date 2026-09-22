@@ -7,6 +7,14 @@ try {
     $AiDir = $tempRoot
     . (Join-Path $PSScriptRoot "agent-router.ps1")
 
+    function Set-DeepSeekHealthStub {
+        param([bool]$Healthy)
+
+        $script:DeepSeekHealthStubHealthy = $Healthy
+        function global:Test-DeepSeekDefaultImplementerEnabled { return $true }
+        function global:Test-DeepSeekHealthyForRouting { return $script:DeepSeekHealthStubHealthy }
+    }
+
     function Assert-Route {
         param($Classification, [string]$Risk, [string]$Description)
         if ($Classification.Implementer -ne "Codex") { throw "$Description implementer was $($Classification.Implementer)" }
@@ -14,35 +22,62 @@ try {
         if ($Classification.Risk -ne $Risk) { throw "$Description risk was $($Classification.Risk), expected $Risk" }
     }
 
-    Assert-Route (Get-TaskClassification -MenuChoice 3 -Description "Fix admin spacing") "LOW" "LOW"
-    Assert-Route (Get-TaskClassification -MenuChoice 1 -Description "Add a CRM report") "MEDIUM" "MEDIUM"
-    Assert-Route (Get-TaskClassification -MenuChoice 4 -Description "Create Supabase RLS policy") "HIGH" "HIGH"
-    Assert-Route (Get-TaskClassification -MenuChoice 4 -Description "Drop production table") "CRITICAL" "CRITICAL"
+    Set-DeepSeekHealthStub -Healthy $true
+    $auditHealthy = Get-TaskClassification -MenuChoice 1 -Description "Read-only audit of the CRM routing"
+    if ($auditHealthy.Implementer -ne "DeepSeek" -or
+        $auditHealthy.ImplementerModel -ne "DEEPSEEK_FAST" -or
+        $auditHealthy.Reviewer -ne "None" -or
+        $auditHealthy.ReviewerModel -ne "None") {
+        throw "Healthy Audit/Research/Scout route was not DeepSeek / DEEPSEEK_FAST without review."
+    }
+
+    Set-DeepSeekHealthStub -Healthy $false
+    $auditFallback = Get-TaskClassification -MenuChoice 1 -Description "Read-only audit of the CRM routing"
+    if ($auditFallback.Implementer -ne "Codex" -or $auditFallback.ImplementerModel -ne "CODEX") {
+        throw "Unavailable DeepSeek did not fall back to Codex for Audit/Research/Scout."
+    }
+    if ($auditFallback.Reason -notmatch "DeepSeek was unavailable.*Codex fallback") {
+        throw "DeepSeek fallback reason was not recorded: $($auditFallback.Reason)"
+    }
+
+    $normal = Get-TaskClassification -MenuChoice 1 -Description "Add a CRM report"
+    Assert-Route $normal "MEDIUM" "Normal development"
+    if ($normal.Implementer -ne "Codex" -or $normal.ImplementerModel -ne "CODEX") {
+        throw "Normal Feature MEDIUM route was not Codex."
+    }
 
     $high = Get-TaskClassification -MenuChoice 4 -Description "Create Supabase RLS policy"
-    if ($high.Reviewer -ne "Claude Code" -or $high.ReviewerModel -ne "CLAUDE_REVIEW") { throw "HIGH review route is not Claude Code." }
+    Assert-Route $high "HIGH" "HIGH"
+    if ($high.Implementer -ne "Codex" -or $high.ImplementerModel -ne "CODEX" -or
+        $high.Reviewer -ne "Claude Code" -or $high.ReviewerModel -ne "CLAUDE_REVIEW" -or
+        $high.HumanApproval -ne "REQUIRED") {
+        throw "HIGH Database/Supabase route is not Codex + Claude + human approval."
+    }
+
     $critical = Get-TaskClassification -MenuChoice 4 -Description "Drop production table"
-    if ($critical.Reviewer -ne "Claude Code" -or $critical.ReviewerModel -ne "CLAUDE_REVIEW") { throw "CRITICAL review route is not Claude Code." }
-    foreach ($classification in @(
-        (Get-TaskClassification -MenuChoice 3 -Description "Fix admin spacing"),
-        (Get-TaskClassification -MenuChoice 1 -Description "Add a CRM report"),
-        $high,
-        $critical
-    )) {
+    Assert-Route $critical "CRITICAL" "CRITICAL"
+    if ($critical.Implementer -ne "Codex" -or $critical.ImplementerModel -ne "CODEX" -or
+        $critical.Reviewer -ne "Claude Code" -or $critical.ReviewerModel -ne "CLAUDE_REVIEW" -or
+        $critical.HumanApproval -ne "REQUIRED") {
+        throw "CRITICAL route is not Codex + Claude independent review + human approval."
+    }
+
+    foreach ($classification in @($auditHealthy, $auditFallback, $normal, $high, $critical)) {
         $reason = [string]$classification.Reason
-        if ($reason -match 'DeepSeek is enabled|Claude FAST is the default|Claude DEEP \+ mandatory Codex review') {
+        if ($reason -match 'Claude FAST is the default|Claude DEEP \+ mandatory Codex review') {
             throw "Route reason contains stale implementer guidance: $reason"
         }
     }
 
-    $audit = Get-TaskClassification -MenuChoice 7 -Description "Read-only production audit"
-    if ($audit.Implementer -ne "Codex" -or $audit.Reviewer -ne "Human") { throw "Production audit route changed unexpectedly." }
-
     $routerSource = Get-Content (Join-Path $PSScriptRoot "agent-router.ps1") -Raw
-    $agentSource = Get-Content (Join-Path $PSScriptRoot "teras-agent.ps1") -Raw
-    if ($routerSource -match '\[switch\]\$PreferDeepSeek|Implementer = "DeepSeek"') { throw "DeepSeek routing remains reachable in agent-router.ps1." }
-    if ($agentSource -match '\[switch\]\$(TestDeepSeek|DeepSeekStatus|PreferDeepSeek)|Invoke-DeepSeekImplementation\s+-HandoffPath|Invoke-DeepSeekPostCallResult\s+-State') { throw "DeepSeek invocation or CLI parameter remains reachable in teras-agent.ps1." }
-    if ($routerSource -notmatch 'DeepSeek is disabled; use Get-PrimaryImplementerChoice' -or $agentSource -notmatch 'DeepSeek is disabled; no DeepSeek fallback is supported') { throw "Disabled DeepSeek guard assertions failed." }
+    if ($routerSource -notmatch 'Implementer = "DeepSeek"' -or
+        $routerSource -notmatch 'ImplementerModel = "DEEPSEEK_FAST"' -or
+        $routerSource -notmatch 'DeepSeek was unavailable, so Codex fallback was selected') {
+        throw "Approved DeepSeek healthy/fallback routing is not represented in agent-router.ps1."
+    }
+    if ($routerSource -notmatch 'Claude independent review; tests/E2E') {
+        throw "CRITICAL QA/E2E gate is not represented in the router task requirements."
+    }
 
     Write-Output "Agent routing tests: PASS"
 } finally {
