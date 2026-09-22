@@ -1,4 +1,5 @@
 import { getStaffParticipantAssessmentResult } from "../../../../../../../lib/assessment/participantResult";
+import { ParticipantResultActions } from "./ParticipantResultActions";
 
 export const metadata = { title: "Assessment Result — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
@@ -32,14 +33,20 @@ export default async function StaffParticipantResultPage({
   const result = await getStaffParticipantAssessmentResult(scheduleId, participantId);
 
   return (
-    <main style={{ minHeight: "auto", background: "#f7f9fc", padding: "48px 20px" }}>
-      <article style={{ maxWidth: 760, margin: "0 auto", background: "#fff", borderTop: "4px solid #0b3a63", boxShadow: "0 8px 30px rgba(11,58,99,.08)" }}>
-        <header style={{ display: "flex", justifyContent: "space-between", gap: 24, alignItems: "flex-start", padding: "28px 32px 22px", borderBottom: "1px solid #dfe5ec" }}>
-          <div>
-            <p style={{ margin: 0, color: "#667085", fontSize: 12, letterSpacing: ".08em" }}>TERAS UNIVERSAL SDN. BHD.</p>
-            <h1 style={{ margin: "8px 0 0", color: "#0b3a63", fontSize: 25 }}>ASSESSMENT RESULT</h1>
+    <main className="ta-participant-result" style={{ minHeight: "auto", background: "#f7f9fc", padding: "48px 20px" }}>
+      <article className="ta-participant-result-paper" style={{ maxWidth: 760, margin: "0 auto", background: "#fff", borderTop: "4px solid #0b3a63", boxShadow: "0 8px 30px rgba(11,58,99,.08)", page: "participant-result-page" }}>
+        <header className="ta-participant-result-header" style={{ display: "flex", justifyContent: "space-between", gap: 24, alignItems: "flex-start", padding: "28px 32px 22px", borderBottom: "1px solid #dfe5ec" }}>
+          <div className="ta-participant-result-brand">
+            <img src="/teras-universal-logo.png" alt="TERAS UNIVERSAL" />
+            <div>
+              <p style={{ margin: 0, color: "#667085", fontSize: 12, letterSpacing: ".08em" }}>TERAS UNIVERSAL SDN. BHD.</p>
+              <h1 style={{ margin: "8px 0 0", color: "#0b3a63", fontSize: 25 }}>ASSESSMENT RESULT</h1>
+            </div>
           </div>
-          <p style={{ margin: 0, color: "#667085", fontSize: 13, textAlign: "right" }}>Participant Result</p>
+          <div className="ta-participant-result-header-side">
+            <p style={{ margin: 0, color: "#667085", fontSize: 13, textAlign: "right" }}>Participant Result</p>
+            <ParticipantResultActions assessmentHref={`/admin/assessment/${scheduleId}`} />
+          </div>
         </header>
 
         <section style={{ padding: "24px 32px" }}>
