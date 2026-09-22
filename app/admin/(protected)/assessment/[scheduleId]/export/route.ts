@@ -4,6 +4,7 @@ import { getCurrentProfile, hasModuleAccess } from "../../../../../../lib/auth/s
 import { canViewAssessment } from "../../../../../../lib/auth/rbac";
 import { loadScheduleGroups, resolveRequestedGroup, isValidRequestedGroup, computeAssessorDisplay, UNGROUPED } from "../../../../../../lib/scheduleGroupContext";
 import { maskIdentification } from "../../../../../../lib/identityMask";
+import { COMPANY_DOCUMENT_CONFIG } from "../../../../../../lib/documents/company";
 import { estimateAssessmentRowHeightMm, paginateAssessmentRows } from "../../../../../../lib/documents/assessmentPagination";
 
 /**
@@ -271,8 +272,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // safe: long names and remarks can wrap to multiple lines in their cells.
     // The content-aware estimator below adds height for each estimated line.
     const PAGE_HEIGHT_MM = 186; // A4 landscape 210mm - 12mm top/bottom @page margin
-    const FULL_HEADER_MM = 42; // brand bar + body padding + 2-row meta grid + thead (measured ~41.6mm)
-    const CONTINUATION_HEADER_MM = 15; // compact "(continued)" line + body padding + thead (measured ~13.3mm)
+    const FULL_HEADER_MM = 49; // previous 42mm budget + measured 26.5px first-header increase (~7.0mm)
+    const CONTINUATION_HEADER_MM = 18; // previous 15mm budget + measured 14.8px continuation increase (~3.9mm)
     const SIGNOFF_BASE_MM = 5; // .asm-signoff margin/border/padding + heading (measured ~5.0mm)
     const SIGNOFF_BLOCK_MM = 18; // per assessor block: one horizontal row (label + 12mm ruled fill; measured ~17.1mm)
     const numAssessorBlocks = assessorDisplay.mode === "single" ? 1 : assessorDisplay.entries.length;
@@ -310,7 +311,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 <div class="asm-print-page">
   ${
     page.header === "full"
-      ? `<header class="asm-head"><strong>TERAS UNIVERSAL SDN. BHD.</strong><h1>ASSESSMENT RESULT</h1><p>Assessment Record</p></header>
+      ? `<header class="asm-head"><div class="asm-branding"><img src="/teras-universal-logo.png" alt="TERAS UNIVERSAL" class="asm-logo"><div class="asm-company"><strong>${esc(COMPANY_DOCUMENT_CONFIG.legalName)}</strong><span>Company Registration No. ${esc(COMPANY_DOCUMENT_CONFIG.registrationNumber)}</span><span>${esc(COMPANY_DOCUMENT_CONFIG.officeAddress)}</span><span>${esc(COMPANY_DOCUMENT_CONFIG.contactLine)}</span></div></div><div class="asm-identity"><h1>ASSESSMENT RESULT</h1><p>Assessment Record</p></div></header>
   <div class="asm-body">
     <dl class="asm-meta">
       <div><dt>Programme / Course:</dt><dd>${esc(s?.courses?.course_name ?? "—")}</dd></div>
@@ -325,7 +326,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       <div><dt>Generated:</dt><dd>${esc(generatedDateTime)} (Malaysia)</dd></div>
     </dl>`
       : `<div class="asm-body asm-body-compact">
-    <p class="asm-continued">TERAS UNIVERSAL — ${esc(title)} (continued)</p>`
+    <p class="asm-continued"><img src="/teras-universal-logo.png" alt="TERAS UNIVERSAL" class="asm-continued-logo"><span>TERAS UNIVERSAL — ${esc(title)} (continued)</span></p>`
   }
     ${tableHtml(page.rows)}
     ${page.includeSignOff ? signOffSection : ""}
@@ -358,13 +359,19 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
      though the server-side split already intended an even 15/15; this page
      carries no signoff to trim, so the header/meta is the only lever left
      that doesn't touch table row height, font size, or orientation. */
-  .asm-head { background: #0B3A63; color: #fff; padding: 5px 16px; border-bottom: 3px solid #D4AF37; }
-  .asm-head strong { display: block; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: #D4AF37; }
-  .asm-head h1 { margin: 1px 0 0; font-size: 17px; font-weight: 800; letter-spacing: .04em; }
-  .asm-head p { margin: 2px 0 0; font-size: 9px; letter-spacing: .08em; text-transform: uppercase; color: #fff; }
+  .asm-head { display: flex; align-items: center; justify-content: space-between; gap: 18px; background: #fff; color: #1a1a1a; padding: 3px 16px 5px; border-bottom: 3px solid #0B3A63; }
+  .asm-branding { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .asm-logo { display: block; width: 110px; height: auto; object-fit: contain; object-position: left center; flex-shrink: 0; }
+  .asm-company { display: grid; gap: 1px; min-width: 0; color: #667085; font-size: 8px; line-height: 1.25; }
+  .asm-company strong { color: #0B3A63; font-size: 10px; letter-spacing: .06em; }
+  .asm-company span { overflow-wrap: anywhere; }
+  .asm-identity { min-width: 0; text-align: right; }
+  .asm-head h1 { margin: 0; color: #0B3A63; font-size: 17px; font-weight: 800; letter-spacing: .04em; }
+  .asm-head p { margin: 2px 0 0; color: #667085; font-size: 9px; letter-spacing: .08em; text-transform: uppercase; }
   .asm-body { padding: 4px 16px 0; }
   .asm-body-compact { padding-top: 8px; }
-  .asm-continued { margin: 0 0 6px; font-size: 11px; font-weight: 700; color: #0B3A63; }
+  .asm-continued { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; font-size: 10px; font-weight: 700; color: #0B3A63; }
+  .asm-continued-logo { display: block; width: 38px; height: auto; object-fit: contain; object-position: left center; }
   .asm-meta { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px 24px; margin: 0 0 2px; font-size: 12px; }
   .asm-meta div { padding: 1px 0; border-bottom: 1px solid #e1e6ee; }
   .asm-meta dt { display: inline; color: #0B3A63; font-weight: 700; }
@@ -460,7 +467,7 @@ ${
   printRows.length > 0
     ? printPages.map(pageHtml).join("")
     : `<div class="asm-print-page">
-  <header class="asm-head"><strong>TERAS UNIVERSAL SDN. BHD.</strong><h1>ASSESSMENT RESULT</h1><p>Assessment Record</p></header>
+  <header class="asm-head"><div class="asm-branding"><img src="/teras-universal-logo.png" alt="TERAS UNIVERSAL" class="asm-logo"><div class="asm-company"><strong>${esc(COMPANY_DOCUMENT_CONFIG.legalName)}</strong><span>Company Registration No. ${esc(COMPANY_DOCUMENT_CONFIG.registrationNumber)}</span><span>${esc(COMPANY_DOCUMENT_CONFIG.officeAddress)}</span><span>${esc(COMPANY_DOCUMENT_CONFIG.contactLine)}</span></div></div><div class="asm-identity"><h1>ASSESSMENT RESULT</h1><p>Assessment Record</p></div></header>
   <div class="asm-body">
     <dl class="asm-meta">
       <div><dt>Programme / Course:</dt><dd>${esc(s?.courses?.course_name ?? "—")}</dd></div>
