@@ -67,9 +67,18 @@ if (-not $synthetic.Completed -or $script:reviewCalls -ne 2 -or $script:repairCa
 
 $runnerSource = Get-Content (Join-Path $PSScriptRoot "agent-runner.ps1") -Raw
 $pipelineSource = Get-Content (Join-Path $PSScriptRoot "teras-agent.ps1") -Raw
+$routerSource = Get-Content (Join-Path $PSScriptRoot "agent-router.ps1") -Raw
 if ($runnerSource -notmatch "New-CodexRepairHandoff" -or $runnerSource -notmatch "Do not commit, push, merge, deploy, or apply a migration") { throw "Repair handoff governance assertions failed." }
 if ($pipelineSource -notmatch "Invoke-ClaudeRepairLoop" -or $pipelineSource -notmatch "PENDING_CLAUDE_REVIEW" -or $pipelineSource -notmatch "PENDING_CODEX_REPAIR" -or $pipelineSource -notmatch "\$maximumAttempts = 2") { throw "Repair loop control assertions failed." }
 if ($pipelineSource -notmatch 'Risk -in @\("HIGH", "CRITICAL"\)') { throw "Risk-gated review ordering assertion failed." }
-if ($pipelineSource -notmatch 'Invoke-ReviewStage -State \$State -Mandatory \$true') { throw "Mandatory Codex final review assertion failed." }
+
+$postImplementation = [regex]::Match($pipelineSource, 'function Invoke-PostImplementation.*?(?=function Invoke-DeepSeekPostCallResult)', [Text.RegularExpressions.RegexOptions]::Singleline).Value
+$claudeReviewIndex = $postImplementation.IndexOf("Invoke-ClaudeRepairLoop")
+$qaIndex = $postImplementation.IndexOf("Invoke-QA")
+if ($claudeReviewIndex -lt 0 -or $qaIndex -lt 0 -or $claudeReviewIndex -ge $qaIndex) { throw "HIGH/CRITICAL Claude review must precede QA." }
+if ($postImplementation -match 'Invoke-ReviewStage -State \$State -Mandatory \$true') { throw "Obsolete mandatory Codex final review path is still active." }
+if ($runnerSource -notmatch 'function Invoke-ClaudeReadOnlyReview') { throw "Claude specialist review implementation is not available." }
+if ($routerSource -notmatch 'Claude independent review; tests/E2E' -or $routerSource -notmatch 'Human approval before commit/push/deploy/migration') { throw "CRITICAL tests/E2E and human-approval metadata assertions failed." }
+if ($pipelineSource -match 'Fallback:\s*CLAUDE_FAST') { throw "Stale CLAUDE_FAST fallback output remains." }
 
 Write-Output "Repair loop static tests: PASS"
