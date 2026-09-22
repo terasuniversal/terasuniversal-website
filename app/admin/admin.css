@@ -665,3 +665,70 @@
   .ta-class-feedback-print { padding: 18mm !important; }
 }
 
+/* --- Training Operations Dashboard 3D ------------------------------- */
+.ta-ops-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-bottom: 20px; }
+.ta-ops-summary .ta-stat { min-width: 0; }
+.ta-ops-filters { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; padding: 14px 16px; margin-bottom: 20px; border: 1px solid var(--ta-line); border-radius: var(--ta-radius); background: var(--ta-white); }
+.ta-ops-filters label { display: grid; gap: 5px; min-width: 140px; color: var(--ta-muted); font-size: 12px; font-weight: 700; }
+.ta-ops-filters select { min-height: 38px; padding: 8px 10px; border: 1px solid var(--ta-line); border-radius: 8px; background: #fff; color: var(--ta-ink); font: inherit; }
+.ta-ops-section { margin-bottom: 22px; scroll-margin-top: 20px; }
+.ta-ops-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.ta-ops-section-heading h2 { margin: 0; color: var(--ta-navy); font-size: 18px; }
+.ta-ops-section-note { color: var(--ta-muted); font-size: 12px; }
+.ta-ops-attention-list, .ta-ops-assignment-list { display: grid; gap: 1px; }
+.ta-ops-attention-item, .ta-ops-assignment-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--ta-line); }
+.ta-ops-attention-item:last-child, .ta-ops-assignment-item:last-child { border-bottom: 0; }
+.ta-ops-attention-item > div:first-child, .ta-ops-assignment-item > div:first-child { display: flex; align-items: center; gap: 9px; min-width: 0; flex-wrap: wrap; }
+.ta-ops-attention-item strong, .ta-ops-assignment-item strong { color: var(--ta-navy); }
+.ta-ops-attention-item span:not(.ta-badge-pill), .ta-ops-assignment-item span:not(.ta-badge-pill) { color: var(--ta-muted); font-size: 12px; }
+.ta-ops-schedule-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.ta-ops-schedule-card { display: flex; min-width: 0; flex-direction: column; gap: 10px; padding: 16px; border: 1px solid var(--ta-line); border-radius: var(--ta-radius); background: var(--ta-white); box-shadow: var(--ta-shadow); }
+.ta-ops-card-topline, .ta-ops-actions, .ta-ops-facts, .ta-ops-assignment-tags { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ta-ops-card-topline { justify-content: space-between; }
+.ta-ops-schedule-card h3 { margin: 0; color: var(--ta-navy); font-size: 16px; line-height: 1.3; }
+.ta-ops-date { margin: 0; color: var(--ta-muted); font-size: 12.5px; }
+.ta-ops-facts { color: var(--ta-muted); font-size: 12px; }
+.ta-ops-facts span { padding-right: 8px; border-right: 1px solid var(--ta-line); }
+.ta-ops-facts span:last-child { border-right: 0; }
+.ta-ops-facts strong, .ta-ops-progress-lines strong { color: var(--ta-ink); }
+.ta-ops-progress-lines { display: grid; gap: 7px; padding: 10px 0; border-top: 1px solid var(--ta-line); border-bottom: 1px solid var(--ta-line); }
+.ta-ops-progress-lines div { display: grid; gap: 2px; }
+.ta-ops-progress-lines span { color: var(--ta-muted); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+.ta-ops-progress-lines strong { font-size: 12px; font-weight: 600; }
+.ta-ops-card-warning { margin: 0; color: var(--ta-danger); font-size: 12px; font-weight: 600; }
+.ta-ops-actions { margin-top: auto; padding-top: 2px; }
+.ta-ops-progress-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.ta-ops-progress-detail { display: grid; gap: 9px; color: var(--ta-muted); font-size: 12.5px; }
+.ta-ops-progress-detail > span { font-size: 12px; }
+.ta-ops-progress-detail p { display: grid; gap: 3px; margin: 0; }
+.ta-ops-progress-detail p strong { color: var(--ta-navy); }
+.ta-ops-progress-detail small { color: var(--ta-muted); }
+.ta-ops-assignment-item > div:first-child { display: grid; gap: 3px; }
+.ta-ops-quick-actions { display: flex; flex-wrap: wrap; gap: 10px; padding: 16px; }
+.ta-ops-loading-summary, .ta-ops-loading-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-bottom: 20px; }
+.ta-ops-loading-grid { grid-template-columns: repeat(3, 1fr); }
+.ta-ops-skeleton { min-height: 120px; border-radius: var(--ta-radius); background: linear-gradient(90deg, var(--ta-soft) 25%, #fff 50%, var(--ta-soft) 75%); background-size: 200% 100%; animation: ta-ops-loading 1.4s ease-in-out infinite; }
+.ta-ops-skeleton-panel { min-height: 180px; }
+.ta-ops-error { display: grid; justify-items: start; gap: 10px; max-width: 620px; padding: 22px; border: 1px solid rgba(176, 42, 55, .25); border-left: 3px solid var(--ta-danger); border-radius: var(--ta-radius); background: #fff; }
+.ta-ops-error strong { color: var(--ta-danger); font-size: 17px; }
+.ta-ops-error p { margin: 0; color: var(--ta-muted); }
+@keyframes ta-ops-loading { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+@media (max-width: 1080px) {
+  .ta-ops-summary { grid-template-columns: repeat(2, 1fr); }
+  .ta-ops-schedule-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ta-ops-loading-summary { grid-template-columns: repeat(2, 1fr); }
+  .ta-ops-loading-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 620px) {
+  .ta-ops-summary, .ta-ops-schedule-grid, .ta-ops-progress-grid, .ta-ops-loading-summary, .ta-ops-loading-grid { grid-template-columns: 1fr; }
+  .ta-ops-filters { align-items: stretch; }
+  .ta-ops-filters label { min-width: 0; width: 100%; }
+  .ta-ops-filters button { width: 100%; }
+  .ta-ops-attention-item, .ta-ops-assignment-item { align-items: flex-start; flex-direction: column; }
+  .ta-ops-attention-item .ta-btn, .ta-ops-assignment-item .ta-btn { width: 100%; justify-content: center; }
+  .ta-ops-facts { align-items: flex-start; flex-direction: column; }
+  .ta-ops-facts span { padding: 0; border-right: 0; }
+  .ta-ops-quick-actions { display: grid; grid-template-columns: 1fr; }
+  .ta-ops-quick-actions .ta-btn { justify-content: center; }
+}
+
