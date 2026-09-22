@@ -147,8 +147,14 @@ if (-not [string]::IsNullOrWhiteSpace($TargetWorkspacePath)) {
     if (-not (Test-Path -LiteralPath $requestedTarget -PathType Container)) {
         throw "Target workspace does not exist: $requestedTarget"
     }
-    $targetRepo = (& git -C $requestedTarget rev-parse --show-toplevel 2>$null | Select-Object -First 1)
-    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($targetRepo)) {
+
+    # A Git worktree can use a .git file (or another valid Git indirection),
+    # so repository validation must use Git rather than inspecting .git.
+    [string]$insideWorkTree = (& git -C $requestedTarget rev-parse --is-inside-work-tree 2>$null | Select-Object -First 1)
+    $insideWorkTreeExitCode = $LASTEXITCODE
+    [string]$targetRepo = (& git -C $requestedTarget rev-parse --show-toplevel 2>$null | Select-Object -First 1)
+    $targetRepoExitCode = $LASTEXITCODE
+    if ($insideWorkTreeExitCode -ne 0 -or $insideWorkTree.Trim() -ne "true" -or $targetRepoExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($targetRepo)) {
         throw "TargetWorkspacePath is not a Git repository: $requestedTarget"
     }
     $targetRepo = [System.IO.Path]::GetFullPath($targetRepo.Trim())
@@ -775,7 +781,11 @@ function Invoke-TaskPipeline {
     $state = New-TaskState -TaskId $taskId -Description $Description -Classification $classification
     $state.State = "ROUTED"
     $isCodex = ($state.Implementer -eq "Codex")
-    $handoffFileName = "CODEX_IMPLEMENTATION_HANDOFF.md"
+    $handoffFileName = if ($classification.Implementer -eq "DeepSeek") {
+        "DEEPSEEK_HANDOFF.md"
+    } else {
+        "CODEX_IMPLEMENTATION_HANDOFF.md"
+    }
 
     if ($DryRun) {
         Write-Host "DRY RUN - the following would happen next (nothing was launched):"
