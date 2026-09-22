@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
 import { requireAttendance } from "../../../../../../lib/auth/session";
+import { COMPANY_DOCUMENT_CONFIG } from "../../../../../../lib/documents/company";
 import { PrintButton } from "./PrintButton";
 import { loadAttendanceGroups, resolveRequestedGroup, isValidRequestedGroup, computeAssessorDisplay, UNGROUPED } from "../../groupFilter";
 
@@ -178,9 +179,15 @@ export default async function AttendancePrintPage({
 
       <div className="att-print-doc">
         <header className="att-head">
-          <img className="att-head-logo" src="/teras-universal-logo.png" alt="TERAS UNIVERSAL" />
-          <div className="att-head-text">
-            <span className="att-head-brand">TERAS UNIVERSAL SDN. BHD.</span>
+          <div className="att-head-branding">
+            <img className="att-head-logo" src="/teras-universal-logo.png" alt="TERAS UNIVERSAL" />
+            <div className="att-head-company">
+              <strong>{COMPANY_DOCUMENT_CONFIG.legalName}</strong>
+              <span>Company Registration No. {COMPANY_DOCUMENT_CONFIG.registrationNumber}</span>
+            </div>
+          </div>
+          <div className="att-head-identity">
+            <span className="att-head-brand">TERAS UNIVERSAL</span>
             <h1 className="att-head-title">TRAINING ATTENDANCE SHEET</h1>
           </div>
         </header>
@@ -369,27 +376,28 @@ const PRINT_STYLE = `
   font-size: 12.5px; line-height: 1.4;
 }
 .att-head {
-  display: flex; align-items: center; gap: 12px;
-  background: var(--att-navy); color: #fff;
-  padding: 6px 16px;
+  display: flex; align-items: center; justify-content: space-between; gap: 18px;
+  background: #fff; color: #1a1a1a;
+  padding: 4px 0 6px;
   border-bottom: 3px solid var(--att-gold);
-  border-radius: 6px 6px 0 0;
+  border-radius: 0;
 }
 .att-head-logo {
-  height: 40px; width: auto; max-width: 120px;
-  object-fit: contain; flex-shrink: 0;
-  background: #fff; border-radius: 6px; padding: 4px;
+  display: block; width: 120px; height: auto; max-height: 42px;
+  object-fit: contain; object-position: left center; flex-shrink: 0;
 }
-.att-head-text { flex: 1; text-align: center; min-width: 0; }
+.att-head-branding { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.att-head-company { display: grid; gap: 1px; min-width: 0; color: #667085; font-size: 8px; line-height: 1.25; }
+.att-head-company strong { color: var(--att-navy); font-size: 10px; letter-spacing: .06em; }
+.att-head-company span { overflow-wrap: anywhere; }
+.att-head-identity { min-width: 0; text-align: right; }
 .att-head-brand {
-  display: block; font-size: 10.5px; font-weight: 700;
-  letter-spacing: .18em; text-transform: uppercase; color: var(--att-gold);
+  display: block; font-size: 9px; font-weight: 700;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--att-gold);
 }
-/* Higher specificity than admin.css's .teras-admin h1 so the title stays
-   white on the navy band (a bare class loses that rule's color). */
 .att-print-sheet .att-head-title {
   font-family: var(--font-montserrat), var(--font-poppins), Arial, sans-serif;
-  color: #fff; font-size: 19px; font-weight: 800; letter-spacing: .05em;
+  color: var(--att-navy); font-size: 17px; font-weight: 800; letter-spacing: .04em;
   margin: 2px 0 0; line-height: 1.1;
 }
 /* Landscape identity block: 4 compact columns so the course/schedule
