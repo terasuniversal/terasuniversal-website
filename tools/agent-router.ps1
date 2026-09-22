@@ -82,6 +82,15 @@ $DeepSeekKeywords = @($UiKeywords) + @(
     "simple", "targeted test", "polish", "small component"
 )
 
+# Read-only scout/audit/research signals. These are intentionally separate
+# from routine implementation keywords so a request such as "Audit Sales CRM
+# read-only" enters the approved DeepSeek scout lane rather than the ordinary
+# MEDIUM implementation lane.
+$DeepSeekScoutKeywords = @(
+    "audit", "auditing", "research", "scout", "read-only", "read only",
+    "inspect", "inspection", "analyze", "analysis", "structure"
+)
+
 # Ordered so "current state is at-or-past X" comparisons are a simple index
 # lookup. BLOCKED/PUSH_BLOCKED/PREVIEW_BLOCKED are intentionally excluded -
 # each is reachable from several states and is checked separately, not as a
@@ -211,13 +220,34 @@ function Test-DeepSeekDefaultImplementerEnabled {
     }
 }
 
+function Test-HermesDeepSeekCredentialAvailable {
+    # Hermes owns the provider credential pool. Check only its documented
+    # status/exit semantics; never inspect, print, or copy credential values.
+    $hermesCommand = Get-Command "hermes" -ErrorAction SilentlyContinue
+    if (-not $hermesCommand) { return $false }
+    $hermesExecutable = if ($hermesCommand.Path) { $hermesCommand.Path } else { $hermesCommand.Source }
+    if ([string]::IsNullOrWhiteSpace($hermesExecutable)) { return $false }
+    try {
+        $statusOutput = @(& $hermesExecutable auth status deepseek 2>$null)
+        $statusExitCode = $LASTEXITCODE
+        if ($statusExitCode -ne 0) { return $false }
+        return (($statusOutput -join "`n") -match "(?i)\blogged\s+in\b")
+    } catch {
+        return $false
+    }
+}
+
 function Test-DeepSeekHealthyForRouting {
     # Conservative by design: a provider already known to have failed must
     # never be routed to again automatically - DeepSeek failures must never
     # block delivery. UNKNOWN (never tested) counts as healthy-enough to
     # try; a known FAIL does not.
-    if (-not (Get-Command Test-DeepSeekApiKeyConfigured -ErrorAction SilentlyContinue)) { return $false }
-    if (-not (Test-DeepSeekApiKeyConfigured)) { return $false }
+    $officialCredentialAvailable = Test-HermesDeepSeekCredentialAvailable
+    $environmentCredentialAvailable = $false
+    if (Get-Command Test-DeepSeekApiKeyConfigured -ErrorAction SilentlyContinue) {
+        $environmentCredentialAvailable = Test-DeepSeekApiKeyConfigured
+    }
+    if (-not ($officialCredentialAvailable -or $environmentCredentialAvailable)) { return $false }
     if (-not (Get-Command Get-DeepSeekStatusRecord -ErrorAction SilentlyContinue)) { return $true }
     $status = Get-DeepSeekStatusRecord
     return ($status.LastConnectivity -ne "FAIL")
@@ -235,7 +265,9 @@ function Get-LowMediumImplementerChoice {
     # own variable first is unambiguous and was verified correct.
     $isEnabled = Test-DeepSeekDefaultImplementerEnabled
     $isHealthy = Test-DeepSeekHealthyForRouting
-    $shouldUseDeepSeek = ($PreferDeepSeek -or ($isEnabled -and $isHealthy))
+    # Explicit preference opts into the lane but never bypasses the health gate.
+    # A missing key or known provider failure must fall back to Codex.
+    $shouldUseDeepSeek = ($isHealthy -and ($PreferDeepSeek -or $isEnabled))
 
     if ($shouldUseDeepSeek) {
         return [pscustomobject]@{ Implementer = "DeepSeek"; ImplementerModel = "DEEPSEEK_FAST" }
@@ -336,6 +368,13 @@ function Get-TaskClassification {
             $risk = "HIGH"; $implementer = "Codex"; $model = "CODEX"
             $reviewer = "Claude Code"; $reviewerModel = "CLAUDE_REVIEW"
             $reasonParts += "Description flags destructive and/or production-scoped impact - a restricted area; Codex implementation + Claude specialist review."
+        } elseif ($isScoutResearch -and (-not $isCrossModule)) {
+            $category = "Scout / Audit / Research"
+            $risk = "LOW"
+            $pick = Get-LowMediumImplementerChoice -PreferDeepSeek:$PreferDeepSeek
+            $implementer = $pick.Implementer; $model = $pick.ImplementerModel
+            $reviewer = "None"; $reviewerModel = "None"
+            $reasonParts += if ($implementer -eq "DeepSeek") { "Read-only scout/audit/research task with no blocked-area signal. DeepSeek Flash is enabled and healthy." } else { "Read-only scout/audit/research task with no blocked-area signal. DeepSeek was unavailable, so Codex fallback was selected." }
         } elseif ($isAttendanceModule -and (Test-AnyKeyword -Text $Description -Keywords $UiKeywords)) {
             $isPrintArea = $Description.ToLowerInvariant().Contains("print")
             $category = if ($isPrintArea) { "Attendance / UI / Print" } else { "Attendance / UI" }

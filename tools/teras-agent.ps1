@@ -108,6 +108,7 @@ param(
     [switch]$VerifyDatabase,
     [switch]$DryRunMigration,
     [string]$WorktreePath,
+    [string]$TargetWorkspacePath,
     [string]$Target,
     [switch]$Deploy,
     [switch]$TestMode,
@@ -126,6 +127,9 @@ $ErrorActionPreference = "Stop"
 
 $CanonicalRepoRoot = Split-Path -Parent $PSScriptRoot
 $RepoRoot = $CanonicalRepoRoot
+if (-not [string]::IsNullOrWhiteSpace($WorktreePath) -and -not [string]::IsNullOrWhiteSpace($TargetWorkspacePath)) {
+    throw "WorktreePath and TargetWorkspacePath are mutually exclusive."
+}
 if (-not [string]::IsNullOrWhiteSpace($WorktreePath)) {
     $requested = [System.IO.Path]::GetFullPath($WorktreePath)
     $worktreeRoot = [System.IO.Path]::GetFullPath((Join-Path (Split-Path -Parent $CanonicalRepoRoot) "_worktrees"))
@@ -137,6 +141,21 @@ if (-not [string]::IsNullOrWhiteSpace($WorktreePath)) {
         throw "Authorized task worktree does not exist: $requested"
     }
     $RepoRoot = $requested
+}
+if (-not [string]::IsNullOrWhiteSpace($TargetWorkspacePath)) {
+    $requestedTarget = [System.IO.Path]::GetFullPath($TargetWorkspacePath)
+    if (-not (Test-Path -LiteralPath $requestedTarget -PathType Container)) {
+        throw "Target workspace does not exist: $requestedTarget"
+    }
+    $targetRepo = (& git -C $requestedTarget rev-parse --show-toplevel 2>$null | Select-Object -First 1)
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($targetRepo)) {
+        throw "TargetWorkspacePath is not a Git repository: $requestedTarget"
+    }
+    $targetRepo = [System.IO.Path]::GetFullPath($targetRepo.Trim())
+    if (-not $targetRepo.Equals($requestedTarget, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "TargetWorkspacePath must be the repository root: $requestedTarget"
+    }
+    $RepoRoot = $requestedTarget
 }
 $AiDir = Join-Path $RepoRoot ".ai"
 $CurrentTaskPath = Join-Path $AiDir "CURRENT_TASK.md"
@@ -786,6 +805,20 @@ function Invoke-TaskPipeline {
     }
 
     Save-TaskState -State $state
+
+    if ($classification.Implementer -eq "DeepSeek") {
+        $deepSeekPreSnapshot = Get-GitStatusSnapshot
+        $state.PreImplementationSnapshot = $deepSeekPreSnapshot
+        $state.State = "IMPLEMENTING"
+        Save-TaskState -State $state
+        $deepSeekHandoffPath = New-DeepSeekHandoff -State $state
+        $deepSeekRan = Invoke-DeepSeekImplementation -HandoffPath $deepSeekHandoffPath -State $state
+        if (Invoke-DeepSeekPostCallResult -State $state -Ran $deepSeekRan -PreSnapshot $deepSeekPreSnapshot) {
+            return
+        }
+        Write-Host "DeepSeek did not run automatically. Run manually using .ai/DEEPSEEK_HANDOFF.md, then 'teras-agent -Resume' again."
+        return
+    }
 
     $handoffPath = New-CodexImplementationHandoff -State $state
     $handoffFileName = "CODEX_IMPLEMENTATION_HANDOFF.md"
