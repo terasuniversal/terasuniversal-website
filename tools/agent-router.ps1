@@ -358,7 +358,7 @@ function Get-TaskClassification {
             $reviewer = "Claude Code"; $reviewerModel = "CLAUDE_REVIEW"
         } elseif ($risk -eq "LOW") {
             # Every sensitive signal above already forces HIGH. Anything
-            # still LOW here remains in the Codex-only implementation lane.
+            # still LOW here remains in the bounded DeepSeek/Codex lane.
             $pick = Get-LowMediumImplementerChoice -PreferDeepSeek:$PreferDeepSeek
             $implementer = $pick.Implementer; $model = $pick.ImplementerModel
             $reviewer = "None"; $reviewerModel = "None"
