@@ -218,7 +218,7 @@ export function AssessmentTable({
                       <MutationForm action={updateAssessment.bind(null, scheduleId)} pendingLabel="Saving…" idleLabel="Save" style={{ display: "grid", gridTemplateColumns: "1.4fr .7fr .7fr .6fr .8fr 1fr 1.2fr auto", gap: 8, alignItems: "center" }}>
                         <input type="hidden" name="participant_id" value={r.participant_id} />
                         <div>
-                          <strong>{r.participant?.full_name}</strong>
+                          <strong>{r.participant?.full_name}</strong>{r.id && <Link href={`/admin/assessment/${scheduleId}/participant-result/${r.participant_id}`} style={{ marginLeft: 8, color: "var(--ta-navy)", textDecoration: "underline" }}>Participant Result</Link>}
                           <div style={{ color: "var(--ta-muted)", fontSize: 11 }}>
                             {r.participant?.participant_id}{!r.id ? " · not assessed" : ""}
                             {canViewParticipants && (
@@ -260,7 +260,7 @@ export function AssessmentTable({
                   ) : (
                     <>
                       <td>
-                        <strong>{r.participant?.full_name}</strong>
+                        <strong>{r.participant?.full_name}</strong>{r.id && <Link href={`/admin/assessment/${scheduleId}/participant-result/${r.participant_id}`} style={{ marginLeft: 8, color: "var(--ta-navy)", textDecoration: "underline" }}>Participant Result</Link>}
                         <div style={{ color: "var(--ta-muted)", fontSize: 11 }}>
                           {r.participant?.participant_id}{r.locked ? " · 🔒 locked" : ""}{!r.id ? " · not assessed" : ""}
                           {canViewParticipants && (
