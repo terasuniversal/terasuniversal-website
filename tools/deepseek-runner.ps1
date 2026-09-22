@@ -17,6 +17,9 @@
 $script:DeepSeekEmptyReportMarker = "No DeepSeek implementation currently pending."
 
 function Test-DeepSeekRunnerAvailable {
+    if ((Get-Command Test-HermesDeepSeekCredentialAvailable -ErrorAction SilentlyContinue) -and
+        (Test-HermesDeepSeekCredentialAvailable) -and
+        (Get-Command "hermes" -ErrorAction SilentlyContinue)) { return $true }
     if ($null -ne (Get-Command "deepseek" -ErrorAction SilentlyContinue)) { return $true }
 
     # Detect an existing, user-configured execution mechanism only - see
@@ -37,6 +40,9 @@ function Test-DeepSeekRunnerAvailable {
 }
 
 function Get-DeepSeekCommand {
+    if ((Get-Command Test-HermesDeepSeekCredentialAvailable -ErrorAction SilentlyContinue) -and
+        (Test-HermesDeepSeekCredentialAvailable) -and
+        (Get-Command "hermes" -ErrorAction SilentlyContinue)) { return "hermes" }
     if ($null -ne (Get-Command "deepseek" -ErrorAction SilentlyContinue)) { return "deepseek" }
     $configPath = Join-Path $AiDir "AGENT_CONFIG.json"
     if (Test-Path $configPath) {
@@ -125,9 +131,49 @@ Write your result to ``.ai/DEEPSEEK_IMPLEMENTATION_REPORT.md`` using the templat
 function Invoke-DeepSeekImplementation {
     param([string]$HandoffPath, $State)
 
-    # Phase 9A: prefer the controlled API adapter when DEEPSEEK_API_KEY is
-    # configured. Falls through to the local CLI runner, then to manual
-    # execution, exactly as Phase 6 already did.
+    # Prefer Hermes' official credential pool whenever it is authenticated.
+    # This avoids requiring DEEPSEEK_API_KEY in the PowerShell environment.
+    if ((Get-Command Test-HermesDeepSeekCredentialAvailable -ErrorAction SilentlyContinue) -and
+        (Test-HermesDeepSeekCredentialAvailable)) {
+        $prompt = Get-Content -Path $HandoffPath -Raw
+        $hermesCommand = Get-Command "hermes" -ErrorAction SilentlyContinue
+        $hermesExecutable = if ($hermesCommand.Path) { $hermesCommand.Path } else { $hermesCommand.Source }
+        Push-Location $RepoRoot
+        try {
+            $response = @(& $hermesExecutable -z $prompt --provider deepseek --model deepseek-flash 2>&1)
+            $exitCode = $LASTEXITCODE
+            if ($exitCode -ne 0) {
+                Write-Host "Hermes DeepSeek runner exited with code $exitCode."
+                return $false
+            }
+            $reportPath = Join-Path $AiDir "DEEPSEEK_IMPLEMENTATION_REPORT.md"
+            @(
+                "# DeepSeek Implementation Report"
+                ""
+                "Provider Status:"
+                "SUCCESS via Hermes official credential pool"
+                ""
+                "Escalation Required:"
+                "NO"
+                ""
+                "Reason:"
+                "DeepSeek response was obtained through the official Hermes provider resolver."
+                ""
+                "DeepSeek Output:"
+                ($response -join "`n")
+            ) | Set-Content -Path $reportPath -Encoding utf8
+            return $true
+        } catch {
+            Write-Host "Hermes DeepSeek runner invocation failed: $($_.Exception.Message)"
+            return $false
+        } finally {
+            Pop-Location
+        }
+    }
+
+    # Secondary path: use the controlled API adapter when an environment key
+    # is explicitly configured. Falls through to the local CLI runner, then
+    # to manual execution, exactly as Phase 6 already did.
     if (Test-DeepSeekApiKeyConfigured) {
         return (Invoke-DeepSeekApiImplementation -HandoffPath $HandoffPath -State $State)
     }
