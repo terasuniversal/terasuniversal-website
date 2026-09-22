@@ -5,7 +5,7 @@
     (DeepSeek for bounded scout/research work, Codex for implementation,
     Claude specialist review for HIGH/CRITICAL work - see agent-router.ps1) ->
     CURRENT_TASK.md -> implementer handoff -> implementation (DeepSeek can
-    return ESCALATE_TO_CLAUDE, handled on -Resume) -> changed files -> QA ->
+    return ESCALATE_TO_CLAUDE, handled on -Resume) -> changed files ->
     Claude specialist review (when required) -> QA -> FINAL_REPORT.md -> STOP for human
     approval -> (separately, on request) Approve -> Prepare Commit ->
     Commit. See ..\.ai\ARCHITECTURE.md for the full diagram and
@@ -398,7 +398,7 @@ function Show-ApprovalScreen {
     Write-Host "QA:"
     Write-Host $(if (Test-QaHasBlockingFailure -QaResults $State.QA) { "FAIL" } else { "PASS" })
     Write-Host ""
-    Write-Host "Codex Review:"
+    Write-Host "Independent Review:"
     Write-Host $State.ReviewVerdict
     Write-Host ""
     Write-Host "No commit has been created."
