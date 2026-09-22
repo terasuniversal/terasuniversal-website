@@ -13,7 +13,7 @@ This file is the root entry point for AI agents working in the TERAS Universal w
 
 - Codex is the primary implementation agent for the active task and performs the final technical review of its own work when no separate reviewer is available.
 - Claude Code is the reviewer for architecture, security, database, auth/RLS, certificate, and cross-module concerns. Claude may implement complex work when explicitly assigned.
-- DeepSeek routing is disabled for now. Do not invoke DeepSeek or use it as an automatic fallback.
+- DeepSeek Flash is approved for terminal scout, audit, research, and bulk-analysis work only. It is never the primary implementation model or an approval authority.
 - A human remains the approval authority. No agent may merge, push, deploy, apply a production migration, or otherwise release to production without explicit approval in the conversation.
 
 ## TERAS Auto-Agent Governance Policy (Approved)
@@ -164,7 +164,7 @@ Human approval is always required before:
 - Every worker must receive the exact objective, allowed paths, blocked paths, risk level, prohibited actions, and output contract.
 - Do not delegate trivial one-file edits unnecessarily.
 - A worker must stop on scope expansion.
-- Existing role descriptions above do not authorize routing that is disabled by the model policy below.
+- Existing role descriptions above do not authorize DeepSeek outside the bounded terminal scout/research role defined by the model policy below.
 
 Worker output must include:
 
@@ -219,8 +219,8 @@ For every delegated or selective worker:
 - Use `gpt-5.6-luna` via OpenAI Codex.
 - The worker may inspect, implement the approved scope, validate, and report.
 - Stop before commit.
-- DeepSeek routing is disabled for now.
-- Automatic fallback to DeepSeek is prohibited.
+- LOW/BULK/RESEARCH/SCOUT work may use `deepseek / deepseek-flash`.
+- MEDIUM research/scout/bulk work may use `deepseek / deepseek-flash`; MEDIUM implementation remains Codex.
 
 #### LOW RISK — stronger coding/reasoning required
 
@@ -253,8 +253,8 @@ For every delegated or selective worker:
 
 #### Routing safety and boundaries
 
-- The approved worker setup currently consists only of Codex and Claude.
-- DeepSeek routing and any automatic fallback to DeepSeek are disabled.
+- The approved worker setup is Codex for implementation, DeepSeek Flash for bounded terminal scout/research/bulk analysis, and Claude for specialist review.
+- DeepSeek selection is session-scoped and must not change the parent/default Codex model.
 - Claude specialist invocation must not change the parent default model.
 - Every delegated or specialist report must state the actual model and provider.
 - No silent model fallback is permitted.

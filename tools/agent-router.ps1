@@ -186,23 +186,18 @@ function Test-ExplicitPathExists {
 }
 
 # ---------------------------------------------------------------------------
-# Stable-operational-mode routing (delivery-priority change): Claude FAST is
-# now the default implementer for every LOW/MEDIUM task that would
-# previously have gone straight to DeepSeek by default. DeepSeek only
-# becomes the implementer when a human explicitly asks for it on this task
-# (-PreferDeepSeek) or when an operator has explicitly opted back into
-# DeepSeek-by-default via .ai/AGENT_CONFIG.json's
-# deepseek.defaultImplementer AND DeepSeek's last known status isn't a
-# known failure. DeepSeek must never block delivery - Claude FAST is always
-# the safe fallback, never a dead end.
+# Stable-operational-mode routing: DeepSeek is selected for bounded
+# LOW/MEDIUM scout/research work only when enabled and healthy, or when a
+# human explicitly selects -PreferDeepSeek. Automatic provider failure falls
+# back to Codex and never changes risk or approval requirements.
 #
 # This is a runtime (not load-order) dependency on
 # tools/deepseek-runner.ps1's Test-DeepSeekApiKeyConfigured/
 # Get-DeepSeekStatusRecord - safe because teras-agent.ps1 dot-sources every
 # tools/*.ps1 file before any function is actually invoked (only function
 # *definitions* happen during dot-sourcing), guarded with Get-Command checks
-# regardless so this degrades to "Claude FAST" rather than erroring if that
-# file were ever missing.
+# regardless so this degrades to Codex rather than erroring if that file were
+# ever missing.
 # ---------------------------------------------------------------------------
 
 function Test-DeepSeekDefaultImplementerEnabled {
@@ -230,7 +225,6 @@ function Test-DeepSeekHealthyForRouting {
 
 function Get-LowMediumImplementerChoice {
     param([bool]$PreferDeepSeek)
-    throw "DeepSeek is disabled; use Get-PrimaryImplementerChoice."
 
     # Deliberately evaluated into named variables BEFORE the if, not
     # combined inline as `if ($PreferDeepSeek -or (FuncA -and FuncB))` -
@@ -243,6 +237,9 @@ function Get-LowMediumImplementerChoice {
     $isHealthy = Test-DeepSeekHealthyForRouting
     $shouldUseDeepSeek = ($PreferDeepSeek -or ($isEnabled -and $isHealthy))
 
+    if ($shouldUseDeepSeek) {
+        return [pscustomobject]@{ Implementer = "DeepSeek"; ImplementerModel = "DEEPSEEK_FAST" }
+    }
     return Get-PrimaryImplementerChoice
 }
 
@@ -264,13 +261,14 @@ function Get-AutoMenuChoice {
 function Get-TaskClassification {
     param(
         [int]$MenuChoice,
-        [string]$Description
+        [string]$Description,
+        [switch]$PreferDeepSeek
     )
 
     # Only Category/Risk come from the menu baseline now - Implementer/Model/
     # Reviewer are always decided by the cascade below, per MODEL_ROUTING.md's
-    # router priority: "can DeepSeek safely do it -> can Claude FAST -> else
-    # Claude DEEP." This keeps every blocked-area keyword check (cert-trust,
+    # router priority: "can DeepSeek safely do it -> Codex implementation ->
+    # Claude specialist review." This keeps every blocked-area keyword check (cert-trust,
     # db-sensitive, destructive/production) as the single place that can ever
     # force HIGH/CRITICAL - and since DeepSeek is only ever assigned in the
     # LOW/MEDIUM branches below, those checks are what keep DeepSeek out of
@@ -297,6 +295,7 @@ function Get-TaskClassification {
         $isDbSensitiveCritical = Test-AnyKeyword -Text $Description -Keywords $DbSensitiveCriticalKeywords
         $isDestructive = Test-AnyKeyword -Text $Description -Keywords $DestructiveKeywords
         $isProduction = $Description.ToLowerInvariant().Contains("production")
+        $isScoutResearch = Test-AnyKeyword -Text $Description -Keywords $DeepSeekScoutKeywords
         $isCertVisual = (Test-AnyKeyword -Text $Description -Keywords $CertDomainTerms) -and
                         (Test-AnyKeyword -Text $Description -Keywords $VisualTerms) -and
                         (-not $isCertTrust)
@@ -327,31 +326,31 @@ function Get-TaskClassification {
             $category = "Certificate / Verification"
             $risk = "HIGH"; $implementer = "Codex"; $model = "CODEX"
             $reviewer = "Claude Code"; $reviewerModel = "CLAUDE_REVIEW"
-            $reasonParts += "Touches certificate issuance, verification, validity, or trust logic. Codex implements, followed by mandatory Claude specialist review and mandatory Codex final review."
+            $reasonParts += "Touches certificate issuance, verification, validity, or trust logic - a restricted area; Codex implementation + Claude specialist review."
         } elseif ($isDbSensitive) {
             $category = "Database / Supabase"
             $risk = "HIGH"; $implementer = "Codex"; $model = "CODEX"
             $reviewer = "Claude Code"; $reviewerModel = "CLAUDE_REVIEW"
-            $reasonParts += "Touches migrations, RLS/policies, database functions/RPCs, schema, constraints, indexes, or auth. Codex implements, followed by mandatory Claude specialist review and mandatory Codex final review."
+            $reasonParts += "Touches migrations, RLS/policies, database functions/RPCs, schema, constraints, indexes, or auth - a restricted area; Codex implementation + Claude specialist review."
         } elseif ($isDestructive -or $isProduction) {
             $risk = "HIGH"; $implementer = "Codex"; $model = "CODEX"
             $reviewer = "Claude Code"; $reviewerModel = "CLAUDE_REVIEW"
-            $reasonParts += "Description flags destructive and/or production-scoped impact. Codex implements, followed by mandatory Claude specialist review and mandatory Codex final review."
+            $reasonParts += "Description flags destructive and/or production-scoped impact - a restricted area; Codex implementation + Claude specialist review."
         } elseif ($isAttendanceModule -and (Test-AnyKeyword -Text $Description -Keywords $UiKeywords)) {
             $isPrintArea = $Description.ToLowerInvariant().Contains("print")
             $category = if ($isPrintArea) { "Attendance / UI / Print" } else { "Attendance / UI" }
             $risk = "LOW"
-            $pick = Get-PrimaryImplementerChoice
+            $pick = Get-LowMediumImplementerChoice -PreferDeepSeek:$PreferDeepSeek
             $implementer = $pick.Implementer; $model = $pick.ImplementerModel
             $reviewer = "None"; $reviewerModel = "None"
-            $reasonParts += "Explicit attendance-module signal takes precedence over generic visual keyword matching - routed as an Attendance UI change, not Certificate / Visual. Codex is the sole implementer for this LOW-risk task."
+            $reasonParts += "Explicit attendance-module signal takes precedence over generic visual keyword matching - routed as an Attendance UI change, not Certificate / Visual. $(if ($implementer -eq 'DeepSeek') { 'DeepSeek is enabled and healthy for routine UI/print work.' } else { 'Codex is the default implementer.' })"
         } elseif ($isCertVisual) {
             $category = "Certificate / Visual"
             $risk = "LOW"
-            $pick = Get-PrimaryImplementerChoice
+            $pick = Get-LowMediumImplementerChoice -PreferDeepSeek:$PreferDeepSeek
             $implementer = $pick.Implementer; $model = $pick.ImplementerModel
             $reviewer = "None"; $reviewerModel = "None"
-            $reasonParts += "Visual-only certificate change (spacing/placement/appearance) with no issuance or verification logic touched. Codex is the sole implementer for this LOW-risk task."
+            $reasonParts += "Visual-only certificate change (spacing/placement/appearance) with no issuance or verification logic touched. $(if ($implementer -eq 'DeepSeek') { 'DeepSeek is enabled and healthy for routine visual work.' } else { 'Codex is the default implementer.' })"
         } elseif ($risk -eq "HIGH") {
             # Category defaulted to HIGH (e.g. the Database/Supabase menu
             # option) with no specific keyword detail in the description.
@@ -359,15 +358,15 @@ function Get-TaskClassification {
             $reviewer = "Claude Code"; $reviewerModel = "CLAUDE_REVIEW"
         } elseif ($risk -eq "LOW") {
             # Every sensitive signal above already forces HIGH. Anything
-            # still LOW here remains in the Codex-only implementation lane.
-            $pick = Get-PrimaryImplementerChoice
+            # still LOW here remains in the bounded DeepSeek/Codex lane.
+            $pick = Get-LowMediumImplementerChoice -PreferDeepSeek:$PreferDeepSeek
             $implementer = $pick.Implementer; $model = $pick.ImplementerModel
             $reviewer = "None"; $reviewerModel = "None"
-            $reasonParts += "Low-risk, narrowly-scoped change with no database, auth, or certificate-trust surface. Codex is the sole implementer."
+            $reasonParts += if ($implementer -eq "DeepSeek") { "Low-risk, narrowly-scoped change with no database, auth, or certificate-trust surface. DeepSeek is enabled and healthy for routine work." } else { "Low-risk, narrowly-scoped change with no database, auth, or certificate-trust surface. Codex is the default implementer." }
         } else {
             # MEDIUM work remains in the Codex-only implementation lane.
-            $isDeepSeekCandidate = $isDeepSeekSuitable -and (-not $isCrossModule)
-            $pick = Get-PrimaryImplementerChoice
+            $isDeepSeekCandidate = ($isScoutResearch -or $isDeepSeekSuitable) -and (-not $isCrossModule)
+            $pick = if ($isDeepSeekCandidate) { Get-LowMediumImplementerChoice -PreferDeepSeek:$PreferDeepSeek } else { Get-PrimaryImplementerChoice }
             $implementer = $pick.Implementer; $model = $pick.ImplementerModel
             $reviewer = "None"; $reviewerModel = "None"
             if ($isCrossModule) {
@@ -676,7 +675,8 @@ function New-TaskState {
 }
 
 function Get-PrimaryImplementerChoice {
-    # Codex is the sole TERAS implementation agent. DeepSeek is disabled.
+    # Codex remains the primary TERAS implementation agent; DeepSeek is limited
+    # to bounded scout/research work.
     return [pscustomobject]@{ Implementer = "Codex"; ImplementerModel = "CODEX" }
 }
 
@@ -845,7 +845,8 @@ function Write-CurrentTaskMarkdown {
 
     $verificationExtra = ""
     if ($State.Risk -eq "HIGH" -or $State.Risk -eq "CRITICAL") {
-        $verificationExtra = "`n- [ ] Codex independent review (REQUIRED for $($State.Risk) risk)`n- [ ] Human approval before commit/push/deploy/migration"
+        $reviewLabel = if ($State.Risk -eq "CRITICAL") { "Claude independent review; tests/E2E" } else { "Claude specialist review" }
+        $verificationExtra = "`n- [ ] $reviewLabel (REQUIRED for $($State.Risk) risk)`n- [ ] Human approval before commit/push/deploy/migration"
     }
 
     $content = @"

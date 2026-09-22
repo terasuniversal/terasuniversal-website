@@ -2,11 +2,11 @@
     TERAS AI Engineering Orchestrator - main launcher.
 
     Pipeline: Task -> Classification -> Risk assessment -> Model routing
-    (DeepSeek for routine LOW/bounded-MEDIUM work, Claude FAST/DEEP
-    otherwise - see agent-router.ps1's Get-TaskClassification) ->
+    (DeepSeek for bounded scout/research work, Codex for implementation,
+    Claude specialist review for HIGH/CRITICAL work - see agent-router.ps1) ->
     CURRENT_TASK.md -> implementer handoff -> implementation (DeepSeek can
-    return ESCALATE_TO_CLAUDE, handled on -Resume) -> changed files -> QA ->
-    Codex review (when required) -> FINAL_REPORT.md -> STOP for human
+    return ESCALATE_TO_CLAUDE, handled on -Resume) -> changed files ->
+    Claude specialist review (when required) -> QA -> FINAL_REPORT.md -> STOP for human
     approval -> (separately, on request) Approve -> Prepare Commit ->
     Commit. See ..\.ai\ARCHITECTURE.md for the full diagram and
     ..\.ai\BUSINESS_RULES.md / ..\.ai\USAGE_POLICY.md for the constraints
@@ -74,6 +74,7 @@ param(
     [Parameter(Position = 0)]
     [string]$Task,
     [switch]$DryRun,
+    [switch]$PreferDeepSeek,
     [switch]$Resume,
     [switch]$Status,
     [switch]$Review,
@@ -397,7 +398,7 @@ function Show-ApprovalScreen {
     Write-Host "QA:"
     Write-Host $(if (Test-QaHasBlockingFailure -QaResults $State.QA) { "FAIL" } else { "PASS" })
     Write-Host ""
-    Write-Host "Codex Review:"
+    Write-Host "Independent Review:"
     Write-Host $State.ReviewVerdict
     Write-Host ""
     Write-Host "No commit has been created."
@@ -566,11 +567,6 @@ function Invoke-PostImplementation {
         return $State
     }
 
-    if ($State.Risk -in @("HIGH", "CRITICAL")) {
-        # Independent Codex final review is mandatory after Claude review.
-        $State = Invoke-ReviewStage -State $State -Mandatory $true -Optional $false -PreImplementationSnapshot $PreSnapshot
-    }
-
     if ($State.State -ne "BLOCKED") {
         $State.State = "AWAITING_APPROVAL"
         Save-TaskState -State $State
@@ -596,7 +592,6 @@ function Invoke-PostImplementation {
 
 function Invoke-DeepSeekPostCallResult {
     param($State, [bool]$Ran, [string[]]$PreSnapshot)
-    throw "DeepSeek is disabled; no DeepSeek post-call path is supported."
 
     if ($Ran) {
         Invoke-PostImplementation -State $State -PreSnapshot $PreSnapshot | Out-Null
@@ -613,7 +608,7 @@ function Invoke-DeepSeekPostCallResult {
     # ("the specified files do not exist") on a task whose files
     # demonstrably exist now - that report no longer reflects reality.
     if (Test-DeepSeekReportStale -State $State -Escalation $escalation) {
-        throw "DeepSeek is disabled; stale-result fallback is not supported."
+        Invoke-DeepSeekImplementerFallback -State $State -Escalation $escalation -PreSnapshot $PreSnapshot -FallbackType "STALE_AGENT_RESULT"
         return $true
     }
 
@@ -639,10 +634,10 @@ function Invoke-DeepSeekPostCallResult {
         $reasonText = if ($escalation.Reason) { $escalation.Reason } else { "" }
         if (Test-EscalationTouchesBlockedArea -Text $reasonText) {
             $State.Risk = "HIGH"
-            $State.Reviewer = "Codex"; $State.ReviewerModel = "CODEX_REVIEW"
+            $State.Reviewer = "Claude Code"; $State.ReviewerModel = "CLAUDE_REVIEW"
             $State.ReviewVerdict = "PENDING"
             $State.HumanApprovalRequired = "REQUIRED"
-            Write-Host "Escalation reason touches a blocked area (DB/auth/certificate-trust) - Risk upgraded to HIGH, Codex review is now mandatory."
+            Write-Host "Escalation reason touches a blocked area (DB/auth/certificate-trust) - Risk upgraded to HIGH, Claude specialist review is now mandatory."
             Write-Host ""
         }
         $State.OriginalImplementer = $State.Implementer
@@ -663,7 +658,7 @@ function Invoke-DeepSeekPostCallResult {
     }
 
     if (Test-DeepSeekProviderOrAdapterFailure -Escalation $escalation) {
-        throw "DeepSeek is disabled; provider fallback is not supported."
+        Invoke-DeepSeekImplementerFallback -State $State -Escalation $escalation -PreSnapshot $PreSnapshot -FallbackType "PROVIDER_OR_ADAPTER"
         return $true
     }
 
@@ -681,13 +676,12 @@ function Invoke-DeepSeekPostCallResult {
 # DeepSeek Failure Rule (stable-operational-mode): a provider/adapter
 # failure (API error, adapter error, patch-writer rejection, local tooling
 # error, timeout, provider outage) must never be treated as the engineering
-# task being complex, and must never block delivery - Claude FAST takes
+# task being complex, and must never block delivery - Codex takes
 # over automatically with the existing context DeepSeek already gathered,
 # never rediscovering the repository from scratch. Risk/reviewer are never
 # touched here, unlike a genuine agent escalation.
 function Invoke-DeepSeekImplementerFallback {
     param($State, $Escalation, [string[]]$PreSnapshot, [string]$FallbackType = "PROVIDER_OR_ADAPTER")
-    throw "DeepSeek is disabled; no DeepSeek fallback is supported."
 
     Write-Host ""
     Write-Host "IMPLEMENTER_FALLBACK"
@@ -699,7 +693,7 @@ function Invoke-DeepSeekImplementerFallback {
     Write-Host $FallbackType
     Write-Host ""
     Write-Host "Fallback:"
-    Write-Host "CLAUDE_FAST"
+    Write-Host "CODEX"
     Write-Host ""
 
     $failureDetail = if ($FallbackType -eq "STALE_AGENT_RESULT") {
@@ -720,26 +714,22 @@ function Invoke-DeepSeekImplementerFallback {
     # Only a genuine, CURRENT agent escalation (handled above) may ever
     # raise risk.
     $State.OriginalImplementer = $State.Implementer
-    $State.FallbackImplementer = "Claude Code"
+    $State.FallbackImplementer = "Codex"
     $State.ImplementerFallbackReason = $failureDetail
     $State.FallbackType = $FallbackType
-    $State.Implementer = "Claude Code"
-    $State.ImplementerModel = "CLAUDE_FAST"
+    $State.Implementer = "Codex"
+    $State.ImplementerModel = "CODEX"
     $State.State = "IMPLEMENTING"
     Save-TaskState -State $State
 
-    # Reuses the existing escalation-handoff mechanism (with an explicit
-    # reason override, since the agent's own Reason field is either "N/A"
-    # (provider failure) or stale/untrustworthy) so Claude receives
-    # whatever DeepSeek actually attempted plus the real fallback detail,
-    # instead of rediscovering the repository from scratch.
-    New-ClaudeEscalationHandoff -State $State -Escalation $Escalation -ReasonOverride $failureDetail | Out-Null
-    $handoffPath = New-ClaudeHandoff -State $State
-    Write-Host "Claude FAST will continue with existing context (original task, approved scope, DeepSeek's findings preserved) - see .ai/CLAUDE_ESCALATION_HANDOFF.md."
+    # Reuse the existing handoff context while returning implementation
+    # authority to Codex; provider failure never grants DeepSeek authority.
+    $handoffPath = New-CodexImplementationHandoff -State $State
+    Write-Host "Codex will continue with existing context (original task, approved scope, DeepSeek's findings preserved)."
     Write-Host ""
-    $claudeRan = Invoke-ClaudeImplementation -HandoffPath $handoffPath -State $State
-    if (-not $claudeRan) {
-        Write-Host "Claude did not run automatically. Run manually using .ai/CLAUDE_HANDOFF.md and .ai/CLAUDE_ESCALATION_HANDOFF.md, then 'teras-agent -Resume' again."
+    $codexRan = Invoke-CodexImplementation -HandoffPath $handoffPath
+    if (-not $codexRan) {
+        Write-Host "Codex did not run automatically. Run manually using .ai/CODEX_IMPLEMENTATION_HANDOFF.md, then 'teras-agent -Resume' again."
         return
     }
     Invoke-PostImplementation -State $State -PreSnapshot $PreSnapshot | Out-Null
@@ -749,7 +739,8 @@ function Invoke-TaskPipeline {
     param(
         [int]$MenuChoice,
         [string]$Description,
-        [switch]$DryRun
+        [switch]$DryRun,
+        [switch]$PreferDeepSeek
     )
 
     if ([string]::IsNullOrWhiteSpace($Description)) {
@@ -759,7 +750,7 @@ function Invoke-TaskPipeline {
     }
 
     $taskId = Get-TaskId
-    $classification = Get-TaskClassification -MenuChoice $MenuChoice -Description $Description
+    $classification = Get-TaskClassification -MenuChoice $MenuChoice -Description $Description -PreferDeepSeek:$PreferDeepSeek
     Show-Classification -Description $Description -Classification $classification
 
     $state = New-TaskState -TaskId $taskId -Description $Description -Classification $classification
@@ -891,8 +882,12 @@ function Invoke-ManualReview {
 
     $currentHash = Get-DiffHash -Files $state.TaskGeneratedFiles
 
-    # Never re-invoke Codex for a diff it already reviewed - see USAGE_POLICY.md.
-    if ($currentHash -and $currentHash -eq $state.ReviewedDiffHash -and $state.ReviewVerdict -in @("PASS", "PASS_WITH_NOTES", "BLOCKED")) {
+    $claudeRequired = ($state.Risk -in @("HIGH", "CRITICAL") -or $state.Reviewer -eq "Claude Code" -or $state.ReviewerModel -eq "CLAUDE_REVIEW")
+
+    # Lower-risk manual review preserves the existing Codex reuse behavior.
+    # HIGH/CRITICAL always enter the Claude specialist path so a prior Codex
+    # verdict cannot satisfy the mandatory reviewer requirement.
+    if (-not $claudeRequired -and $currentHash -and $currentHash -eq $state.ReviewedDiffHash -and $state.ReviewVerdict -in @("PASS", "PASS_WITH_NOTES", "BLOCKED")) {
         Write-Host ""
         Write-Host "REUSE EXISTING VALID REVIEW"
         Write-Host ""
@@ -901,7 +896,7 @@ function Invoke-ManualReview {
         Write-Host ""
         return
     }
-    if ($state.ReviewedDiffHash -and $currentHash -ne $state.ReviewedDiffHash) {
+    if (-not $claudeRequired -and $state.ReviewedDiffHash -and $currentHash -ne $state.ReviewedDiffHash) {
         Write-Host ""
         Write-Host "CODEX REVIEW STALE"
         Write-Host "The diff has changed since the last review - requesting a fresh review."
@@ -912,9 +907,18 @@ function Invoke-ManualReview {
     Write-Host "(Implementation and QA are not re-run - use -Resume for that.)"
     Write-Host ""
 
-    $handoffPath = New-CodexReviewHandoff -State $state -TaskGeneratedFiles $state.TaskGeneratedFiles
-    $ran = Invoke-CodexReview -HandoffPath $handoffPath
-    $state.ReviewVerdict = if ($ran) { Get-ReviewVerdict } else { "PENDING" }
+    if ($claudeRequired) {
+        Write-Host "Claude specialist review required for $($state.Risk) risk."
+        $review = Invoke-ClaudeReadOnlyReview -State $state -TaskGeneratedFiles $state.TaskGeneratedFiles
+        $state.ReviewVerdict = if ($review.Succeeded) { $review.Verdict } else { "PENDING" }
+        if (-not $review.Succeeded) {
+            Write-Host "Claude review paused: $($review.Error)"
+        }
+    } else {
+        $handoffPath = New-CodexReviewHandoff -State $state -TaskGeneratedFiles $state.TaskGeneratedFiles
+        $ran = Invoke-CodexReview -HandoffPath $handoffPath
+        $state.ReviewVerdict = if ($ran) { Get-ReviewVerdict } else { "PENDING" }
+    }
     $state.ReviewedDiffHash = $currentHash
     Save-TaskState -State $state
 
@@ -1193,11 +1197,11 @@ if ($McpAction) {
         Write-Host 'Provide a task description with -DryRun, e.g. teras-agent.ps1 -DryRun "Fix X"'
     } else {
         $menuChoice = Get-AutoMenuChoice -Description $Task
-        Invoke-TaskPipeline -MenuChoice $menuChoice -Description $Task -DryRun
+        Invoke-TaskPipeline -MenuChoice $menuChoice -Description $Task -DryRun -PreferDeepSeek:$PreferDeepSeek
     }
 } elseif (-not [string]::IsNullOrWhiteSpace($Task)) {
     $menuChoice = Get-AutoMenuChoice -Description $Task
-    Invoke-TaskPipeline -MenuChoice $menuChoice -Description $Task
+    Invoke-TaskPipeline -MenuChoice $menuChoice -Description $Task -PreferDeepSeek:$PreferDeepSeek
 } else {
     Invoke-MainLoop
 }
