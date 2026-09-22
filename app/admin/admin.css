@@ -624,6 +624,40 @@
 .ta-class-feedback-print p { margin: 7px 0; line-height: 1.45; }
 .ta-class-feedback-print img { display: block; width: min(320px, 100%); height: auto; margin: 18px auto; }
 
+.ta-participant-result-brand { display: flex; align-items: flex-start; gap: 14px; }
+.ta-participant-result-brand img { display: block; width: 74px; height: auto; object-fit: contain; }
+.ta-participant-result-header-side { display: grid; justify-items: end; gap: 14px; }
+.ta-participant-result-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+
+@media (max-width: 620px) {
+  .ta-participant-result { padding: 20px 10px !important; }
+  .ta-participant-result-header { flex-direction: column; gap: 18px !important; }
+  .ta-participant-result-header-side { width: 100%; justify-items: stretch; }
+  .ta-participant-result-header-side > p { text-align: left !important; }
+  .ta-participant-result-actions { justify-content: stretch; }
+  .ta-participant-result-actions > * { flex: 1 1 180px; text-align: center; }
+}
+
+@media print {
+  @page participant-result-page { size: A4; margin: 0; }
+  html:has(.ta-participant-result),
+  body:has(.ta-participant-result) { margin: 0 !important; padding: 0 !important; background: #fff !important; }
+  body:has(.ta-participant-result) .ta-sidebar,
+  body:has(.ta-participant-result) .ta-topbar,
+  body:has(.ta-participant-result) .ta-scrim { display: none !important; }
+  body:has(.ta-participant-result) .ta-main { margin-left: 0 !important; }
+  body:has(.ta-participant-result) .ta-content { padding: 0 !important; }
+  .ta-participant-result { min-height: auto !important; padding: 0 !important; background: #fff !important; }
+  .ta-participant-result-paper { max-width: none !important; min-height: auto !important; margin: 0 !important; box-shadow: none !important; }
+  .ta-participant-result-actions { display: none !important; }
+  .ta-participant-result-header { padding: 18mm 16mm 8mm !important; }
+  .ta-participant-result-brand img { width: 68px; }
+  .ta-participant-result-paper > section { padding-left: 16mm !important; padding-right: 16mm !important; }
+  .ta-participant-result-paper > section:last-of-type { padding-bottom: 12mm !important; }
+  .ta-participant-result-paper > footer { padding: 6mm 16mm !important; }
+  .ta-participant-result-paper * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+
 @media print {
   /* Scoped with :has() the same way the quotation print block above is --
      an unscoped `body > *` here previously hid every element on every

@@ -10,6 +10,10 @@ const legacyParticipantRoute = path.join(root, "app/participant/assessment-resul
 const service = fs.readFileSync(servicePath, "utf8");
 const page = fs.readFileSync(pagePath, "utf8");
 const table = fs.readFileSync(tablePath, "utf8");
+const actionsPath = path.join(root, "app/admin/(protected)/assessment/[scheduleId]/participant-result/[participantId]/ParticipantResultActions.tsx");
+const stylesPath = path.join(root, "app/admin/admin.css");
+const actions = fs.readFileSync(actionsPath, "utf8");
+const styles = fs.readFileSync(stylesPath, "utf8");
 
 assert.equal(fs.existsSync(legacyParticipantRoute), false, "direct participant route must be removed");
 assert.match(service, /requireAssessment\(false\)/);
@@ -47,6 +51,15 @@ assert.match(page, /Theory Assessment/);
 assert.match(page, /Practical Assessment/);
 assert.match(page, /Overall Result/);
 assert.match(table, /participant-result\/\$\{r\.participant_id\}/);
+assert.match(actions, /Print \/ Save PDF/);
+assert.match(actions, /window\.print\(\)/);
+assert.match(styles, /\.ta-participant-result-actions\s*\{[\s\S]*?display: none !important/);
+assert.match(styles, /\.ta-participant-result\s*\{\s*min-height: auto !important/);
+assert.match(styles, /@page participant-result-page\s*\{\s*size: A4;\s*margin: 0;/);
+assert.match(page, /page: "participant-result-page"/);
+assert.match(styles, /body:has\(\.ta-participant-result\) \.ta-topbar[\s\S]*?display: none !important/);
+assert.match(styles, /body:has\(\.ta-participant-result\) \.ta-sidebar[\s\S]*?display: none !important/);
+assert.doesNotMatch(actions, /puppeteer|supabase|pdfjs-dist|jsPDF/i);
 
 const theory = (value) => value === "pass" ? "PASS" : value === "fail" ? "FAIL" : "PENDING";
 const practical = (value) => value === "competent" ? "COMPETENT" : value === "not_yet_competent" ? "NOT YET COMPETENT" : "PENDING";
