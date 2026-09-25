@@ -18,7 +18,11 @@ begin
 
   if fn is null then raise exception 'C7A function is missing'; end if;
   if fn_def not like '%SECURITY DEFINER%' then raise exception 'SECURITY DEFINER was not preserved'; end if;
-  if fn_def not like '%search_path = public%' then raise exception 'fixed search_path was not preserved'; end if;
+  if not exists (
+    select 1 from pg_catalog.pg_proc p
+    where p.oid = fn
+      and p.proconfig @> array['search_path=pg_catalog']::text[]
+  ) then raise exception 'fixed search_path was not preserved'; end if;
   if fn_def like '%course_schedules%' or fn_def like '%training_schedules%' then raise exception 'mutable schedule inference detected'; end if;
   if fn_def not like '%certificate_issuance_snapshots%' then raise exception 'snapshot source missing'; end if;
   if fn_def not like '%training_start_date%' or fn_def not like '%training_end_date%' then raise exception 'training date source missing'; end if;

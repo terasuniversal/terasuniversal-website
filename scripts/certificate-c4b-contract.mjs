@@ -383,10 +383,37 @@ const allowed = new Set([
   "lib/certificate-watermark-assets.ts",
   "lib/standard-scaffold-programmes.ts",
   "lib/working-at-height-programme.ts",
+  "package.json",
   "scripts/certificate-c4b-contract.mjs",
   "scripts/certificate-page2-snapshot-fixtures.mjs",
   "scripts/c6-print-pdf-qa-source.mjs",
+  "scripts/certificate-c5b1-verification-control-contract.mjs",
+  "supabase/migrations/20260924120000_certificate_c5b1_verification_control.sql",
+  "supabase/migrations/20260924130000_certificate_c5b1_import_boolean_cast_fix.sql",
+  "supabase/migrations/20260924140000_certificate_c5b1_production_final_state.sql",
+  "supabase/migrations/20260924150000_certificate_c5b1_security_drift_hardening.sql",
+  "supabase/tests/certificate_legacy_import_anon_invoker_contract.sql",
+  "supabase/tests/certificate_verification_control_contract.sql",
+  "supabase/tests/certificate_verification_training_period_contract.sql",
+  "supabase/tests/certificate_i2_c5_security_contract.sql",
+  "supabase/tests/certificate_i2_verifier_snapshot_contract.sql",
+  "supabase/tests/certificate_i2_legacy_import_runtime_contract.sql",
 ]);
+if (new Set(changed).has("package.json")) {
+  const baselinePackage = JSON.parse(execFileSync("git", ["-C", repositoryRoot, "show", "HEAD:package.json"], { encoding: "utf8" }));
+  const currentPackage = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+  assert.equal(
+    currentPackage.scripts?.["test:certificate-c5b1"],
+    "node scripts/certificate-c5b1-verification-control-contract.mjs",
+    "package.json may only add the exact C5B1 contract script",
+  );
+  const currentScripts = { ...currentPackage.scripts };
+  delete currentScripts["test:certificate-c5b1"];
+  assert.deepEqual(currentScripts, baselinePackage.scripts, "package.json script changes exceed the C5B1 test entry");
+  const { scripts: _currentScripts, ...currentPackageRest } = currentPackage;
+  const { scripts: _baselineScripts, ...baselinePackageRest } = baselinePackage;
+  assert.deepEqual(currentPackageRest, baselinePackageRest, "package.json changes outside test scripts are forbidden");
+}
 const allowedWatermarkAssets = new Set([
   "public/certificates/watermarks/scaffolding-technical.svg",
   "public/certificates/watermarks/working-at-height.svg",
