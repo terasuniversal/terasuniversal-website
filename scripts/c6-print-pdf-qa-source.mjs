@@ -1,5 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { execFileSync } from "node:child_process";
+import { dirname, delimiter, resolve } from "node:path";
+import Module, { createRequire } from "node:module";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import QRCode from "qrcode";
 
@@ -7,17 +9,30 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const publicRoot = pathToFileURL(resolve(repoRoot, "public")).href;
 const out = resolve(process.env.QA_OUTPUT_DIR ?? resolve(repoRoot, "..", "_qa", "certificate-c6-print-pdf-qa"));
 
-const { renderCertificateDocument, renderCertificateFront, renderCertificateBack } = await import(
-  pathToFileURL(resolve(repoRoot, "lib/certificate-html.ts")).href,
-);
-const { resolveCertificateSkills } = await import(
-  pathToFileURL(resolve(repoRoot, "lib/certificate-skills.ts")).href,
-);
-const { renderProfessionalScaffoldCertificateFront, renderProfessionalScaffoldCertificateBack } = await import(
-  pathToFileURL(resolve(repoRoot, "lib/professional-scaffold-certificate-html.ts")).href,
-);
-
 mkdirSync(out, { recursive: true });
+const reactCompileDir = resolve(out, ".c4-master-compiled");
+execFileSync(process.execPath, [
+  resolve(repoRoot, "node_modules/typescript/bin/tsc"),
+  "--jsx", "react-jsx",
+  "--module", "commonjs",
+  "--target", "es2021",
+  "--moduleResolution", "node",
+  "--esModuleInterop",
+  "--skipLibCheck",
+  "--rootDir", repoRoot,
+  "--outDir", reactCompileDir,
+  resolve(repoRoot, "components/admin/CertificateRenderer.tsx"),
+  resolve(repoRoot, "lib/certificate-html.ts"),
+  resolve(repoRoot, "lib/certificate-skills.ts"),
+], { cwd: repoRoot, stdio: "inherit" });
+process.env.NODE_PATH = [resolve(repoRoot, "node_modules"), process.env.NODE_PATH].filter(Boolean).join(delimiter);
+Module._initPaths();
+const require = createRequire(import.meta.url);
+const React = require("react");
+const { renderToStaticMarkup } = require("react-dom/server");
+const { CertificateFront, CertificateBack } = require(resolve(reactCompileDir, "components/admin/CertificateRenderer.js"));
+const { renderCertificateDocument, renderCertificateFront, renderCertificateBack } = require(resolve(reactCompileDir, "lib/certificate-html.js"));
+const { resolveCertificateSkills } = require(resolve(reactCompileDir, "lib/certificate-skills.js"));
 const logo = `${publicRoot}/certificates/template-a/teras-symbol-v2.png`;
 
 const skills = resolveCertificateSkills(true, [
@@ -85,13 +100,21 @@ function rewriteAssets(body) {
 function shell(body, grayscale = false) {
   return `<!doctype html><html><head><meta charset="utf-8"><style>@page{size:A4 portrait;margin:0}html,body{margin:0;padding:0;background:#fff}@media print{*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}}${grayscale ? "html{filter:grayscale(1)}" : ""}</style></head><body>${body}</body></html>`;
 }
+function renderReactComponent(component, data, config) {
+  return renderToStaticMarkup(React.createElement(component, { data, config }));
+}
 for (const [name, data, config] of familySpecs) {
   const qr_svg = await QRCode.toString(`https://www.terasuniversal.com.my/verify/${data.certificate_number}`, { type: "svg", margin: 1, color: { dark: "#0b1f3a", light: "#ffffff" } });
   const qaData = { ...data, qr_svg };
-  const renderFront = config.design_variant === "professional_scaffold_erection_skills" ? renderProfessionalScaffoldCertificateFront : renderCertificateFront;
-  const renderBack = config.design_variant === "professional_scaffold_erection_skills" ? renderProfessionalScaffoldCertificateBack : renderCertificateBack;
-  writeFileSync(resolve(out, `${name}-page1.html`), shell(rewriteAssets(renderFront(qaData, config))), "utf8");
-  writeFileSync(resolve(out, `${name}-page2.html`), shell(rewriteAssets(renderBack(qaData, config))), "utf8");
+  const isProfessionalProgramme = config.design_variant === "professional_scaffold_erection_skills";
+  const page1 = isProfessionalProgramme
+    ? renderReactComponent(CertificateFront, qaData, config)
+    : renderCertificateFront(qaData, config);
+  const page2 = isProfessionalProgramme
+    ? renderReactComponent(CertificateBack, qaData, config)
+    : renderCertificateBack(qaData, config);
+  writeFileSync(resolve(out, `${name}-page1.html`), shell(rewriteAssets(page1)), "utf8");
+  writeFileSync(resolve(out, `${name}-page2.html`), shell(rewriteAssets(page2)), "utf8");
   writeFileSync(resolve(out, `${name}.html`), shell(rewriteAssets(renderCertificateDocument(qaData, config))), "utf8");
 }
 const stressQr = await QRCode.toString(`https://www.terasuniversal.com.my/verify/${stressData.certificate_number}`, { type: "svg", margin: 1, color: { dark: "#0b1f3a", light: "#ffffff" } });

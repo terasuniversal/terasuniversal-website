@@ -34,13 +34,14 @@
  * placeholder text written for this task and must not be treated as
  * business-approved until someone confirms it.
  */
-
 export interface StandardScaffoldProgramme {
   programme_key: string;
   /** Live public.courses.id this programme maps to, or null if no course row exists yet. */
   course_id: string | null;
   level: "Basic" | "Intermediate" | "Advanced" | "Awareness";
   category: "Scaffold Erection" | "Scaffold Inspection" | "Scaffold Awareness";
+  /** Optional title treatment for the Page 1 owner-approved certificate family. */
+  certificate_title?: string;
   programme_title: string;
   duration_label: string;
   objectives_text: string;
@@ -95,6 +96,7 @@ export const standardScaffoldProgrammes: Record<string, StandardScaffoldProgramm
     course_id: "2a78decf-6997-4626-a7cc-a1a23a110cf8", // Basic Scaffolding Erector (re-verified live 2026-08-21)
     level: "Basic",
     category: "Scaffold Erection",
+    certificate_title: "SCAFFOLDING TRAINING CERTIFICATE",
     programme_title: "TERAS BASIC SCAFFOLD ERECTION PROGRAMME",
     duration_label: "10-Day Practical Training",
     objectives_text:
@@ -129,6 +131,7 @@ export const standardScaffoldProgrammes: Record<string, StandardScaffoldProgramm
     course_id: "904293c4-8792-41d7-8744-42143887e577", // Intermediate Scaffolding Erector (re-verified live 2026-08-21)
     level: "Intermediate",
     category: "Scaffold Erection",
+    certificate_title: "SCAFFOLDING TRAINING CERTIFICATE",
     programme_title: "TERAS INTERMEDIATE SCAFFOLD ERECTION PROGRAMME",
     duration_label: "10-Day Practical Training",
     objectives_text:
@@ -159,6 +162,7 @@ export const standardScaffoldProgrammes: Record<string, StandardScaffoldProgramm
     course_id: "b9c737b8-8a97-4c91-91ee-c65dc5982ca7", // Advanced Scaffolding Erector (re-verified live 2026-08-21)
     level: "Advanced",
     category: "Scaffold Erection",
+    certificate_title: "SCAFFOLDING TRAINING CERTIFICATE",
     programme_title: "TERAS ADVANCED SCAFFOLD ERECTION PROGRAMME",
     duration_label: "10-Day Practical Training",
     objectives_text:
@@ -189,6 +193,7 @@ export const standardScaffoldProgrammes: Record<string, StandardScaffoldProgramm
     course_id: "b10c2e4b-f35f-478b-b450-f98323926345", // Basic Scaffolding Inspector (re-verified live 2026-08-21)
     level: "Basic",
     category: "Scaffold Inspection",
+    certificate_title: "SCAFFOLDING INSPECTION CERTIFICATE",
     programme_title: "TERAS BASIC SCAFFOLD INSPECTION PROGRAMME",
     duration_label: "2-Day Practical Training",
     objectives_text:
@@ -219,6 +224,7 @@ export const standardScaffoldProgrammes: Record<string, StandardScaffoldProgramm
     course_id: "18945a4b-8df0-4f39-bbf9-7bd91c1bb58d", // Intermediate Scaffolding Inspector (re-verified live 2026-08-21)
     level: "Intermediate",
     category: "Scaffold Inspection",
+    certificate_title: "SCAFFOLDING INSPECTION CERTIFICATE",
     programme_title: "TERAS INTERMEDIATE SCAFFOLD INSPECTION PROGRAMME",
     duration_label: "2-Day Practical Training",
     objectives_text:
@@ -249,6 +255,7 @@ export const standardScaffoldProgrammes: Record<string, StandardScaffoldProgramm
     course_id: "b7c0866c-fe4e-4ccb-ad66-e18d3572ed3c", // Advanced Scaffolding Inspector (re-verified live 2026-08-21)
     level: "Advanced",
     category: "Scaffold Inspection",
+    certificate_title: "SCAFFOLDING INSPECTION CERTIFICATE",
     programme_title: "TERAS ADVANCED SCAFFOLD INSPECTION PROGRAMME",
     duration_label: "2-Day Practical Training",
     objectives_text:

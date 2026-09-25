@@ -3,7 +3,9 @@ import { siteOrigin } from "../../../../lib/site-origin";
 import { generateQrSvg, formatHumanDate } from "../../../../lib/certificate-format";
 import { findStandardScaffoldProgrammeByCourseId } from "../../../../lib/standard-scaffold-programmes";
 import { findWorkingAtHeightProgrammeByCourseId } from "../../../../lib/working-at-height-programme";
+import { GOLDEN_REFERENCE_OWNER_TITLES } from "../../../../lib/certificate-design-system";
 import { resolveCertificateSkills, type CertificateSkillRow } from "../../../../lib/certificate-skills";
+import { applyLegacyProgrammePage2, resolveSnapshotPageVisibility, resolveSnapshotProgrammePage2 } from "../../../../lib/certificate-page2-snapshot";
 import type { CertData, TemplateConfig } from "../../../../components/admin/CertificateDocument";
 
 // Delegates to the same UTC-safe, round-trip-validated parser the renderers
@@ -78,6 +80,7 @@ export async function loadCertificateRender(id: string): Promise<
     render_payload?: Record<string, unknown> | null;
   } | null;
   const renderMode = snapshot ? "MODERN_SNAPSHOT" : "LEGACY_FALLBACK";
+  const renderPayload = snapshot?.render_payload ?? {};
   let tpl = snapshot
     ? { config: snapshot.template_config ?? {} }
     : c.certificate_templates as { config?: TemplateConfig } | null;
@@ -106,6 +109,14 @@ export async function loadCertificateRender(id: string): Promise<
     tpl = def ?? null;
   }
   const config: TemplateConfig = { ...((tpl?.config as TemplateConfig) ?? {}) };
+  if (snapshot) {
+    Object.assign(config, resolveSnapshotProgrammePage2(config, renderPayload));
+    Object.assign(config, resolveSnapshotPageVisibility(config, renderPayload));
+  }
+  // This family marker is runtime routing metadata, never trusted from a
+  // persisted template/snapshot. Re-derive it below from the verified course
+  // mapping or the exact approved design variant.
+  delete config.golden_reference_family;
   if (snapshot?.signature_reference) config.signature_url = snapshot.signature_reference;
 
   // Standard Scaffold family: the shared certificate_templates row deliberately
@@ -127,10 +138,7 @@ export async function loadCertificateRender(id: string): Promise<
     if (programme) {
       config.programme_title ??= programme.programme_title;
       config.duration_label ??= programme.duration_label;
-      config.objectives_text ??= programme.objectives_text;
-      config.coverage_items ??= programme.coverage_items;
-      config.learning_outcomes ??= programme.learning_outcomes;
-      config.assessment_methods ??= programme.assessment_methods;
+      Object.assign(config, applyLegacyProgrammePage2(config, programme));
       // watermark_level is set only on the 3 Erector programmes; unset for
       // Inspection/Awareness, so ??= leaves those courses' front/back-page
       // motif exactly as before. inspector_watermark_level is the mirror of
@@ -162,6 +170,29 @@ export async function loadCertificateRender(id: string): Promise<
     }
   }
 
+  // CREDENTIAL_PRESENTATION_POLICY_PENDING: title/family remain derived from
+  // the verified programme map for modern and legacy certificates; this is
+  // separate from snapshot-stable Page 2 visibility and QR policy.
+  // Golden Reference family/title are presentation policy, resolved for both
+  // snapshot and legacy rows from verified programme identity. This does not
+  // replace snapshot course/date/venue/duration or Page 2 assessment content.
+  if (config.design_variant === "standard_scaffold_certificate") {
+    const programme = findStandardScaffoldProgrammeByCourseId(c.course_id);
+    const goldenReferenceFamily = programme?.category === "Scaffold Erection"
+      ? "scaffolding_erector"
+      : programme?.category === "Scaffold Inspection"
+        ? "scaffold_inspector"
+        : null;
+    if (programme?.content_status === "verified" && programme.certificate_title && goldenReferenceFamily) {
+      config.certificate_title = programme.certificate_title;
+      config.golden_reference_family = goldenReferenceFamily;
+      if (!snapshot) {
+        config.show_back_page = true;
+        config.show_qr = true;
+      }
+    }
+  }
+
   // Working at Height family: same fill-if-absent merge pattern as Standard
   // Scaffold above, by the certificate's own course_id. content_status is
   // "verified" in lib/working-at-height-programme.ts (business-approved
@@ -173,10 +204,7 @@ export async function loadCertificateRender(id: string): Promise<
     if (programme) {
       config.programme_title ??= programme.programme_title;
       config.duration_label ??= programme.duration_label;
-      config.objectives_text ??= programme.objectives_text;
-      config.coverage_items ??= programme.coverage_items;
-      config.learning_outcomes ??= programme.learning_outcomes;
-      config.assessment_methods ??= programme.assessment_methods;
+      Object.assign(config, applyLegacyProgrammePage2(config, programme));
     }
     // The harness/lanyard/anchorage watermark is a property of the design_variant
     // itself, not per-programme content, so it's set here unconditionally
@@ -185,8 +213,28 @@ export async function loadCertificateRender(id: string): Promise<
     config.wah_watermark ??= true;
   }
 
+  if (config.design_variant === "working_at_height_certificate") {
+    const programme = findWorkingAtHeightProgrammeByCourseId(c.course_id);
+    if (programme?.content_status === "verified") {
+      config.certificate_title = programme.certificate_title;
+      config.golden_reference_family = "working_at_height";
+      if (!snapshot) {
+        config.show_back_page = true;
+        config.show_qr = true;
+      }
+    }
+  }
+
+  if (config.design_variant === "professional_scaffold_erection_skills") {
+    config.certificate_title = GOLDEN_REFERENCE_OWNER_TITLES.professionalScaffold;
+    config.golden_reference_family = "professional_scaffold_erection_skills";
+    if (!snapshot) {
+      config.show_back_page = true;
+      config.show_qr = true;
+    }
+  }
+
   const verificationMetadata = snapshot?.verification_metadata ?? {};
-  const renderPayload = snapshot?.render_payload ?? {};
   const certificateNumber: string = String(
     verificationMetadata.certificate_number ?? renderPayload.certificate_number ?? c.certificate_number ?? c.certificate_no ?? ""
   );

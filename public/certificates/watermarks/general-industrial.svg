@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 560" fill="none" role="img" aria-labelledby="title desc">
+  <title id="title">Industrial facility engineering elevation</title>
+  <desc id="desc">A neutral monochrome plant elevation combining structural steel, piping, platforms and equipment outlines along the page edges.</desc>
+  <g stroke="#0b1f3a" stroke-linecap="round" stroke-linejoin="round">
+    <g stroke-width="2.35" opacity="0.82">
+      <path d="M22 76v408m0-408h42m-42 408h42M778 76v408m0-408h-42m42 408h-42" />
+      <path d="M44 438h220m276 0h216M44 454h220m276 0h216" />
+      <path d="M54 438V158h197v280M549 438V158h197v280" />
+      <path d="M54 190h197M54 314h197M549 190h197M549 314h197" />
+      <path d="M76 158v280m153-280v280m342-280v280m153-280v280" />
+      <path d="M76 190l153 124M229 190 76 314M571 190l153 124M724 190 571 314" />
+      <path d="M40 158h226m-226-14h226m-226 294h226m278-294h226m-226 14h226m-226 294h226" />
+      <path d="M104 438v19m101-19v19m366-19v19m101-19v19" />
+      <path d="M96 457h118m353 0h118" />
+    </g>
+    <g stroke-width="1.55" opacity="0.76">
+      <path d="M84 172v-23h162v23M579 172v-23h162v23" />
+      <path d="M65 226h175M65 238h175M560 226h175M560 238h175" />
+      <path d="M65 226v28m24-28v28m24-28v28m24-28v28m24-28v28m24-28v28m24-28v28m24-28v28M560 226v28m24-28v28m24-28v28m24-28v28m24-28v28m24-28v28m24-28v28m24-28v28" />
+      <path d="M65 370h175m-175 12h175M560 370h175m-175 12h175" />
+      <path d="M65 370v26m24-26v26m24-26v26m24-26v26m24-26v26m24-26v26m24-26v26m24-26v26M560 370v26m24-26v26m24-26v26m24-26v26m24-26v26m24-26v26m24-26v26m24-26v26" />
+      <path d="M70 270h74v74H70zM164 270h75v74h-75zM566 270h75v74h-75zM660 270h75v74h-75z" />
+      <path d="M84 283h46v48H84zM179 283h45v48h-45zM580 283h46v48h-46zM675 283h45v48h-45z" />
+      <path d="M104 270v-12h34v12m410 0v-12h34v12" />
+      <path d="M120 258v-40h24v40m-24-20h24M630 258v-40h24v40m-24-20h24" />
+      <path d="M132 218v-18h24v18m462 0v-18h24v18" />
+      <path d="M42 130h40v-18h64v18h56v-18h45M518 130h45v-18h56v18h64v-18h40" />
+      <path d="M249 176h18v30h-18m284-30h-18v30h18" />
+      <path d="M47 108h18m-18 16h10m-10 16h18m-18 320h18m-18 16h10m-10 16h18M735 108h18m-10 16h10m-18 16h18m-18 320h18m-10 16h10m-18 16h18" />
+      <path d="M42 474h208m300 0h208" stroke-dasharray="16 6 2 6" />
+      <path d="M258 240v52m284-52v52M252 240h12m-12 52h12m272-52h12m-12 52h12" />
+    </g>
+  </g>
+</svg>

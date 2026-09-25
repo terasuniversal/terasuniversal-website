@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 560" fill="none" role="img" aria-labelledby="title desc">
+  <title id="title">Mechanical engineering assembly study</title>
+  <desc id="desc">A restrained monochrome engineering elevation with shafts, bearings and a sectional gear train framed at the page edges.</desc>
+  <g stroke="#0b1f3a" stroke-linecap="round" stroke-linejoin="round">
+    <g stroke-width="2.4" opacity="0.82">
+      <path d="M22 84v392m0-392h42m-42 392h42M778 84v392m0-392h-42m42 392h-42" />
+      <path d="M38 128h206M38 432h206M562 128h200M562 432h200" />
+      <path d="M49 222h229m-229 116h229M536 222h215m-215 116h215" />
+      <path d="M47 208v144m228-144v144M542 208v144m206-144v144" />
+      <path d="M72 176h151v38H72zM592 176h152v38H592z" />
+      <path d="M72 352h151v38H72zM592 352h152v38H592z" />
+      <path d="M70 390v24h155v-24m369 0v24h155v-24" />
+      <path d="M91 414v18m112-18v18m410-18v18m112-18v18M78 432h148m366 0h148" />
+      <path d="M63 142h169m360 0h169M63 454h169m360 0h169" />
+    </g>
+    <g stroke-width="1.55" opacity="0.76">
+      <path d="M45 238h54v84H45zM99 248h48v64H99zM147 238h38v84h-38z" />
+      <path d="M56 250h32v60H56zM108 258h30v44h-30zM156 250h20v60h-20z" />
+      <path d="M41 278h35m111 0h92M42 282h236" stroke-dasharray="12 7 2 7" />
+      <path d="M77 221v-21h38v21m-25-21v-14m12 14v-14M183 238v-24m-12-18h38v38" />
+      <path d="M49 362h42v20H49zM191 362h42v20h-42zM557 362h42v20h-42zM705 362h42v20h-42z" />
+      <path d="M608 234h132v91H608zM621 246h107v67H621z" />
+      <circle cx="653" cy="279" r="31" />
+      <circle cx="706" cy="279" r="22" />
+      <circle cx="653" cy="279" r="6" />
+      <circle cx="706" cy="279" r="5" />
+      <path d="M653 242v9m0 56v9m-37-37h9m56 0h9m-63-26 7 7m39 39 7 7m0-53-7 7m-39 39-7 7M706 250v7m0 44v7m-29-29h7m44 0h7m-50-21 5 5m32 32 5 5m0-42-5 5m-32 32-5 5" />
+      <path d="M598 234v-16h-26v-17h53m101 33v-16h24v-17h-42" />
+      <path d="M608 325h132m-122 0v20h112v-20M625 345v12m81-12v12" />
+      <path d="M22 104h18m-18 16h10m-10 16h18m-18 304h18m-18 16h10m-10 16h18M760 104h18m-10 16h10m-18 16h18m-18 304h18m-10 16h10m-18 16h18" />
+      <path d="M86 154v-13h120v13m-120 266v13h120v-13m394-266v-13h120v13m-120 266v13h120v-13" />
+      <path d="M233 250h44m-44 56h44m286-56h-44m44 56h-44" stroke-dasharray="7 5" />
+    </g>
+  </g>
+</svg>

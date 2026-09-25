@@ -28,6 +28,7 @@ export interface WorkingAtHeightProgramme {
   /** Live public.courses.id this programme maps to, or null if unmapped. */
   course_id: string | null;
   programme_title: string;
+  certificate_title: string;
   duration_label: string;
   objectives_text: string;
   coverage_items: string[];
@@ -42,6 +43,7 @@ export const workingAtHeightProgrammes: Record<string, WorkingAtHeightProgramme>
     programme_key: "working_at_height",
     course_id: "963b1f6b-4c15-4833-90da-21aa0af0f544", // Working at Height (re-verified live 2026-08-21)
     programme_title: "Working at Height",
+    certificate_title: "WORKING AT HEIGHT TRAINING CERTIFICATE",
     duration_label: "2-Day Practical Training",
     objectives_text:
       "To provide participants with the knowledge and practical awareness required to identify working-at-height hazards, understand fall-prevention and fall-protection principles, select and use appropriate access and personal protective equipment, and apply safe work practices for activities performed at height.",

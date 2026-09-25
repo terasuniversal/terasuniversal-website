@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 560" fill="none" role="img" aria-labelledby="title desc">
+  <title id="title">Electrical distribution engineering schematic</title>
+  <desc id="desc">A monochrome single-line distribution drawing with busbars, routed circuits and panel geometry arranged along the page edges.</desc>
+  <g stroke="#0b1f3a" stroke-linecap="round" stroke-linejoin="round">
+    <g stroke-width="2.35" opacity="0.82">
+      <path d="M22 78v404m0-404h42m-42 404h42M778 78v404m0-404h-42m42 404h-42" />
+      <path d="M42 120h216v316H42zM542 120h216v316H542z" />
+      <path d="M55 138h190v280H55zM555 138h190v280H555z" />
+      <path d="M86 160v236M214 160v236M586 160v236M714 160v236" />
+      <path d="M65 178h170M65 378h170M565 178h170M565 378h170" />
+      <path d="M44 102h214m-214 352h214m284-352h214m-214 352h214" />
+      <path d="M74 436v16m151-16v16m349-16v16m151-16v16" />
+      <path d="M47 452h210m286 0h210" />
+    </g>
+    <g stroke-width="1.5" opacity="0.76">
+      <path d="M86 174h34v35H86zM86 232h34v35H86zM86 290h34v35H86zM86 348h34v35H86z" />
+      <path d="M586 174h34v35h-34zM586 232h34v35h-34zM586 290h34v35h-34zM586 348h34v35h-34z" />
+      <path d="M120 191h54v-28h40m-94 86h78v-29h40m-118 87h47v-29h71m-118 87h80v-29h38" />
+      <path d="M620 191h51v-28h43m-94 86h78v-29h16m-94 87h45v-29h49m-94 87h78v-29h16" />
+      <path d="M174 163v28m-25 0h52M198 220v29m-40 0h70M167 278v29m-33 0h94M200 336v29m-42 0h66" />
+      <path d="M672 163v28m-25 0h52M688 220v29m-40 0h82M665 278v29m-33 0h103M688 336v29m-42 0h82" />
+      <circle cx="174" cy="191" r="4"/><circle cx="198" cy="249" r="4"/><circle cx="167" cy="307" r="4"/><circle cx="200" cy="365" r="4"/>
+      <circle cx="672" cy="191" r="4"/><circle cx="688" cy="249" r="4"/><circle cx="665" cy="307" r="4"/><circle cx="688" cy="365" r="4"/>
+      <path d="M61 151h20m-20 10h10M61 400h20m-20 10h10M719 151h20m-10 10h10M719 400h20m-10 10h10" />
+      <path d="M33 98h18m-18 15h10m-10 15h18m-18 306h18m-18 15h10m-10 15h18M749 98h18m-10 15h10m-18 15h18m-18 306h18m-10 15h10m-18 15h18" />
+      <path d="M248 178h18m-18 200h18m268-200h-18m18 200h-18" stroke-dasharray="6 5" />
+      <path d="M61 462h190m298 0h190" stroke-dasharray="18 6 2 6" />
+    </g>
+  </g>
+</svg>

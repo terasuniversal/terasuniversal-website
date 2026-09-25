@@ -1,25 +1,19 @@
-import { CertificateDocument, CertificateBackPage, type CertData, type TemplateConfig } from "./CertificateDocument";
-import { ProfessionalScaffoldCertificateDocument, ProfessionalScaffoldCertificateBackPage } from "./ProfessionalScaffoldCertificateDocument";
+import { CertificateDocument, CertificateBackPage, CertificateBodyTextContinuationPages, type CertData, type TemplateConfig } from "./CertificateDocument";
 
 
 /**
- * Single dispatch point for which certificate design renders a given
- * template — keyed by `config.design_variant`, never by course name/title
- * matching. Every admin surface that renders a certificate (PDF/print page,
- * certificate detail preview, template editor live preview) should go
- * through this instead of importing CertificateDocument directly, so a new
- * design variant only has to be wired here once.
+ * Single dispatch point for the TERAS certificate master layout. Course
+ * variants change data and the resolved course-family line-art, not the
+ * certificate's page structure. Every admin surface that renders a
+ * certificate should use this shared front/back pair.
  */
 export function CertificateFront({ data, config }: { data: CertData; config: TemplateConfig }) {
-  if (config.design_variant === "professional_scaffold_erection_skills") {
-    return <ProfessionalScaffoldCertificateDocument data={data} config={config} />;
-  }
   return <CertificateDocument data={data} config={config} />;
 }
 
 export function CertificateBack({ data, config }: { data: CertData; config: TemplateConfig }) {
-  if (config.design_variant === "professional_scaffold_erection_skills") {
-    return <ProfessionalScaffoldCertificateBackPage data={data} config={config} />;
-  }
-  return <CertificateBackPage data={data} config={config} />;
+  return <>
+    <CertificateBackPage data={data} config={config} />
+    <CertificateBodyTextContinuationPages data={data} config={config} />
+  </>;
 }

@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 560" fill="none" role="img" aria-labelledby="title desc">
+  <title id="title">Fire protection system schematic</title>
+  <desc id="desc">A monochrome fire-protection piping elevation with risers, sprinkler branches, hydrant connections and valves framing the page edges.</desc>
+  <g stroke="#0b1f3a" stroke-linecap="round" stroke-linejoin="round">
+    <g stroke-width="2.45" opacity="0.82">
+      <path d="M22 72v416m0-416h42m-42 416h42M778 72v416m0-416h-42m42 416h-42" />
+      <path d="M72 462V152h146v310M582 462V152h146v310" />
+      <path d="M55 462h180m-180 14h180m330-14h180m-180 14h180" />
+      <path d="M80 152h130M590 152h130M80 170h130M590 170h130" />
+      <path d="M94 170v-56h106v56M604 170v-56h106v56" />
+      <path d="M116 114V88h62v26m-40-26V72m18 16V72M626 114V88h62V72m-40 16V72m18 16V72" />
+      <path d="M218 200h22v46h-22M582 200h-22v46h22" />
+      <path d="M72 352h36v46H72M692 352h36v46h-36" />
+      <path d="M90 462v18m110-18v18m402-18v18m110-18v18" />
+    </g>
+    <g stroke-width="1.55" opacity="0.76">
+      <path d="M112 202h66v42h-66zM112 272h66v42h-66zM112 342h66v42h-66z" />
+      <path d="M620 202h66v42h-66zM620 272h66v42h-66zM620 342h66v42h-66z" />
+      <path d="M93 222h19m66 0h22v-33h23m-130 103h19m66 0h22v-33h23m-130 103h19m66 0h22v-33h23" />
+      <path d="M602 222h18m66 0h22v-33h22m-128 103h18m66 0h22v-33h22m-128 103h18m66 0h22v-33h22" />
+      <path d="M133 192v10m24-10v10m-24 42v12m24-12v12m-24 30v12m24-12v12m-24 30v12m24-12v12M641 192v10m24-10v10m-24 42v12m24-12v12m-24 30v12m24-12v12m-24 30v12m24-12v12" />
+      <path d="M128 192h11l-5.5-9zm24 0h11l-5.5-9zm-24 64h11l-5.5-9zm24 0h11l-5.5-9zm-24 64h11l-5.5-9zm24 0h11l-5.5-9z" />
+      <path d="M636 192h11l-5.5-9zm24 0h11l-5.5-9zm-24 64h11l-5.5-9zm24 0h11l-5.5-9zm-24 64h11l-5.5-9zm24 0h11l-5.5-9z" />
+      <path d="M72 338h36m-36-6h36M692 338h36m-36-6h36" />
+      <circle cx="90" cy="335" r="18"/><circle cx="710" cy="335" r="18"/>
+      <path d="M90 317v36m-18-18h36m-13-13 26 26m0-26-26 26M710 317v36m-18-18h36m-13-13 26 26m0-26-26 26" />
+      <path d="M88 398v42h74v-42m-54 0v-20h34v20M612 398v42h74v-42m-54 0v-20h34v20" />
+      <path d="M102 440h46m486 0h46M113 452h26m486 0h26" />
+      <path d="M42 100h18m-18 16h10m-10 16h18m-18 328h18m-18 16h10m-10 16h18M740 100h18m-10 16h10m-18 16h18m-18 328h18m-10 16h10m-18 16h18" />
+      <path d="M46 186h18m-18 198h18m708-198h-18m18 198h-18" stroke-dasharray="7 5" />
+    </g>
+  </g>
+</svg>
