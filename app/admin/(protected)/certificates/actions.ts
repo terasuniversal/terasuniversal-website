@@ -99,7 +99,12 @@ async function insertEligibleCertificate(
     const code = (error as { code?: string }).code;
     if (code === "23505") return "exists";
     if (error.message?.includes("Not eligible")) return "not-eligible";
-    return error.message;
+    console.error("Certificate issuance RPC failed", {
+      operation: "issue_certificate_with_skill_snapshot",
+      code: code ?? "unknown",
+      message: error.message,
+    });
+    return "error";
   }
 
   const created = (data as { id: string; verification_token: string }[] | null)?.[0];

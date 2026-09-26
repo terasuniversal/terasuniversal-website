@@ -14,7 +14,6 @@ begin
     or exists (select 1 from public.profiles where id in (v_unauthorized, v_authorized))
     or exists (select 1 from public.participants where id = v_participant)
     or exists (select 1 from public.courses where id = v_course)
-    or exists (select 1 from public.staff_module_catalog where module_key = 'certificates')
     or exists (select 1 from public.certificates where certificate_no like 'I2-LEGACY-%')
     or exists (select 1 from public.certificate_verifications where query_value = 'I2-STAFF-LOG-PROBE') then
     raise exception 'I2 legacy-import fixture collision; refusing to write test rows';
@@ -29,11 +28,18 @@ begin
   values
     (v_unauthorized, 'i2-unauthorized@example.invalid', '{"full_name":"I2 Unauthorized"}'::pg_catalog.jsonb),
     (v_authorized, 'i2-authorized@example.invalid', '{"full_name":"I2 Authorized"}'::pg_catalog.jsonb);
+  insert into public.profiles(id, email, full_name, role, is_active, access_control_enabled)
+  values
+    (v_unauthorized, 'i2-unauthorized@example.invalid', 'I2 Unauthorized', 'admin', true, true),
+    (v_authorized, 'i2-authorized@example.invalid', 'I2 Authorized', 'admin', true, true)
+  on conflict (id) do update set role = excluded.role, is_active = excluded.is_active,
+    access_control_enabled = excluded.access_control_enabled;
   update public.profiles
   set role = 'admin', is_active = true, access_control_enabled = true
   where id in (v_unauthorized, v_authorized);
   insert into public.staff_module_catalog(module_key, label, group_key, min_role, is_active)
-  values ('certificates', 'I2 Synthetic Certificates', 'I2 Synthetic', 'admin', true);
+  values ('certificates', 'I2 Synthetic Certificates', 'I2 Synthetic', 'admin', true)
+  on conflict (module_key) do nothing;
   insert into public.staff_module_access(user_id, module_key, access_level)
   values (v_authorized, 'certificates', 'admin');
 

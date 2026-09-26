@@ -374,6 +374,7 @@ const changed = [
 
 const allowed = new Set([
   ".ai/PROJECT_STATUS.md",
+  "app/admin/(protected)/certificates/actions.ts",
   "app/admin/(protected)/certificates/certData.ts",
   "components/admin/CertificateDocument.tsx",
   "components/admin/CertificateRenderer.tsx",
@@ -388,28 +389,48 @@ const allowed = new Set([
   "scripts/certificate-page2-snapshot-fixtures.mjs",
   "scripts/c6-print-pdf-qa-source.mjs",
   "scripts/certificate-c5b1-verification-control-contract.mjs",
+  "scripts/certificate-i3a-lifecycle-runtime.mjs",
+  "scripts/certificate-i3a-source-contract.mjs",
+  "scripts/certificate-i3b-public-rpc-contract.mjs",
+  "scripts/certificate-i3c-auth-runtime.mjs",
+  "scripts/certificate-i3c-error-sanitization.mjs",
   "supabase/migrations/20260924120000_certificate_c5b1_verification_control.sql",
   "supabase/migrations/20260924130000_certificate_c5b1_import_boolean_cast_fix.sql",
   "supabase/migrations/20260924140000_certificate_c5b1_production_final_state.sql",
   "supabase/migrations/20260924150000_certificate_c5b1_security_drift_hardening.sql",
+  "supabase/migrations/20260924160000_certificate_lifecycle_force_rls_hardening.sql",
+  "supabase/migrations/20260924170000_certificate_public_rpc_surface.sql",
   "supabase/tests/certificate_legacy_import_anon_invoker_contract.sql",
   "supabase/tests/certificate_verification_control_contract.sql",
   "supabase/tests/certificate_verification_training_period_contract.sql",
   "supabase/tests/certificate_i2_c5_security_contract.sql",
   "supabase/tests/certificate_i2_verifier_snapshot_contract.sql",
   "supabase/tests/certificate_i2_legacy_import_runtime_contract.sql",
+  "supabase/tests/certificate_i3a_force_rls_policy_contract.sql",
+  "supabase/tests/certificate_i3a_lifecycle_runtime_contract.sql",
+  "supabase/tests/certificate_i3c_authorization_runtime.sql",
+  "supabase/tests/fixtures/certificate_i3c_auth_compat.sql",
 ]);
-if (new Set(changed).has("package.json")) {
-  const baselinePackage = JSON.parse(execFileSync("git", ["-C", repositoryRoot, "show", "HEAD:package.json"], { encoding: "utf8" }));
+{
+  const c4PackageBaseline = "35433961c26c873be20d98918647ad27bbe800cc";
+  const baselinePackage = JSON.parse(execFileSync("git", ["-C", repositoryRoot, "show", `${c4PackageBaseline}:package.json`], { encoding: "utf8" }));
   const currentPackage = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
-  assert.equal(
-    currentPackage.scripts?.["test:certificate-c5b1"],
-    "node scripts/certificate-c5b1-verification-control-contract.mjs",
-    "package.json may only add the exact C5B1 contract script",
+  const approvedScriptAdditions = {
+    "test:certificate-c5b1": "node scripts/certificate-c5b1-verification-control-contract.mjs",
+  };
+  const assertAllowedPackageScripts = (scripts) => {
+    assert.deepEqual(
+      scripts,
+      { ...baselinePackage.scripts, ...approvedScriptAdditions },
+      "package.json script changes exceed the explicit C4/I2 baseline allowlist",
+    );
+  };
+  assertAllowedPackageScripts(currentPackage.scripts);
+  assert.throws(
+    () => assertAllowedPackageScripts({ ...currentPackage.scripts, "test:unrelated": "node scripts/unrelated.mjs" }),
+    /explicit C4\/I2 baseline allowlist/,
+    "an unrelated package script mutation must still fail the C4 contract",
   );
-  const currentScripts = { ...currentPackage.scripts };
-  delete currentScripts["test:certificate-c5b1"];
-  assert.deepEqual(currentScripts, baselinePackage.scripts, "package.json script changes exceed the C5B1 test entry");
   const { scripts: _currentScripts, ...currentPackageRest } = currentPackage;
   const { scripts: _baselineScripts, ...baselinePackageRest } = baselinePackage;
   assert.deepEqual(currentPackageRest, baselinePackageRest, "package.json changes outside test scripts are forbidden");
