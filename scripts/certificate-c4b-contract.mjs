@@ -400,6 +400,8 @@ const allowed = new Set([
   "supabase/migrations/20260924150000_certificate_c5b1_security_drift_hardening.sql",
   "supabase/migrations/20260924160000_certificate_lifecycle_force_rls_hardening.sql",
   "supabase/migrations/20260924170000_certificate_public_rpc_surface.sql",
+  "supabase/migrations/20260924180000_certificate_lifecycle_executor_security.sql",
+  "supabase/tests/certificate_i3e_executor_security_contract.sql",
   "supabase/tests/certificate_legacy_import_anon_invoker_contract.sql",
   "supabase/tests/certificate_verification_control_contract.sql",
   "supabase/tests/certificate_verification_training_period_contract.sql",

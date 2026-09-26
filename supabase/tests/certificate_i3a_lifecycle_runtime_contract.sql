@@ -7,8 +7,8 @@ BEGIN;
 
 DO $$
 BEGIN
-  IF EXISTS (SELECT 1 FROM auth.users WHERE id IN ('a3000000-0000-4000-8000-000000000001', 'a3000000-0000-4000-8000-000000000002'))
-    OR EXISTS (SELECT 1 FROM public.profiles WHERE id IN ('a3000000-0000-4000-8000-000000000001', 'a3000000-0000-4000-8000-000000000002'))
+  IF EXISTS (SELECT 1 FROM auth.users WHERE id IN ('a3000000-0000-4000-8000-000000000001', 'a3000000-0000-4000-8000-000000000002', 'a3000000-0000-4000-8000-000000000003', 'a3000000-0000-4000-8000-000000000004', 'a3000000-0000-4000-8000-000000000005'))
+    OR EXISTS (SELECT 1 FROM public.profiles WHERE id IN ('a3000000-0000-4000-8000-000000000001', 'a3000000-0000-4000-8000-000000000002', 'a3000000-0000-4000-8000-000000000003', 'a3000000-0000-4000-8000-000000000004', 'a3000000-0000-4000-8000-000000000005'))
     OR EXISTS (SELECT 1 FROM public.certificate_branches WHERE id = 'a3000000-0000-4000-8000-000000000010')
     OR EXISTS (SELECT 1 FROM public.certificate_templates WHERE id = 'a3000000-0000-4000-8000-000000000011')
     OR EXISTS (SELECT 1 FROM public.courses WHERE id = 'a3000000-0000-4000-8000-000000000012')
@@ -24,13 +24,19 @@ $$;
 
 INSERT INTO auth.users (id, email, raw_user_meta_data) VALUES
   ('a3000000-0000-4000-8000-000000000001', 'i3a-admin@example.invalid', '{"full_name":"I3A Admin"}'::jsonb),
-  ('a3000000-0000-4000-8000-000000000002', 'i3a-no-module@example.invalid', '{"full_name":"I3A No Module"}'::jsonb)
+  ('a3000000-0000-4000-8000-000000000002', 'i3a-no-module@example.invalid', '{"full_name":"I3A No Module"}'::jsonb),
+  ('a3000000-0000-4000-8000-000000000003', 'i3a-inactive@example.invalid', '{"full_name":"I3A Inactive"}'::jsonb),
+  ('a3000000-0000-4000-8000-000000000004', 'i3a-cross-admin@example.invalid', '{"full_name":"I3A Cross Admin"}'::jsonb),
+  ('a3000000-0000-4000-8000-000000000005', 'i3a-editor@example.invalid', '{"full_name":"I3A Editor"}'::jsonb)
 ON CONFLICT (id) DO UPDATE SET email = excluded.email, raw_user_meta_data = excluded.raw_user_meta_data;
 
 INSERT INTO public.profiles (id, email, full_name, role, is_active, access_control_enabled)
 VALUES
   ('a3000000-0000-4000-8000-000000000001', 'i3a-admin@example.invalid', 'I3A Admin', 'admin', true, true),
-  ('a3000000-0000-4000-8000-000000000002', 'i3a-no-module@example.invalid', 'I3A No Module', 'admin', true, true)
+  ('a3000000-0000-4000-8000-000000000002', 'i3a-no-module@example.invalid', 'I3A No Module', 'admin', true, true),
+  ('a3000000-0000-4000-8000-000000000003', 'i3a-inactive@example.invalid', 'I3A Inactive', 'admin', false, true),
+  ('a3000000-0000-4000-8000-000000000004', 'i3a-cross-admin@example.invalid', 'I3A Cross Admin', 'admin', true, true),
+  ('a3000000-0000-4000-8000-000000000005', 'i3a-editor@example.invalid', 'I3A Editor', 'editor', true, true)
 ON CONFLICT (id) DO UPDATE SET
   email = excluded.email,
   full_name = excluded.full_name,
@@ -43,7 +49,10 @@ VALUES ('certificates', 'Certificates', 'certification', 'trainer', true)
 ON CONFLICT (module_key) DO NOTHING;
 
 INSERT INTO public.staff_module_access (user_id, module_key, access_level)
-VALUES ('a3000000-0000-4000-8000-000000000001', 'certificates', 'admin')
+VALUES ('a3000000-0000-4000-8000-000000000001', 'certificates', 'admin'),
+       ('a3000000-0000-4000-8000-000000000003', 'certificates', 'admin'),
+       ('a3000000-0000-4000-8000-000000000004', 'certificates', 'admin'),
+       ('a3000000-0000-4000-8000-000000000005', 'certificates', 'view')
 ON CONFLICT (user_id, module_key) DO NOTHING;
 
 INSERT INTO public.certificate_branches (id, branch_code, branch_name, display_address, is_active)
@@ -115,6 +124,51 @@ CREATE TEMP TABLE i3a_result (
 ) ON COMMIT DROP;
 GRANT SELECT, INSERT, UPDATE ON i3a_result TO authenticated;
 
+-- A transaction-scoped invoker trigger records the effective role and JWT
+-- actor seen by real lifecycle writes. This proves SECURITY DEFINER execution
+-- is the dedicated non-bypass executor, not postgres.
+CREATE TABLE public.i3e_executor_observations (
+  execution_role name NOT NULL,
+  actor_id uuid,
+  table_name text NOT NULL,
+  operation text NOT NULL
+);
+GRANT SELECT, INSERT ON public.i3e_executor_observations TO authenticated, certificate_lifecycle_executor;
+CREATE FUNCTION public.i3e_capture_executor_context()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = pg_catalog
+AS $$
+BEGIN
+  INSERT INTO public.i3e_executor_observations(execution_role, actor_id, table_name, operation)
+  VALUES (current_user, app.request_actor_id(), TG_TABLE_NAME, TG_OP);
+  RETURN NEW;
+END;
+$$;
+CREATE TRIGGER i3e_capture_certificate_executor
+  BEFORE INSERT OR UPDATE ON public.certificates
+  FOR EACH ROW EXECUTE FUNCTION public.i3e_capture_executor_context();
+CREATE TRIGGER i3e_capture_snapshot_executor
+  BEFORE INSERT ON public.certificate_issuance_snapshots
+  FOR EACH ROW EXECUTE FUNCTION public.i3e_capture_executor_context();
+CREATE TRIGGER i3e_capture_reissue_executor
+  BEFORE INSERT ON public.certificate_reissue_events
+  FOR EACH ROW EXECUTE FUNCTION public.i3e_capture_executor_context();
+
+-- Exercise FORCE RLS through real executor-owned RPC calls. SET ROLE to the
+-- executor is intentionally unavailable after the atomic migration commits.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE oid='public.certificate_branches'::regclass AND relrowsecurity AND relforcerowsecurity)
+     OR NOT EXISTS (SELECT 1 FROM pg_class WHERE oid='public.certificate_issuance_snapshots'::regclass AND relrowsecurity AND relforcerowsecurity)
+     OR NOT EXISTS (SELECT 1 FROM pg_class WHERE oid='public.certificate_reissue_events'::regclass AND relrowsecurity AND relforcerowsecurity)
+     OR pg_has_role('postgres','certificate_lifecycle_executor','SET') THEN
+    RAISE EXCEPTION 'I3E FORCE RLS or post-migration SET cleanup is missing';
+  END IF;
+END;
+$$;
+
 SET LOCAL ROLE authenticated;
 SET LOCAL request.jwt.claim.sub = 'a3000000-0000-4000-8000-000000000001';
 SET LOCAL request.jwt.claim.role = 'authenticated';
@@ -129,11 +183,17 @@ DECLARE
   v_after jsonb;
   v_event_count integer;
   v_duplicate_id uuid;
+  v_legacy_id uuid;
   v_verify record;
+  v_sqlstate text;
 begin
   if not app.is_active() or not app.is_admin() or not public.has_module_access_level('certificates', 'admin') then
     raise exception 'I3A authorized fixture did not satisfy module/admin checks';
   end if;
+  IF auth.uid() IS DISTINCT FROM app.request_actor_id()
+     OR app.request_actor_id() IS DISTINCT FROM 'a3000000-0000-4000-8000-000000000001'::uuid THEN
+    RAISE EXCEPTION 'I3E authenticated helper does not match auth.uid()';
+  END IF;
 
   if has_function_privilege('anon', 'public.issue_certificate_with_skill_snapshot(uuid,uuid,text)', 'EXECUTE')
     or has_function_privilege('anon', 'public.duplicate_certificate_with_skill_snapshot(uuid)', 'EXECUTE')
@@ -179,8 +239,22 @@ begin
   IF v_count <> 1 THEN RAISE EXCEPTION 'I3A eligible issuance did not return exactly one certificate'; END IF;
 
   SELECT r.certificate_id, r.verification_token INTO v_id, v_token FROM pg_temp.i3a_result r;
+  IF NOT EXISTS (SELECT 1 FROM public.certificates WHERE id=v_id AND issued_by=auth.uid()) THEN
+    RAISE EXCEPTION 'I3E issued_by did not preserve the authenticated request actor';
+  END IF;
+  SELECT id INTO v_legacy_id FROM public.import_legacy_certificate(
+    'a3000000-0000-4000-8000-000000000015',
+    'a3000000-0000-4000-8000-000000000012',
+    '{"certificate_no":"I3E-LEGACY-IMPORT","participant_name":"I3A Historical Holder","course_name":"I3A Captured Course","course_date":"2026-01-05","course_end_date":"2026-01-05","status":"valid"}'::jsonb
+  );
+  IF NOT EXISTS (SELECT 1 FROM public.certificates WHERE id=v_legacy_id AND issued_by=auth.uid() AND metadata->>'provenance'='legacy_import') THEN
+    RAISE EXCEPTION 'I3E legacy import lost request actor or provenance';
+  END IF;
   SELECT to_jsonb(s) INTO v_snapshot FROM public.certificate_issuance_snapshots s WHERE s.certificate_id = v_id;
   IF v_snapshot IS NULL THEN RAISE EXCEPTION 'I3A issuance did not create its snapshot'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.certificate_issuance_snapshots WHERE certificate_id=v_id AND created_by=auth.uid()) THEN
+    RAISE EXCEPTION 'I3E snapshot created_by did not preserve the authenticated request actor';
+  END IF;
   SELECT count(*) INTO v_count FROM public.certificate_issuance_snapshots WHERE certificate_id = v_id;
   IF v_count <> 1 THEN RAISE EXCEPTION 'I3A issuance did not create exactly one snapshot'; END IF;
   IF v_snapshot->>'holder_name' <> 'I3A Historical Holder' OR v_snapshot->>'identity_no' <> '111111-11-1234' THEN
@@ -249,20 +323,62 @@ begin
     INSERT INTO public.certificate_issuance_snapshots (certificate_id, holder_name, course_name, created_by)
     VALUES (v_id, 'Unauthorized direct snapshot', 'Unauthorized direct course', auth.uid());
     RAISE EXCEPTION 'I3A authenticated direct snapshot INSERT unexpectedly succeeded';
-  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  EXCEPTION WHEN insufficient_privilege THEN
+    GET STACKED DIAGNOSTICS v_sqlstate = RETURNED_SQLSTATE;
+    IF v_sqlstate <> '42501' THEN RAISE EXCEPTION 'Direct snapshot INSERT SQLSTATE was %',v_sqlstate; END IF;
+    RAISE NOTICE 'I3E direct snapshot INSERT denied: SQLSTATE %',v_sqlstate;
   END;
 
   BEGIN
     INSERT INTO public.certificate_reissue_events (certificate_id, reissued_by, event_type, reason)
     VALUES (v_id, auth.uid(), 'reissue', 'Unauthorized direct event');
     RAISE EXCEPTION 'I3A authenticated direct event INSERT unexpectedly succeeded';
-  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  EXCEPTION WHEN insufficient_privilege THEN
+    GET STACKED DIAGNOSTICS v_sqlstate = RETURNED_SQLSTATE;
+    IF v_sqlstate <> '42501' THEN RAISE EXCEPTION 'Direct event INSERT SQLSTATE was %',v_sqlstate; END IF;
+    RAISE NOTICE 'I3E direct event INSERT denied: SQLSTATE %',v_sqlstate;
   END;
 
   BEGIN
     UPDATE public.certificate_issuance_snapshots SET holder_name = 'Unauthorized mutation' WHERE certificate_id = v_id;
     RAISE EXCEPTION 'I3A authenticated direct snapshot UPDATE unexpectedly succeeded';
-  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  EXCEPTION WHEN insufficient_privilege THEN
+    GET STACKED DIAGNOSTICS v_sqlstate = RETURNED_SQLSTATE;
+    IF v_sqlstate <> '42501' THEN RAISE EXCEPTION 'Direct snapshot UPDATE SQLSTATE was %',v_sqlstate; END IF;
+    RAISE NOTICE 'I3E direct snapshot UPDATE denied: SQLSTATE %',v_sqlstate;
+  END;
+
+  BEGIN
+    DELETE FROM public.certificate_issuance_snapshots WHERE certificate_id = v_id;
+    RAISE EXCEPTION 'I3E authenticated direct snapshot DELETE unexpectedly succeeded';
+  EXCEPTION WHEN insufficient_privilege THEN
+    GET STACKED DIAGNOSTICS v_sqlstate = RETURNED_SQLSTATE;
+    IF v_sqlstate <> '42501' THEN RAISE EXCEPTION 'Direct snapshot DELETE SQLSTATE was %',v_sqlstate; END IF;
+    RAISE NOTICE 'I3E direct snapshot DELETE denied: SQLSTATE %',v_sqlstate;
+  END;
+  BEGIN
+    UPDATE public.certificate_reissue_events SET reason = 'Unauthorized mutation' WHERE certificate_id = v_id;
+    RAISE EXCEPTION 'I3E authenticated direct event UPDATE unexpectedly succeeded';
+  EXCEPTION WHEN insufficient_privilege THEN
+    GET STACKED DIAGNOSTICS v_sqlstate = RETURNED_SQLSTATE;
+    IF v_sqlstate <> '42501' THEN RAISE EXCEPTION 'Direct event UPDATE SQLSTATE was %',v_sqlstate; END IF;
+    RAISE NOTICE 'I3E direct event UPDATE denied: SQLSTATE %',v_sqlstate;
+  END;
+  BEGIN
+    DELETE FROM public.certificate_reissue_events WHERE certificate_id = v_id;
+    RAISE EXCEPTION 'I3E authenticated direct event DELETE unexpectedly succeeded';
+  EXCEPTION WHEN insufficient_privilege THEN
+    GET STACKED DIAGNOSTICS v_sqlstate = RETURNED_SQLSTATE;
+    IF v_sqlstate <> '42501' THEN RAISE EXCEPTION 'Direct event DELETE SQLSTATE was %',v_sqlstate; END IF;
+    RAISE NOTICE 'I3E direct event DELETE denied: SQLSTATE %',v_sqlstate;
+  END;
+  BEGIN
+    UPDATE public.certificates SET status = 'revoked' WHERE id = v_id;
+    RAISE EXCEPTION 'I3E authenticated direct lifecycle mutation unexpectedly succeeded';
+  EXCEPTION WHEN insufficient_privilege THEN
+    GET STACKED DIAGNOSTICS v_sqlstate = RETURNED_SQLSTATE;
+    IF v_sqlstate <> '42501' THEN RAISE EXCEPTION 'Direct certificate lifecycle UPDATE SQLSTATE was %',v_sqlstate; END IF;
+    RAISE NOTICE 'I3E direct certificate lifecycle UPDATE denied: SQLSTATE %',v_sqlstate;
   END;
 
   PERFORM * FROM public.reissue_certificate(v_id, 'reprint', 'I3A runtime reprint', '{"source":"i3a-local"}'::jsonb);
@@ -319,6 +435,13 @@ begin
   IF (SELECT count(*) FROM public.certificate_reissue_events WHERE certificate_id = v_id AND reissued_by = auth.uid() AND event_type = 'reissue') <> 1 THEN
     RAISE EXCEPTION 'I3A reissue event actor/type mismatch';
   END IF;
+  PERFORM set_config('request.jwt.claim.sub', 'a3000000-0000-4000-8000-000000000004', true);
+  SELECT count(*) INTO v_count FROM public.certificate_reissue_events WHERE certificate_id = v_id;
+  IF v_count <> 2 THEN RAISE EXCEPTION 'I3E authorized cross-admin could not read legitimate reissue history'; END IF;
+  PERFORM set_config('request.jwt.claim.sub', 'a3000000-0000-4000-8000-000000000002', true);
+  SELECT count(*) INTO v_count FROM public.certificate_reissue_events WHERE certificate_id=v_id;
+  IF v_count <> 0 THEN RAISE EXCEPTION 'I3E user without certificate module permission read reissue history'; END IF;
+  PERFORM set_config('request.jwt.claim.sub', 'a3000000-0000-4000-8000-000000000001', true);
 
   v_after := (
     SELECT jsonb_build_object(
@@ -365,6 +488,18 @@ begin
   PERFORM set_config('request.jwt.claim.sub', 'a3000000-0000-4000-8000-000000000001', true);
   PERFORM set_config('request.jwt.claim.role', 'authenticated', true);
 
+  PERFORM set_config('request.jwt.claim.sub', 'a3000000-0000-4000-8000-000000000003', true);
+  BEGIN
+    PERFORM * FROM public.issue_certificate_with_skill_snapshot(
+      'a3000000-0000-4000-8000-000000000013',
+      'a3000000-0000-4000-8000-000000000015',
+      'I3A/2026/INACTIVE'
+    );
+    RAISE EXCEPTION 'I3E inactive admin lifecycle issuance unexpectedly succeeded';
+  EXCEPTION WHEN insufficient_privilege THEN
+    GET STACKED DIAGNOSTICS v_sqlstate = RETURNED_SQLSTATE;
+    IF v_sqlstate <> '42501' THEN RAISE EXCEPTION 'I3E inactive admin denial SQLSTATE was %',v_sqlstate; END IF;
+  END;
   PERFORM set_config('request.jwt.claim.sub', 'a3000000-0000-4000-8000-000000000002', true);
   SELECT count(*) INTO v_count FROM public.certificate_branches WHERE id = 'a3000000-0000-4000-8000-000000000010';
   IF v_count <> 0 THEN RAISE EXCEPTION 'I3A unauthorized authenticated user gained branch access'; END IF;
@@ -385,8 +520,29 @@ begin
   BEGIN PERFORM public.set_certificate_deleted(v_id, true); RAISE EXCEPTION 'I3B no-module delete unexpectedly succeeded'; EXCEPTION WHEN insufficient_privilege THEN NULL; END;
   BEGIN PERFORM public.set_certificate_verification_enabled(v_id, false); RAISE EXCEPTION 'I3B no-module verification toggle unexpectedly succeeded'; EXCEPTION WHEN insufficient_privilege THEN NULL; END;
 
+  PERFORM set_config('request.jwt.claim.sub', 'a3000000-0000-4000-8000-000000000005', true);
+  IF NOT app.is_editor() OR public.has_module_access_level('certificates','admin') THEN
+    RAISE EXCEPTION 'I3E editor fixture does not represent insufficient admin-level certificate access';
+  END IF;
+  BEGIN
+    PERFORM * FROM public.issue_certificate_with_skill_snapshot(
+      'a3000000-0000-4000-8000-000000000013',
+      'a3000000-0000-4000-8000-000000000015',
+      'I3A/2026/EDITOR-DENIED'
+    );
+    RAISE EXCEPTION 'I3E editor without admin module permission unexpectedly issued a certificate';
+  EXCEPTION WHEN insufficient_privilege THEN
+    GET STACKED DIAGNOSTICS v_sqlstate = RETURNED_SQLSTATE;
+    IF v_sqlstate <> '42501' THEN RAISE EXCEPTION 'I3E insufficient editor permission SQLSTATE was %',v_sqlstate; END IF;
+  END;
+
   PERFORM set_config('request.jwt.claim.sub', 'a3000000-0000-4000-8000-000000000001', true);
   PERFORM set_config('request.jwt.claim.role', 'anon', true);
+  PERFORM set_config('request.jwt.claim.sub', '', true);
+  PERFORM set_config('request.jwt.claims', '{"role":"anon"}', true);
+  IF auth.uid() IS NOT NULL OR app.request_actor_id() IS NOT NULL THEN
+    RAISE EXCEPTION 'I3E anonymous request unexpectedly has an authenticated actor';
+  END IF;
   EXECUTE 'RESET ROLE';
   EXECUTE 'SET LOCAL ROLE anon';
   BEGIN
@@ -468,6 +624,37 @@ begin
   EXECUTE 'SET LOCAL ROLE authenticated';
   PERFORM set_config('request.jwt.claim.sub', 'a3000000-0000-4000-8000-000000000001', true);
   PERFORM set_config('request.jwt.claim.role', 'authenticated', true);
+
+  IF NOT EXISTS (
+    SELECT 1 FROM public.i3e_executor_observations
+    WHERE execution_role = 'certificate_lifecycle_executor'
+      AND actor_id = 'a3000000-0000-4000-8000-000000000001'
+      AND table_name = 'certificates' AND operation = 'INSERT'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM public.i3e_executor_observations
+    WHERE execution_role = 'certificate_lifecycle_executor'
+      AND actor_id = 'a3000000-0000-4000-8000-000000000001'
+      AND table_name = 'certificate_issuance_snapshots' AND operation = 'INSERT'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM public.i3e_executor_observations
+    WHERE execution_role = 'certificate_lifecycle_executor'
+      AND actor_id = 'a3000000-0000-4000-8000-000000000001'
+      AND table_name = 'certificate_reissue_events' AND operation = 'INSERT'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM public.i3e_executor_observations
+    WHERE execution_role = 'certificate_lifecycle_executor'
+      AND actor_id = 'a3000000-0000-4000-8000-000000000001'
+      AND table_name = 'certificates' AND operation = 'UPDATE'
+  ) THEN
+    RAISE EXCEPTION 'I3E lifecycle writes did not execute as the dedicated owner with authenticated JWT actor context';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM public.i3e_executor_observations
+    WHERE execution_role <> 'certificate_lifecycle_executor'
+       OR actor_id IS DISTINCT FROM 'a3000000-0000-4000-8000-000000000001'
+  ) THEN
+    RAISE EXCEPTION 'I3E lifecycle write escaped the dedicated executor or JWT actor context';
+  END IF;
 END;
 $$;
 
@@ -519,8 +706,8 @@ ROLLBACK;
 
 DO $$
 BEGIN
-  IF EXISTS (SELECT 1 FROM auth.users WHERE id IN ('a3000000-0000-4000-8000-000000000001', 'a3000000-0000-4000-8000-000000000002'))
-    OR EXISTS (SELECT 1 FROM public.profiles WHERE id IN ('a3000000-0000-4000-8000-000000000001', 'a3000000-0000-4000-8000-000000000002'))
+  IF EXISTS (SELECT 1 FROM auth.users WHERE id IN ('a3000000-0000-4000-8000-000000000001', 'a3000000-0000-4000-8000-000000000002', 'a3000000-0000-4000-8000-000000000003', 'a3000000-0000-4000-8000-000000000004', 'a3000000-0000-4000-8000-000000000005'))
+    OR EXISTS (SELECT 1 FROM public.profiles WHERE id IN ('a3000000-0000-4000-8000-000000000001', 'a3000000-0000-4000-8000-000000000002', 'a3000000-0000-4000-8000-000000000003', 'a3000000-0000-4000-8000-000000000004', 'a3000000-0000-4000-8000-000000000005'))
     OR EXISTS (SELECT 1 FROM public.certificates WHERE id BETWEEN 'a3000000-0000-4000-8000-000000000101' AND 'a3000000-0000-4000-8000-000000000109')
     OR EXISTS (SELECT 1 FROM public.certificates WHERE verification_token LIKE 'I3A-TOKEN-%')
     OR EXISTS (SELECT 1 FROM public.certificate_verifications WHERE query_value LIKE 'I3A-%') THEN

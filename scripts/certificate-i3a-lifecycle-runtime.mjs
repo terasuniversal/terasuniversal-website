@@ -9,12 +9,13 @@ const repoRoot = resolve(fileURLToPath(new URL("../", import.meta.url)));
 const fixtureDir = resolve(repoRoot, "node_modules/.cache/i3a-issued-lifecycle");
 const compiledDir = join(fixtureDir, "compiled");
 const containerName = process.env.I3A_POSTGRES_CONTAINER ?? "teras-i3a-lifecycle-force-rls";
+const databaseUser = process.env.I3A_POSTGRES_USER ?? "i3_bootstrap";
 const sqlFile = resolve(repoRoot, "supabase/tests/certificate_i3a_lifecycle_runtime_contract.sql");
 const sql = readFileSync(sqlFile, "utf8");
 
 function loadIssuedFixture() {
   const run = spawnSync("docker", [
-    "exec", "-i", containerName, "psql", "-U", "i3_bootstrap", "-d", "postgres",
+    "exec", "-i", containerName, "psql", "-U", databaseUser, "-d", "postgres",
     "-X", "-q", "-A", "-t", "-v", "ON_ERROR_STOP=1", "-v", "render_fixture=1",
   ], { cwd: repoRoot, input: sql, encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
   if (run.status !== 0) {

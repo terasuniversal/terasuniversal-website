@@ -5,11 +5,12 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(fileURLToPath(new URL("../", import.meta.url)));
-const containerName = process.env.I3C_POSTGRES_CONTAINER ?? "teras-i3b-baseline-local";
+const containerName = process.env.I3C_POSTGRES_CONTAINER ?? process.env.I3A_POSTGRES_CONTAINER ?? "teras-i3b-baseline-local";
 const grantsPath = resolve(repoRoot, "supabase/tests/fixtures/certificate_i3c_auth_compat.sql");
 const authorizationPath = resolve(repoRoot, "supabase/tests/certificate_i3c_authorization_runtime.sql");
 const lifecyclePath = resolve(repoRoot, "scripts/certificate-i3a-lifecycle-runtime.mjs");
 const fixtureUser = "a3000000-0000-4000-8000-000000000001";
+const databaseUser = process.env.I3C_POSTGRES_USER ?? process.env.I3A_POSTGRES_USER ?? "i3_bootstrap";
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
@@ -25,11 +26,11 @@ function run(command, args, options = {}) {
 }
 
 const image = run("docker", ["inspect", "--format", "{{.Config.Image}}", containerName]).trim();
-assert.match(image, /^postgres:17(?:\.|$)/, "I3C must use the explicitly named disposable PostgreSQL 17 container");
+assert.match(image, /^(?:postgres:17(?:\.\d+(?:\.\d+)?)?|public\.ecr\.aws\/supabase\/postgres:17(?:\.\d+){1,3})$/, "I3C must use an explicitly named disposable PostgreSQL 17 container");
 
 run("docker", [
   "exec", "-i", containerName,
-  "psql", "-X", "-v", "ON_ERROR_STOP=1", "-U", "i3_bootstrap", "-d", "postgres",
+  "psql", "-X", "-v", "ON_ERROR_STOP=1", "-U", databaseUser, "-d", "postgres",
 ], { input: readFileSync(grantsPath, "utf8") });
 console.log("I3C disposable-only grants: USAGE auth + EXECUTE auth.uid()/auth.jwt() for Supabase API roles; no product-object grants.");
 
@@ -55,13 +56,13 @@ ROLLBACK;
 `;
 run("docker", [
   "exec", "-i", containerName,
-  "psql", "-X", "-v", "ON_ERROR_STOP=1", "-U", "i3_bootstrap", "-d", "postgres",
+  "psql", "-X", "-v", "ON_ERROR_STOP=1", "-U", databaseUser, "-d", "postgres",
 ], { input: probe });
 console.log("I3C auth.uid()/auth.jwt() synthetic JWT semantics: PASS (transaction rolled back).");
 
 const authorizationResult = run("docker", [
   "exec", "-i", containerName,
-  "psql", "-X", "-v", "ON_ERROR_STOP=1", "-U", "i3_bootstrap", "-d", "postgres",
+  "psql", "-X", "-v", "ON_ERROR_STOP=1", "-U", databaseUser, "-d", "postgres",
 ], { input: readFileSync(authorizationPath, "utf8") });
 assert.equal((authorizationResult.match(/NOTICE:/g) ?? []).length, 28, "seven wrappers must be denied in each of four authorization contexts");
 console.log(authorizationResult.trim());
