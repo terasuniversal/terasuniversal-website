@@ -17,7 +17,7 @@ BEGIN
     RAISE EXCEPTION 'I3E executor role attributes unsafe';
   END IF;
   IF NOT pg_has_role(current_user,'certificate_lifecycle_executor','SET') THEN
-    EXECUTE 'GRANT certificate_lifecycle_executor TO postgres WITH ADMIN FALSE, INHERIT FALSE, SET TRUE';
+    EXECUTE 'GRANT certificate_lifecycle_executor TO postgres WITH ADMIN FALSE, INHERIT FALSE, SET TRUE GRANTED BY postgres';
   END IF;
 END;
 $executor_role_setup$;
@@ -242,7 +242,7 @@ REVOKE ALL ON FUNCTION app.issue_certificate_with_skill_snapshot(uuid,uuid,text)
 REVOKE ALL ON FUNCTION public.issue_certificate_with_skill_snapshot(uuid,uuid,text),public.duplicate_certificate_with_skill_snapshot(uuid),public.reissue_certificate(uuid,text,text,jsonb),public.revoke_certificate(uuid,text),public.update_certificate_metadata(uuid,date,text),public.set_certificate_deleted(uuid,boolean),public.set_certificate_verification_enabled(uuid,boolean),public.import_legacy_certificate(uuid,uuid,jsonb) FROM PUBLIC,anon,authenticated,service_role;
 GRANT EXECUTE ON FUNCTION public.issue_certificate_with_skill_snapshot(uuid,uuid,text),public.duplicate_certificate_with_skill_snapshot(uuid),public.reissue_certificate(uuid,text,text,jsonb),public.revoke_certificate(uuid,text),public.update_certificate_metadata(uuid,date,text),public.set_certificate_deleted(uuid,boolean),public.set_certificate_verification_enabled(uuid,boolean),public.import_legacy_certificate(uuid,uuid,jsonb) TO authenticated;
 RESET ROLE;
-REVOKE SET OPTION FOR certificate_lifecycle_executor FROM postgres;
+GRANT certificate_lifecycle_executor TO postgres WITH ADMIN FALSE, INHERIT FALSE, SET FALSE GRANTED BY postgres;
 REVOKE CREATE ON SCHEMA app,public FROM certificate_lifecycle_executor;
 DO $post$
 DECLARE r record; f text; o oid; t text; v_source text;
