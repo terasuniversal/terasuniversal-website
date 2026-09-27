@@ -10,6 +10,8 @@ const containerName = `teras-certificate-i3d-${process.pid}`;
 
 const bootstrapSql = String.raw`
 CREATE ROLE certificate_lifecycle_executor NOLOGIN NOINHERIT NOBYPASSRLS;
+CREATE ROLE postgres LOGIN NOSUPERUSER NOCREATEDB CREATEROLE NOINHERIT;
+CREATE ROLE supabase_admin NOLOGIN NOSUPERUSER NOCREATEDB CREATEROLE NOINHERIT;
 CREATE ROLE authenticated NOLOGIN;
 CREATE ROLE anon NOLOGIN;
 CREATE ROLE service_role NOLOGIN;
@@ -68,6 +70,53 @@ RETURNS TABLE(id uuid,certificate_id uuid,certificate_number text,event_type tex
 LANGUAGE sql SECURITY DEFINER SET search_path=pg_catalog AS $$ SELECT NULL::uuid,NULL::uuid,NULL::text,NULL::text,NULL::timestamptz WHERE false $$;
 ALTER FUNCTION app.reissue_certificate(uuid,text,text,jsonb) OWNER TO certificate_lifecycle_executor;
 GRANT EXECUTE ON FUNCTION app.reissue_certificate(uuid,text,text,jsonb) TO certificate_lifecycle_executor;
+
+-- Reproduce staging's two independent grantors: the privileged grant is
+-- administered by supabase_admin; postgres has a separate, non-admin self-row.
+GRANT certificate_lifecycle_executor TO supabase_admin WITH ADMIN TRUE, INHERIT FALSE, SET FALSE;
+SET SESSION AUTHORIZATION supabase_admin;
+GRANT certificate_lifecycle_executor TO postgres WITH ADMIN TRUE, INHERIT FALSE, SET FALSE;
+RESET SESSION AUTHORIZATION;
+SET SESSION AUTHORIZATION postgres;
+GRANT certificate_lifecycle_executor TO postgres WITH ADMIN FALSE, INHERIT FALSE, SET FALSE;
+RESET SESSION AUTHORIZATION;
+
+ALTER SCHEMA app OWNER TO postgres;
+ALTER SCHEMA public OWNER TO postgres;
+ALTER TABLE public.certificates OWNER TO postgres;
+ALTER TABLE public.certificate_issuance_snapshots OWNER TO postgres;
+ALTER TABLE public.certificate_reissue_events OWNER TO postgres;
+
+DO $$
+BEGIN
+  IF (SELECT rolsuper FROM pg_roles WHERE rolname='postgres')
+     OR NOT (SELECT rolcreaterole FROM pg_roles WHERE rolname='postgres')
+     OR NOT EXISTS (
+       SELECT 1 FROM pg_auth_members m
+       JOIN pg_roles target ON target.oid=m.roleid
+       JOIN pg_roles member ON member.oid=m.member
+       JOIN pg_roles grantor ON grantor.oid=m.grantor
+       WHERE target.rolname='certificate_lifecycle_executor'
+         AND member.rolname='postgres' AND grantor.rolname='supabase_admin'
+         AND m.admin_option AND NOT m.inherit_option AND NOT m.set_option
+     )
+     OR NOT EXISTS (
+       SELECT 1 FROM pg_auth_members m
+       JOIN pg_roles target ON target.oid=m.roleid
+       JOIN pg_roles member ON member.oid=m.member
+       JOIN pg_roles grantor ON grantor.oid=m.grantor
+       WHERE target.rolname='certificate_lifecycle_executor'
+         AND member.rolname='postgres' AND grantor.rolname='postgres'
+         AND NOT m.admin_option AND NOT m.inherit_option AND NOT m.set_option
+     ) THEN
+    RAISE EXCEPTION 'Local fixture did not reproduce hosted dual-grantor baseline';
+  END IF;
+  IF has_schema_privilege('certificate_lifecycle_executor','app','CREATE')
+     OR (SELECT rolname FROM pg_roles WHERE oid=(SELECT proowner FROM pg_proc WHERE oid='app.reissue_certificate(uuid,text,text,jsonb)'::regprocedure)) <> 'certificate_lifecycle_executor' THEN
+    RAISE EXCEPTION 'Local fixture does not match hosted function/schema ownership baseline';
+  END IF;
+END;
+$$;
 `;
 
 function docker(args, options = {}) {
@@ -77,13 +126,13 @@ function docker(args, options = {}) {
 }
 
 function psqlInput(sql) {
-  const result = spawnSync("docker", ["exec", "-i", "-u", "postgres", containerName, "psql", "-U", "postgres", "-d", "postgres", "-X", "-v", "ON_ERROR_STOP=1", "-q", "-A", "-t"], { cwd: repoRoot, input: sql, encoding: "utf8", maxBuffer: 4 * 1024 * 1024 });
+  const result = spawnSync("docker", ["exec", "-i", "-u", "postgres", containerName, "psql", "-U", "bootstrap", "-d", "postgres", "-X", "-v", "ON_ERROR_STOP=1", "-q", "-A", "-t"], { cwd: repoRoot, input: sql, encoding: "utf8", maxBuffer: 4 * 1024 * 1024 });
   if (result.status !== 0) throw new Error(`Isolated reissue PostgreSQL contract failed: ${(result.stderr || result.stdout || "").trim()}`);
   return result.stdout.trim();
 }
 
 function launchPsql(sql) {
-  const child = spawn("docker", ["exec", "-i", "-u", "postgres", containerName, "psql", "-U", "postgres", "-d", "postgres", "-X", "-v", "ON_ERROR_STOP=1", "-q", "-A", "-t"], { cwd: repoRoot, stdio: ["pipe", "pipe", "pipe"] });
+  const child = spawn("docker", ["exec", "-i", "-u", "postgres", containerName, "psql", "-U", "bootstrap", "-d", "postgres", "-X", "-v", "ON_ERROR_STOP=1", "-q", "-A", "-t"], { cwd: repoRoot, stdio: ["pipe", "pipe", "pipe"] });
   let output = "";
   let errorOutput = "";
   let firstUuidResolve;
@@ -106,18 +155,47 @@ function launchPsql(sql) {
 
 async function main() {
   execFileSync("docker", ["image", "inspect", "postgres:17.6"], { cwd: repoRoot, stdio: "ignore" });
-  docker(["run", "--rm", "-d", "--network", "none", "--name", containerName, "-e", "POSTGRES_HOST_AUTH_METHOD=trust", "-e", "POSTGRES_USER=postgres", "-e", "POSTGRES_DB=postgres", "postgres:17.6"]);
+  docker(["run", "--rm", "-d", "--network", "none", "--name", containerName, "-e", "POSTGRES_HOST_AUTH_METHOD=trust", "-e", "POSTGRES_USER=bootstrap", "-e", "POSTGRES_DB=postgres", "postgres:17.6"]);
   try {
     let ready = false;
     for (let attempt = 0; attempt < 40; attempt += 1) {
-      const result = spawnSync("docker", ["exec", "-u", "postgres", containerName, "pg_isready", "-U", "postgres", "-d", "postgres"], { cwd: repoRoot, stdio: "ignore" });
+      const result = spawnSync("docker", ["exec", "-u", "postgres", containerName, "pg_isready", "-U", "bootstrap", "-d", "postgres"], { cwd: repoRoot, stdio: "ignore" });
       if (result.status === 0) { ready = true; break; }
       await new Promise((resolve) => setTimeout(resolve, 500));
     }
     assert.ok(ready, "isolated PostgreSQL test container must become ready");
 
     psqlInput(bootstrapSql);
-    psqlInput(readFileSync(migrationPath, "utf8"));
+    psqlInput(`SET SESSION AUTHORIZATION postgres;\n${readFileSync(migrationPath, "utf8")}`);
+    psqlInput(String.raw`
+      DO $$
+      BEGIN
+        IF (SELECT rolsuper FROM pg_roles WHERE rolname='postgres')
+           OR pg_has_role('postgres','certificate_lifecycle_executor','SET')
+           OR has_schema_privilege('certificate_lifecycle_executor','app','CREATE')
+           OR NOT EXISTS (
+             SELECT 1 FROM pg_auth_members m
+             JOIN pg_roles target ON target.oid=m.roleid
+             JOIN pg_roles member ON member.oid=m.member
+             JOIN pg_roles grantor ON grantor.oid=m.grantor
+             WHERE target.rolname='certificate_lifecycle_executor'
+               AND member.rolname='postgres' AND grantor.rolname='supabase_admin'
+               AND m.admin_option AND NOT m.inherit_option AND NOT m.set_option
+           )
+           OR NOT EXISTS (
+             SELECT 1 FROM pg_auth_members m
+             JOIN pg_roles target ON target.oid=m.roleid
+             JOIN pg_roles member ON member.oid=m.member
+             JOIN pg_roles grantor ON grantor.oid=m.grantor
+             WHERE target.rolname='certificate_lifecycle_executor'
+               AND member.rolname='postgres' AND grantor.rolname='postgres'
+               AND NOT m.admin_option AND NOT m.inherit_option AND NOT m.set_option
+           ) THEN
+          RAISE EXCEPTION 'Hosted dual-grantor membership cleanup did not restore its baseline';
+        END IF;
+      END;
+      $$;
+    `);
     psqlInput(String.raw`
       CREATE FUNCTION public.reissue_certificate(p_certificate_id uuid,p_event_type text DEFAULT 'reissue',p_reason text DEFAULT NULL,p_notes jsonb DEFAULT '{}'::jsonb)
       RETURNS TABLE(id uuid,certificate_id uuid,certificate_number text,event_type text,reissued_at timestamptz)

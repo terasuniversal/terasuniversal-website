@@ -18,6 +18,103 @@ comment on column public.certificate_reissue_events.idempotency_key is
 grant insert (idempotency_key)
   on public.certificate_reissue_events to certificate_lifecycle_executor;
 
+-- Hosted migration runners may be able to administer this role without being
+-- the owner of its SECURITY DEFINER function. Temporarily enable SET ROLE and
+-- schema CREATE only inside this transaction so replacement executes as the
+-- established function owner; both capabilities are removed before commit.
+do $migration_owner_precondition$
+declare
+  v_membership_count integer;
+begin
+  if current_user <> 'postgres' then
+    raise exception 'Certificate reissue idempotency migration requires postgres';
+  end if;
+  select count(*) into v_membership_count
+  from pg_catalog.pg_auth_members m
+  join pg_catalog.pg_roles target on target.oid = m.roleid
+  join pg_catalog.pg_roles member on member.oid = m.member
+  join pg_catalog.pg_roles grantor on grantor.oid = m.grantor
+  where target.rolname = 'certificate_lifecycle_executor'
+    and member.rolname = 'postgres';
+  if v_membership_count <> 2
+     or not exists (
+    select 1
+    from pg_catalog.pg_auth_members m
+    join pg_catalog.pg_roles target on target.oid = m.roleid
+    join pg_catalog.pg_roles member on member.oid = m.member
+    join pg_catalog.pg_roles grantor on grantor.oid = m.grantor
+    where target.rolname = 'certificate_lifecycle_executor'
+      and member.rolname = 'postgres'
+      and grantor.rolname = 'supabase_admin'
+      and m.admin_option
+      and not m.inherit_option
+      and not m.set_option
+  ) or not exists (
+    select 1
+    from pg_catalog.pg_auth_members m
+    join pg_catalog.pg_roles target on target.oid = m.roleid
+    join pg_catalog.pg_roles member on member.oid = m.member
+    join pg_catalog.pg_roles grantor on grantor.oid = m.grantor
+    where target.rolname = 'certificate_lifecycle_executor'
+      and member.rolname = 'postgres'
+      and grantor.rolname = 'postgres'
+      and not m.admin_option
+      and not m.inherit_option
+      and not m.set_option
+  ) then
+    raise exception 'Expected exact hardened dual-grantor executor membership topology';
+  end if;
+  if pg_catalog.has_schema_privilege('certificate_lifecycle_executor', 'app', 'CREATE') then
+    raise exception 'Executor unexpectedly retains CREATE on schema app';
+  end if;
+end;
+$migration_owner_precondition$;
+
+grant create on schema app to certificate_lifecycle_executor;
+grant certificate_lifecycle_executor to postgres
+  with admin false, inherit false, set true
+  granted by postgres;
+do $temporary_set_postcondition$
+begin
+  if not pg_catalog.pg_has_role('postgres', 'certificate_lifecycle_executor', 'SET')
+     or not exists (
+       select 1
+       from pg_catalog.pg_auth_members m
+       join pg_catalog.pg_roles target on target.oid = m.roleid
+       join pg_catalog.pg_roles member on member.oid = m.member
+       join pg_catalog.pg_roles grantor on grantor.oid = m.grantor
+       where target.rolname = 'certificate_lifecycle_executor'
+         and member.rolname = 'postgres'
+         and grantor.rolname = 'supabase_admin'
+         and m.admin_option
+         and not m.inherit_option
+         and not m.set_option
+     )
+     or not exists (
+       select 1
+       from pg_catalog.pg_auth_members m
+       join pg_catalog.pg_roles target on target.oid = m.roleid
+       join pg_catalog.pg_roles member on member.oid = m.member
+       join pg_catalog.pg_roles grantor on grantor.oid = m.grantor
+       where target.rolname = 'certificate_lifecycle_executor'
+         and member.rolname = 'postgres'
+         and grantor.rolname = 'postgres'
+         and not m.admin_option
+         and not m.inherit_option
+         and m.set_option
+     )
+     or (select count(*)
+         from pg_catalog.pg_auth_members m
+         join pg_catalog.pg_roles target on target.oid = m.roleid
+         join pg_catalog.pg_roles member on member.oid = m.member
+         where target.rolname = 'certificate_lifecycle_executor'
+           and member.rolname = 'postgres') <> 2 then
+    raise exception 'Temporary self-granted SET membership postcondition failed';
+  end if;
+end;
+$temporary_set_postcondition$;
+set local role certificate_lifecycle_executor;
+
 create or replace function app.reissue_certificate(
   p_certificate_id uuid,
   p_event_type text default 'reissue',
@@ -98,5 +195,113 @@ alter function app.reissue_certificate(uuid, text, text, jsonb)
 
 comment on function app.reissue_certificate(uuid, text, text, jsonb) is
   'Creates an append-only reprint/reissue event for an existing certificate identity. Retries with the same actor/request key and payload return the original event; a new request key creates a new event. Never changes issue_date, number, token, or issuance snapshot.';
+
+reset role;
+revoke create on schema app from certificate_lifecycle_executor;
+revoke set option for certificate_lifecycle_executor
+  from postgres granted by postgres;
+
+do $migration_owner_postcondition$
+declare
+  v_role record;
+  v_function oid := pg_catalog.to_regprocedure('app.reissue_certificate(uuid,text,text,jsonb)');
+  v_membership_count integer;
+begin
+  select * into v_role
+  from pg_catalog.pg_roles
+  where rolname = 'certificate_lifecycle_executor';
+  if not found
+     or v_role.rolcanlogin
+     or v_role.rolsuper
+     or v_role.rolcreatedb
+     or v_role.rolcreaterole
+     or v_role.rolbypassrls
+     or v_role.rolinherit then
+    raise exception 'Certificate lifecycle executor role attributes are unsafe';
+  end if;
+  if pg_catalog.has_schema_privilege('certificate_lifecycle_executor', 'app', 'CREATE') then
+    raise exception 'Certificate lifecycle executor retained CREATE on schema app';
+  end if;
+  select count(*) into v_membership_count
+  from pg_catalog.pg_auth_members m
+  join pg_catalog.pg_roles target on target.oid = m.roleid
+  join pg_catalog.pg_roles member on member.oid = m.member
+  where target.rolname = 'certificate_lifecycle_executor'
+    and member.rolname = 'postgres';
+  if v_membership_count <> 2
+     or pg_catalog.pg_has_role('postgres', 'certificate_lifecycle_executor', 'SET')
+     or not exists (
+       select 1
+       from pg_catalog.pg_auth_members m
+       join pg_catalog.pg_roles target on target.oid = m.roleid
+       join pg_catalog.pg_roles member on member.oid = m.member
+       join pg_catalog.pg_roles grantor on grantor.oid = m.grantor
+       where target.rolname = 'certificate_lifecycle_executor'
+         and member.rolname = 'postgres'
+         and grantor.rolname = 'supabase_admin'
+         and m.admin_option
+         and not m.inherit_option
+         and not m.set_option
+     )
+     or not exists (
+       select 1
+       from pg_catalog.pg_auth_members m
+       join pg_catalog.pg_roles target on target.oid = m.roleid
+       join pg_catalog.pg_roles member on member.oid = m.member
+       join pg_catalog.pg_roles grantor on grantor.oid = m.grantor
+       where target.rolname = 'certificate_lifecycle_executor'
+         and member.rolname = 'postgres'
+         and grantor.rolname = 'postgres'
+         and not m.admin_option
+         and not m.inherit_option
+         and not m.set_option
+     ) then
+    raise exception 'Final executor membership paths differ from the hosted baseline';
+  end if;
+  if exists (
+    select 1
+    from pg_catalog.pg_auth_members m
+    join pg_catalog.pg_roles target on target.oid = m.roleid
+    join pg_catalog.pg_roles member on member.oid = m.member
+    where target.rolname = 'certificate_lifecycle_executor'
+      and member.rolname in ('anon', 'authenticated', 'service_role')
+  ) then
+    raise exception 'Executor role is directly granted to an API role';
+  end if;
+  if not exists (
+    select 1 from pg_catalog.pg_class c
+    where c.oid = 'public.certificate_reissue_events'::pg_catalog.regclass
+      and c.relrowsecurity
+      and c.relforcerowsecurity
+  ) then
+    raise exception 'Certificate reissue event RLS/FORCE RLS postcondition failed';
+  end if;
+  if exists (
+    select 1
+    from pg_catalog.pg_class c
+    cross join lateral pg_catalog.aclexplode(
+      coalesce(c.relacl, pg_catalog.acldefault('r', c.relowner))
+    ) a
+    join pg_catalog.pg_roles r on r.oid = a.grantee
+    where c.oid = 'public.certificate_reissue_events'::pg_catalog.regclass
+      and r.rolname in ('anon', 'authenticated', 'service_role')
+      and a.privilege_type in ('INSERT', 'UPDATE', 'DELETE')
+  ) then
+    raise exception 'An API role has direct write privilege on certificate reissue events';
+  end if;
+  if v_function is null
+     or (select r.rolname from pg_catalog.pg_roles r where r.oid = (select p.proowner from pg_catalog.pg_proc p where p.oid = v_function)) <> 'certificate_lifecycle_executor'
+     or not (select p.prosecdef from pg_catalog.pg_proc p where p.oid = v_function)
+     or not exists (
+       select 1
+       from pg_catalog.pg_proc p,
+            pg_catalog.unnest(p.proconfig) setting
+       where p.oid = v_function
+         and setting = 'search_path=pg_catalog'
+     ) then
+    raise exception 'Reissue function owner or SECURITY DEFINER hardening postcondition failed';
+  end if;
+end;
+$migration_owner_postcondition$;
 
 commit;
