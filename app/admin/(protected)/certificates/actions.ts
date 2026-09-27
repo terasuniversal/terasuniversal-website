@@ -198,11 +198,15 @@ export async function reissueCertificate(id: string, formData: FormData) {
   });
   if (!parsed.success) throw new Error("Please provide a valid reissue type and reason.");
   const { event_type: eventType, reason } = parsed.data;
+  const idempotencyKey = String(formData.get("idempotency_key") ?? "").trim();
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idempotencyKey)) {
+    throw new Error("Unable to record the reissue event.");
+  }
   const { error } = await supabase.rpc("reissue_certificate", {
     p_certificate_id: id,
     p_event_type: eventType,
     p_reason: reason || null,
-    p_notes: {},
+    p_notes: { idempotency_key: idempotencyKey },
   });
   if (error) {
     console.error("Certificate reissue event failed", { certificateId: id, code: error.code });

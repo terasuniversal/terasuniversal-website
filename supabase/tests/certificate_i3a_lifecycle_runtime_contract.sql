@@ -183,6 +183,9 @@ DECLARE
   v_before jsonb;
   v_after jsonb;
   v_event_count integer;
+  v_first_reissue_event_id uuid;
+  v_retry_reissue_event_id uuid;
+  v_second_reissue_event_id uuid;
   v_rows_matched integer;
   v_rows_changed integer;
   v_rows_after integer;
@@ -417,8 +420,26 @@ begin
     RAISE NOTICE 'I3E direct certificate lifecycle UPDATE denied: SQLSTATE %',v_sqlstate;
   END;
 
-  PERFORM * FROM public.reissue_certificate(v_id, 'reprint', 'I3A runtime reprint', '{"source":"i3a-local"}'::jsonb);
-  PERFORM * FROM public.reissue_certificate(v_id, 'reissue', 'I3A runtime reissue', '{"source":"i3a-local"}'::jsonb);
+  SELECT id INTO v_first_reissue_event_id
+  FROM public.reissue_certificate(v_id, 'reprint', 'I3A runtime reprint', '{"source":"i3a-local","idempotency_key":"b3000000-0000-4000-8000-000000000001"}'::jsonb);
+  SELECT id INTO v_retry_reissue_event_id
+  FROM public.reissue_certificate(v_id, 'reprint', 'I3A runtime reprint', '{"source":"i3a-local","idempotency_key":"b3000000-0000-4000-8000-000000000001"}'::jsonb);
+  IF v_retry_reissue_event_id IS DISTINCT FROM v_first_reissue_event_id THEN
+    RAISE EXCEPTION 'I3D same reissue request key did not return its original event';
+  END IF;
+
+  SELECT id INTO v_second_reissue_event_id
+  FROM public.reissue_certificate(v_id, 'reissue', 'I3A runtime reissue', '{"source":"i3a-local","idempotency_key":"b3000000-0000-4000-8000-000000000002"}'::jsonb);
+  IF v_second_reissue_event_id IS NOT DISTINCT FROM v_first_reissue_event_id THEN
+    RAISE EXCEPTION 'I3D different reissue request keys did not create a separate event';
+  END IF;
+
+  BEGIN
+    PERFORM * FROM public.reissue_certificate(v_id, 'reissue', 'Changed payload', '{"source":"i3a-local","idempotency_key":"b3000000-0000-4000-8000-000000000001"}'::jsonb);
+    RAISE EXCEPTION 'I3D reissue request key was accepted with a different payload';
+  EXCEPTION WHEN SQLSTATE '23505' THEN
+    NULL;
+  END;
 
   BEGIN
     PERFORM * FROM public.reissue_certificate(v_id, 'invalid-lifecycle', 'I3C error probe', '{}'::jsonb);
@@ -458,6 +479,12 @@ begin
 
   SELECT count(*) INTO v_event_count FROM public.certificate_reissue_events WHERE certificate_id = v_id;
   IF v_event_count <> 2 THEN RAISE EXCEPTION 'I3A reprint/reissue did not create exactly two events'; END IF;
+  IF (SELECT count(*) FROM public.certificate_reissue_events WHERE certificate_id = v_id AND reissued_by = auth.uid() AND idempotency_key = 'b3000000-0000-4000-8000-000000000001') <> 1 THEN
+    RAISE EXCEPTION 'I3D duplicate reissue submission created more than one event';
+  END IF;
+  IF (SELECT count(*) FROM public.certificate_reissue_events WHERE certificate_id = v_id AND reissued_by = auth.uid() AND idempotency_key = 'b3000000-0000-4000-8000-000000000002') <> 1 THEN
+    RAISE EXCEPTION 'I3D distinct reissue request did not append one event';
+  END IF;
   IF (SELECT count(*) FROM public.certificate_reissue_events WHERE certificate_id = v_id AND reissued_by = auth.uid() AND event_type = 'reprint') <> 1 THEN
     RAISE EXCEPTION 'I3A reprint event actor/type mismatch';
   END IF;

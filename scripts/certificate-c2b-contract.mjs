@@ -26,7 +26,7 @@ assert.match(actions, /rpc\("reissue_certificate"/);
 assert.doesNotMatch(actions, /update\(\{ status: "valid", issue_date:/);
 assert.match(actions, /p_event_type: eventType/);
 assert.match(actions, /p_reason: reason \|\| null/);
-assert.match(actions, /p_notes: \{\}/);
+assert.match(actions, /p_notes: \{ idempotency_key: idempotencyKey \}/);
 assert.match(actions, /certificateReissueSchema\.safeParse/);
 assert.match(schemas, /certificateReissueSchema = z\.object/);
 assert.match(schemas, /max\(500\)/);

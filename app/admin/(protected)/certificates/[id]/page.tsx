@@ -11,6 +11,7 @@ import { EmptyState } from "../../../../../components/admin/ui";
 import { formatMalaysiaDateTime } from "../../../../../lib/date-time";
 import { CERTIFICATE_PROVENANCE_META } from "../../../../../lib/certificate-skills";
 import { CertificateActionDialog } from "../../../../../components/admin/CertificateActionDialog";
+import { ReissueCertificateForm } from "../../../../../components/admin/ReissueCertificateForm";
 
 interface ReissueHistoryRow {
   id: string;
@@ -115,18 +116,7 @@ await requireModuleAccess("certificates");
                     reasonPlaceholder="Explain why this certificate is being revoked"
                     danger
                   />}
-                  <form action={reissueCertificate.bind(null, id)} style={{ display: "flex", gap: 8, alignItems: "end", flexWrap: "wrap" }}>
-                    <label style={{ fontSize: 12 }}>Event
-                      <select name="event_type" defaultValue="reissue" style={{ display: "block", marginTop: 4 }}>
-                        <option value="reissue">Reissue</option>
-                        <option value="reprint">Reprint</option>
-                      </select>
-                    </label>
-                    <label style={{ fontSize: 12 }}>Reason
-                      <input name="reason" required maxLength={500} style={{ display: "block", marginTop: 4 }} />
-                    </label>
-                    <button className="ta-btn ta-btn-gold">Record event</button>
-                  </form>
+                  <ReissueCertificateForm action={reissueCertificate.bind(null, id)} certificateId={id} />
                   <CertificateActionDialog
                     label="Duplicate"
                     title="Duplicate certificate?"
