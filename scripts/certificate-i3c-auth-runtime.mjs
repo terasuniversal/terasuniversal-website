@@ -73,3 +73,4 @@ run(process.execPath, [lifecyclePath], {
   stdio: "inherit",
 });
 console.log("I3C auth-compatible public lifecycle runtime and issuance/render/PDF/QR verification: PASS.");
+console.log("I3C_COMBINED: PASS");

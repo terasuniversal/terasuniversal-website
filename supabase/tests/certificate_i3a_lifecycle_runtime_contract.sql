@@ -1,5 +1,5 @@
 -- I3A end-to-end lifecycle probe for an isolated local PostgreSQL 17 instance.
--- Run as a disposable bootstrap superuser; lifecycle calls run as authenticated.
+-- Run as a disposable bootstrap owner; lifecycle calls run as authenticated.
 -- All fixture writes are rolled back. With -v render_fixture=1, emits one
 -- machine-readable synthetic render record; the harness must keep it in memory.
 \set ON_ERROR_STOP on
@@ -172,6 +172,7 @@ $$;
 SET LOCAL ROLE authenticated;
 SET LOCAL request.jwt.claim.sub = 'a3000000-0000-4000-8000-000000000001';
 SET LOCAL request.jwt.claim.role = 'authenticated';
+SET LOCAL request.jwt.claims = '{"sub":"a3000000-0000-4000-8000-000000000001","role":"authenticated"}';
 
 DO $$
 DECLARE
@@ -182,6 +183,11 @@ DECLARE
   v_before jsonb;
   v_after jsonb;
   v_event_count integer;
+  v_rows_matched integer;
+  v_rows_changed integer;
+  v_rows_after integer;
+  v_before_fingerprint text;
+  v_after_fingerprint text;
   v_duplicate_id uuid;
   v_legacy_id uuid;
   v_verify record;
@@ -266,6 +272,13 @@ begin
   IF v_snapshot->'template_config'->>'show_back_page' <> 'true' OR v_snapshot->'template_config'->>'show_qr' <> 'true' THEN
     RAISE EXCEPTION 'I3A issuance snapshot did not capture historical page visibility';
   END IF;
+  SELECT id INTO v_duplicate_id
+  FROM public.duplicate_certificate_with_skill_snapshot(v_id);
+  IF v_duplicate_id IS NULL OR NOT EXISTS (
+    SELECT 1 FROM public.certificate_issuance_snapshots WHERE certificate_id = v_duplicate_id
+  ) THEN
+    RAISE EXCEPTION 'I3B public duplicate RPC did not create a snapshot-backed certificate';
+  END IF;
 
   v_before := (
     SELECT jsonb_build_object(
@@ -339,14 +352,37 @@ begin
     RAISE NOTICE 'I3E direct event INSERT denied: SQLSTATE %',v_sqlstate;
   END;
 
+  SELECT count(*), md5(coalesce(string_agg(to_jsonb(s)::text, E'\n' ORDER BY to_jsonb(s)::text), ''))
+  INTO v_rows_matched, v_before_fingerprint
+  FROM public.certificate_issuance_snapshots s
+  WHERE s.certificate_id = v_id;
+  IF v_rows_matched <> 1 THEN
+    RAISE EXCEPTION 'I3A direct snapshot UPDATE precondition failed: expected exactly one target row, found %', v_rows_matched;
+  END IF;
+  v_rows_changed := 0;
+  v_sqlstate := NULL;
   BEGIN
     UPDATE public.certificate_issuance_snapshots SET holder_name = 'Unauthorized mutation' WHERE certificate_id = v_id;
-    RAISE EXCEPTION 'I3A authenticated direct snapshot UPDATE unexpectedly succeeded';
+    GET DIAGNOSTICS v_rows_changed = ROW_COUNT;
   EXCEPTION WHEN insufficient_privilege THEN
     GET STACKED DIAGNOSTICS v_sqlstate = RETURNED_SQLSTATE;
-    IF v_sqlstate <> '42501' THEN RAISE EXCEPTION 'Direct snapshot UPDATE SQLSTATE was %',v_sqlstate; END IF;
-    RAISE NOTICE 'I3E direct snapshot UPDATE denied: SQLSTATE %',v_sqlstate;
+    IF v_sqlstate <> '42501' THEN RAISE; END IF;
+    v_rows_changed := 0;
   END;
+  IF v_sqlstate IS NULL AND v_rows_changed <> 0 THEN
+    RAISE EXCEPTION 'I3A unauthorized snapshot UPDATE returned without error but affected % rows', v_rows_changed;
+  END IF;
+  SELECT count(*), md5(coalesce(string_agg(to_jsonb(s)::text, E'\n' ORDER BY to_jsonb(s)::text), ''))
+  INTO v_rows_after, v_after_fingerprint
+  FROM public.certificate_issuance_snapshots s
+  WHERE s.certificate_id = v_id;
+  IF v_rows_after <> 1 OR v_rows_matched <> v_rows_after OR v_rows_changed <> 0
+    OR v_before_fingerprint IS DISTINCT FROM v_after_fingerprint THEN
+    RAISE EXCEPTION 'I3A authenticated snapshot mutation changed protected data (matched %, changed %, after %, before fingerprint %, after fingerprint %)',
+      v_rows_matched, v_rows_changed, v_rows_after, v_before_fingerprint, v_after_fingerprint;
+  END IF;
+  RAISE NOTICE 'DIRECT_SNAPSHOT_MUTATION_BLOCKED: PASS matched=% changed=% before_fingerprint=% after_fingerprint=% sqlstate=%',
+    v_rows_matched, v_rows_changed, v_before_fingerprint, v_after_fingerprint, v_sqlstate;
 
   BEGIN
     DELETE FROM public.certificate_issuance_snapshots WHERE certificate_id = v_id;
@@ -399,13 +435,6 @@ begin
     RAISE NOTICE 'I3C server-side missing certificate detail: SQLSTATE %, %', SQLSTATE, SQLERRM;
   END;
 
-  SELECT id INTO v_duplicate_id
-  FROM public.duplicate_certificate_with_skill_snapshot(v_id);
-  IF v_duplicate_id IS NULL OR NOT EXISTS (
-    SELECT 1 FROM public.certificate_issuance_snapshots WHERE certificate_id = v_duplicate_id
-  ) THEN
-    RAISE EXCEPTION 'I3B public duplicate RPC did not create a snapshot-backed certificate';
-  END IF;
   PERFORM public.update_certificate_metadata(v_duplicate_id, CURRENT_DATE + 365, 'I3B metadata update');
   IF NOT EXISTS (SELECT 1 FROM public.certificates WHERE id = v_duplicate_id AND expiry_date = CURRENT_DATE + 365 AND remarks = 'I3B metadata update') THEN
     RAISE EXCEPTION 'I3B public metadata update did not persist';
@@ -436,12 +465,15 @@ begin
     RAISE EXCEPTION 'I3A reissue event actor/type mismatch';
   END IF;
   PERFORM set_config('request.jwt.claim.sub', 'a3000000-0000-4000-8000-000000000004', true);
+  PERFORM set_config('request.jwt.claims', '{"sub":"a3000000-0000-4000-8000-000000000004","role":"authenticated"}', true);
   SELECT count(*) INTO v_count FROM public.certificate_reissue_events WHERE certificate_id = v_id;
   IF v_count <> 2 THEN RAISE EXCEPTION 'I3E authorized cross-admin could not read legitimate reissue history'; END IF;
   PERFORM set_config('request.jwt.claim.sub', 'a3000000-0000-4000-8000-000000000002', true);
+  PERFORM set_config('request.jwt.claims', '{"sub":"a3000000-0000-4000-8000-000000000002","role":"authenticated"}', true);
   SELECT count(*) INTO v_count FROM public.certificate_reissue_events WHERE certificate_id=v_id;
   IF v_count <> 0 THEN RAISE EXCEPTION 'I3E user without certificate module permission read reissue history'; END IF;
   PERFORM set_config('request.jwt.claim.sub', 'a3000000-0000-4000-8000-000000000001', true);
+  PERFORM set_config('request.jwt.claims', '{"sub":"a3000000-0000-4000-8000-000000000001","role":"authenticated"}', true);
 
   v_after := (
     SELECT jsonb_build_object(
@@ -487,8 +519,10 @@ begin
   EXECUTE 'SET LOCAL ROLE authenticated';
   PERFORM set_config('request.jwt.claim.sub', 'a3000000-0000-4000-8000-000000000001', true);
   PERFORM set_config('request.jwt.claim.role', 'authenticated', true);
+  PERFORM set_config('request.jwt.claims', '{"sub":"a3000000-0000-4000-8000-000000000001","role":"authenticated"}', true);
 
   PERFORM set_config('request.jwt.claim.sub', 'a3000000-0000-4000-8000-000000000003', true);
+  PERFORM set_config('request.jwt.claims', '{"sub":"a3000000-0000-4000-8000-000000000003","role":"authenticated"}', true);
   BEGIN
     PERFORM * FROM public.issue_certificate_with_skill_snapshot(
       'a3000000-0000-4000-8000-000000000013',
@@ -501,6 +535,7 @@ begin
     IF v_sqlstate <> '42501' THEN RAISE EXCEPTION 'I3E inactive admin denial SQLSTATE was %',v_sqlstate; END IF;
   END;
   PERFORM set_config('request.jwt.claim.sub', 'a3000000-0000-4000-8000-000000000002', true);
+  PERFORM set_config('request.jwt.claims', '{"sub":"a3000000-0000-4000-8000-000000000002","role":"authenticated"}', true);
   SELECT count(*) INTO v_count FROM public.certificate_branches WHERE id = 'a3000000-0000-4000-8000-000000000010';
   IF v_count <> 0 THEN RAISE EXCEPTION 'I3A unauthorized authenticated user gained branch access'; END IF;
   BEGIN
@@ -521,6 +556,7 @@ begin
   BEGIN PERFORM public.set_certificate_verification_enabled(v_id, false); RAISE EXCEPTION 'I3B no-module verification toggle unexpectedly succeeded'; EXCEPTION WHEN insufficient_privilege THEN NULL; END;
 
   PERFORM set_config('request.jwt.claim.sub', 'a3000000-0000-4000-8000-000000000005', true);
+  PERFORM set_config('request.jwt.claims', '{"sub":"a3000000-0000-4000-8000-000000000005","role":"authenticated"}', true);
   IF NOT app.is_editor() OR public.has_module_access_level('certificates','admin') THEN
     RAISE EXCEPTION 'I3E editor fixture does not represent insufficient admin-level certificate access';
   END IF;
@@ -536,7 +572,6 @@ begin
     IF v_sqlstate <> '42501' THEN RAISE EXCEPTION 'I3E insufficient editor permission SQLSTATE was %',v_sqlstate; END IF;
   END;
 
-  PERFORM set_config('request.jwt.claim.sub', 'a3000000-0000-4000-8000-000000000001', true);
   PERFORM set_config('request.jwt.claim.role', 'anon', true);
   PERFORM set_config('request.jwt.claim.sub', '', true);
   PERFORM set_config('request.jwt.claims', '{"role":"anon"}', true);
@@ -606,12 +641,15 @@ begin
   EXECUTE 'SET LOCAL ROLE authenticated';
   PERFORM set_config('request.jwt.claim.sub', 'a3000000-0000-4000-8000-000000000001', true);
   PERFORM set_config('request.jwt.claim.role', 'authenticated', true);
+  PERFORM set_config('request.jwt.claims', '{"sub":"a3000000-0000-4000-8000-000000000001","role":"authenticated"}', true);
   PERFORM public.revoke_certificate(v_id, 'I3A runtime revoke');
   IF NOT EXISTS (SELECT 1 FROM public.certificates WHERE id = v_id AND status = 'revoked') THEN
     RAISE EXCEPTION 'I3A revoke did not update certificate state';
   END IF;
 
+  PERFORM set_config('request.jwt.claim.sub', '', true);
   PERFORM set_config('request.jwt.claim.role', 'anon', true);
+  PERFORM set_config('request.jwt.claims', '{"role":"anon"}', true);
   EXECUTE 'RESET ROLE';
   EXECUTE 'SET LOCAL ROLE anon';
   SELECT * INTO v_verify FROM public.verify_and_log(v_token, 'token', NULL, NULL);
@@ -624,6 +662,7 @@ begin
   EXECUTE 'SET LOCAL ROLE authenticated';
   PERFORM set_config('request.jwt.claim.sub', 'a3000000-0000-4000-8000-000000000001', true);
   PERFORM set_config('request.jwt.claim.role', 'authenticated', true);
+  PERFORM set_config('request.jwt.claims', '{"sub":"a3000000-0000-4000-8000-000000000001","role":"authenticated"}', true);
 
   IF NOT EXISTS (
     SELECT 1 FROM public.i3e_executor_observations

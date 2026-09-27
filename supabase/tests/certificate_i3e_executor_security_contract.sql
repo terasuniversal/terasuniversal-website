@@ -81,6 +81,7 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'I3E unavoidable bootstrap ADMIN grant must remain non-INHERIT and non-SET';
   END IF;
+  RAISE NOTICE 'MIGRATION_ADMIN_POSTCONDITION: PASS';
   IF EXISTS (
        SELECT 1 FROM pg_namespace n
        CROSS JOIN LATERAL aclexplode(coalesce(n.nspacl,acldefault('n',n.nspowner))) a
@@ -141,8 +142,9 @@ BEGIN
       RAISE EXCEPTION 'Public wrapper % is not SECURITY DEFINER owned by executor',v_fn;
     END IF;
     IF NOT has_function_privilege('authenticated',v_oid,'EXECUTE')
-       OR has_function_privilege('anon',v_oid,'EXECUTE') THEN
-      RAISE EXCEPTION 'Public wrapper % has incorrect anon/authenticated ACL',v_fn;
+       OR has_function_privilege('anon',v_oid,'EXECUTE')
+       OR has_function_privilege('service_role',v_oid,'EXECUTE') THEN
+      RAISE EXCEPTION 'Public wrapper % has incorrect anon/authenticated/service_role ACL',v_fn;
     END IF;
   END LOOP;
 
@@ -172,73 +174,67 @@ BEGIN
 END
 $i3e$;
 
--- JWT/GUC behavior contract: execute as authenticated without any auth-schema
--- grant to the lifecycle executor; malformed subject claims fail closed.
+-- Hosted-compatible request context: auth.uid(), auth.jwt(), and the actor
+-- helper agree when transaction-local claims are installed as PostgREST does.
 BEGIN;
 SET LOCAL ROLE authenticated;
 DO $actor$
-DECLARE
-  v_auth uuid;
-  v_state text;
 BEGIN
   PERFORM set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',true);
+  PERFORM set_config('request.jwt.claim.role','authenticated',true);
   PERFORM set_config('request.jwt.claims','{"sub":"11111111-1111-4111-8111-111111111111","role":"authenticated"}',true);
-  IF auth.uid() IS DISTINCT FROM app.request_actor_id()
-     OR app.request_actor_id() IS DISTINCT FROM '11111111-1111-4111-8111-111111111111'::uuid THEN
-    RAISE EXCEPTION 'I3E authenticated actor helper differs from auth.uid()';
+  IF current_user <> 'authenticated'
+     OR auth.uid() IS DISTINCT FROM '11111111-1111-4111-8111-111111111111'::uuid
+     OR auth.jwt()->>'sub' IS DISTINCT FROM '11111111-1111-4111-8111-111111111111'
+     OR auth.jwt()->>'role' IS DISTINCT FROM 'authenticated'
+     OR app.request_actor_id() IS DISTINCT FROM auth.uid() THEN
+    RAISE EXCEPTION 'Hosted auth helpers and app request actor disagree for transaction-local claims';
   END IF;
 
-  PERFORM set_config('request.jwt.claim.sub','',true);
+  PERFORM set_config('request.jwt.claim.sub','22222222-2222-4222-8222-222222222222',true);
   PERFORM set_config('request.jwt.claims','{"sub":"22222222-2222-4222-8222-222222222222","role":"authenticated"}',true);
-  IF auth.uid() IS DISTINCT FROM app.request_actor_id()
-     OR app.request_actor_id() IS DISTINCT FROM '22222222-2222-4222-8222-222222222222'::uuid THEN
-    RAISE EXCEPTION 'I3E claims-json fallback differs from auth.uid()';
+  IF auth.uid() IS DISTINCT FROM '22222222-2222-4222-8222-222222222222'::uuid
+     OR auth.jwt()->>'sub' IS DISTINCT FROM '22222222-2222-4222-8222-222222222222'
+     OR app.request_actor_id() IS DISTINCT FROM auth.uid() THEN
+    RAISE EXCEPTION 'Hosted auth helpers and app request actor disagree for second request context';
+  END IF;
+
+  -- Exercise the app helper's JSON fallback independently. A deliberately
+  -- inconsistent GUC pair is not used to assert auth.uid() behavior.
+  PERFORM set_config('request.jwt.claim.sub','',true);
+  IF app.request_actor_id() IS DISTINCT FROM '22222222-2222-4222-8222-222222222222'::uuid THEN
+    RAISE EXCEPTION 'I3E request actor JSON fallback did not return the valid subject';
   END IF;
 
   PERFORM set_config('request.jwt.claim.sub','',true);
+  PERFORM set_config('request.jwt.claim.role','anon',true);
   PERFORM set_config('request.jwt.claims','{"role":"anon"}',true);
-  IF auth.uid() IS DISTINCT FROM app.request_actor_id() OR app.request_actor_id() IS NOT NULL THEN
+  IF auth.uid() IS NOT NULL OR auth.jwt()->>'role' IS DISTINCT FROM 'anon' OR app.request_actor_id() IS NOT NULL THEN
     RAISE EXCEPTION 'I3E anonymous request actor did not fail closed';
   END IF;
 
+  PERFORM set_config('request.jwt.claim.role','authenticated',true);
   PERFORM set_config('request.jwt.claims','',true);
-  IF auth.uid() IS DISTINCT FROM app.request_actor_id() OR app.request_actor_id() IS NOT NULL THEN
+  IF app.request_actor_id() IS NOT NULL THEN
     RAISE EXCEPTION 'I3E missing-claims actor did not fail closed';
   END IF;
 
   PERFORM set_config('request.jwt.claims','not-json',true);
-  v_state := NULL;
-  BEGIN
-    v_auth := auth.uid();
-  EXCEPTION WHEN invalid_text_representation THEN
-    GET STACKED DIAGNOSTICS v_state=RETURNED_SQLSTATE;
-  END;
-  IF v_state IS DISTINCT FROM '22P02' OR app.request_actor_id() IS NOT NULL THEN
+  IF app.request_actor_id() IS NOT NULL THEN
     RAISE EXCEPTION 'I3E malformed claims JSON did not fail closed';
   END IF;
 
   PERFORM set_config('request.jwt.claims','{"sub":""}',true);
-  v_state := NULL;
-  BEGIN
-    v_auth := auth.uid();
-  EXCEPTION WHEN invalid_text_representation THEN
-    GET STACKED DIAGNOSTICS v_state=RETURNED_SQLSTATE;
-  END;
-  IF v_state IS DISTINCT FROM '22P02' OR app.request_actor_id() IS NOT NULL THEN
+  IF app.request_actor_id() IS NOT NULL THEN
     RAISE EXCEPTION 'I3E empty JWT subject did not fail closed';
   END IF;
 
   PERFORM set_config('request.jwt.claim.sub','not-a-uuid',true);
   PERFORM set_config('request.jwt.claims','{"sub":"not-a-uuid"}',true);
-  v_state := NULL;
-  BEGIN
-    v_auth := auth.uid();
-  EXCEPTION WHEN invalid_text_representation THEN
-    GET STACKED DIAGNOSTICS v_state=RETURNED_SQLSTATE;
-  END;
-  IF v_state IS DISTINCT FROM '22P02' OR app.request_actor_id() IS NOT NULL THEN
+  IF app.request_actor_id() IS NOT NULL THEN
     RAISE EXCEPTION 'I3E malformed JWT subject did not fail closed';
   END IF;
+  RAISE NOTICE 'HOSTED_AUTH_CONTEXT_CONTRACT: PASS';
 END;
 $actor$;
 ROLLBACK;

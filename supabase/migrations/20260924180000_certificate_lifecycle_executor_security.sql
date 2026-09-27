@@ -17,7 +17,7 @@ BEGIN
     RAISE EXCEPTION 'I3E executor role attributes unsafe';
   END IF;
   IF NOT pg_has_role(current_user,'certificate_lifecycle_executor','SET') THEN
-    EXECUTE 'GRANT certificate_lifecycle_executor TO postgres WITH ADMIN FALSE, INHERIT FALSE, SET TRUE GRANTED BY postgres';
+    EXECUTE 'GRANT certificate_lifecycle_executor TO CURRENT_USER WITH ADMIN FALSE, INHERIT FALSE, SET TRUE';
   END IF;
 END;
 $executor_role_setup$;
@@ -242,7 +242,7 @@ REVOKE ALL ON FUNCTION app.issue_certificate_with_skill_snapshot(uuid,uuid,text)
 REVOKE ALL ON FUNCTION public.issue_certificate_with_skill_snapshot(uuid,uuid,text),public.duplicate_certificate_with_skill_snapshot(uuid),public.reissue_certificate(uuid,text,text,jsonb),public.revoke_certificate(uuid,text),public.update_certificate_metadata(uuid,date,text),public.set_certificate_deleted(uuid,boolean),public.set_certificate_verification_enabled(uuid,boolean),public.import_legacy_certificate(uuid,uuid,jsonb) FROM PUBLIC,anon,authenticated,service_role;
 GRANT EXECUTE ON FUNCTION public.issue_certificate_with_skill_snapshot(uuid,uuid,text),public.duplicate_certificate_with_skill_snapshot(uuid),public.reissue_certificate(uuid,text,text,jsonb),public.revoke_certificate(uuid,text),public.update_certificate_metadata(uuid,date,text),public.set_certificate_deleted(uuid,boolean),public.set_certificate_verification_enabled(uuid,boolean),public.import_legacy_certificate(uuid,uuid,jsonb) TO authenticated;
 RESET ROLE;
-GRANT certificate_lifecycle_executor TO postgres WITH ADMIN FALSE, INHERIT FALSE, SET FALSE GRANTED BY postgres;
+GRANT certificate_lifecycle_executor TO CURRENT_USER WITH ADMIN FALSE, INHERIT FALSE, SET FALSE;
 REVOKE CREATE ON SCHEMA app,public FROM certificate_lifecycle_executor;
 DO $post$
 DECLARE r record; f text; o oid; t text; v_source text;
@@ -268,9 +268,20 @@ BEGIN
       has_function_privilege('certificate_lifecycle_executor','app.is_editor()','EXECUTE'),
       has_function_privilege('certificate_lifecycle_executor','app.current_role()','EXECUTE');
   END IF;
-  IF pg_has_role('postgres','certificate_lifecycle_executor','SET') THEN RAISE EXCEPTION 'I3E migration role retains SET ROLE capability'; END IF;
-  IF EXISTS (SELECT 1 FROM pg_auth_members m JOIN pg_roles target ON target.oid=m.roleid JOIN pg_roles member ON member.oid=m.member WHERE target.rolname='certificate_lifecycle_executor' AND member.rolname='postgres' AND (m.set_option OR m.inherit_option)) THEN RAISE EXCEPTION 'I3E migration membership retains SET or INHERIT'; END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_auth_members m JOIN pg_roles target ON target.oid=m.roleid JOIN pg_roles member ON member.oid=m.member WHERE target.rolname='certificate_lifecycle_executor' AND member.rolname='postgres' AND m.admin_option AND NOT m.set_option AND NOT m.inherit_option) THEN RAISE EXCEPTION 'I3E bootstrap ADMIN membership was not preserved in least-capability state'; END IF;
+  IF pg_has_role(CURRENT_USER,'certificate_lifecycle_executor','SET') THEN RAISE EXCEPTION 'I3E migration role retains SET ROLE capability'; END IF;
+  IF EXISTS (SELECT 1 FROM pg_auth_members m JOIN pg_roles target ON target.oid=m.roleid WHERE target.rolname='certificate_lifecycle_executor' AND (m.set_option OR m.inherit_option)) THEN RAISE EXCEPTION 'I3E executor membership retains SET or INHERIT'; END IF;
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_auth_members m
+    JOIN pg_roles target ON target.oid=m.roleid
+    JOIN pg_roles member ON member.oid=m.member
+    WHERE target.rolname='certificate_lifecycle_executor'
+      AND member.rolname='postgres'
+      AND m.admin_option
+      AND NOT m.set_option
+      AND NOT m.inherit_option
+  ) THEN RAISE EXCEPTION 'I3E required postgres ADMIN membership postcondition failed'; END IF;
+  RAISE NOTICE 'MIGRATION_ADMIN_POSTCONDITION: PASS';
   IF EXISTS (SELECT 1 FROM pg_auth_members m JOIN pg_roles target ON target.oid=m.roleid JOIN pg_roles member ON member.oid=m.member WHERE target.rolname='certificate_lifecycle_executor' AND member.rolname IN ('anon','authenticated','service_role')) THEN RAISE EXCEPTION 'I3E executor directly granted to an application role'; END IF;
   FOREACH f IN ARRAY ARRAY['app.issue_certificate_with_skill_snapshot(uuid,uuid,text)','app.duplicate_certificate_with_skill_snapshot(uuid)','app.reissue_certificate(uuid,text,text,jsonb)','app.revoke_certificate(uuid,text)','app.update_certificate_metadata(uuid,date,text)','app.set_certificate_deleted(uuid,boolean)','app.set_certificate_verification_enabled(uuid,boolean)','app.import_legacy_certificate(uuid,uuid,jsonb)'] LOOP
     o:=to_regprocedure(f);

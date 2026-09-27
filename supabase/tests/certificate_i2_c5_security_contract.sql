@@ -80,7 +80,10 @@ begin
     select 1 from pg_catalog.pg_policies p
     where p.schemaname = 'public' and p.tablename = 'certificate_issuance_snapshots'
       and p.policyname = 'cert_issuance_snapshot_definer_read' and p.cmd = 'SELECT'
-      and p.roles = array['postgres']::name[] and p.qual = 'true'
+      and p.roles = array['certificate_lifecycle_executor']::name[]
+      and p.qual like '%app.is_active()%'
+      and p.qual like '%app.is_admin()%'
+      and p.qual like '%has_module_access_level%'
   ) or exists (
     select 1 from pg_catalog.pg_policies p
     where p.schemaname = 'public' and p.tablename = 'certificate_issuance_snapshots'
@@ -92,7 +95,8 @@ begin
   if not pg_catalog.has_table_privilege('authenticated', v_log, 'SELECT')
     or pg_catalog.has_table_privilege('authenticated', v_log, 'INSERT')
     or pg_catalog.has_table_privilege('authenticated', v_log, 'UPDATE')
-    or pg_catalog.has_table_privilege('authenticated', v_log, 'DELETE') then
+    or pg_catalog.has_table_privilege('authenticated', v_log, 'DELETE')
+    or pg_catalog.has_table_privilege('authenticated', v_log, 'TRUNCATE') then
     raise exception 'I2 fail: authenticated log access must be read-only';
   end if;
 
@@ -115,8 +119,8 @@ begin
   end if;
   if pg_catalog.has_function_privilege('anon', v_app_import, 'EXECUTE')
     or pg_catalog.has_function_privilege('service_role', v_app_import, 'EXECUTE')
-    or not pg_catalog.has_function_privilege('authenticated', v_app_import, 'EXECUTE') then
-    raise exception 'I2 fail: internal legacy-import grants are not explicit/auth-only';
+    or pg_catalog.has_function_privilege('authenticated', v_app_import, 'EXECUTE') then
+    raise exception 'I2 fail: internal legacy-import grants must remain executor-only';
   end if;
   if pg_catalog.has_schema_privilege('authenticated', 'app', 'USAGE') is false then
     raise exception 'I2 precondition failed: authenticated admin wrapper cannot resolve app implementation';
@@ -125,6 +129,9 @@ end;
 $$;
 
 set local role anon;
+set local request.jwt.claim.sub = '';
+set local request.jwt.claim.role = 'anon';
+set local request.jwt.claims = '{"role":"anon","aud":"anon"}';
 select pg_catalog.count(*) from public.verify_and_log('I2-ANON-RPC-PROBE', 'token', null, 'I2 synthetic probe');
 
 do $$
@@ -156,6 +163,9 @@ $$;
 
 reset role;
 set local role authenticated;
+set local request.jwt.claim.sub = '00000000-0000-4000-8000-00000000ca13';
+set local request.jwt.claim.role = 'authenticated';
+set local request.jwt.claims = '{"sub":"00000000-0000-4000-8000-00000000ca13","role":"authenticated","aud":"authenticated"}';
 select pg_catalog.count(*) from public.verify_and_log('I2-AUTH-RPC-PROBE', 'token', null, 'I2 synthetic probe');
 
 rollback;

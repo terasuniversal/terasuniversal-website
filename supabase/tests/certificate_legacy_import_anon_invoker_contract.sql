@@ -1,10 +1,14 @@
 -- I2 final-state legacy import boundary contract. Local/test PostgreSQL only.
--- Anon EXECUTE is explicitly revoked; do not rely on missing app-schema USAGE.
--- The authenticated SECURITY INVOKER wrapper preserves the guarded admin and
--- certificates-module path. All probes are transaction-scoped and synthetic.
+-- Anon EXECUTE is explicitly revoked. The public SECURITY DEFINER wrapper and
+-- app implementation are executor-owned; only the wrapper is callable by
+-- authenticated, and its guarded admin/module path is tested below.
+-- All probes are synthetic and transaction-scoped.
 
 begin;
 set local role anon;
+set local request.jwt.claim.sub = '';
+set local request.jwt.claim.role = 'anon';
+set local request.jwt.claims = '{"role":"anon","aud":"anon"}';
 
 do $$
 declare
@@ -12,14 +16,18 @@ declare
   v_import oid;
   v_wrapper_definer boolean;
   v_import_definer boolean;
+  v_wrapper_owner name;
+  v_import_owner name;
+  v_wrapper_config text[];
+  v_import_config text[];
   v_state text;
   v_message text;
 begin
   if current_user <> 'anon' then
     raise exception 'C5B1 anon wrapper contract did not assume anon role';
   end if;
-  select p.oid, p.prosecdef
-  into v_import, v_import_definer
+  select p.oid, p.prosecdef, pg_catalog.pg_get_userbyid(p.proowner)::name, p.proconfig
+  into v_import, v_import_definer, v_import_owner, v_import_config
   from pg_catalog.pg_proc p
   join pg_catalog.pg_namespace n on n.oid = p.pronamespace
   where n.nspname = 'app'
@@ -29,9 +37,15 @@ begin
   if v_wrapper is null or v_import is null then
     raise exception 'C5B1 legacy import wrapper or implementation is missing';
   end if;
-  select prosecdef into v_wrapper_definer from pg_catalog.pg_proc where oid = v_wrapper;
-  if v_wrapper_definer or not v_import_definer then
-    raise exception 'C5B1 wrapper/import SECURITY INVOKER/DEFINER contract changed';
+  select prosecdef, pg_catalog.pg_get_userbyid(proowner)::name, proconfig
+  into v_wrapper_definer, v_wrapper_owner, v_wrapper_config
+  from pg_catalog.pg_proc where oid = v_wrapper;
+  if not v_wrapper_definer or not v_import_definer
+    or v_wrapper_owner <> 'certificate_lifecycle_executor'
+    or v_import_owner <> 'certificate_lifecycle_executor'
+    or not ('search_path=pg_catalog' = any(v_wrapper_config))
+    or not ('search_path=pg_catalog, public, app, extensions' = any(v_import_config)) then
+    raise exception 'C5B1 wrapper/import executor owner or fixed search-path contract changed';
   end if;
   if pg_catalog.has_function_privilege('anon', v_wrapper, 'EXECUTE') then
     raise exception 'I2 anon retains legacy-import EXECUTE';
@@ -40,9 +54,11 @@ begin
     raise exception 'I2 anon retains app-import EXECUTE';
   end if;
   if not pg_catalog.has_function_privilege('authenticated', v_wrapper, 'EXECUTE')
-    or not pg_catalog.has_function_privilege('authenticated', v_import, 'EXECUTE')
+    or pg_catalog.has_function_privilege('authenticated', v_import, 'EXECUTE')
+    or pg_catalog.has_function_privilege('service_role', v_wrapper, 'EXECUTE')
+    or pg_catalog.has_function_privilege('service_role', v_import, 'EXECUTE')
     or not pg_catalog.has_schema_privilege('authenticated', 'app', 'USAGE') then
-    raise exception 'I2 authenticated guarded import path is unavailable';
+    raise exception 'I2 legacy-import wrapper grant boundary is not executor-only';
   end if;
 
   begin

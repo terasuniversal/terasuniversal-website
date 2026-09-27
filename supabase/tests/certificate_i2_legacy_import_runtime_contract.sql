@@ -54,6 +54,8 @@ $$;
 
 set local role authenticated;
 select pg_catalog.set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000e201', true);
+select pg_catalog.set_config('request.jwt.claim.role', 'authenticated', true);
+select pg_catalog.set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-00000000e201","role":"authenticated","aud":"authenticated"}', true);
 do $$
 declare
   v_state text;
@@ -72,6 +74,8 @@ end;
 $$;
 
 select pg_catalog.set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000e202', true);
+select pg_catalog.set_config('request.jwt.claim.role', 'authenticated', true);
+select pg_catalog.set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-00000000e202","role":"authenticated","aud":"authenticated"}', true);
 do $$
 declare
   v_log_count integer;

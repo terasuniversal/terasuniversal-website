@@ -207,6 +207,7 @@ async function main() {
       assert.ok(issuedPdfBytes.length > noQrPdfBytes.length + 250, "historical show_qr=true must add QR vector graphics to the PDF");
       assert.ok(pages[1]?.includes("I3A HISTORICAL PAGE TWO OBJECTIVE"), "issued PDF Page 2 must use captured historical content");
       console.log("Actual issued PDF: A4, historical 2-page layout, Page-2-only QR graphics, certificate number, no text overflow: PASS");
+      console.log("I3A_LIFECYCLE_RUNTIME: PASS");
     } finally {
       Module._load = originalLoad;
     }
