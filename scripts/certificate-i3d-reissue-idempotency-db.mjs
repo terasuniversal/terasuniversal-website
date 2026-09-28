@@ -60,6 +60,7 @@ CREATE TABLE public.certificate_reissue_events (
 ALTER TABLE public.certificate_reissue_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.certificate_reissue_events FORCE ROW LEVEL SECURITY;
 GRANT SELECT ON public.certificate_reissue_events TO authenticated,certificate_lifecycle_executor;
+GRANT ALL ON public.certificate_reissue_events TO service_role;
 GRANT INSERT (certificate_id,reissued_by,event_type,reason,notes) ON public.certificate_reissue_events TO certificate_lifecycle_executor;
 CREATE POLICY reissue_executor_read ON public.certificate_reissue_events FOR SELECT TO certificate_lifecycle_executor USING (app.is_active() AND app.is_admin() AND public.has_module_access_level('certificates','admin') AND reissued_by=app.request_actor_id());
 CREATE POLICY reissue_executor_insert ON public.certificate_reissue_events FOR INSERT TO certificate_lifecycle_executor WITH CHECK (app.is_active() AND app.is_admin() AND public.has_module_access_level('certificates','admin') AND reissued_by=app.request_actor_id());
@@ -119,6 +120,48 @@ END;
 $$;
 `;
 
+const apiAclSnapshotSql = String.raw`
+SELECT coalesce(
+  jsonb_agg(
+    jsonb_build_array(object_type,column_name,grantee,grantor,privilege_type,is_grantable)
+    ORDER BY object_type,column_name,grantee,grantor,privilege_type,is_grantable
+  ),
+  '[]'::jsonb
+)::text
+FROM (
+  SELECT 'table'::text AS object_type,
+         NULL::text AS column_name,
+         grantee.rolname::text AS grantee,
+         grantor.rolname::text AS grantor,
+         acl_entry.privilege_type,
+         acl_entry.is_grantable
+  FROM pg_catalog.pg_class c
+  CROSS JOIN LATERAL pg_catalog.aclexplode(
+    coalesce(c.relacl,pg_catalog.acldefault('r',c.relowner))
+  ) acl_entry
+  JOIN pg_catalog.pg_roles grantee ON grantee.oid=acl_entry.grantee
+  JOIN pg_catalog.pg_roles grantor ON grantor.oid=acl_entry.grantor
+  WHERE c.oid='public.certificate_reissue_events'::pg_catalog.regclass
+    AND grantee.rolname IN ('anon','authenticated','service_role')
+  UNION ALL
+  SELECT 'column'::text,
+         a.attname::text,
+         grantee.rolname::text,
+         grantor.rolname::text,
+         acl_entry.privilege_type,
+         acl_entry.is_grantable
+  FROM pg_catalog.pg_attribute a
+  CROSS JOIN LATERAL pg_catalog.aclexplode(a.attacl) acl_entry
+  JOIN pg_catalog.pg_roles grantee ON grantee.oid=acl_entry.grantee
+  JOIN pg_catalog.pg_roles grantor ON grantor.oid=acl_entry.grantor
+  WHERE a.attrelid='public.certificate_reissue_events'::pg_catalog.regclass
+    AND a.attnum>0
+    AND NOT a.attisdropped
+    AND a.attacl IS NOT NULL
+    AND grantee.rolname IN ('anon','authenticated','service_role')
+) api_acl;
+`;
+
 function docker(args, options = {}) {
   const result = spawnSync("docker", args, { cwd: repoRoot, encoding: "utf8", ...options });
   if (result.status !== 0) throw new Error(`docker ${args[0]} failed: ${(result.stderr || result.stdout || "").trim()}`);
@@ -129,6 +172,10 @@ function psqlInput(sql) {
   const result = spawnSync("docker", ["exec", "-i", "-u", "postgres", containerName, "psql", "-U", "bootstrap", "-d", "postgres", "-X", "-v", "ON_ERROR_STOP=1", "-q", "-A", "-t"], { cwd: repoRoot, input: sql, encoding: "utf8", maxBuffer: 4 * 1024 * 1024 });
   if (result.status !== 0) throw new Error(`Isolated reissue PostgreSQL contract failed: ${(result.stderr || result.stdout || "").trim()}`);
   return result.stdout.trim();
+}
+
+function readApiAclSnapshot() {
+  return JSON.parse(psqlInput(apiAclSnapshotSql));
 }
 
 function launchPsql(sql) {
@@ -166,7 +213,38 @@ async function main() {
     assert.ok(ready, "isolated PostgreSQL test container must become ready");
 
     psqlInput(bootstrapSql);
+    const apiAclBaseline = readApiAclSnapshot();
+    assert.equal(apiAclBaseline.filter((row) => row[0] === "table" && row[2] === "anon").length, 0,
+      "hosted API ACL baseline must have no direct anon table ACL");
+    assert.deepEqual(
+      apiAclBaseline.filter((row) => row[0] === "table" && row[2] === "authenticated").map((row) => row[4]).sort(),
+      ["SELECT"],
+      "authenticated must have SELECT-only table ACL",
+    );
+    assert.ok(
+      !apiAclBaseline.some((row) => ["anon", "authenticated"].includes(row[2]) && ["INSERT", "UPDATE", "DELETE"].includes(row[4])),
+      "anon/authenticated baseline must not have table- or column-level write ACLs",
+    );
+    const expectedServiceRolePrivileges = ["DELETE", "INSERT", "MAINTAIN", "REFERENCES", "SELECT", "TRIGGER", "TRUNCATE", "UPDATE"];
+    const baselineServiceRolePrivileges = [...new Set(
+      apiAclBaseline.filter((row) => row[0] === "table" && row[2] === "service_role").map((row) => row[4]),
+    )].sort();
+    for (const privilege of expectedServiceRolePrivileges) {
+      assert.ok(baselineServiceRolePrivileges.includes(privilege), `service_role baseline is missing ${privilege}`);
+    }
+    console.log("API_ACL_BASELINE_REPRODUCED: PASS");
+
     psqlInput(`SET SESSION AUTHORIZATION postgres;\n${readFileSync(migrationPath, "utf8")}`);
+    const apiAclAfter = readApiAclSnapshot();
+    assert.deepEqual(apiAclAfter, apiAclBaseline, "migration must preserve table- and column-level API-role ACLs");
+    assert.equal(psqlInput(`SELECT has_column_privilege(
+      'certificate_lifecycle_executor',
+      'public.certificate_reissue_events',
+      'idempotency_key',
+      'INSERT'
+    );`), "t", "executor must receive INSERT on the new idempotency_key column");
+    console.log("API_ACL_UNCHANGED_AFTER: PASS");
+
     psqlInput(String.raw`
       DO $$
       BEGIN

@@ -2,6 +2,99 @@
 -- the append-only history and allowing a new event under a new request key.
 begin;
 
+-- Snapshot direct API-role ACLs before changing the public table. The temporary
+-- relation is transaction-scoped and disappears at commit or rollback.
+create temporary table _teras_certificate_reissue_api_acl_baseline
+on commit drop
+as
+select 'table'::text as object_type,
+       null::text as column_name,
+       grantee.rolname::text as grantee,
+       grantor.rolname::text as grantor,
+       acl_entry.privilege_type,
+       acl_entry.is_grantable
+from pg_catalog.pg_class c
+cross join lateral pg_catalog.aclexplode(
+  coalesce(c.relacl, pg_catalog.acldefault('r', c.relowner))
+) acl_entry
+join pg_catalog.pg_roles grantee on grantee.oid = acl_entry.grantee
+join pg_catalog.pg_roles grantor on grantor.oid = acl_entry.grantor
+where c.oid = 'public.certificate_reissue_events'::pg_catalog.regclass
+  and grantee.rolname in ('anon', 'authenticated', 'service_role')
+union all
+select 'column'::text,
+       a.attname::text,
+       grantee.rolname::text,
+       grantor.rolname::text,
+       acl_entry.privilege_type,
+       acl_entry.is_grantable
+from pg_catalog.pg_attribute a
+cross join lateral pg_catalog.aclexplode(a.attacl) acl_entry
+join pg_catalog.pg_roles grantee on grantee.oid = acl_entry.grantee
+join pg_catalog.pg_roles grantor on grantor.oid = acl_entry.grantor
+where a.attrelid = 'public.certificate_reissue_events'::pg_catalog.regclass
+  and a.attnum > 0
+  and not a.attisdropped
+  and a.attacl is not null
+  and grantee.rolname in ('anon', 'authenticated', 'service_role');
+
+do $api_acl_baseline_precondition$
+begin
+  if exists (
+    select 1
+    from pg_temp._teras_certificate_reissue_api_acl_baseline
+    where grantee = 'anon'
+      and object_type = 'table'
+  ) then
+    raise exception 'Unexpected direct anon table ACL on certificate reissue events';
+  end if;
+  if not exists (
+       select 1
+       from pg_temp._teras_certificate_reissue_api_acl_baseline
+       where grantee = 'authenticated'
+         and object_type = 'table'
+         and privilege_type = 'SELECT'
+     )
+     or exists (
+       select 1
+       from pg_temp._teras_certificate_reissue_api_acl_baseline
+       where grantee = 'authenticated'
+         and object_type = 'table'
+         and (privilege_type <> 'SELECT' or is_grantable)
+     ) then
+    raise exception 'Unexpected authenticated table ACL baseline on certificate reissue events';
+  end if;
+  if exists (
+    select 1
+    from pg_temp._teras_certificate_reissue_api_acl_baseline
+    where grantee in ('anon', 'authenticated')
+      and privilege_type in ('INSERT', 'UPDATE', 'DELETE')
+  ) then
+    raise exception 'Unexpected anon/authenticated write ACL baseline on certificate reissue events';
+  end if;
+  if exists (
+    select expected.privilege_type
+    from (values
+      ('SELECT'::text),
+      ('INSERT'::text),
+      ('UPDATE'::text),
+      ('DELETE'::text),
+      ('TRUNCATE'::text),
+      ('REFERENCES'::text),
+      ('TRIGGER'::text),
+      ('MAINTAIN'::text)
+    ) expected(privilege_type)
+    except
+    select distinct privilege_type
+    from pg_temp._teras_certificate_reissue_api_acl_baseline
+    where grantee = 'service_role'
+      and object_type = 'table'
+  ) then
+    raise exception 'Expected pre-existing service_role table ACL baseline is incomplete';
+  end if;
+end;
+$api_acl_baseline_precondition$;
+
 alter table public.certificate_reissue_events
   add column if not exists idempotency_key uuid;
 
@@ -206,6 +299,8 @@ declare
   v_role record;
   v_function oid := pg_catalog.to_regprocedure('app.reissue_certificate(uuid,text,text,jsonb)');
   v_membership_count integer;
+  v_api_acl_before jsonb;
+  v_api_acl_after jsonb;
 begin
   select * into v_role
   from pg_catalog.pg_roles
@@ -276,18 +371,55 @@ begin
   ) then
     raise exception 'Certificate reissue event RLS/FORCE RLS postcondition failed';
   end if;
-  if exists (
-    select 1
+  select coalesce(
+    pg_catalog.jsonb_agg(
+      pg_catalog.jsonb_build_array(object_type, column_name, grantee, grantor, privilege_type, is_grantable)
+      order by object_type, column_name, grantee, grantor, privilege_type, is_grantable
+    ),
+    '[]'::jsonb
+  ) into v_api_acl_before
+  from pg_temp._teras_certificate_reissue_api_acl_baseline;
+  select coalesce(
+    pg_catalog.jsonb_agg(
+      pg_catalog.jsonb_build_array(object_type, column_name, grantee, grantor, privilege_type, is_grantable)
+      order by object_type, column_name, grantee, grantor, privilege_type, is_grantable
+    ),
+    '[]'::jsonb
+  ) into v_api_acl_after
+  from (
+    select 'table'::text as object_type,
+           null::text as column_name,
+           grantee.rolname::text as grantee,
+           grantor.rolname::text as grantor,
+           acl_entry.privilege_type,
+           acl_entry.is_grantable
     from pg_catalog.pg_class c
     cross join lateral pg_catalog.aclexplode(
       coalesce(c.relacl, pg_catalog.acldefault('r', c.relowner))
-    ) a
-    join pg_catalog.pg_roles r on r.oid = a.grantee
+    ) acl_entry
+    join pg_catalog.pg_roles grantee on grantee.oid = acl_entry.grantee
+    join pg_catalog.pg_roles grantor on grantor.oid = acl_entry.grantor
     where c.oid = 'public.certificate_reissue_events'::pg_catalog.regclass
-      and r.rolname in ('anon', 'authenticated', 'service_role')
-      and a.privilege_type in ('INSERT', 'UPDATE', 'DELETE')
-  ) then
-    raise exception 'An API role has direct write privilege on certificate reissue events';
+      and grantee.rolname in ('anon', 'authenticated', 'service_role')
+    union all
+    select 'column'::text,
+           a.attname::text,
+           grantee.rolname::text,
+           grantor.rolname::text,
+           acl_entry.privilege_type,
+           acl_entry.is_grantable
+    from pg_catalog.pg_attribute a
+    cross join lateral pg_catalog.aclexplode(a.attacl) acl_entry
+    join pg_catalog.pg_roles grantee on grantee.oid = acl_entry.grantee
+    join pg_catalog.pg_roles grantor on grantor.oid = acl_entry.grantor
+    where a.attrelid = 'public.certificate_reissue_events'::pg_catalog.regclass
+      and a.attnum > 0
+      and not a.attisdropped
+      and a.attacl is not null
+      and grantee.rolname in ('anon', 'authenticated', 'service_role')
+  ) api_acl;
+  if v_api_acl_after is distinct from v_api_acl_before then
+    raise exception 'API table/column ACLs on certificate reissue events changed from their pre-migration baseline';
   end if;
   if v_function is null
      or (select r.rolname from pg_catalog.pg_roles r where r.oid = (select p.proowner from pg_catalog.pg_proc p where p.oid = v_function)) <> 'certificate_lifecycle_executor'
