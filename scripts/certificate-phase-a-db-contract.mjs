@@ -14,7 +14,7 @@ if (externalDatabaseVariables.some((name) => process.env[name])) {
 const root = new URL("../", import.meta.url);
 const container = `teras-phase-a-${process.pid}-${randomUUID().slice(0, 8)}`;
 const password = `phase_a_disposable_${randomUUID()}`;
-const migration = await readFile(new URL("../supabase/migrations/20260929120001_certificate_issuing_branch_binding.sql", import.meta.url), "utf8");
+const migration = await readFile(new URL("../supabase/migrations/20260929125628_certificate_issuing_branch_binding.sql", import.meta.url), "utf8");
 const fixture = await readFile(new URL("./fixtures/certificate-phase-a-postgres.sql", import.meta.url), "utf8");
 
 function docker(args, input) {
