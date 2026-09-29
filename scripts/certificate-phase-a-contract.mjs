@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
-const migration = (await read("supabase/migrations/20260929120000_certificate_issuing_branch_binding.sql")).toLowerCase();
+const migration = (await read("supabase/migrations/20260929120001_certificate_issuing_branch_binding.sql")).toLowerCase();
 const scheduleActions = await read("app/admin/(protected)/schedules/actions.ts");
 const scheduleForm = await read("app/admin/(protected)/schedules/ScheduleForm.tsx");
 const schema = await read("lib/validation/schemas.ts");
