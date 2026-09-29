@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
 import { requireModuleAccess, requireCertificate } from "../../../../../../lib/auth/session";
 import { PageHead, Card, Badge, EmptyState } from "../../../../../../components/admin/ui";
+import { issuanceReasonLabel } from "../../../../../../lib/certificate-issuance-reasons";
 import { generateCertificate, bulkGenerate } from "../../actions";
 
 export const metadata = { title: "Generate Certificates — TERAS UNIVERSAL Admin" };
@@ -36,7 +37,7 @@ function reasonText(r: EligibilityRow): string {
   if (r.ineligibility_reason === "attendance_not_met") {
     return `Attendance ${r.attendance_percentage}% / Required ${r.attendance_min_percent}%`;
   }
-  return REASON_LABEL[r.ineligibility_reason ?? ""] ?? r.ineligibility_reason ?? "Not eligible";
+  return REASON_LABEL[r.ineligibility_reason ?? ""] ?? issuanceReasonLabel(r.ineligibility_reason);
 }
 
 export default async function GenerateForSchedulePage({
@@ -101,7 +102,7 @@ await requireModuleAccess("certificates");
         >
           {generated > 0 ? <><strong>{generated} certificate{generated === 1 ? "" : "s"} generated successfully.</strong> </> : <strong>No certificates were generated. </strong>}
           {skipped > 0 ? `${skipped} participant${skipped === 1 ? " was" : "s were"} skipped because their eligibility changed, a certificate already exists, or the system rejected the request.` : "All eligible participants have been processed."}
-          {query.reason ? <><br />System reason: <strong>{query.reason}</strong></> : null}
+          {query.reason ? <><br />Reason: <strong>{issuanceReasonLabel(query.reason)}</strong></> : null}
         </div>
       ) : null}
 

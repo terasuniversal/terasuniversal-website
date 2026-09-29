@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { requireModuleAccess, requireCertificate } from "../../../../lib/auth/session";
 import { certificateReissueSchema, certificateRevokeSchema } from "../../../../lib/validation/schemas";
+import { isCertificateIssuanceReason, type CertificateIssuanceReason } from "../../../../lib/certificate-issuance-reasons";
 
 /**
  * Shape returned by v_certificate_eligibility (see the migration that
@@ -75,7 +76,7 @@ async function nextPrefixedCertificateNumber(
 async function insertEligibleCertificate(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   elig: EligibilityRow
-): Promise<string> {
+): Promise<CertificateIssuanceReason | "ok"> {
   const { data: tmpl } = await supabase
     .from("certificate_templates")
     .select("config")
@@ -91,24 +92,35 @@ async function insertEligibleCertificate(
   } as never);
 
   if (error) {
+    // Map RPC failures to stable, business-facing categories so an admin can
+    // tell "not configured" from "not eligible" from "no permission" without
+    // ever seeing raw PostgreSQL text. Diagnostics stay server-side only.
+    //
     // certificates_active_schedule_participant_uniq is the real guard against
-    // a race between two concurrent issuance calls for the same pair —
-    // surface it as "exists", not a raw constraint-name error. The RPC's own
+    // a race between two concurrent issuance calls for the same pair — only
+    // that specific unique index means "already certified"; any other unique
+    // collision (e.g. a number clash) is a generic conflict. The RPC's own
     // fresh eligibility re-check (closing the TS-read-to-write race) raises a
     // distinct "Not eligible" error, mapped to "not-eligible" here.
     const code = (error as { code?: string }).code;
-    if (code === "23505") return "exists";
-    if (error.message?.includes("Not eligible")) return "not-eligible";
+    const message = (error as { message?: string }).message ?? "";
     console.error("Certificate issuance RPC failed", {
       operation: "issue_certificate_with_skill_snapshot",
       code: code ?? "unknown",
-      message: error.message,
+      message,
     });
-    return "error";
+    if (code === "23505") return message.includes("certificates_active_schedule_participant_uniq") ? "already-certified" : "conflict";
+    if (message.includes("Not eligible")) return "not-eligible";
+    if (code === "42501" || /not authorized/i.test(message)) return "permission-denied";
+    if (/issuing branch is not configured/i.test(message)) return "branch-not-configured";
+    if (/issuing branch is inactive or missing/i.test(message)) return "branch-inactive";
+    if (/effective trainer is not configured/i.test(message)) return "trainer-not-configured";
+    if (/template resolution is not deterministic/i.test(message)) return "template-invalid";
+    return "system-error";
   }
 
   const created = (data as { id: string; verification_token: string }[] | null)?.[0];
-  if (!created) return "error";
+  if (!created) return "system-error";
 
   return "ok";
 }
@@ -119,7 +131,7 @@ async function insertEligibleCertificate(
  * attendance %, assessment/competency per course config, no existing
  * active certificate). Returns a short status string.
  */
-export async function generateCertificate(scheduleId: string, participantId: string): Promise<string> {
+export async function generateCertificate(scheduleId: string, participantId: string): Promise<CertificateIssuanceReason | "ok"> {
   await requireCertificate(true); // admin+
   await requireModuleAccess("certificates");
   const supabase = await createSupabaseServerClient();
@@ -132,7 +144,11 @@ export async function generateCertificate(scheduleId: string, participantId: str
     .maybeSingle();
   if (!elig) return "not-found";
   const row = elig as EligibilityRow;
-  if (!row.eligible) return row.ineligibility_reason ?? "not-eligible";
+  if (!row.eligible) {
+    return row.ineligibility_reason && isCertificateIssuanceReason(row.ineligibility_reason)
+      ? row.ineligibility_reason
+      : "not-eligible";
+  }
 
   const result = await insertEligibleCertificate(supabase, row);
   if (result === "ok") revalidatePath("/admin/certificates");
@@ -148,7 +164,7 @@ export async function generateCertificate(scheduleId: string, participantId: str
  * so correctness requires one insert per row here rather than a batched
  * multi-row insert.
  */
-export async function bulkGenerate(scheduleId: string): Promise<{ generated: number; skipped: number; failureReasons: string[] }> {
+export async function bulkGenerate(scheduleId: string): Promise<{ generated: number; skipped: number; failureReasons: CertificateIssuanceReason[] }> {
   await requireCertificate(true);
   await requireModuleAccess("certificates");
   const supabase = await createSupabaseServerClient();
@@ -157,7 +173,7 @@ export async function bulkGenerate(scheduleId: string): Promise<{ generated: num
   const eligibleRows = ((rows ?? []) as EligibilityRow[]).filter((r) => r.eligible);
 
   let generated = 0, skipped = 0;
-  const failureReasons = new Set<string>();
+  const failureReasons = new Set<CertificateIssuanceReason>();
   for (const row of eligibleRows) {
     const result = await insertEligibleCertificate(supabase, row);
     if (result === "ok") {
