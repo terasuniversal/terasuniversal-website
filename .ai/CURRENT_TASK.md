@@ -31,7 +31,8 @@ Blocked:
 - Source branch: `fix/certificate-phase-a-issuing-branch`
 - Integration merge: COMPLETE using FAST_FORWARD
 - Integration branch: `integration/certificate-phase-a`
-- Integration head: `1f33d0a1932be3c465e34090bdc2121e6b98c8a0`
+- Integration merge head: `1f33d0a1932be3c465e34090bdc2121e6b98c8a0`
+- Current integration head before this documentation fix: `f733774be59dca05ca0d3d9ddeca24e4f7ab552d`
 - Post-merge validation: PASS
 - Staging migration: APPLIED
 - Recorded migration version: `20260930023332`

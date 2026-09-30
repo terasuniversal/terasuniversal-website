@@ -214,7 +214,8 @@ No migration was applied, no push, no merge, no deploy. Validation not re-run in
 - Phase A E2E: PASS. Final independent Claude review: APPROVE.
 - Identity-at-issuance behavior is fixed: issuance captures participant identity in the certificate and immutable snapshot; snapshot-backed rendering does not fall back to later live participant identity.
 - Source branch: `fix/certificate-phase-a-issuing-branch`, reviewed head `1f33d0a1932be3c465e34090bdc2121e6b98c8a0`.
-- Integration merge: COMPLETE by FAST_FORWARD to `integration/certificate-phase-a`; integration head `1f33d0a1932be3c465e34090bdc2121e6b98c8a0`.
+- Integration merge: COMPLETE by FAST_FORWARD to `integration/certificate-phase-a` at merge head `1f33d0a1932be3c465e34090bdc2121e6b98c8a0`.
+- Current integration branch head before this documentation fix: `f733774be59dca05ca0d3d9ddeca24e4f7ab552d`; the merge head above is not the current branch head after follow-up documentation commits.
 - Post-merge validation: PASS. `npm ci`, identity snapshot contract, Phase A source contract, Phase A PostgreSQL contract, `npx tsc --noEmit`, `npm run lint`, and `git diff --check` all passed.
 - Runtime note: Node `26.7.0` was used while repository `engines` requires Node `22.x`; this mismatch was non-blocking because all requested validation passed.
 - Migration integrity: PASS. Canonical committed Git blob SHA-256 for `supabase/migrations/20260930023332_20260930003951_certificate_identity_snapshot_integrity.sql` is `d237a4b96f5d9125a3628a3ca46f7d1cecdd3e4047e5d31ec8c81e702534d25d`. The Windows checkout's line-ending representation hashes differently; the canonical blob matches.
