@@ -1,136 +1,69 @@
 # CURRENT_TASK
 
-> This file is regenerated from `.ai/task-state.json` by `tools/agent-router.ps1` - never hand-edit one without the other going stale.
+This record reflects the active TERAS Certificate Phase A release-state documentation sync and supersedes the stale Marketing task record previously in this worktree.
 
-Task ID: TERAS-20260828-152855
-Created At: 2026-08-28 15:28:55
-Category: Database / Supabase
-Risk: HIGH
-Description: Final Marketing CRM migration safety review. The implementation is already present. Do not modify application code. Review this exact approved file only: supabase/migrations/20260828103000_marketing_campaigns_attribution_v2.sql. It is a new additive migration for the existing marketing_campaigns table and sales_lead_attributions. Preserve Sales -> Leads ownership. HIGH-RISK / EDIT_ONLY_NO_APPLY. Do not apply migration, commit, push, merge, deploy, or modify unrelated files.
+Task ID: Manual user-directed sync (no task ID supplied)
+Created At: 2026-09-30
+Category: Certificates / Release State Documentation
+Risk: LOW
+Description: Synchronize the Phase A task and project status with the proven Staging migration, deployment, and E2E state. Documentation only.
+State: DOCUMENTATION_STATE_SYNCED
+Human Decision: Explicit authorization for the two documentation files and the requested commit.
 
-State: BLOCKED
-Human Decision: PENDING
-Repair Cycles Used: 0 / 1
-
-Implementer: Claude Code
-Implementer Model: CLAUDE_DEEP
-
-Reviewer: Codex
-Reviewer Model: CODEX_REVIEW
-
-Reason for Model Selection:
-Touches migrations, RLS/policies, database functions/RPCs, schema, constraints, indexes, or auth - a DeepSeek-blocked area (AGENTS.md); Claude DEEP + mandatory Codex review.
+Task-state source note: `.ai/task-state.json` was not present in this worktree when checked. No task-state generator was run; the file list remains limited to the two user-approved documentation files.
 
 ## Approved Scope
 
-Scope Source: EXPLICIT_TASK_PATHS
-
 Allowed Files:
-- supabase/migrations/20260828103000_marketing_campaigns_attribution_v2.sql
+- `.ai/CURRENT_TASK.md`
+- `.ai/PROJECT_STATUS.md`
 
-Blocked Files:
-- (fill in before implementation begins)
+Blocked:
+- Application code
+- Migration SQL
+- Database changes
+- Deployment, merge, or Production changes
 
-Scope Check: PASS
+## Current Phase A State
 
-## Changed Files
+- Branch: `fix/certificate-phase-a-issuing-branch`
+- Prior runtime head: `51bb234704927280c59b0586e8d5d2dc89caf36a`
+- Staging migration: APPLIED
+- Recorded migration version: `20260930023332`
+- Recorded migration name: `20260930003951_certificate_identity_snapshot_integrity`
+- Repository migration: `supabase/migrations/20260930023332_20260930003951_certificate_identity_snapshot_integrity.sql`
+- Migration parity: PASS
+- Staging Vercel deployment: `dpl_6YaTFMpM3N2bBmLbUQeVp2ne6Div`
+- Deployment target: `staging`
+- Runtime Supabase ref: `eokiaehnvzbggmacifcf`
+- Dedicated E2E schedule: `SCH-000028`
+- E2E certificate: `STG-V2-2026-0003`
+- Certificate issuance: PASS
+- Identity snapshot: PASS
+- Historical identity integrity: PASS
+- Duplicate UI guard: PASS
+- PDF smoke: PASS
+- Public verification UI: PASS
+- Public privacy: PASS
+- Certificate Phase A E2E: PASS
 
-Pre-existing changes (excluded from this task):
-- app/admin/(protected)/sales/leads/[id]/page.tsx
-- app/admin/(protected)/sales/leads/actions.ts
-- lib/sales/crm.ts
-- lib/supabase/database.types.ts
-- lib/validation/schemas.ts
-- .ai/CLAUDE_HANDOFF.md
-- .ai/CODEX_IMPLEMENTATION_HANDOFF.md
-- .ai/CODEX_REPAIR_HANDOFF.md
-- .ai/DATABASE_HANDOFF.md
-- .ai/DATABASE_REPORT.md
-- .ai/FINAL_REPORT.md
-- .ai/validation/
-- app/admin/(protected)/marketing/
-- lib/marketing/
-- tools/agent-router.ps1
-- tools/approval-runner.ps1
-- tools/db-runner.ps1
-- tools/deepseek-runner.ps1
-- tools/pr-runner.ps1
-- tools/preview-runner.ps1
-- tools/push-runner.ps1
-- tools/qa-runner.ps1
-- tools/release-runner.ps1
-- tools/review-runner.ps1
-- tools/validate-runner.ps1
-- work/repair-loop-real-test.json
+## Validation and Review Gates
 
-Task-generated changes:
-- supabase/migrations/20260828103000_marketing_campaigns_attribution_v2.sql
+- Phase A source contract: PASS
+- Phase A PostgreSQL contract: PASS
+- Identity snapshot contract: PASS
+- Direct TypeScript check: PASS
+- `npm run lint`: PASS
+- `git diff --check`: PASS for this two-file documentation sync
+- Scope verification: only the two approved documentation files changed
+- `npm run typecheck` wrapper: `spawn EINVAL` under Node v26.7.0; direct TypeScript check passed. Package engine declares Node 22.x.
+- Final independent Claude review: PENDING
+- Ready for final Claude review after this documentation sync: YES
 
-## QA
+## Release Safety
 
-Git Diff Check   : PASS - No whitespace/conflict-marker issues.
-TypeScript       : SKIPPED - No .ts/.tsx files changed.
-Targeted Tests   : SKIPPED - No test script configured in package.json for this area.
-Production Build : FAIL -    Creating an optimized production build ... |  ✓ Compiled successfully in 9.7s |    Linting and checking validity of types ... |    Collecting page data ... |    Generating static pages (0/82) ... | Error occurred prerendering page "/". Read more: https://nextjs.org/docs/messages/prerender-error | Error: Supabase environment variables are not configured. |     at f (D:\Projects\terasuniversal-website-clean-repair-loop\.next\server\app\page.js:1:449) |     at j.tags (D:\Projects\terasuniversal-website-clean-repair-loop\.next\server\app\page.js:1:1761) |     at <unknown> (D:\Projects\terasuniversal-website-clean-repair-loop\.next\server\chunks\6780.js:1:10336) |     at async B (D:\Projects\terasuniversal-website-clean-repair-loop\.next\server\app\page.js:2:21293) { |   digest: '3338936453' | } | Export encountered an error on /page: /, exiting the build. |  ⨯ Next.js build worker exited with code: 1 and signal: null
-
-## Independent Review
-
-Review Verdict: PASS_WITH_NOTES
-
-## Push / Preview (Phase 4)
-
-Branch: (not yet pushed)
-Push Target: (none)
-Preview Status: NOT_STARTED
-Preview URL: (none)
-Preview Verification: NOT_STARTED
-Preview Approved: NO
-Production Deployment Allowed: NO
-
-## PR / Release (Phase 5)
-
-PR: (not prepared)
-Migration Detected: NO
-Environment Change Detected: NO
-Release Eligibility: NOT_STARTED
-Release Approved: NO
-Merge Status: NOT_STARTED
-Production Deployment: NOT_STARTED
-Production Verification: NOT_STARTED
-
-## Database Safety (Phase 7)
-
-Database Task: YES
-Database State: DB_PREPARING
-Database Risk: (not yet classified)
-Migration File: (none)
-Static Validation: NOT_RUN
-Codex Database Review: NOT_REQUIRED
-Migration Approved: NO
-Migration Apply Approved: NO
-Migration Apply Status: NOT_STARTED
-
-## Permissions
-
-Scope Lock: ON
-Full Repo Audit: OFF
-
-Database Changes Allowed: NO
-Migration Allowed: NO
-Commit Allowed: NO
-Push Allowed: NO
-Deploy Allowed: NO
-
-Human Approval: REQUIRED
-
-## Required Verification
-
-- [ ] Inspect relevant code
-- [ ] Implement change within Approved Scope only
-- [ ] Targeted verification (manual check of the specific behavior changed)
-- [ ] npx tsc --noEmit
-- [ ] Targeted tests, if any exist for this area
-- [ ] git diff --check
-- [ ] npm run build (final step only, once)
-- [ ] Codex independent review (REQUIRED for HIGH risk)
-- [ ] Human approval before commit/push/deploy/migration
+- Production touched: FALSE
+- Production deployed: FALSE
+- Merged: FALSE
+- No Production approval is recorded. Staging validation is not Production approval.
+- Do not merge, deploy, apply migrations, or touch Production without the separate required human approvals.
