@@ -34,6 +34,23 @@ async function buildCertificateSkillsRecord(
   }
 }
 
+/**
+ * Snapshot identity is authoritative whenever an issuance snapshot exists.
+ * Only genuine legacy certificates without a snapshot may use the historical
+ * certificate-column then live-participant fallback.
+ */
+export function resolveCertificateIdentityForRender(
+  snapshot: { identity_no?: string | null } | null,
+  certificateIdentity: string | null | undefined,
+  participantIdentity: string | null | undefined
+): string | null {
+  if (snapshot) {
+    const recordedIdentity = snapshot.identity_no?.trim();
+    return recordedIdentity || null;
+  }
+  return certificateIdentity ?? participantIdentity ?? null;
+}
+
 /** Loads a certificate + its template + related data for rendering. */
 export async function loadCertificateRender(id: string): Promise<
   | { cert: any; data: CertData; config: TemplateConfig }
@@ -50,7 +67,7 @@ export async function loadCertificateRender(id: string): Promise<
   // (re-verified against the connected project) with real FKs.
   const { data: cert } = await supabase
     .from("certificates")
-    .select("*, courses(title, duration), participants(participant_id, ic_passport_no), certificate_templates(config)")
+    .select("*, courses(title, duration), participants(participant_id), certificate_templates(config)")
     .eq("id", id)
     .single();
   if (!cert) return null;
@@ -69,6 +86,7 @@ export async function loadCertificateRender(id: string): Promise<
     renderer_version?: string | null;
     holder_name?: string | null;
     identity_no?: string | null;
+    identity_last4?: string | null;
     course_name?: string | null;
     training_start_date?: string | null;
     training_end_date?: string | null;
@@ -79,6 +97,22 @@ export async function loadCertificateRender(id: string): Promise<
     verification_metadata?: Record<string, unknown> | null;
     render_payload?: Record<string, unknown> | null;
   } | null;
+  let legacyParticipantIdentity: string | null = null;
+  if (!snapshot && (c.identity_no === null || c.identity_no === undefined) && c.participant_id) {
+    const { data: participantIdentity, error: participantIdentityError } = await supabase
+      .from("participants")
+      .select("ic_passport_no")
+      .eq("id", c.participant_id)
+      .maybeSingle();
+    if (participantIdentityError) {
+      console.error("certData: legacy participant identity lookup failed", {
+        certificateId: c.id,
+        code: participantIdentityError.code,
+      });
+      throw new Error("Legacy certificate identity is unavailable; rendering stopped safely.");
+    }
+    legacyParticipantIdentity = participantIdentity?.ic_passport_no ?? null;
+  }
   const renderMode = snapshot ? "MODERN_SNAPSHOT" : "LEGACY_FALLBACK";
   const renderPayload = snapshot?.render_payload ?? {};
   let tpl = snapshot
@@ -275,7 +309,7 @@ export async function loadCertificateRender(id: string): Promise<
     programme_duration: snapshot
       ? (typeof renderPayload.programme_duration === "string" ? renderPayload.programme_duration : config.duration_label ?? null)
       : c.courses?.duration ?? null,
-    ic_passport: snapshot?.identity_no ?? c.identity_no ?? c.participants?.ic_passport_no ?? null,
+    ic_passport: resolveCertificateIdentityForRender(snapshot, c.identity_no, legacyParticipantIdentity),
     participant_id: c.participants?.participant_id ?? null,
     training_date: fmtDate(snapshot?.training_start_date ?? c.training_start_date),
     training_end_date: fmtDate(snapshot?.training_end_date ?? c.training_end_date),

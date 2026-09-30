@@ -87,10 +87,10 @@ VALUES
   ('a3000000-0000-4000-8000-000000000013', 'a3000000-0000-4000-8000-000000000012', CURRENT_DATE - 5, CURRENT_DATE - 5, 'completed', true, 10, 1, 'I3A Captured Venue', 'I3A Captured Trainer', 'I3A-GOOD', 'a3000000-0000-4000-8000-000000000010'),
   ('a3000000-0000-4000-8000-000000000014', 'a3000000-0000-4000-8000-000000000012', CURRENT_DATE - 4, CURRENT_DATE - 4, 'completed', true, 10, 1, 'I3A Ineligible Venue', 'I3A Captured Trainer', 'I3A-BAD', 'a3000000-0000-4000-8000-000000000010');
 
-INSERT INTO public.participants (id, participant_code, full_name, identity_no, identity_last4, status, company)
+INSERT INTO public.participants (id, participant_code, full_name, identity_no, identity_last4, ic_passport_no, status, company)
 VALUES
-  ('a3000000-0000-4000-8000-000000000015', 'I3A-PARTICIPANT-5678', 'I3A Historical Holder', '111111-11-1234', '1234', 'active', 'I3A Historical Company'),
-  ('a3000000-0000-4000-8000-000000000016', 'I3A-INELIGIBLE-1234', 'I3A Ineligible Holder', '222222-22-9876', '9876', 'active', 'I3A Historical Company');
+  ('a3000000-0000-4000-8000-000000000015', 'I3A-PARTICIPANT-5678', 'I3A Historical Holder', 'I3A-LEGACY-IDENTITY-5670', '5670', '111111-11-1234', 'active', 'I3A Historical Company'),
+  ('a3000000-0000-4000-8000-000000000016', 'I3A-INELIGIBLE-1234', 'I3A Ineligible Holder', 'I3A-LEGACY-IDENTITY-9876', '9876', '222222-22-9876', 'active', 'I3A Historical Company');
 
 INSERT INTO public.schedule_participants (schedule_id, participant_id, registration_status)
 VALUES
@@ -263,7 +263,10 @@ begin
   END IF;
   SELECT count(*) INTO v_count FROM public.certificate_issuance_snapshots WHERE certificate_id = v_id;
   IF v_count <> 1 THEN RAISE EXCEPTION 'I3A issuance did not create exactly one snapshot'; END IF;
-  IF v_snapshot->>'holder_name' <> 'I3A Historical Holder' OR v_snapshot->>'identity_no' <> '111111-11-1234' THEN
+  IF v_snapshot->>'holder_name' <> 'I3A Historical Holder'
+    OR v_snapshot->>'identity_no' <> '111111-11-1234'
+    OR v_snapshot->>'identity_last4' <> '1234'
+    OR NOT EXISTS (SELECT 1 FROM public.certificates WHERE id = v_id AND identity_no = '111111-11-1234' AND identity_last4 = '1234') THEN
     RAISE EXCEPTION 'I3A issuance snapshot did not capture the original participant state';
   END IF;
   IF v_snapshot->'template_config'->>'objectives_text' NOT LIKE 'I3A HISTORICAL PAGE TWO OBJECTIVE%' THEN
@@ -307,6 +310,8 @@ begin
         'course_id', c.course_id,
         'schedule_id', c.schedule_id,
         'holder_name', c.holder_name,
+        'identity_no', c.identity_no,
+        'identity_last4', c.identity_last4,
         'participant_name', c.participant_name,
         'course_name', c.course_name,
         'issue_date', c.issue_date,
@@ -494,7 +499,19 @@ begin
   IF v_after IS DISTINCT FROM v_before THEN RAISE EXCEPTION 'I3A reprint/reissue mutated original issuance data'; END IF;
 
   EXECUTE 'RESET ROLE';
-  UPDATE public.participants SET full_name = 'I3A LIVE MUTATED HOLDER', company = 'I3A LIVE MUTATED COMPANY' WHERE id = 'a3000000-0000-4000-8000-000000000015';
+  UPDATE public.participants
+  SET full_name = 'I3A LIVE MUTATED HOLDER', company = 'I3A LIVE MUTATED COMPANY',
+      identity_no = 'I3A-LEGACY-MUTATED-1111', identity_last4 = '1111', ic_passport_no = '999999-99-9876'
+  WHERE id = 'a3000000-0000-4000-8000-000000000015';
+  IF NOT EXISTS (
+    SELECT 1 FROM public.certificates c
+    JOIN public.certificate_issuance_snapshots s ON s.certificate_id = c.id
+    WHERE c.id = v_id
+      AND c.identity_no = '111111-11-1234' AND c.identity_last4 = '1234'
+      AND s.identity_no = '111111-11-1234' AND s.identity_last4 = '1234'
+  ) THEN
+    RAISE EXCEPTION 'I3A live participant identity mutation changed issued certificate/snapshot identity';
+  END IF;
   UPDATE public.courses SET course_name = 'I3A LIVE MUTATED COURSE', title = 'I3A LIVE MUTATED COURSE' WHERE id = 'a3000000-0000-4000-8000-000000000012';
   UPDATE public.certificate_templates SET config = '{"show_back_page":false,"show_qr":false,"objectives_text":"I3A LIVE MUTATED PAGE TWO MUST NOT APPEAR"}'::jsonb WHERE id = 'a3000000-0000-4000-8000-000000000011';
   UPDATE public.course_schedules SET venue = 'I3A LIVE MUTATED VENUE', trainer_name = 'I3A LIVE MUTATED TRAINER' WHERE id = 'a3000000-0000-4000-8000-000000000013';
@@ -503,10 +520,13 @@ begin
   SET render_data = jsonb_set(
     jsonb_set(
       jsonb_set(
-        jsonb_set(r.render_data, '{certificate,courses,title}', to_jsonb(co.title)),
-        '{certificate,participants,full_name}', to_jsonb(p.full_name), true
+        jsonb_set(
+          jsonb_set(r.render_data, '{certificate,courses,title}', to_jsonb(co.title)),
+          '{certificate,participants,full_name}', to_jsonb(p.full_name), true
+        ),
+        '{certificate,certificate_templates,config}', to_jsonb(t.config)
       ),
-      '{certificate,certificate_templates,config}', to_jsonb(t.config)
+      '{certificate,participants,ic_passport_no}', to_jsonb(p.ic_passport_no), true
     ),
     '{snapshot}', to_jsonb(s)
   )
@@ -722,6 +742,11 @@ BEGIN
     RAISE EXCEPTION 'I3A historical page visibility changed after live template mutation';
   END IF;
   IF (SELECT render_data->'certificate'->'participants'->>'full_name' FROM pg_temp.i3a_result) <> 'I3A LIVE MUTATED HOLDER'
+    OR (SELECT render_data->'certificate'->'participants'->>'ic_passport_no' FROM pg_temp.i3a_result) <> '999999-99-9876'
+    OR (SELECT render_data->'snapshot'->>'identity_no' FROM pg_temp.i3a_result) <> '111111-11-1234'
+    OR (SELECT render_data->'snapshot'->>'identity_last4' FROM pg_temp.i3a_result) <> '1234'
+    OR (SELECT render_data->'certificate'->>'identity_no' FROM pg_temp.i3a_result) <> '111111-11-1234'
+    OR (SELECT render_data->'certificate'->>'identity_last4' FROM pg_temp.i3a_result) <> '1234'
     OR (SELECT render_data->'certificate'->'courses'->>'title' FROM pg_temp.i3a_result) <> 'I3A LIVE MUTATED COURSE'
     OR (SELECT render_data->'certificate'->'certificate_templates'->'config'->>'show_back_page' FROM pg_temp.i3a_result) <> 'false'
     OR (SELECT render_data->'snapshot'->>'holder_name' FROM pg_temp.i3a_result) <> 'I3A Historical Holder'

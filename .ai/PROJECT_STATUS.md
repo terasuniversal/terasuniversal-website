@@ -208,3 +208,14 @@ No migration was applied, no push, no merge, no deploy. Validation not re-run in
 No other SQL changed: the view's column list/order, the RPC body, and `20260828110000_reconcile_sales_is_test_classification.sql` are unchanged from the previous two entries.
 
 No migration was applied, no push, no merge, no deploy. Validation not re-run in this pass (only `.sql` migration files and this status file were touched).
+
+## TERAS Certificate Phase A — identity snapshot integrity — 2026-09-30
+
+- Result: defect reproduced against `125e9488d49b66cfca70302473946cb60f94223f`, then fixed in source. The issuance RPC now stores `participants.ic_passport_no` and derives normalized `identity_last4` from that same value; the immutable issuance snapshot copies both columns from the new certificate row.
+- Historical rendering: certificates with snapshots use snapshot identity only. Empty snapshot identity renders through the existing blank/omitted state and does not query the participant identity. Only legacy certificates without snapshots retain certificate-column then participant fallback.
+- Public privacy: masked participant ID remains; the public verification UI/RPC tests found no full identity exposure.
+- Validation: Phase A source contract PASS; Phase A PostgreSQL contract PASS; direct TypeScript `tsc --noEmit` PASS; `npm run lint` PASS; focused identity snapshot contract TESTS 1–8 PASS; page-two snapshot fixtures PASS; I3A lifecycle/PostgreSQL issuance-to-render-to-PDF integration PASS; public verifier SQL privacy contract PASS; `git diff --check` PASS.
+- The I3A test ran only on the local Docker test database `supabase_db_i3e-hosted-faithful-acl`. The identity migration and synthetic fixtures were inside one transaction and rolled back. Read-back confirmed the pre-existing function owner, SECURITY DEFINER/search_path, ACL boundary, migration-role privileges, and absence of fixture rows remained unchanged.
+- Files in the follow-up: `app/admin/(protected)/certificates/certData.ts`; `scripts/certificate-identity-snapshot-contract.mjs`; `scripts/certificate-i3a-lifecycle-runtime.mjs`; `supabase/migrations/20260930003951_certificate_identity_snapshot_integrity.sql`; `supabase/tests/certificate_i3a_lifecycle_runtime_contract.sql`; this status note.
+- State: one local follow-up commit was explicitly requested; no remote migration was applied; no Staging or Production data was changed; no push, merge, or deployment was performed. Ready for independent Claude review; do not merge or release until separately reviewed/approved.
+- Conflict: `.ai/CURRENT_TASK.md` still describes the older blocked Marketing migration task and generated scope lock. The latest direct user task explicitly authorized this certificate work in the named worktree. The generated task file/state was not edited; this discrepancy remains recorded here.

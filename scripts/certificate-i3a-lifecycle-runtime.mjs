@@ -11,7 +11,22 @@ const compiledDir = join(fixtureDir, "compiled");
 const containerName = process.env.I3A_POSTGRES_CONTAINER ?? "teras-i3a-lifecycle-force-rls";
 const databaseUser = process.env.I3A_POSTGRES_USER ?? "i3_bootstrap";
 const sqlFile = resolve(repoRoot, "supabase/tests/certificate_i3a_lifecycle_runtime_contract.sql");
-const sql = readFileSync(sqlFile, "utf8");
+const fixtureSql = readFileSync(sqlFile, "utf8").replaceAll(String.fromCharCode(13), "");
+let sql = fixtureSql;
+if (process.env.I3A_IDENTITY_MIGRATION === "1") {
+  const migrationPath = resolve(repoRoot, "supabase/migrations/20260930003951_certificate_identity_snapshot_integrity.sql");
+  const migrationSql = readFileSync(migrationPath, "utf8")
+    .replaceAll(String.fromCharCode(13), "")
+    .replace(/^begin;$/gim, "")
+    .replace(/^commit;$/gim, "");
+  const rollback = /^ROLLBACK;$/m.exec(fixtureSql);
+  assert.ok(rollback, "identity integration fixture must have an explicit final rollback");
+  const beforeRollback = fixtureSql.slice(0, rollback.index).replace(/^BEGIN;$/m, "");
+  const afterRollback = fixtureSql.slice(rollback.index + rollback[0].length);
+  const newline = String.fromCharCode(10);
+  const psqlSlash = String.fromCharCode(92);
+  sql = [`${psqlSlash}set ON_ERROR_STOP on`, "BEGIN;", migrationSql, beforeRollback, "ROLLBACK;", afterRollback].join(newline);
+}
 
 function loadIssuedFixture() {
   const run = spawnSync("docker", [
@@ -76,6 +91,11 @@ async function main() {
     assert.equal(fixture.certificate.status, "valid", "render data must be captured from the real issuance state before revocation");
     assert.equal(fixture.certificate.certificate_number, "I3A/2026/0001");
     assert.equal(fixture.snapshot.holder_name, "I3A Historical Holder");
+    assert.equal(fixture.snapshot.identity_no, "111111-11-1234");
+    assert.equal(fixture.snapshot.identity_last4, "1234");
+    assert.equal(fixture.certificate.identity_no, "111111-11-1234");
+    assert.equal(fixture.certificate.identity_last4, "1234");
+    assert.equal(fixture.certificate.participants.ic_passport_no, "999999-99-9876", "live participant identity must reflect the post-issuance mutation");
     assert.match(fixture.snapshot.template_config.objectives_text, /^I3A HISTORICAL PAGE TWO OBJECTIVE/);
     assert.equal(fixture.snapshot.template_config.show_back_page, true);
     assert.equal(fixture.snapshot.template_config.show_qr, true);
@@ -120,6 +140,8 @@ async function main() {
       assert.equal(data.certificate_number, expectedNumber);
       assert.equal(data.holder_name, "I3A Historical Holder");
       assert.equal(data.course_name, "I3A Captured Course");
+      assert.equal(data.ic_passport, fixture.snapshot.identity_no, "renderer must use the immutable issuance identity after the participant row changes");
+      assert.ok(!JSON.stringify({ data, config }).includes("999999-99-9876"), "render payload must not use the changed live participant identity");
       assert.equal(config.objectives_text, historicalObjective);
       assert.ok(!JSON.stringify({ data, config }).includes("I3A LIVE MUTATED"));
       assert.ok(data.qr_svg?.includes("<svg"));
@@ -131,10 +153,11 @@ async function main() {
       const reactBack = renderToStaticMarkup(React.createElement(CertificateBack, { data, config }));
       const htmlFront = renderCertificateFront(data, config);
       const htmlBack = renderCertificateBack(data, config);
-      for (const content of [expectedNumber, data.holder_name, "I3A HISTORICAL PAGE TWO OBJECTIVE"]) {
+      for (const content of [expectedNumber, data.holder_name, fixture.snapshot.identity_no, "I3A HISTORICAL PAGE TWO OBJECTIVE"]) {
         assert.ok(reactFront.includes(content) || reactBack.includes(content), `React output must preserve ${content}`);
         assert.ok(htmlFront.includes(content) || htmlBack.includes(content), `HTML output must preserve ${content}`);
       }
+      assert.doesNotMatch(`${reactFront}${reactBack}${htmlFront}${htmlBack}`, /999999-99-9876/, "renderers must not expose the changed live identity for a snapshotted certificate");
       assert.ok(reactBack.includes(historicalObjective) && htmlBack.includes(historicalObjective));
       assert.ok(!reactFront.includes(historicalObjective) && !htmlFront.includes(historicalObjective));
       assert.ok(!reactFront.includes("QR VERIFICATION") && !htmlFront.includes("QR VERIFICATION"));
@@ -142,6 +165,7 @@ async function main() {
       assert.equal((htmlBack.match(/QR VERIFICATION/g) ?? []).length, 1);
       assert.ok(reactBack.includes(data.qr_svg) && htmlBack.includes(data.qr_svg));
       assert.ok(!reactFront.includes(data.qr_svg) && !htmlFront.includes(data.qr_svg));
+      console.log("Issuance identity/last4 snapshot → changed participant → immutable rendered identity: PASS");
       console.log("Actual issuance snapshot → production loader → React/HTML parity and Page-2-only QR: PASS");
 
       const documentHtml = renderCertificateDocument(data, config)
@@ -184,6 +208,8 @@ async function main() {
         pages.push(text);
       }
       assert.ok(pages[0].includes(expectedNumber), "issued PDF page 1 must preserve certificate number");
+      assert.ok(pages[0].includes(fixture.snapshot.identity_no), "issued PDF page 1 must preserve the identity snapshot");
+      assert.ok(!pages.join(" ").includes("999999-99-9876"), "issued PDF must not render changed live participant identity");
       assert.ok(!pages[0].includes("QR VERIFICATION"), "QR must never render on Page 1");
       const noQrHtml = renderCertificateDocument(data, { ...config, show_qr: false })
         .replaceAll("/certificates/watermarks/", `${pathToFileURL(resolve(repoRoot, "public/certificates/watermarks")).href}/`)
