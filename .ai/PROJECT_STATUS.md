@@ -209,16 +209,16 @@ No other SQL changed: the view's column list/order, the RPC body, and `202608281
 
 No migration was applied, no push, no merge, no deploy. Validation not re-run in this pass (only `.sql` migration files and this status file were touched).
 
-## TERAS Certificate Phase A — current Staging release state — 2026-09-30
+## TERAS Certificate Phase A — post-merge validation — 2026-09-30
 
-- Result: the identity-at-issuance defect was fixed in source. New issuance copies participant identity into the certificate and immutable snapshot; snapshot-backed rendering does not fall back to a later live participant identity.
-- Current source: branch `fix/certificate-phase-a-issuing-branch`; prior runtime head `51bb234704927280c59b0586e8d5d2dc89caf36a`.
-- Staging migration: APPLIED. Recorded version `20260930023332`, name `20260930003951_certificate_identity_snapshot_integrity`; repository file `supabase/migrations/20260930023332_20260930003951_certificate_identity_snapshot_integrity.sql`; migration parity PASS. SQL SHA-256: `d237a4b96f5d9125a3628a3ca46f7d1cecdd3e4047e5d31ec8c81e702534d25d`.
-- Staging deployment: `dpl_6YaTFMpM3N2bBmLbUQeVp2ne6Div`, target `staging`; runtime Supabase ref `eokiaehnvzbggmacifcf`; source provenance PASS.
-- Dedicated Staging E2E: schedule `SCH-000028`; certificate `STG-V2-2026-0003`. Normal authenticated admin issuance PASS; eligibility PASS; identity snapshot PASS; post-issuance synthetic-participant identity change did not alter certificate/snapshot identity; historical identity integrity PASS.
-- Duplicate UI guard PASS (certified row has no Generate action); PDF smoke PASS (real two-page Chromium PDF); public verification UI PASS; public identity privacy PASS; backend verification valid. No full participant identity is recorded here.
-- Certificate Phase A E2E: PASS.
-- Validation: Phase A source contract PASS; Phase A PostgreSQL contract PASS; identity snapshot contract PASS; direct TypeScript check PASS; `npm run lint` PASS; `git diff --check` PASS for implementation and this two-file documentation sync. `npm run typecheck` wrapper reported `spawn EINVAL` under Node v26.7.0 while the package declares Node 22.x; direct TypeScript check passed.
-- The earlier I3A integration test used only the local Docker test database and rolled back its transaction. The later Staging migration application and authenticated E2E are separate verified events; no Production database was used.
-- Release gates: Production touched FALSE; Production deployed FALSE; merged FALSE. Final independent Claude review PENDING. Ready for final Claude review after this documentation sync: YES. Staging evidence is not Production approval.
-- This current Staging state supersedes the earlier pre-deployment status in this section. `.ai/CURRENT_TASK.md` has been synchronized to this Phase A state; `.ai/task-state.json` was not present in this worktree, so no generator was run.
+- Phase A E2E: PASS. Final independent Claude review: APPROVE.
+- Identity-at-issuance behavior is fixed: issuance captures participant identity in the certificate and immutable snapshot; snapshot-backed rendering does not fall back to later live participant identity.
+- Source branch: `fix/certificate-phase-a-issuing-branch`, reviewed head `1f33d0a1932be3c465e34090bdc2121e6b98c8a0`.
+- Integration merge: COMPLETE by FAST_FORWARD to `integration/certificate-phase-a`; integration head `1f33d0a1932be3c465e34090bdc2121e6b98c8a0`.
+- Post-merge validation: PASS. `npm ci`, identity snapshot contract, Phase A source contract, Phase A PostgreSQL contract, `npx tsc --noEmit`, `npm run lint`, and `git diff --check` all passed.
+- Runtime note: Node `26.7.0` was used while repository `engines` requires Node `22.x`; this mismatch was non-blocking because all requested validation passed.
+- Migration integrity: PASS. Canonical committed Git blob SHA-256 for `supabase/migrations/20260930023332_20260930003951_certificate_identity_snapshot_integrity.sql` is `d237a4b96f5d9125a3628a3ca46f7d1cecdd3e4047e5d31ec8c81e702534d25d`. The Windows checkout's line-ending representation hashes differently; the canonical blob matches.
+- Staging evidence remains as previously recorded: migration applied, deployment target staging, dedicated E2E and certificate checks passed. No full participant identity is recorded here.
+- Production touched: FALSE; Production deployed: FALSE; Production migration applied: FALSE.
+- Ready for Production preflight: YES. Ready for Production: NO; no Production approval is recorded. Staging validation and integration merge are not Production approval.
+- This post-merge record supersedes the earlier Phase A review-pending and merge-pending status. `.ai/task-state.json` was not present in this worktree; no task-state generator was run.
