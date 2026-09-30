@@ -14,7 +14,7 @@ const sqlFile = resolve(repoRoot, "supabase/tests/certificate_i3a_lifecycle_runt
 const fixtureSql = readFileSync(sqlFile, "utf8").replaceAll(String.fromCharCode(13), "");
 let sql = fixtureSql;
 if (process.env.I3A_IDENTITY_MIGRATION === "1") {
-  const migrationPath = resolve(repoRoot, "supabase/migrations/20260930003951_certificate_identity_snapshot_integrity.sql");
+  const migrationPath = resolve(repoRoot, "supabase/migrations/20260930023332_20260930003951_certificate_identity_snapshot_integrity.sql");
   const migrationSql = readFileSync(migrationPath, "utf8")
     .replaceAll(String.fromCharCode(13), "")
     .replace(/^begin;$/gim, "")
