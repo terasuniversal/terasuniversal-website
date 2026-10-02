@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
 import { requireRole, requireModuleAccess } from "../../../../../../lib/auth/session";
 import { isAdmin } from "../../../../../../lib/auth/rbac";
-import { PageHead, Card, Badge, EmptyState } from "../../../../../../components/admin/ui";
+import { PageHead, Card, Badge, EmptyState, ReadErrorState } from "../../../../../../components/admin/ui";
 import { LeadActivityTimeline } from "../../leads/[id]/LeadActivityTimeline";
 import { formatMalaysiaDateTime } from "../../../../../../lib/date-time";
 import {
@@ -46,7 +46,8 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
   const { id } = await params;
   const supabase = await createSupabaseServerClient();
 
-  const { data: opportunity } = await supabase.from("sales_opportunities").select("*").eq("id", id).maybeSingle();
+  const { data: opportunity, error: opportunityReadError } = await supabase.from("sales_opportunities").select("*").eq("id", id).maybeSingle();
+  if (opportunityReadError) return <><PageHead title="Opportunity detail" /><ReadErrorState message="Opportunity details could not be loaded. Retry the page." /></>;
   if (!opportunity) notFound();
   const opp = opportunity as SalesOpportunityRow;
 
@@ -62,6 +63,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
   const quotationRows = quotationsResult.data;
   const activityRows = activityResult.data;
   const opportunityTasks = (taskResult.data ?? []) as SalesTaskRow[];
+  const signalsReadError = Boolean(activityResult.error || taskResult.error);
   const lastActivityAt = latestOpportunityActivity((activityRows ?? []) as { opportunity_id: string | null; created_at: string }[], opp.created_at);
   const nextAction = nextOpportunityTask(opportunityTasks);
   const closeState = expectedCloseState(opp.expected_close_date);
@@ -222,7 +224,10 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
       <PageHead
         title={opp.title}
         subtitle={`${opp.opportunity_no} — ${opp.company_name ?? "No company on file"}`}
-        action={<Link href="/admin/sales/opportunities" className="ta-btn ta-btn-outline">← Back to Opportunities</Link>}
+        action={!quotationsResult.error && canManage && opp.stage !== "won" && opp.stage !== "lost"
+          ? <Link href={`/admin/sales/quotations/new?opportunityId=${opp.id}`} className="ta-btn ta-btn-primary ta-btn-sm">+ Create Quotation</Link>
+          : <Link href={`/admin/sales/leads/${opp.lead_metadata_id}`} className="ta-btn ta-btn-outline">View Source Lead</Link>}
+        secondaryAction={<Link href="/admin/sales/opportunities" className="ta-btn ta-btn-outline">← Back to Opportunities</Link>}
       />
 
       <div className="ta-lead-meta">
@@ -234,47 +239,35 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
         {opp.lost_reason && <span className="ta-lead-meta-time">Lost reason: {opp.lost_reason.replace(/_/g, " ")}</span>}
       </div>
 
+      <section className="ta-sales-summary" aria-label="Opportunity overview">
+        <div className="ta-sales-summary-item"><span>Stage</span><strong><Badge status={opp.stage} /></strong></div>
+        <div className="ta-sales-summary-item"><span>Estimated value</span><strong>{formatMoney(opp.estimated_value)}</strong><small>Weighted {formatMoney(weightedPipelineValue(opp.estimated_value, opp.probability))}</small></div>
+        <div className="ta-sales-summary-item"><span>Owner</span><strong>{assignedName}</strong></div>
+        <div className="ta-sales-summary-item"><span>Expected close</span><strong>{opp.expected_close_date ? new Date(opp.expected_close_date).toLocaleDateString("en-MY", { dateStyle: "medium" } as any) : "No date"}</strong><small>{closeState === "due_soon" ? "Due soon" : closeState === "overdue" ? "Overdue" : opp.expected_close_date ? "Upcoming" : "Not scheduled"}</small></div>
+        <div className="ta-sales-summary-item"><span>Probability</span><strong>{opp.probability != null ? `${opp.probability}%` : "Not set"}</strong></div>
+        <div className="ta-sales-summary-item"><span>Opportunity age</span><strong>{ageLabel(opp.created_at)}</strong><small>Last activity {activityResult.error ? "Unavailable — retry" : sinceActivityLabel(lastActivityAt, opp.created_at)}</small></div>
+        <div className="ta-sales-summary-item"><span>Next action</span><strong>{taskResult.error ? "Unavailable — retry" : nextAction?.title ?? "No active task"}</strong>{!taskResult.error && nextAction?.due_at && <small>Due {formatMalaysiaDateTime(nextAction.due_at)}</small>}</div>
+        <div className="ta-sales-summary-item"><span>Source Lead</span><strong><Link href={`/admin/sales/leads/${opp.lead_metadata_id}`}>View original lead →</Link></strong>{leadRow && <small>{SOURCE_LABELS[leadRow.lead_source as SalesLeadSourceKind]}</small>}</div>
+        <div className="ta-sales-summary-item"><span>Indicators</span><strong>{signalsReadError ? "Unable to calculate" : stalled ? <Badge status="stalled" /> : "No stall signal"}</strong>{closeState === "overdue" && <small><Badge status="overdue" /></small>}</div>
+      </section>
+      {(leadResult.error || staffResult.error || profilesResult.error) && <ReadErrorState title="Some opportunity context unavailable" message="Source lead, owner, or activity names could not be fully loaded. Retry the page to refresh the relationship context." />}
+
       <div className="ta-lead-detail-grid">
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           <Card title="Opportunity Information">
             <div className="ta-card-pad">
               <dl style={dl}>
-                <Detail label="Source Lead" value={<Link href={`/admin/sales/leads/${opp.lead_metadata_id}`}>View original lead →</Link>} />
                 <Detail label="Company" value={opp.company_name} />
                 <Detail label="Contact" value={opp.contact_person} />
                 <Detail label="Email" value={opp.contact_email ? <a href={`mailto:${opp.contact_email}`}>{opp.contact_email}</a> : null} />
                 <Detail label="Phone" value={opp.contact_phone} />
                 <Detail label="Programme" value={opp.programme} />
-                <Detail label="Expected Close" value={opp.expected_close_date ? new Date(opp.expected_close_date).toLocaleDateString("en-MY", { dateStyle: "medium" } as any) : null} />
-                <Detail label="Probability" value={opp.probability != null ? `${opp.probability}%` : null} />
-                <Detail label="Estimated Value" value={opp.estimated_value != null ? `RM ${Number(opp.estimated_value).toLocaleString("en-MY", { minimumFractionDigits: 2 })}` : null} />
               </dl>
             </div>
           </Card>
 
-          <Card title="Pipeline Intelligence">
-            <div className="ta-card-pad" style={{ display: "grid", gridTemplateColumns: "minmax(130px, 0.8fr) minmax(160px, 1.2fr)", gap: 9 }}>
-              <span style={{ color: "var(--ta-muted)" }}>Stage</span><span><Badge status={opp.stage} /></span>
-              <span style={{ color: "var(--ta-muted)" }}>Owner</span><span>{assignedName}</span>
-              <span style={{ color: "var(--ta-muted)" }}>Estimated Value</span><span>{formatMoney(opp.estimated_value)}</span>
-              <span style={{ color: "var(--ta-muted)" }}>Weighted Value</span><span>{formatMoney(weightedPipelineValue(opp.estimated_value, opp.probability))}</span>
-              <span style={{ color: "var(--ta-muted)" }}>Expected Close</span><span>{opp.expected_close_date ? `${opp.expected_close_date} · ${closeState === "due_soon" ? "Due soon" : closeState === "overdue" ? "Overdue" : "Upcoming"}` : "No date"}</span>
-              <span style={{ color: "var(--ta-muted)" }}>Opportunity Age</span><span>{ageLabel(opp.created_at)}</span>
-              <span style={{ color: "var(--ta-muted)" }}>Last Activity</span><span>{sinceActivityLabel(lastActivityAt, opp.created_at)}</span>
-              <span style={{ color: "var(--ta-muted)" }}>Next Action</span><span>{nextAction ? `${nextAction.title}${nextAction.due_at ? ` · Due ${formatMalaysiaDateTime(nextAction.due_at)}` : ""}` : "No active task"}</span>
-              <span style={{ color: "var(--ta-muted)" }}>Indicators</span><span>{stalled ? <Badge status="stalled" /> : "No stall signal"}{closeState === "overdue" && <Badge status="overdue" />}</span>
-            </div>
-          </Card>
-
-          <Card
-            title="Quotations"
-            action={
-              canManage && opp.stage !== "won" && opp.stage !== "lost" ? (
-                <Link href={`/admin/sales/quotations/new?opportunityId=${opp.id}`} className="ta-btn ta-btn-primary ta-btn-sm">+ Create Quotation</Link>
-              ) : undefined
-            }
-          >
-            {quotationRows && quotationRows.length > 0 ? (
+          <Card title="Quotations">
+            {quotationsResult.error ? <ReadErrorState title="Quotation history unavailable" message="Related quotations could not be loaded. Retry the page; this is not an empty quotation history." /> : quotationRows && quotationRows.length > 0 ? (
               <div className="ta-table-wrap">
                 <table className="ta-table">
                   <thead>
@@ -299,7 +292,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
             )}
           </Card>
 
-          <LeadActivityTimeline activities={(activityRows ?? []) as SalesActivityRow[]} actorNames={actorNames} />
+          {activityResult.error ? <ReadErrorState title="Activity history unavailable" message="Opportunity activity could not be loaded. Retry the page." /> : profilesResult.error ? <ReadErrorState title="Activity names unavailable" message="Activity loaded, but actor names could not be resolved." /> : <LeadActivityTimeline activities={(activityRows ?? []) as SalesActivityRow[]} actorNames={actorNames} />}
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>

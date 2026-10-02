@@ -148,8 +148,8 @@ export function QuotationItemsEditor({
 
   return (
     <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {state.message && <div className="ta-alert ta-alert-error">{state.message}</div>}
-      {state.errors?.items && <div className="ta-alert ta-alert-error">{state.errors.items}</div>}
+      {state.message && <div className="ta-alert ta-alert-error" role="alert">{state.message}</div>}
+      {state.errors?.items && <div id="quotation-items-error" className="ta-alert ta-alert-error" role="alert">{state.errors.items}</div>}
       <input type="hidden" name="items" value={itemsJson} />
 
       <Card title="Customer Information">
@@ -193,7 +193,7 @@ export function QuotationItemsEditor({
 
       <Card title="Line Items">
         <div className="ta-card-pad">
-          <div className="ta-table-wrap">
+          <div className="ta-table-wrap ta-quotation-editor-table">
             <table className="ta-table">
               <thead>
                 <tr><th>Description</th><th style={{ width: 90 }}>Qty</th><th style={{ width: 110 }}>Unit</th><th style={{ width: 120 }}>Unit Price (RM)</th><th style={{ width: 110 }}>Discount (RM)</th><th style={{ width: 110 }}>Line Total</th><th></th></tr>
@@ -206,10 +206,10 @@ export function QuotationItemsEditor({
                   const accommodationSnapshot = item.package_includes_snapshot.find((entry) => entry.key === ACCOMMODATION_PACKAGE_KEY);
                   const mealsSnapshot = item.package_includes_snapshot.find((entry) => entry.key === MEALS_PACKAGE_KEY);
                   return (
-                    <tr key={index}>
-                      <td>
+                    <tr key={index} className="ta-quotation-editor-row">
+                      <td data-label="Description">
                         <div style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 250 }}>
-                          <select aria-label={`Course for line ${index + 1}`} value={item.course_id} onChange={(e) => applyCourseDefaults(index, e.target.value)}>
+                          <select aria-label={`Course for line ${index + 1}`} aria-invalid={Boolean(state.errors?.items)} aria-describedby={state.errors?.items ? "quotation-items-error" : undefined} value={item.course_id} onChange={(e) => applyCourseDefaults(index, e.target.value)}>
                             <option value="">Manual item</option>
                             {(courseOptions ?? []).map((candidate) => <option key={candidate.course_id} value={candidate.course_id}>{candidate.profile.standard_display_name}</option>)}
                           </select>
@@ -246,19 +246,19 @@ export function QuotationItemsEditor({
                             </>
                           )}
                           {!option && item.course_name_snapshot && <div style={{ fontSize: 12, color: "var(--ta-muted)" }}>Saved course snapshot: <strong>{item.course_name_snapshot}</strong></div>}
-                          <textarea rows={4} value={item.description} onChange={(e) => updateItem(index, { description: e.target.value })} placeholder="Quotation description" required />
+                          <textarea aria-label={`Description for line ${index + 1}`} aria-invalid={Boolean(state.errors?.items)} aria-describedby={state.errors?.items ? "quotation-items-error" : undefined} rows={4} value={item.description} onChange={(e) => updateItem(index, { description: e.target.value })} placeholder="Quotation description" required />
                         </div>
                       </td>
-                      <td><input type="number" min="0.01" step="0.01" value={item.quantity} onChange={(e) => updateItem(index, { quantity: e.target.value })} required /></td>
-                      <td>
-                        <select value={item.unit} onChange={(e) => updateItem(index, { unit: e.target.value as SalesQuotationUnit })}>
+                      <td data-label="Quantity"><input aria-label={`Quantity for line ${index + 1}`} aria-invalid={Boolean(state.errors?.items)} aria-describedby={state.errors?.items ? "quotation-items-error" : undefined} type="number" min="0.01" step="0.01" value={item.quantity} onChange={(e) => updateItem(index, { quantity: e.target.value })} required /></td>
+                      <td data-label="Unit">
+                        <select aria-label={`Unit for line ${index + 1}`} aria-invalid={Boolean(state.errors?.items)} aria-describedby={state.errors?.items ? "quotation-items-error" : undefined} value={item.unit} onChange={(e) => updateItem(index, { unit: e.target.value as SalesQuotationUnit })}>
                           {QUOTATION_UNITS.map((u) => <option key={u} value={u}>{QUOTATION_UNIT_LABELS[u]}</option>)}
                         </select>
                       </td>
-                      <td><input type="number" min="0" step="0.01" value={item.unit_price} onChange={(e) => updateItem(index, { unit_price: e.target.value })} required /></td>
-                      <td><input type="number" min="0" step="0.01" value={item.discount} onChange={(e) => updateItem(index, { discount: e.target.value })} /></td>
-                      <td>RM {lineTotal.toLocaleString("en-MY", { minimumFractionDigits: 2 })}</td>
-                      <td>{items.length > 1 && <button type="button" className="ta-btn ta-btn-outline ta-btn-sm" onClick={() => removeItem(index)}>Remove</button>}</td>
+                      <td data-label="Unit price"><input aria-label={`Unit price for line ${index + 1}`} aria-invalid={Boolean(state.errors?.items)} aria-describedby={state.errors?.items ? "quotation-items-error" : undefined} type="number" min="0" step="0.01" value={item.unit_price} onChange={(e) => updateItem(index, { unit_price: e.target.value })} required /></td>
+                      <td data-label="Discount"><input aria-label={`Discount for line ${index + 1}`} aria-invalid={Boolean(state.errors?.items)} aria-describedby={state.errors?.items ? "quotation-items-error" : undefined} type="number" min="0" step="0.01" value={item.discount} onChange={(e) => updateItem(index, { discount: e.target.value })} /></td>
+                      <td data-label="Line total">RM {lineTotal.toLocaleString("en-MY", { minimumFractionDigits: 2 })}</td>
+                      <td data-label="Remove">{items.length > 1 && <button type="button" aria-label={`Remove line ${index + 1}`} className="ta-btn ta-btn-outline ta-btn-sm" onClick={() => removeItem(index)}>Remove</button>}</td>
                     </tr>
                   );
                 })}
@@ -300,8 +300,9 @@ export function QuotationItemsEditor({
         </div>
       </Card>
 
-      <Card title="Totals (preview)">
+      <Card title="Totals preview">
         <div className="ta-card-pad">
+          <p className="ta-muted-sub">Preview only; saved totals are server-calculated.</p>
           <dl style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 6, margin: 0 }}>
             <dt>Subtotal</dt><dd style={{ margin: 0, textAlign: "right" }}>RM {totals.subtotal.toLocaleString("en-MY", { minimumFractionDigits: 2 })}</dd>
             <dt>Discount</dt><dd style={{ margin: 0, textAlign: "right" }}>− RM {(Number(discount) || 0).toLocaleString("en-MY", { minimumFractionDigits: 2 })}</dd>

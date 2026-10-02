@@ -5,6 +5,8 @@ import { PageHead, Card, EmptyState, Pagination, ListToolbar, ReadErrorState } f
 import { CRM_STATUS_ORDER, CRM_STATUS_LABELS, SOURCE_LABELS, mytEndOfTodayUtc, sanitizeSearchTerm, type SalesLeadInboxRow } from "../../../../../lib/sales/crm";
 import { ageLabel, daysSinceActivityLabel, qualificationLabel, temperatureLabel } from "../../../../../lib/sales/qualification";
 import { LeadInboxTable } from "./LeadInboxTable";
+import { clampPage, normalizePage, pageCountFor, pageRange } from "../../../../../lib/sales/pagination";
+import { buildAssigneeFilterState } from "../../../../../lib/sales/assignee-filter";
 
 export const metadata = { title: "Sales Leads — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
@@ -21,7 +23,7 @@ export default async function SalesLeadsPage({
   await requireRole("editor"); // read allowed for all sales-CRM staff; mutations are admin-gated in actions.ts
   await requireModuleAccess("sales_leads");
   const sp = await searchParams;
-  const page = Math.max(1, Number(sp.page ?? 1));
+  let page = normalizePage(sp.page);
   const supabase = await createSupabaseServerClient();
 
   // Staff list for the "Assigned To" filter + display name lookups.
@@ -32,12 +34,13 @@ export default async function SalesLeadsPage({
     .order("full_name");
   const staff = (staffRows ?? []) as { id: string; full_name: string }[];
   const staffNames = new Map(staff.map((s) => [s.id, s.full_name]));
+  const assigneeFilterState = buildAssigneeFilterState(Boolean(staffError), sp.assigned, staff);
 
   let query = supabase
     .from("v_sales_lead_inbox")
     .select("*", { count: "exact" })
     .order("created_at", { ascending: false })
-    .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
+    .order("lead_metadata_id", { ascending: true });
 
   if (sp.q) {
     const term = sanitizeSearchTerm(sp.q);
@@ -84,7 +87,23 @@ export default async function SalesLeadsPage({
   if (sp.from) query = query.gte("created_at", sp.from);
   if (sp.to) query = query.lte("created_at", `${sp.to}T23:59:59`);
 
-  const { data: rows, count, error: leadReadError } = qualificationIds?.length === 0 ? { data: [], count: 0, error: null } : await query;
+  const requestedRange = pageRange(page, PAGE_SIZE);
+  let { data: rows, count, error: leadReadError } = qualificationIds?.length === 0
+    ? { data: [], count: 0, error: null }
+    : await query.range(requestedRange.from, requestedRange.to);
+  let pageCount = pageCountFor(count ?? 0, PAGE_SIZE);
+  const clampedPage = clampPage(page, pageCount);
+  if (clampedPage !== page) {
+    page = clampedPage;
+    const correctedRange = pageRange(page, PAGE_SIZE);
+    const correctedResult = qualificationIds?.length === 0
+      ? { data: [], count: 0, error: null }
+      : await query.range(correctedRange.from, correctedRange.to);
+    rows = correctedResult.data;
+    count = correctedResult.count;
+    leadReadError = correctedResult.error;
+    pageCount = pageCountFor(count ?? 0, PAGE_SIZE);
+  }
   const leadRows = (rows ?? []) as SalesLeadInboxRow[];
   const leadIds = leadRows.map((lead) => lead.lead_metadata_id);
   const { data: qualificationRows, error: qualificationDataError } = leadIds.length ? await supabase.from("sales_lead_metadata").select("id, qualification_status, temperature, qualification_reason, disqualification_reason, created_at").in("id", leadIds) : { data: [], error: null };
@@ -106,13 +125,12 @@ export default async function SalesLeadsPage({
   for (const task of taskRows ?? []) {
     if (task.lead_metadata_id && !nextActions.has(task.lead_metadata_id)) nextActions.set(task.lead_metadata_id, task);
   }
-  const pageCount = Math.ceil((count ?? 0) / PAGE_SIZE);
-
   const qsBase: Record<string, string> = {};
   for (const k of ["q", "status", "source", "assigned", "followup", "from", "to", "qualification", "temperature", "priority", "age"] as const) if (sp[k]) qsBase[k] = sp[k]!;
   const exportQs = new URLSearchParams(qsBase).toString();
   const hasReadError = Boolean(qualificationReadError || leadReadError || qualificationDataError || activityReadError || taskReadError);
   const hasStaffError = Boolean(staffError);
+  const activeFilterCount = Object.keys(qsBase).length;
 
   return (
     <>
@@ -127,8 +145,9 @@ export default async function SalesLeadsPage({
       <ListToolbar>
         <div className="ta-search">
           <span className="ta-search-ico" aria-hidden="true">⌕</span>
-          <input name="q" defaultValue={sp.q ?? ""} placeholder="Search name, company, email…" />
+          <input name="q" aria-label="Search leads" defaultValue={sp.q ?? ""} placeholder="Search name, company, email…" />
         </div>
+        <div className="ta-filter-group" role="group" aria-label="Lead filters">
         <select name="status" defaultValue={sp.status ?? ""} className="ta-filter-select" aria-label="Status filter">
           <option value="">All statuses</option>
           {CRM_STATUS_ORDER.map((s) => <option key={s} value={s}>{CRM_STATUS_LABELS[s]}</option>)}
@@ -140,11 +159,10 @@ export default async function SalesLeadsPage({
           <option value="marketing_contact">{SOURCE_LABELS.marketing_contact}</option>
           <option value="internal">{SOURCE_LABELS.internal}</option>
         </select>
-        <select name="assigned" defaultValue={sp.assigned ?? ""} className="ta-filter-select" style={{ maxWidth: 180 }} aria-label="Assigned to filter">
-          <option value="">Anyone</option>
-          <option value="unassigned">Unassigned</option>
-          {staff.map((s) => <option key={s.id} value={s.id}>{s.full_name}</option>)}
+        <select name="assigned" defaultValue={assigneeFilterState.value} disabled={assigneeFilterState.disabled} className="ta-filter-select" style={{ maxWidth: 180 }} aria-label="Assigned to filter">
+          {assigneeFilterState.options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
+        {assigneeFilterState.notice && <span className="ta-filter-unavailable" role="status">{assigneeFilterState.notice}</span>}
         <select name="followup" defaultValue={sp.followup ?? ""} className="ta-filter-select" aria-label="Follow-up filter">
           <option value="">All follow-ups</option>
           <option value="overdue">Overdue</option>
@@ -172,23 +190,22 @@ export default async function SalesLeadsPage({
           To
           <input type="date" name="to" defaultValue={sp.to ?? ""} className="ta-filter-date" />
         </label>
+        </div>
         <button type="submit" className="ta-btn ta-btn-outline ta-btn-sm">Apply</button>
-        {(sp.q || sp.status || sp.source || sp.assigned || sp.followup || sp.from || sp.to || sp.qualification || sp.temperature || sp.priority || sp.age) && (
-          <Link className="ta-btn ta-btn-outline ta-btn-sm" href="/admin/sales/leads">Reset filters</Link>
-        )}
       </ListToolbar>
+      {activeFilterCount > 0 && <div className="ta-filter-summary" aria-live="polite"><span>{activeFilterCount} active filter{activeFilterCount === 1 ? "" : "s"}</span><Link href="/admin/sales/leads" className="ta-link">Clear all</Link></div>}
 
       <Card title="Lead Inbox">
         {hasReadError ? (
           <ReadErrorState message="Lead records or supporting Sales details could not be loaded. Refresh the page and try again." />
         ) : rows && rows.length > 0 ? (
-          <LeadInboxTable rows={leadRows} staffNames={staffNames} nextActions={nextActions} qualificationByLead={qualificationByLead} lastActivityByLead={lastActivityByLead} />
+          <LeadInboxTable rows={leadRows} staffNames={staffNames} staffNamesUnavailable={hasStaffError} nextActions={nextActions} qualificationByLead={qualificationByLead} lastActivityByLead={lastActivityByLead} />
         ) : (
           <EmptyState
             icon="🧲"
             kind={sp.q || sp.status || sp.source || sp.assigned || sp.followup || sp.from || sp.to || sp.qualification || sp.temperature || sp.priority || sp.age ? "no-results" : "empty"}
             title={sp.q || sp.status || sp.source || sp.assigned || sp.followup || sp.from || sp.to || sp.qualification || sp.temperature || sp.priority || sp.age ? "No matching leads" : "No leads yet"}
-            message="Leads appear automatically here as soon as a visitor submits a contact enquiry or a proposal request."
+            message={sp.q || sp.status || sp.source || sp.assigned || sp.followup || sp.from || sp.to || sp.qualification || sp.temperature || sp.priority || sp.age ? "Adjust or clear the active filters to see more leads." : "Leads appear automatically here as soon as a visitor submits a contact enquiry or a proposal request."}
           />
         )}
       </Card>

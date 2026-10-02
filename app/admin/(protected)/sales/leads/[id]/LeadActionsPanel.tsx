@@ -90,7 +90,7 @@ export function LeadActionsPanel({
       ) : (
         canManage && (
           <Card title="Convert to Opportunity">
-            <form action={convertAction} className="ta-card-pad ta-stack">
+            <form id="lead-primary-action" action={convertAction} className="ta-card-pad ta-stack">
               {convertState.message && <div className="ta-alert ta-alert-error">{convertState.message}</div>}
               <Field label="Opportunity title" name="title" error={convertState.errors?.title}>
                 <input id="title" name="title" defaultValue={defaultOpportunityTitle ?? ""} placeholder="e.g. Basic Scaffolder — 8 pax" required />

@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
 import { requireRole, requireModuleAccess } from "../../../../../../lib/auth/session";
 import { isAdmin, isSuperAdmin } from "../../../../../../lib/auth/rbac";
-import { PageHead, Card, Badge, EmptyState } from "../../../../../../components/admin/ui";
+import { PageHead, Card, Badge, EmptyState, ReadErrorState } from "../../../../../../components/admin/ui";
 import { FollowUpBadge } from "../../../../../../components/admin/sales/FollowUpBadge";
 import { PRIORITY_LABELS, SOURCE_LABELS, followUpState, type SalesLeadInboxRow, type SalesActivityRow } from "../../../../../../lib/sales/crm";
 import { LeadActionsPanel } from "./LeadActionsPanel";
@@ -80,7 +80,8 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
   const sp = await searchParams;
   const supabase = await createSupabaseServerClient();
 
-  const { data: lead } = await supabase.from("v_sales_lead_inbox").select("*").eq("lead_metadata_id", id).maybeSingle();
+  const { data: lead, error: leadReadError } = await supabase.from("v_sales_lead_inbox").select("*").eq("lead_metadata_id", id).maybeSingle();
+  if (leadReadError) return <><PageHead title="Lead detail" /><ReadErrorState message="Lead details could not be loaded. Retry the page." /></>;
   if (!lead) notFound();
   const row = lead as SalesLeadInboxRow;
 
@@ -93,7 +94,7 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
           ? supabase.from("marketing_contacts").select("*").eq("id", row.source_id).maybeSingle()
           : row.lead_source === "internal"
             ? supabase.from("sales_internal_lead_sources").select("*").eq("id", row.source_id).maybeSingle()
-          : Promise.resolve({ data: null }),
+          : Promise.resolve({ data: null, error: null }),
     supabase.from("sales_activity").select("*").eq("lead_metadata_id", id).order("created_at", { ascending: true }),
     supabase.from("sales_lead_attributions").select("*, marketing_campaigns(name)").eq("lead_metadata_id", id).maybeSingle(),
     supabase.from("marketing_campaigns").select("id, name, status").neq("status", "archived").order("name"),
@@ -137,7 +138,10 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
       <PageHead
         title={row.contact_name ?? "Lead"}
         subtitle={`${SOURCE_LABELS[row.lead_source]} — ${row.company ?? "No company given"}`}
-        action={<Link href="/admin/sales/leads" className="ta-btn ta-btn-outline">← Back to Leads</Link>}
+        action={opportunityResult.error ? undefined : existingOpportunity
+          ? <Link href={`/admin/sales/opportunities/${existingOpportunity.id}`} className="ta-btn ta-btn-primary">View Opportunity</Link>
+          : canManage ? <Link href="#lead-primary-action" className="ta-btn ta-btn-primary">Convert to Opportunity</Link> : undefined}
+        secondaryAction={<Link href="/admin/sales/leads" className="ta-btn ta-btn-outline">← Back to Leads</Link>}
       />
 
       <div className="ta-lead-meta">
@@ -183,7 +187,9 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
             </form>
           </Card>
 
-          {row.lead_source === "enquiry" && source ? (
+          {sourceResult.error ? (
+            <ReadErrorState title="Original submission unavailable" message="The source record could not be loaded. Retry to view the original enquiry or proposal context." />
+          ) : row.lead_source === "enquiry" && source ? (
             <EnquiryDetail source={source as EnquirySource} />
           ) : row.lead_source === "proposal_request" && source ? (
             <ProposalDetail source={source as ProposalSource} />
@@ -197,10 +203,30 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
             </Card>
           )}
 
-          <LeadActivityTimeline activities={(activityRows ?? []) as unknown as SalesActivityRow[]} actorNames={actorNames} />
+          {activityResult.error ? <ReadErrorState title="Activity history unavailable" message="Lead activity could not be loaded. Retry the page to see notes and history." /> : profilesResult.error ? <ReadErrorState title="Activity names unavailable" message="Activity loaded, but actor names could not be resolved." /> : <LeadActivityTimeline activities={(activityRows ?? []) as unknown as SalesActivityRow[]} actorNames={actorNames} />}
         </div>
 
         <div className="ta-lead-detail-side">
+          <div className="ta-lead-actions-first">
+            {opportunityResult.error || qualificationResult.error || staffResult.error ? <ReadErrorState title="Lead actions unavailable" message="The opportunity, qualification, or staff context could not be loaded. Retry before making changes." /> : <LeadActionsPanel
+              leadMetadataId={row.lead_metadata_id}
+              status={row.status}
+              assignedTo={row.assigned_to}
+              followUpAt={row.follow_up_at}
+              priority={row.priority}
+              staff={staff}
+              canManage={canManage}
+              existingOpportunity={existingOpportunity ?? null}
+              defaultOpportunityTitle={row.subject ?? undefined}
+              isSuperAdmin={superAdmin}
+              isTest={row.is_test}
+              qualificationStatus={qualification?.qualification_status ?? "pending"}
+              temperature={qualification?.temperature ?? null}
+              qualificationReason={qualification?.qualification_reason ?? null}
+              disqualificationReason={qualification?.disqualification_reason ?? null}
+            />}
+          </div>
+          {moduleAccessResult.error && <ReadErrorState title="Registration access unavailable" message="Registration permissions could not be confirmed. Retry the page." />}
           {canRegister && (
             <Card title="Registration">
               <div className="ta-card-pad ta-stack">
@@ -224,7 +250,7 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
 
           <Card title="Next Action">
             <div className="ta-card-pad ta-stack">
-              {nextAction ? (
+              {nextActionResult.error ? <ReadErrorState title="Next action unavailable" message="Active tasks could not be loaded. Retry the page." /> : nextAction ? (
                 <>
                   <strong>{nextAction.title}</strong>
                   <span className="ta-muted-sub">
@@ -243,34 +269,17 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
 
           <Card title="Sales Qualification">
             <div className="ta-card-pad">
-              <dl className="ta-kv">
+              {qualificationResult.error ? <ReadErrorState title="Qualification unavailable" message="Qualification details could not be loaded. Retry the page." /> : <dl className="ta-kv">
                 <Detail label="Qualification" value={qualificationLabel(qualification?.qualification_status)} />
                 <Detail label="Reason" value={qualification?.qualification_status === "qualified" ? QUALIFICATION_REASON_LABELS[qualification.qualification_reason as keyof typeof QUALIFICATION_REASON_LABELS] : DISQUALIFICATION_REASON_LABELS[qualification?.disqualification_reason as keyof typeof DISQUALIFICATION_REASON_LABELS]} />
                 <Detail label="Temperature" value={temperatureLabel(qualification?.temperature)} />
                 <Detail label="Priority" value={PRIORITY_LABELS[row.priority]} />
                 <Detail label="Lead age" value={ageLabel(qualification?.created_at ?? row.created_at)} />
                 <Detail label="Last activity" value={daysSinceActivityLabel(lastActivityAt)} />
-              </dl>
+              </dl>}
             </div>
           </Card>
 
-          <LeadActionsPanel
-            leadMetadataId={row.lead_metadata_id}
-            status={row.status}
-            assignedTo={row.assigned_to}
-            followUpAt={row.follow_up_at}
-            priority={row.priority}
-            staff={staff}
-            canManage={canManage}
-            existingOpportunity={existingOpportunity ?? null}
-            defaultOpportunityTitle={row.subject ?? undefined}
-            isSuperAdmin={superAdmin}
-            isTest={row.is_test}
-            qualificationStatus={qualification?.qualification_status ?? "pending"}
-            temperature={qualification?.temperature ?? null}
-            qualificationReason={qualification?.qualification_reason ?? null}
-            disqualificationReason={qualification?.disqualification_reason ?? null}
-          />
         </div>
       </div>
     </>
