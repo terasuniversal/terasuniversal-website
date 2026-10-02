@@ -91,8 +91,8 @@ export function parseTaskDueDateTimeLocal(value: string): string | null {
   return date.toISOString();
 }
 
-/** Render an instant as a Malaysia-local datetime-local value for the queue editor. */
-export function taskDueDateTimeLocal(value: string | null): string {
+/** Render a scheduled CRM instant as a Malaysia-local datetime-local value. */
+export function salesDateTimeLocal(value: string | null): string {
   if (!value) return "";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
@@ -107,6 +107,11 @@ export function taskDueDateTimeLocal(value: string | null): string {
   }).formatToParts(date);
   const values = Object.fromEntries(parts.map(({ type, value: part }) => [type, part]));
   return `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}`;
+}
+
+/** Render a Task instant for its queue/reschedule input. */
+export function taskDueDateTimeLocal(value: string | null): string {
+  return salesDateTimeLocal(value);
 }
 
 export type TaskLifecycleStatus = "open" | "in_progress" | "completed" | "cancelled";

@@ -4,7 +4,7 @@ import { useActionState } from "react";
 import Link from "next/link";
 import type { TaskFormState } from "./actions";
 import { Field } from "../../../../../components/admin/ui";
-import { taskQueueHref, type TaskQueueContext } from "../../../../../lib/sales/task-queue";
+import { salesDateTimeLocal, taskQueueHref, type TaskQueueContext } from "../../../../../lib/sales/task-queue";
 
 const PRIORITIES = ["low", "medium", "high"] as const;
 
@@ -69,7 +69,7 @@ export function TaskForm({
           </select>
         </Field>
         <Field label="Due date & time" name="due_at" error={e.due_at}>
-          <input id="due_at" name="due_at" type="datetime-local" defaultValue={d.due_at ? d.due_at.slice(0, 16) : ""} />
+          <input id="due_at" name="due_at" type="datetime-local" defaultValue={salesDateTimeLocal(d.due_at)} />
         </Field>
       </div>
 

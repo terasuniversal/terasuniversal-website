@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useId, useRef } from "react";
 import { setLeadFollowUp, type SalesActionState } from "../leads/actions";
+import { salesDateTimeLocal } from "../../../../../lib/sales/task-queue";
 
 const INITIAL_STATE: SalesActionState = {};
 
@@ -40,7 +41,7 @@ export function FollowUpInlineForm({ leadMetadataId, followUpAt, returnTo }: { l
           type="datetime-local"
           name="follow_up_at"
           autoComplete="off"
-          defaultValue={followUpAt ? followUpAt.slice(0, 16) : ""}
+          defaultValue={salesDateTimeLocal(followUpAt)}
           required
           aria-invalid={Boolean(saveState.errors?.follow_up_at)}
           aria-describedby={saveState.errors?.follow_up_at ? dateErrorId : undefined}
