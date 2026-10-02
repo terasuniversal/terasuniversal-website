@@ -29,6 +29,13 @@ for (const [name, source, label] of [["Leads", leadList, "Lead"], ["Opportunitie
   assert.match(source, new RegExp(`role="group" aria-label="${label} filters"`), `${name} filter controls should be grouped for scanning and assistive technology`);
 }
 assert.match(quotationList, /ReadErrorState/, "Quotation read failures should not render as an empty list");
+const quotationStatusStart = quotationList.indexOf('<select name="status"');
+const quotationStatusEnd = quotationList.indexOf("</select>", quotationStatusStart);
+assert.ok(quotationStatusStart >= 0 && quotationStatusEnd > quotationStatusStart, "Quotation status filter markup should exist");
+const quotationStatusFilter = quotationList.slice(quotationStatusStart, quotationStatusEnd);
+assert.ok(quotationStatusFilter.includes('padding: "9px 10px"'), "Quotation status filter should keep the visible control padding");
+assert.ok(quotationStatusFilter.includes("borderRadius: 9"), "Quotation status filter should keep its rounded border");
+assert.ok(quotationStatusFilter.includes('border: "1px solid var(--ta-line)"'), "Quotation status filter should keep the shared border color");
 assert.match(editor, /aria-label=\{`Quantity for line/, "Each line quantity control should have a contextual accessible name");
 assert.match(editor, /aria-label=\{`Unit price for line/, "Each line unit price control should have a contextual accessible name");
 assert.match(editor, /id="quotation-items-error"/, "Line-item validation errors should have a stable description target");

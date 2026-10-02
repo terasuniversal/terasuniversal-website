@@ -118,7 +118,7 @@ export default async function QuotationsPage({
           <input name="q" aria-label="Search quotations" defaultValue={sp.q ?? ""} placeholder="Search quotation no, company, contact…" />
         </div>
         <div className="ta-filter-group" role="group" aria-label="Quotation filters">
-          <select name="status" defaultValue={sp.status ?? ""} aria-label="Status filter">
+          <select name="status" defaultValue={sp.status ?? ""} style={{ padding: "9px 10px", borderRadius: 9, border: "1px solid var(--ta-line)" }} aria-label="Status filter">
             <option value="">All statuses</option>
             {QUOTATION_STATUS_ORDER.map((s) => <option key={s} value={s}>{QUOTATION_STATUS_LABELS[s]}</option>)}
           </select>
