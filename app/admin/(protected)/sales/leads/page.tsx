@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { requireRole, requireModuleAccess } from "../../../../../lib/auth/session";
-import { PageHead, Card, EmptyState, Pagination } from "../../../../../components/admin/ui";
+import { PageHead, Card, EmptyState, Pagination, ListToolbar, ReadErrorState } from "../../../../../components/admin/ui";
 import { CRM_STATUS_ORDER, CRM_STATUS_LABELS, SOURCE_LABELS, mytEndOfTodayUtc, sanitizeSearchTerm, type SalesLeadInboxRow } from "../../../../../lib/sales/crm";
 import { ageLabel, daysSinceActivityLabel, qualificationLabel, temperatureLabel } from "../../../../../lib/sales/qualification";
 import { LeadInboxTable } from "./LeadInboxTable";
@@ -25,7 +25,7 @@ export default async function SalesLeadsPage({
   const supabase = await createSupabaseServerClient();
 
   // Staff list for the "Assigned To" filter + display name lookups.
-  const { data: staffRows } = await supabase
+  const { data: staffRows, error: staffError } = await supabase
     .from("profiles")
     .select("id, full_name")
     .eq("is_active", true)
@@ -50,6 +50,7 @@ export default async function SalesLeadsPage({
   const nowIso = now.toISOString();
   const endOfTodayMyt = mytEndOfTodayUtc(now).toISOString();
   const hasQualificationFilter = Boolean(sp.qualification || sp.temperature || sp.priority || sp.age);
+  let qualificationReadError: unknown = null;
   let qualificationIds: string[] | null = null;
   if (hasQualificationFilter) {
     let qualificationQuery = supabase.from("sales_lead_metadata").select("id, created_at");
@@ -70,7 +71,8 @@ export default async function SalesLeadsPage({
         }
       }
     }
-    const { data: qualificationRows } = await qualificationQuery;
+    const { data: qualificationRows, error: qualificationQueryError } = await qualificationQuery;
+    qualificationReadError = qualificationQueryError;
     const ids = (qualificationRows ?? []).map((item: { id: string }) => item.id);
     qualificationIds = ids;
   }
@@ -82,15 +84,15 @@ export default async function SalesLeadsPage({
   if (sp.from) query = query.gte("created_at", sp.from);
   if (sp.to) query = query.lte("created_at", `${sp.to}T23:59:59`);
 
-  const { data: rows, count } = qualificationIds?.length === 0 ? { data: [], count: 0 } : await query;
+  const { data: rows, count, error: leadReadError } = qualificationIds?.length === 0 ? { data: [], count: 0, error: null } : await query;
   const leadRows = (rows ?? []) as SalesLeadInboxRow[];
   const leadIds = leadRows.map((lead) => lead.lead_metadata_id);
-  const { data: qualificationRows } = leadIds.length ? await supabase.from("sales_lead_metadata").select("id, qualification_status, temperature, qualification_reason, disqualification_reason, created_at").in("id", leadIds) : { data: [] };
+  const { data: qualificationRows, error: qualificationDataError } = leadIds.length ? await supabase.from("sales_lead_metadata").select("id, qualification_status, temperature, qualification_reason, disqualification_reason, created_at").in("id", leadIds) : { data: [], error: null };
   const qualificationByLead = new Map<string, { qualification_status: string; temperature: string | null }>((qualificationRows ?? []).map((item: { id: string; qualification_status: string; temperature: string | null }) => [item.id, item]));
-  const { data: activityRows } = leadIds.length ? await supabase.from("sales_activity").select("lead_metadata_id, created_at").in("lead_metadata_id", leadIds).order("created_at", { ascending: false }) : { data: [] };
+  const { data: activityRows, error: activityReadError } = leadIds.length ? await supabase.from("sales_activity").select("lead_metadata_id, created_at").in("lead_metadata_id", leadIds).order("created_at", { ascending: false }) : { data: [], error: null };
   const lastActivityByLead = new Map<string, string>();
   for (const activity of activityRows ?? []) if (!lastActivityByLead.has(activity.lead_metadata_id)) lastActivityByLead.set(activity.lead_metadata_id, activity.created_at);
-  const { data: taskRows } = leadIds.length
+  const { data: taskRows, error: taskReadError } = leadIds.length
     ? await supabase
         .from("sales_tasks")
         .select("id, title, status, priority, due_at, lead_metadata_id, created_at")
@@ -99,7 +101,7 @@ export default async function SalesLeadsPage({
         .not("status", "in", "(completed,cancelled)")
         .order("due_at", { ascending: true, nullsFirst: false })
         .order("created_at", { ascending: true })
-    : { data: [] };
+    : { data: [], error: null };
   const nextActions = new Map<string, { id: string; title: string; status: string; priority: string; due_at: string | null }>();
   for (const task of taskRows ?? []) {
     if (task.lead_metadata_id && !nextActions.has(task.lead_metadata_id)) nextActions.set(task.lead_metadata_id, task);
@@ -109,6 +111,8 @@ export default async function SalesLeadsPage({
   const qsBase: Record<string, string> = {};
   for (const k of ["q", "status", "source", "assigned", "followup", "from", "to", "qualification", "temperature", "priority", "age"] as const) if (sp[k]) qsBase[k] = sp[k]!;
   const exportQs = new URLSearchParams(qsBase).toString();
+  const hasReadError = Boolean(qualificationReadError || leadReadError || qualificationDataError || activityReadError || taskReadError);
+  const hasStaffError = Boolean(staffError);
 
   return (
     <>
@@ -116,9 +120,11 @@ export default async function SalesLeadsPage({
         title="Sales Leads"
         subtitle="Unified inbox — public contact enquiries and proposal requests in one pipeline."
         action={<Link href="/admin/sales/leads/new" className="ta-btn ta-btn-primary">+ Create Lead</Link>}
+        secondaryAction={<a href={`/admin/sales/leads/export${exportQs ? "?" + exportQs : ""}`} className="ta-btn ta-btn-outline">Export CSV</a>}
       />
+      {hasStaffError && <ReadErrorState title="Assignee filter unavailable" message="Lead records are still shown, but owner names and assignee options may be incomplete." />}
 
-      <form className="ta-toolbar">
+      <ListToolbar>
         <div className="ta-search">
           <span className="ta-search-ico" aria-hidden="true">⌕</span>
           <input name="q" defaultValue={sp.q ?? ""} placeholder="Search name, company, email…" />
@@ -170,25 +176,29 @@ export default async function SalesLeadsPage({
         {(sp.q || sp.status || sp.source || sp.assigned || sp.followup || sp.from || sp.to || sp.qualification || sp.temperature || sp.priority || sp.age) && (
           <Link className="ta-btn ta-btn-outline ta-btn-sm" href="/admin/sales/leads">Reset filters</Link>
         )}
-      </form>
+      </ListToolbar>
 
-      <Card
-        title="Lead Inbox"
-        action={
-          <a href={`/admin/sales/leads/export${exportQs ? "?" + exportQs : ""}`} className="ta-btn ta-btn-outline ta-btn-sm">Export CSV</a>
-        }
-      >
-        {rows && rows.length > 0 ? (
+      <Card title="Lead Inbox">
+        {hasReadError ? (
+          <ReadErrorState message="Lead records or supporting Sales details could not be loaded. Refresh the page and try again." />
+        ) : rows && rows.length > 0 ? (
           <LeadInboxTable rows={leadRows} staffNames={staffNames} nextActions={nextActions} qualificationByLead={qualificationByLead} lastActivityByLead={lastActivityByLead} />
         ) : (
-          <EmptyState icon="🧲" message="No leads match this view. Leads appear automatically here as soon as a visitor submits a contact enquiry or a proposal request." />
+          <EmptyState
+            icon="🧲"
+            kind={sp.q || sp.status || sp.source || sp.assigned || sp.followup || sp.from || sp.to || sp.qualification || sp.temperature || sp.priority || sp.age ? "no-results" : "empty"}
+            title={sp.q || sp.status || sp.source || sp.assigned || sp.followup || sp.from || sp.to || sp.qualification || sp.temperature || sp.priority || sp.age ? "No matching leads" : "No leads yet"}
+            message="Leads appear automatically here as soon as a visitor submits a contact enquiry or a proposal request."
+          />
         )}
       </Card>
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ color: "var(--ta-muted)", fontSize: 13, paddingTop: 14 }}>{count ?? 0} {count === 1 ? "lead" : "leads"}</span>
-        <Pagination page={page} pageCount={pageCount} basePath="/admin/sales/leads" query={qsBase} />
-      </div>
+      {!hasReadError && (
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ color: "var(--ta-muted)", fontSize: 13, paddingTop: 14 }}>{count ?? 0} {count === 1 ? "lead" : "leads"}</span>
+          <Pagination page={page} pageCount={pageCount} basePath="/admin/sales/leads" query={qsBase} />
+        </div>
+      )}
     </>
   );
 }

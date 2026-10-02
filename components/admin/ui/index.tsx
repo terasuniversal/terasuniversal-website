@@ -1,4 +1,4 @@
-import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from "react";
+import { cloneElement, isValidElement, type FormHTMLAttributes, type InputHTMLAttributes, type ReactElement, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
 import Link from "next/link";
 
 /* Reusable, dependency-free admin UI primitives. */
@@ -32,8 +32,13 @@ export function StatCard({
   return href ? <Link href={href}>{body}</Link> : body;
 }
 
-export function Badge({ status }: { status: string }) {
-  return <span className={`ta-badge-pill ${status}`}>{status.replace(/_/g, " ")}</span>;
+function statusLabel(status: string) {
+  return status.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+export function Badge({ status, label }: { status: string; label?: string }) {
+  const displayLabel = label ?? statusLabel(status);
+  return <span className={`ta-badge-pill ${status}`} aria-label={`${displayLabel} status`}>{displayLabel}</span>;
 }
 
 export function Card({
@@ -63,14 +68,16 @@ export function EmptyState({
   title,
   message,
   action,
+  kind = "empty",
 }: {
   icon?: ReactNode;
   title?: string;
   message: string;
   action?: ReactNode;
+  kind?: "empty" | "no-results";
 }) {
   return (
-    <div className="ta-empty">
+    <div className={`ta-empty ta-empty-${kind}`}>
       <div className="ta-empty-ico" aria-hidden="true">
         {icon}
       </div>
@@ -81,14 +88,38 @@ export function EmptyState({
   );
 }
 
+export function ReadErrorState({ title = "Unable to load data", message, action }: { title?: string; message: string; action?: ReactNode }) {
+  return (
+    <div className="ta-read-error" role="alert">
+      <strong>{title}</strong>
+      <p>{message}</p>
+      {action && <div className="ta-empty-action">{action}</div>}
+    </div>
+  );
+}
+
+export function LoadingState({ label = "Loading", rows = 3 }: { label?: string; rows?: number }) {
+  return (
+    <div className="ta-loading-state" role="status" aria-label={label}>
+      {Array.from({ length: Math.max(1, rows) }, (_, index) => <span key={index} className="ta-loading-skeleton" aria-hidden="true" />)}
+    </div>
+  );
+}
+
+export function ListToolbar({ children, className = "", ...props }: { children: ReactNode; className?: string } & FormHTMLAttributes<HTMLFormElement>) {
+  return <form {...props} className={`ta-toolbar ta-list-toolbar ${className}`.trim()}>{children}</form>;
+}
+
 export function PageHead({
   title,
   subtitle,
   action,
+  secondaryAction,
 }: {
   title: string;
   subtitle?: string;
   action?: ReactNode;
+  secondaryAction?: ReactNode;
 }) {
   return (
     <div className="ta-page-head">
@@ -96,7 +127,12 @@ export function PageHead({
         <h1>{title}</h1>
         {subtitle && <p>{subtitle}</p>}
       </div>
-      {action}
+      {(action || secondaryAction) && (
+        <div className="ta-page-head-actions">
+          {secondaryAction}
+          {action}
+        </div>
+      )}
     </div>
   );
 }
@@ -118,13 +154,13 @@ export function Pagination({
     return `${basePath}?${params.toString()}`;
   };
   return (
-    <div className="ta-pagination">
+    <nav className="ta-pagination" aria-label="Pagination">
       {page > 1 && (
         <Link className="ta-btn ta-btn-outline ta-btn-sm" href={qs(page - 1)}>
           ← Prev
         </Link>
       )}
-      <span style={{ color: "var(--ta-muted)", fontSize: 13 }}>
+      <span aria-current="page" style={{ color: "var(--ta-muted)", fontSize: 13 }}>
         Page {page} of {pageCount}
       </span>
       {page < pageCount && (
@@ -132,7 +168,7 @@ export function Pagination({
           Next →
         </Link>
       )}
-    </div>
+    </nav>
   );
 }
 
@@ -153,16 +189,32 @@ export function Field({
   controlId?: string;
   children: ReactNode;
 }) {
-  const id = controlId ?? name;
+  const childProps = isValidElement(children) && (children.type as unknown) !== Symbol.for("react.fragment")
+    ? (children as ReactElement<Record<string, unknown>>).props
+    : null;
+  const id = controlId ?? (typeof childProps?.id === "string" ? childProps.id : name);
+  const hintId = `${id}-hint`;
+  const errorId = `${id}-error`;
+  const control = childProps
+    ? cloneElement(children as ReactElement<Record<string, unknown>>, {
+        id: childProps.id ?? id,
+        required: required || childProps.required,
+        "aria-invalid": error ? true : childProps["aria-invalid"],
+        "aria-describedby": [childProps["aria-describedby"], hint ? hintId : null, error ? errorId : null]
+          .filter(Boolean)
+          .join(" ") || undefined,
+      })
+    : children;
+
   return (
     <div className="ta-field">
       <label htmlFor={id}>
         {label}
         {required && <span className="ta-req" aria-hidden="true"> *</span>}
       </label>
-      {children}
-      {hint && <small style={{ color: "var(--ta-muted)" }}>{hint}</small>}
-      {error && <span className="ta-error">{error}</span>}
+      {control}
+      {hint && <small id={hintId} style={{ color: "var(--ta-muted)" }}>{hint}</small>}
+      {error && <span id={errorId} className="ta-error" role="alert">{error}</span>}
     </div>
   );
 }
@@ -183,9 +235,14 @@ export function fieldA11y(name: string, options: { hasHint?: boolean; hasError?:
   const describedBy = [options.hasHint ? `${name}-hint` : null, options.hasError ? `${name}-error` : null]
     .filter(Boolean)
     .join(" ");
+  const ariaDescribedBy = describedBy || undefined;
+  const ariaInvalid = options.hasError || undefined;
   return {
-    describedBy: describedBy || undefined,
-    invalid: options.hasError || undefined,
+    "aria-describedby": ariaDescribedBy,
+    "aria-invalid": ariaInvalid,
+    // Retain the helper's original keys for the existing Admin form call sites.
+    describedBy: ariaDescribedBy,
+    invalid: ariaInvalid,
   };
 }
 

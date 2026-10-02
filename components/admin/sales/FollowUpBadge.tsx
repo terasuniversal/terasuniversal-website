@@ -7,5 +7,6 @@ import { FOLLOW_UP_STATE_LABELS } from "../../../lib/sales/crm";
  * strong-but-professional danger treatment shared with the rest of the CMS.
  */
 export function FollowUpBadge({ state }: { state: FollowUpState }) {
-  return <span className={`ta-badge-pill ta-followup ${state}`}>{FOLLOW_UP_STATE_LABELS[state]}</span>;
+  const label = FOLLOW_UP_STATE_LABELS[state];
+  return <span className={`ta-badge-pill ta-followup ${state}`} aria-label={`Follow-up status: ${label}`}>{label}</span>;
 }

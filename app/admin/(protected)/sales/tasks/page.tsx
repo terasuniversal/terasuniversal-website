@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { requireRole, requireModuleAccess } from "../../../../../lib/auth/session";
-import { PageHead, Card, Badge, EmptyState, Pagination } from "../../../../../components/admin/ui";
+import { PageHead, Card, Badge, EmptyState, Pagination, ListToolbar, ReadErrorState } from "../../../../../components/admin/ui";
 import { dueDateState, mytEndOfTodayUtc, sanitizeSearchTerm, type SalesTaskRow } from "../../../../../lib/sales/crm";
 import { clampPage, normalizePage, pageCountFor, pageRange, SALES_QUEUE_PAGE_SIZE } from "../../../../../lib/sales/pagination";
 import { loadStaffOptions } from "./options";
@@ -68,11 +68,12 @@ export default async function SalesTasksPage({
     return query;
   };
 
-  const { count = 0 } = await createQuery("count");
+  const { count = 0, error: countError } = await createQuery("count");
   const pageCount = pageCountFor(count ?? 0);
   const page = clampPage(requestedPage, pageCount);
   const range = pageRange(page, SALES_QUEUE_PAGE_SIZE);
-  const { data: rows } = await createQuery("rows").range(range.from, range.to);
+  const { data: rows, error: rowsError } = await createQuery("rows").range(range.from, range.to);
+  const hasReadError = Boolean(countError || rowsError);
   const tasks = (rows ?? []) as SalesTaskRow[];
 
   const qsBase: Record<string, string> = {};
@@ -88,7 +89,7 @@ export default async function SalesTasksPage({
         action={<Link href="/admin/sales/tasks/new" className="ta-btn ta-btn-primary">+ New Task</Link>}
       />
 
-      <form className="ta-toolbar" style={{ flexWrap: "wrap" }}>
+      <ListToolbar style={{ flexWrap: "wrap" }}>
         {VIEWS.map((v) => (
           <Link
             key={v}
@@ -114,10 +115,12 @@ export default async function SalesTasksPage({
           <input name="q" defaultValue={sp.q ?? ""} placeholder="Search title…" />
         </div>
         <button type="submit" className="ta-btn ta-btn-outline ta-btn-sm">Apply</button>
-      </form>
+      </ListToolbar>
 
       <Card title={VIEW_LABELS[view]}>
-        {tasks.length > 0 ? (
+        {hasReadError ? (
+          <ReadErrorState message="Tasks could not be loaded. Refresh the page and try again." />
+        ) : tasks.length > 0 ? (
           <>
             <div className="ta-table-wrap ta-tasks-table">
               <table className="ta-table">
@@ -199,7 +202,7 @@ export default async function SalesTasksPage({
             </ul>
           </>
         ) : (
-          <EmptyState icon="☑" message="No tasks in this view." />
+          <EmptyState icon="☑" kind={sp.q || owner !== "all" || view !== "all" ? "no-results" : "empty"} title={sp.q || owner !== "all" || view !== "all" ? "No matching tasks" : "No tasks yet"} message="No tasks are available for these filters." />
         )}
       </Card>
       <Pagination page={page} pageCount={pageCount} basePath="/admin/sales/tasks" query={qsBase} />

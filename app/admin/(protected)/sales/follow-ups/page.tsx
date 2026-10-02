@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { requireRole, requireModuleAccess } from "../../../../../lib/auth/session";
-import { PageHead, Card, Badge, EmptyState, Pagination } from "../../../../../components/admin/ui";
+import { PageHead, Card, Badge, EmptyState, Pagination, ListToolbar, ReadErrorState } from "../../../../../components/admin/ui";
 import { mytEndOfTodayUtc, type SalesLeadInboxRow } from "../../../../../lib/sales/crm";
 import { clampPage, normalizePage, pageCountFor, pageRange, SALES_QUEUE_PAGE_SIZE } from "../../../../../lib/sales/pagination";
 import { formatMalaysiaDate } from "../../../../../lib/date-time";
@@ -64,11 +64,12 @@ export default async function FollowUpsPage({
     return query;
   };
 
-  const { count = 0 } = await createQuery("count");
+  const { count = 0, error: countError } = await createQuery("count");
   const pageCount = pageCountFor(count ?? 0);
   const page = clampPage(requestedPage, pageCount);
   const range = pageRange(page, SALES_QUEUE_PAGE_SIZE);
-  const { data: rows } = await createQuery("rows").range(range.from, range.to);
+  const { data: rows, error: rowsError } = await createQuery("rows").range(range.from, range.to);
+  const hasReadError = Boolean(countError || rowsError);
   const leads = (rows ?? []) as SalesLeadInboxRow[];
   const returnTo = `/admin/sales/follow-ups?view=${encodeURIComponent(view)}&owner=${encodeURIComponent(owner)}&page=${page}`;
   const leadIds = leads.map((l) => l.lead_metadata_id);
@@ -97,7 +98,7 @@ export default async function FollowUpsPage({
       {sp.feedback === "saved" && <div className="ta-alert ta-alert-success" role="status">Follow-up saved.</div>}
       {sp.feedback === "cleared" && <div className="ta-alert ta-alert-success" role="status">Follow-up cleared.</div>}
 
-      <form className="ta-toolbar" style={{ flexWrap: "wrap" }}>
+      <ListToolbar style={{ flexWrap: "wrap" }}>
         {VIEWS.map((v) => (
           <Link
             key={v}
@@ -119,10 +120,12 @@ export default async function FollowUpsPage({
         </select>
         <input type="hidden" name="view" value={view} />
         <button type="submit" className="ta-btn ta-btn-outline ta-btn-sm">Apply</button>
-      </form>
+      </ListToolbar>
 
       <Card title={VIEW_LABELS[view]}>
-        {leads.length > 0 ? (
+        {hasReadError ? (
+          <ReadErrorState message="Follow-ups could not be loaded. Refresh the page and try again." />
+        ) : leads.length > 0 ? (
           <>
             <div className="ta-table-wrap ta-followups-table">
               <table className="ta-table">
@@ -211,7 +214,7 @@ export default async function FollowUpsPage({
             </ul>
           </>
         ) : (
-          <EmptyState icon="🗓" message="No follow-ups in this view." />
+          <EmptyState icon="🗓" kind="no-results" title="No follow-ups in this view" message="No follow-ups match the selected date range and owner." />
         )}
       </Card>
       <Pagination
