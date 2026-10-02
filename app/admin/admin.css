@@ -841,3 +841,45 @@
   .ta-quotation-editor-table .ta-table tbody td:first-child { grid-column: 1 / -1; }
 }
 
+/* Wave 3 task queue: compact context and list-level actions. */
+.ta-task-title { min-width: 0; overflow-wrap: anywhere; }
+.ta-task-description { display: -webkit-box; margin: 4px 0 0; overflow: hidden; color: var(--ta-muted); font-size: 12px; line-height: 1.4; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.ta-task-related { max-width: 320px; overflow-wrap: anywhere; color: var(--ta-muted); font-size: 12.5px; }
+.ta-task-due { min-width: 128px; font-size: 12px; }
+.ta-task-due-state { display: inline-block; margin-left: 6px; font-weight: 700; }
+.ta-task-due-state.overdue { color: var(--ta-danger); }
+.ta-task-due-state.today { color: var(--ta-info); }
+.ta-task-due-state.upcoming { color: var(--ta-muted); }
+.ta-task-next-actions { display: flex; min-width: 200px; flex-direction: column; align-items: stretch; gap: 7px; }
+.ta-task-next-actions > a { align-self: flex-end; }
+.ta-task-actions { display: grid; gap: 6px; }
+.ta-task-actions form { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 6px; }
+.ta-task-actions input[type="datetime-local"] { width: 168px; max-width: 100%; min-width: 0; min-height: 36px; padding: 5px 7px; border: 1px solid var(--ta-line); border-radius: 8px; background: #fff; color: var(--ta-ink); font: inherit; font-size: 12px; }
+.ta-task-actions button { min-height: 36px; white-space: nowrap; }
+.ta-task-actions [role="alert"] { flex: 1 0 100%; margin: 0; padding: 7px 9px; font-size: 12px; }
+.ta-task-card-related { display: flex; flex-direction: column; gap: 3px; margin: 8px 0 10px; overflow-wrap: anywhere; font-size: 13px; }
+.ta-task-card-related > span { color: var(--ta-muted); font-size: 11px; font-weight: 700; }
+.ta-followup-inline { display: grid; gap: 6px; min-width: 0; }
+.ta-followup-inline form { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 6px; }
+.ta-followup-inline input[type="datetime-local"] { width: 170px; max-width: 100%; min-width: 0; min-height: 36px; padding: 5px 7px; border: 1px solid var(--ta-line); border-radius: 8px; background: #fff; color: var(--ta-ink); font: inherit; font-size: 12px; }
+.ta-followup-inline button { min-height: 36px; white-space: nowrap; }
+.ta-followup-inline [role="alert"] { flex: 1 0 100%; margin: 0; padding: 7px 9px; font-size: 12px; }
+.ta-task-actions :is(button, input), .ta-task-next-actions > a, .ta-followup-inline :is(button, input) { touch-action: manipulation; -webkit-tap-highlight-color: rgba(11,58,99,.12); }
+@media (max-width: 1100px) {
+  .ta-tasks-table, .ta-followups-table { display: none; }
+  .ta-task-cards, .ta-followup-cards { display: grid; }
+}
+@media (max-width: 900px) {
+  .ta-task-next-actions { min-width: 0; width: 100%; }
+  .ta-task-next-actions > a { align-self: flex-start; }
+}
+@media (max-width: 620px) {
+  .ta-task-card .ta-lead-card-grid { grid-template-columns: 92px minmax(0, 1fr); }
+  .ta-task-actions form { align-items: stretch; }
+  .ta-task-actions input[type="datetime-local"] { flex: 1 1 165px; min-height: 44px; }
+  .ta-task-actions button { min-height: 44px; }
+  .ta-followup-inline form { align-items: stretch; }
+  .ta-followup-inline input[type="datetime-local"] { flex: 1 1 165px; min-height: 44px; }
+  .ta-followup-inline button { min-height: 44px; }
+}
+

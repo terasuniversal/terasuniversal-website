@@ -149,7 +149,7 @@ export default async function FollowUpsPage({
                     return (
                       <tr key={l.lead_metadata_id}>
                         <td>
-                          <Link href={href}>{opp ? opp.opportunity_no : "Lead"}</Link>
+                          <Link href={href}>{opp ? `Opportunity ${opp.opportunity_no}` : "Source Lead"}</Link>
                         </td>
                         <td>
                           <strong>{l.company ?? "—"}</strong>
@@ -180,7 +180,7 @@ export default async function FollowUpsPage({
               </table>
             </div>
 
-            <ul className="ta-lead-cards">
+            <ul className="ta-lead-cards ta-followup-cards">
               {leads.map((l) => {
                 const opp = oppByLead.get(l.lead_metadata_id);
                 const lastActivity = lastActivityByLead.get(l.lead_metadata_id);
@@ -188,7 +188,7 @@ export default async function FollowUpsPage({
                 return (
                   <li className="ta-card ta-lead-card" key={l.lead_metadata_id}>
                     <div className="ta-lead-card-top">
-                      <Link href={href}>{opp ? opp.opportunity_no : "Lead"}</Link>
+                      <Link href={href}>{opp ? `Opportunity ${opp.opportunity_no}` : "Source Lead"}</Link>
                       <Badge status={l.status} />
                     </div>
                     <div className="ta-lead-card-company">

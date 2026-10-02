@@ -1,36 +1,69 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { requireRole, requireModuleAccess } from "../../../../../lib/auth/session";
+import { isAdmin } from "../../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, EmptyState, Pagination, ListToolbar, ReadErrorState } from "../../../../../components/admin/ui";
 import { dueDateState, mytEndOfTodayUtc, sanitizeSearchTerm, type SalesTaskRow } from "../../../../../lib/sales/crm";
 import { clampPage, normalizePage, pageCountFor, pageRange, SALES_QUEUE_PAGE_SIZE } from "../../../../../lib/sales/pagination";
 import { loadStaffOptions } from "./options";
 import { formatMalaysiaDateTime } from "../../../../../lib/date-time";
+import { normalizeTaskQueueContext, resolveTaskRelatedRecord, taskQueueFeedbackMessage, taskQueueHref, type TaskQueueContext, type TaskQueueView } from "../../../../../lib/sales/task-queue";
+import { TaskQueueActions } from "./TaskQueueActions";
 
 export const metadata = { title: "Sales Tasks — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
 
-const VIEWS = ["all", "overdue", "today", "upcoming", "completed"] as const;
-type View = (typeof VIEWS)[number];
-const VIEW_LABELS: Record<View, string> = { all: "All Open", overdue: "Overdue", today: "Due Today", upcoming: "Upcoming", completed: "Completed" };
+const VIEWS: readonly TaskQueueView[] = ["today", "overdue", "upcoming", "completed", "all"];
+const VIEW_LABELS: Record<TaskQueueView, string> = { all: "All Open", overdue: "Overdue", today: "Due Today", upcoming: "Upcoming", completed: "Completed" };
 
-function RelatedRecordLink({ task }: { task: SalesTaskRow }) {
-  if (task.opportunity_id) return <Link href={`/admin/sales/opportunities/${task.opportunity_id}`}>Opportunity →</Link>;
-  if (task.lead_metadata_id) return <Link href={`/admin/sales/leads/${task.lead_metadata_id}`}>Lead →</Link>;
-  if (task.quotation_id) return <Link href={`/admin/sales/quotations/${task.quotation_id}`}>Quotation →</Link>;
-  return <>—</>;
+type OpportunityLabel = { id: string; opportunity_no: string };
+type QuotationLabel = { id: string; quotation_no: string; opportunity_id: string | null };
+
+function RelatedRecordLink({ task, opportunitiesById, quotationsById }: {
+  task: SalesTaskRow;
+  opportunitiesById: Map<string, OpportunityLabel>;
+  quotationsById: Map<string, QuotationLabel>;
+}) {
+  const related = resolveTaskRelatedRecord(task);
+  if (!related) return <span>Not linked</span>;
+  let label = "";
+  if (related.kind === "opportunity") {
+    const opportunity = opportunitiesById.get(related.id);
+    label = `Opportunity ${opportunity?.opportunity_no ?? "record"}`;
+  } else if (related.kind === "lead") {
+    label = "Source Lead";
+  } else {
+    const quotation = quotationsById.get(related.id);
+    label = `Quotation ${quotation?.quotation_no ?? "record"}`;
+  }
+  return <Link href={related.href}>{label} →</Link>;
+}
+
+function TaskTitle({ task }: { task: SalesTaskRow }) {
+  return <div className="ta-task-title"><strong>{task.title}</strong>{task.description && <p className="ta-task-description" title={task.description}>{task.description}</p>}</div>;
+}
+
+function TaskDue({ task }: { task: SalesTaskRow }) {
+  const state = task.status === "open" || task.status === "in_progress" ? dueDateState(task.due_at) : "none";
+  return <>{task.due_at ? formatMalaysiaDateTime(task.due_at) : "No due date"}{state === "overdue" && <span className="ta-task-due-state overdue">Overdue</span>}{state === "today" && <span className="ta-task-due-state today">Today</span>}{state === "upcoming" && <span className="ta-task-due-state upcoming">Upcoming</span>}</>;
+}
+
+function TaskActions({ task, context, canManage }: { task: SalesTaskRow; context: TaskQueueContext; canManage: boolean }) {
+  const query = new URLSearchParams({ view: context.view, owner: context.owner, ...(context.q ? { q: context.q } : {}), page: String(context.page) });
+  return <div className="ta-task-next-actions">{canManage && <TaskQueueActions task={task} context={context} />}<Link href={`/admin/sales/tasks/${task.id}?${query.toString()}`} className="ta-btn ta-btn-outline ta-btn-sm">View task</Link></div>;
 }
 
 export default async function SalesTasksPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string; owner?: string; q?: string; page?: string }>;
+  searchParams: Promise<{ view?: string; owner?: string; q?: string; page?: string; feedback?: string }>;
 }) {
   const profile = await requireRole("editor");
   await requireModuleAccess("sales_tasks");
   const sp = await searchParams;
-  const view: View = (VIEWS as readonly string[]).includes(sp.view ?? "") ? (sp.view as View) : "all";
-  const owner = sp.owner ?? "mine";
+  const normalized = normalizeTaskQueueContext(sp);
+  const view = normalized.view;
+  const owner = normalized.owner;
   const requestedPage = normalizePage(sp.page);
 
   const supabase = await createSupabaseServerClient();
@@ -61,8 +94,8 @@ export default async function SalesTasksPage({
     if (owner === "mine") query = query.eq("assigned_to", profile.id);
     else if (owner !== "all") query = query.eq("assigned_to", owner);
 
-    if (sp.q) {
-      const term = sanitizeSearchTerm(sp.q);
+    if (normalized.q) {
+      const term = sanitizeSearchTerm(normalized.q);
       if (term) query = query.ilike("title", `%${term}%`);
     }
     return query;
@@ -73,13 +106,42 @@ export default async function SalesTasksPage({
   const page = clampPage(requestedPage, pageCount);
   const range = pageRange(page, SALES_QUEUE_PAGE_SIZE);
   const { data: rows, error: rowsError } = await createQuery("rows").range(range.from, range.to);
-  const hasReadError = Boolean(countError || rowsError);
   const tasks = (rows ?? []) as SalesTaskRow[];
 
-  const qsBase: Record<string, string> = {};
-  qsBase.view = view;
-  qsBase.owner = owner;
-  if (sp.q) qsBase.q = sp.q;
+  const quotationIds = [...new Set(tasks.map((task) => task.quotation_id).filter((id): id is string => Boolean(id)))];
+  const directOpportunityIds = [...new Set(tasks.map((task) => task.opportunity_id).filter((id): id is string => Boolean(id)))];
+
+  const [quotationResult, opportunityResult] = await Promise.all([
+    quotationIds.length
+      ? supabase.from("sales_quotations").select("id, quotation_no, opportunity_id").in("id", quotationIds)
+      : Promise.resolve({ data: [] as QuotationLabel[], error: null }),
+    directOpportunityIds.length
+      ? supabase.from("sales_opportunities").select("id, opportunity_no").in("id", directOpportunityIds)
+      : Promise.resolve({ data: [] as OpportunityLabel[], error: null }),
+  ]);
+
+  const quotationRows = (quotationResult.data ?? []) as QuotationLabel[];
+  const missingOpportunityIds = [...new Set(quotationRows
+    .map((quotation) => quotation.opportunity_id)
+    .filter((id): id is string => id !== null && !directOpportunityIds.includes(id)))];
+  const extraOpportunityResult = missingOpportunityIds.length
+    ? await supabase.from("sales_opportunities").select("id, opportunity_no").in("id", missingOpportunityIds)
+    : { data: [] as OpportunityLabel[], error: null };
+
+  const opportunityRows = [
+    ...((opportunityResult.data ?? []) as OpportunityLabel[]),
+    ...((extraOpportunityResult.data ?? []) as OpportunityLabel[]),
+  ];
+  const opportunitiesById = new Map(opportunityRows.map((opportunity) => [opportunity.id, opportunity]));
+  const quotationsById = new Map(quotationRows.map((quotation) => [quotation.id, quotation]));
+  const hasReadError = Boolean(
+    countError || rowsError || quotationResult.error || opportunityResult.error || extraOpportunityResult.error,
+  );
+
+  const queueContext: TaskQueueContext = { ...normalized, page };
+  const qsBase: Record<string, string> = { view, owner };
+  if (normalized.q) qsBase.q = normalized.q;
+  const feedbackMessage = taskQueueFeedbackMessage(sp.feedback);
 
   return (
     <>
@@ -88,15 +150,21 @@ export default async function SalesTasksPage({
         subtitle="Production to-dos linked to leads, opportunities and quotations — no demo records."
         action={<Link href="/admin/sales/tasks/new" className="ta-btn ta-btn-primary">+ New Task</Link>}
       />
+      {feedbackMessage && (
+        <div className={`ta-alert ${sp.feedback === "activity-warning" ? "ta-alert-error" : "ta-alert-success"}`} role={sp.feedback === "activity-warning" ? "alert" : "status"}>
+          {feedbackMessage}
+        </div>
+      )}
 
       <ListToolbar style={{ flexWrap: "wrap" }}>
-        {VIEWS.map((v) => (
+        {VIEWS.map((item) => (
           <Link
-            key={v}
-            href={`/admin/sales/tasks?${new URLSearchParams({ ...qsBase, view: v, owner }).toString()}`}
-            className={`ta-btn ta-btn-sm ${view === v ? "ta-btn-primary" : "ta-btn-outline"}`}
+            key={item}
+            href={taskQueueHref({ ...normalized, view: item, page: 1 })}
+            className={`ta-btn ta-btn-sm ${view === item ? "ta-btn-primary" : "ta-btn-outline"}`}
+            aria-current={view === item ? "page" : undefined}
           >
-            {VIEW_LABELS[v]}
+            {VIEW_LABELS[item]}
           </Link>
         ))}
         <div className="ta-spacer" />
@@ -112,14 +180,14 @@ export default async function SalesTasksPage({
         <input type="hidden" name="view" value={view} />
         <div className="ta-search" style={{ maxWidth: 220 }}>
           <span className="ta-search-ico" aria-hidden="true">⌕</span>
-          <input name="q" defaultValue={sp.q ?? ""} placeholder="Search title…" />
+          <input name="q" defaultValue={normalized.q ?? ""} placeholder="Example: renewal call…" aria-label="Search task titles" />
         </div>
         <button type="submit" className="ta-btn ta-btn-outline ta-btn-sm">Apply</button>
       </ListToolbar>
 
       <Card title={VIEW_LABELS[view]}>
         {hasReadError ? (
-          <ReadErrorState message="Tasks could not be loaded. Refresh the page and try again." />
+          <ReadErrorState message="Tasks or related record details could not be loaded. Refresh the page and try again." />
         ) : tasks.length > 0 ? (
           <>
             <div className="ta-table-wrap ta-tasks-table">
@@ -127,42 +195,28 @@ export default async function SalesTasksPage({
                 <thead>
                   <tr>
                     <th>Task</th>
-                    <th>Related record</th>
+                    <th>Related Record</th>
                     <th>Owner</th>
                     <th>Priority</th>
                     <th>Due</th>
                     <th>Status</th>
-                    <th></th>
+                    <th>Next Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {tasks.map((t) => {
-                    const state = t.status === "open" || t.status === "in_progress" ? dueDateState(t.due_at) : "none";
+                    const canManage = isAdmin(profile.role) || t.assigned_to === profile.id || t.created_by === profile.id;
                     return (
                       <tr key={t.id}>
-                        <td>
-                          <strong>{t.title}</strong>
-                        </td>
-                        <td style={{ color: "var(--ta-muted)", fontSize: 12.5 }}>
-                          <RelatedRecordLink task={t} />
+                        <td><TaskTitle task={t} /></td>
+                        <td className="ta-task-related">
+                          <RelatedRecordLink task={t} opportunitiesById={opportunitiesById} quotationsById={quotationsById} />
                         </td>
                         <td>{t.assigned_to ? staffNames.get(t.assigned_to) ?? "—" : "Unassigned"}</td>
-                        <td>
-                          <Badge status={t.priority} />
-                        </td>
-                        <td style={{ fontSize: 12.5 }}>
-                          {t.due_at ? formatMalaysiaDateTime(t.due_at) : "—"}
-                          {state === "overdue" && <span style={{ color: "var(--ta-danger)", marginLeft: 6, fontWeight: 700 }}>Overdue</span>}
-                          {state === "today" && <span style={{ color: "var(--ta-info)", marginLeft: 6, fontWeight: 700 }}>Today</span>}
-                        </td>
-                        <td>
-                          <Badge status={t.status} />
-                        </td>
-                        <td style={{ textAlign: "right" }}>
-                          <Link href={`/admin/sales/tasks/${t.id}`} className="ta-btn ta-btn-outline ta-btn-sm">
-                            View
-                          </Link>
-                        </td>
+                        <td><Badge status={t.priority} /></td>
+                        <td className="ta-task-due"><TaskDue task={t} /></td>
+                        <td><Badge status={t.status} /></td>
+                        <td><TaskActions task={t} context={queueContext} canManage={canManage} /></td>
                       </tr>
                     );
                   })}
@@ -170,39 +224,35 @@ export default async function SalesTasksPage({
               </table>
             </div>
 
-            <ul className="ta-lead-cards">
+            <ul className="ta-lead-cards ta-task-cards">
               {tasks.map((t) => {
-                const state = t.status === "open" || t.status === "in_progress" ? dueDateState(t.due_at) : "none";
+                const canManage = isAdmin(profile.role) || t.assigned_to === profile.id || t.created_by === profile.id;
                 return (
-                  <li className="ta-card ta-lead-card" key={t.id}>
+                  <li className="ta-card ta-lead-card ta-task-card" key={t.id}>
                     <div className="ta-lead-card-top">
-                      <strong>{t.title}</strong>
+                      <TaskTitle task={t} />
                       <Badge status={t.status} />
                     </div>
+                    <div className="ta-task-card-related">
+                      <span>Related Record</span>
+                      <RelatedRecordLink task={t} opportunitiesById={opportunitiesById} quotationsById={quotationsById} />
+                    </div>
                     <div className="ta-lead-card-grid">
-                      <span>Related</span>
-                      <span><RelatedRecordLink task={t} /></span>
                       <span>Owner</span>
                       <span>{t.assigned_to ? staffNames.get(t.assigned_to) ?? "—" : "Unassigned"}</span>
                       <span>Priority</span>
                       <span><Badge status={t.priority} /></span>
                       <span>Due</span>
-                      <span>
-                        {t.due_at ? formatMalaysiaDateTime(t.due_at) : "—"}
-                        {state === "overdue" && <span style={{ color: "var(--ta-danger)", marginLeft: 6, fontWeight: 700 }}>Overdue</span>}
-                        {state === "today" && <span style={{ color: "var(--ta-info)", marginLeft: 6, fontWeight: 700 }}>Today</span>}
-                      </span>
+                      <span className="ta-task-due"><TaskDue task={t} /></span>
                     </div>
-                    <div className="ta-lead-card-action">
-                      <Link href={`/admin/sales/tasks/${t.id}`} className="ta-btn ta-btn-outline ta-btn-sm">View task →</Link>
-                    </div>
+                    <TaskActions task={t} context={queueContext} canManage={canManage} />
                   </li>
                 );
               })}
             </ul>
           </>
         ) : (
-          <EmptyState icon="☑" kind={sp.q || owner !== "all" || view !== "all" ? "no-results" : "empty"} title={sp.q || owner !== "all" || view !== "all" ? "No matching tasks" : "No tasks yet"} message="No tasks are available for these filters." />
+          <EmptyState icon="☑" kind={normalized.q || owner !== "all" || view !== "all" ? "no-results" : "empty"} title={normalized.q || owner !== "all" || view !== "all" ? "No matching tasks" : "No tasks yet"} message="No tasks are available for these filters." />
         )}
       </Card>
       <Pagination page={page} pageCount={pageCount} basePath="/admin/sales/tasks" query={qsBase} />

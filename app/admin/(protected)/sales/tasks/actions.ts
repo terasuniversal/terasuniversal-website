@@ -6,8 +6,16 @@ import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { requireRole, requireModuleAccess } from "../../../../../lib/auth/session";
 import { isAdmin } from "../../../../../lib/auth/rbac";
 import { salesTaskSchema, fieldErrors } from "../../../../../lib/validation/schemas";
+import {
+  parseTaskDueDateTimeLocal,
+  taskActionReturnHref,
+  taskQueueContextFromForm,
+  taskQueueReturnHref,
+  taskStatusTransition,
+} from "../../../../../lib/sales/task-queue";
 
 export type TaskFormState = { errors?: Record<string, string>; message?: string };
+export type TaskActionState = { errors?: Record<string, string>; message?: string };
 
 function revalidateTasks(taskId?: string) {
   revalidatePath("/admin/sales/tasks");
@@ -61,9 +69,9 @@ async function resolveLeadMetadataId(
   return null;
 }
 
-async function logTaskActivity(supabase: any, taskId: string, leadMetadataId: string | null, type: string, note: string, actorId: string, refs: { opportunity_id: string | null; quotation_id: string | null }) {
-  if (!leadMetadataId) return; // No Sales entity relation — the table's own audit trigger is the record of this event.
-  await supabase.from("sales_activity").insert({
+async function logTaskActivity(supabase: any, taskId: string, leadMetadataId: string | null, type: string, note: string, actorId: string, refs: { opportunity_id: string | null; quotation_id: string | null }): Promise<boolean> {
+  if (!leadMetadataId) return true; // No Sales entity relation — the table's own audit trigger is the record of this event.
+  const { error } = await supabase.from("sales_activity").insert({
     lead_metadata_id: leadMetadataId,
     opportunity_id: refs.opportunity_id,
     quotation_id: refs.quotation_id,
@@ -71,6 +79,7 @@ async function logTaskActivity(supabase: any, taskId: string, leadMetadataId: st
     note,
     actor_id: actorId,
   });
+  return !error;
 }
 
 export async function createTask(_prev: TaskFormState, formData: FormData): Promise<TaskFormState> {
@@ -79,6 +88,8 @@ export async function createTask(_prev: TaskFormState, formData: FormData): Prom
   const raw = readForm(formData);
   const parsed = salesTaskSchema.safeParse(raw);
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
+  const dueAt = parsed.data.due_at ? parseTaskDueDateTimeLocal(parsed.data.due_at) : null;
+  if (parsed.data.due_at && !dueAt) return { errors: { due_at: "Enter a valid due date and time." } };
 
   const assignedTo = parsed.data.assigned_to || null;
   if (assignedTo && assignedTo !== profile.id && !isAdmin(profile.role)) {
@@ -97,7 +108,7 @@ export async function createTask(_prev: TaskFormState, formData: FormData): Prom
       title: parsed.data.title,
       description: parsed.data.description || null,
       priority: parsed.data.priority,
-      due_at: parsed.data.due_at ? new Date(parsed.data.due_at).toISOString() : null,
+      due_at: dueAt,
       assigned_to: assignedTo ?? profile.id,
       ...refs,
     })
@@ -115,8 +126,46 @@ export async function createTask(_prev: TaskFormState, formData: FormData): Prom
 export async function updateTask(taskId: string, _prev: TaskFormState, formData: FormData): Promise<TaskFormState> {
   const profile = await requireRole("editor");
   await requireModuleAccess("sales_tasks");
+
+  if (formData.get("intent") === "reschedule") {
+    const rawDueAt = formData.get("due_at");
+    const dueAt = typeof rawDueAt === "string" ? parseTaskDueDateTimeLocal(rawDueAt) : null;
+    if (!dueAt) return { errors: { due_at: "Enter a valid due date and time." } };
+
+    const supabase = await createSupabaseServerClient();
+    const { data: task, error: readError } = await supabase
+      .from("sales_tasks")
+      .select("status, assigned_to, created_by")
+      .eq("id", taskId)
+      .is("deleted_at", null)
+      .maybeSingle();
+    if (readError || !task) return { message: "Task could not be loaded. Refresh and try again." };
+    if (!isAdmin(profile.role) && task.assigned_to !== profile.id && task.created_by !== profile.id) {
+      return { message: "You do not have permission to reschedule this task." };
+    }
+    if (task.status !== "open" && task.status !== "in_progress") {
+      return { message: "Only open tasks can be rescheduled." };
+    }
+
+    const { data: updated, error } = await supabase
+      .from("sales_tasks")
+      .update({ due_at: dueAt })
+      .eq("id", taskId)
+      .eq("status", task.status)
+      .is("deleted_at", null)
+      .select("id")
+      .maybeSingle();
+    if (error) return { message: "Unable to update the task due date. Try again." };
+    if (!updated) return { message: "This task changed while you were working. Refresh and try again." };
+
+    revalidateTasks(taskId);
+    redirect(taskActionReturnHref(formData, taskId, "rescheduled"));
+  }
+
   const parsed = salesTaskSchema.safeParse(readForm(formData));
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
+  const dueAt = parsed.data.due_at ? parseTaskDueDateTimeLocal(parsed.data.due_at) : null;
+  if (parsed.data.due_at && !dueAt) return { errors: { due_at: "Enter a valid due date and time." } };
 
   const assignedTo = parsed.data.assigned_to || null;
   if (assignedTo && !isAdmin(profile.role)) {
@@ -133,7 +182,7 @@ export async function updateTask(taskId: string, _prev: TaskFormState, formData:
       title: parsed.data.title,
       description: parsed.data.description || null,
       priority: parsed.data.priority,
-      due_at: parsed.data.due_at ? new Date(parsed.data.due_at).toISOString() : null,
+      due_at: dueAt,
       assigned_to: assignedTo,
       lead_metadata_id: parsed.data.lead_metadata_id || null,
       opportunity_id: parsed.data.opportunity_id || null,
@@ -146,7 +195,7 @@ export async function updateTask(taskId: string, _prev: TaskFormState, formData:
   if (!updated) return { message: "Task not found, or you don't have permission to edit it (only the owner or an Admin can)." };
 
   revalidateTasks(taskId);
-  redirect(`/admin/sales/tasks`);
+  redirect(taskQueueReturnHref(taskQueueContextFromForm(formData), "updated"));
 }
 
 /**
@@ -155,24 +204,47 @@ export async function updateTask(taskId: string, _prev: TaskFormState, formData:
  * transitions log sales_activity (Task 12); in_progress does not, since
  * it's not one of the four listed meaningful event types.
  */
-export async function setTaskStatus(taskId: string, newStatus: "in_progress" | "completed" | "cancelled" | "open"): Promise<void> {
+export async function setTaskStatus(
+  taskId: string,
+  newStatus: "in_progress" | "completed" | "cancelled" | "open",
+  _prev: TaskActionState,
+  formData: FormData,
+): Promise<TaskActionState> {
   const profile = await requireRole("editor");
   await requireModuleAccess("sales_tasks");
   const supabase = await createSupabaseServerClient();
 
-  const { data: task } = await supabase
+  const { data: task, error: readError } = await supabase
     .from("sales_tasks")
     .select("title, status, lead_metadata_id, opportunity_id, quotation_id, assigned_to, created_by")
     .eq("id", taskId)
+    .is("deleted_at", null)
     .maybeSingle();
-  if (!task) return;
-  if (!isAdmin(profile.role) && task.assigned_to !== profile.id && task.created_by !== profile.id) return; // RLS would also block this; fail closed here for a clean no-op.
+  if (readError || !task) return { message: "Task could not be loaded. Refresh and try again." };
+  if (!isAdmin(profile.role) && task.assigned_to !== profile.id && task.created_by !== profile.id) {
+    return { message: "You do not have permission to change this task." };
+  }
+
+  const currentStatus = task.status as "open" | "in_progress" | "completed" | "cancelled";
+  const transition = taskStatusTransition(currentStatus, newStatus);
+  if (transition === "invalid") return { message: "This task can no longer be changed to that status." };
+  if (transition === "already_completed") {
+    redirect(taskActionReturnHref(formData, taskId, "completed"));
+  }
 
   const patch: Record<string, unknown> = { status: newStatus };
   patch.completed_at = newStatus === "completed" ? new Date().toISOString() : null;
 
-  const { error } = await supabase.from("sales_tasks").update(patch).eq("id", taskId);
-  if (error) return;
+  const { data: updated, error } = await supabase
+    .from("sales_tasks")
+    .update(patch)
+    .eq("id", taskId)
+    .eq("status", currentStatus)
+    .is("deleted_at", null)
+    .select("id")
+    .maybeSingle();
+  if (error) return { message: "Unable to update the task status. Try again." };
+  if (!updated) return { message: "This task changed while you were working. Refresh and try again." };
 
   const refs = { opportunity_id: task.opportunity_id, quotation_id: task.quotation_id };
   const eventByStatus: Record<string, string | null> = {
@@ -182,11 +254,13 @@ export async function setTaskStatus(taskId: string, newStatus: "in_progress" | "
     in_progress: null,
   };
   const eventType = eventByStatus[newStatus];
-  if (eventType) {
-    await logTaskActivity(supabase, taskId, task.lead_metadata_id, eventType, `${task.title} — ${newStatus.replace("_", " ")}`, profile.id, refs);
-  }
+  const activitySaved = eventType
+    ? await logTaskActivity(supabase, taskId, task.lead_metadata_id, eventType, `${task.title} — ${newStatus.replace("_", " ")}`, profile.id, refs)
+    : true;
 
   revalidateTasks(taskId);
+  const feedback = !activitySaved ? "activity-warning" : newStatus === "completed" ? "completed" : "updated";
+  redirect(taskActionReturnHref(formData, taskId, feedback));
 }
 
 /** Soft-delete — admin+ only, matches sales_tasks_delete RLS. Prefer cancelling a task over deleting it; this exists for genuine mistakes. */

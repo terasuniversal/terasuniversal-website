@@ -20,6 +20,7 @@ import {
 } from "../../../../../lib/validation/schemas";
 import { LOST_REASON_LABELS, type SalesCrmLostReason } from "../../../../../lib/sales/crm";
 import { DISQUALIFICATION_REASONS, DISQUALIFICATION_REASON_LABELS, QUALIFICATION_REASONS, QUALIFICATION_REASON_LABELS } from "../../../../../lib/sales/qualification";
+import { parseFollowUpDateTimeLocal } from "../../../../../lib/sales/follow-up-date";
 
 export type SalesActionState = { message?: string; errors?: Record<string, string>; status?: "success" | "error" };
 
@@ -177,7 +178,9 @@ export async function setLeadFollowUp(
     priority: formData.get("priority") || undefined,
   });
   if (!parsed.success) return { errors: fieldErrors(parsed.error), status: "error" };
-  const followUpAt = parsed.data.follow_up_at ? new Date(parsed.data.follow_up_at).toISOString() : null;
+  const dateResult = parseFollowUpDateTimeLocal(parsed.data.follow_up_at ?? "");
+  if (!dateResult.valid) return { errors: { follow_up_at: "Enter a valid follow-up date and time." }, status: "error" };
+  const followUpAt = dateResult.value;
 
   const supabase = await createSupabaseServerClient();
   const { data: existing } = await supabase.from("sales_lead_metadata").select("priority").eq("id", leadMetadataId).maybeSingle();
