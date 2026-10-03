@@ -67,8 +67,8 @@ export function resolveReportDateRange(
     key: resolvedKey,
     startUtc: start.toISOString(),
     endUtc: end.toISOString(),
-    startDateLabel: start.toISOString().slice(0, 10),
-    endDateLabel: new Date(end.getTime() - 1).toISOString().slice(0, 10),
+    startDateLabel: new Date(start.getTime() + MYT_OFFSET_MS).toISOString().slice(0, 10),
+    endDateLabel: new Date(end.getTime() - 1 + MYT_OFFSET_MS).toISOString().slice(0, 10),
   });
 
   if (key === "last_month") {
@@ -151,7 +151,7 @@ export interface MonthlyTrendRow {
   quotationsSent: number;
   won: number;
   lost: number;
-  wonValue: number;
+  acceptedQuotationValue: number;
 }
 
 /** Shared Monthly Trend aggregation used by both the report page and CSV export. */
@@ -179,10 +179,47 @@ export function buildMonthlyTrend(input: {
     ).size,
     won: input.won.filter((row) => row.won_at && mytMonthKey(row.won_at) === month).length,
     lost: input.lost.filter((row) => row.lost_at && mytMonthKey(row.lost_at) === month).length,
-    wonValue: input.accepted
+    acceptedQuotationValue: input.accepted
       .filter((row) => row.accepted_at && mytMonthKey(row.accepted_at) === month)
       .reduce((sum, row) => sum + Number(row.total), 0),
   }));
+}
+
+export interface AcceptedQuotationOwnerSummaryRow {
+  key: string;
+  ownerId: string | null;
+  name: string;
+  acceptedQuotationValue: number;
+}
+
+/** Groups the accepted quotations in a report period by the opportunity's current owner. */
+export function buildAcceptedQuotationOwnerSummary(
+  accepted: { opportunity_id: string; total: number | string | null }[],
+  opportunities: {
+    id: string;
+    assigned_to: string | null;
+    owner?: { full_name: string | null } | null;
+  }[]
+): AcceptedQuotationOwnerSummaryRow[] {
+  const opportunityById = new Map(opportunities.map((opportunity) => [opportunity.id, opportunity]));
+  const totals = new Map<string, AcceptedQuotationOwnerSummaryRow>();
+
+  for (const quotation of accepted) {
+    const opportunity = opportunityById.get(quotation.opportunity_id);
+    const ownerId = opportunity?.assigned_to ?? null;
+    const ownerName = opportunity?.owner?.full_name?.trim() ?? "";
+    const key = ownerId && ownerName ? `owner:${ownerId}` : opportunity && !ownerId ? "unassigned" : "owner-unavailable";
+    const row = totals.get(key) ?? {
+      key,
+      ownerId: ownerId && ownerName ? ownerId : null,
+      name: ownerId && ownerName ? ownerName : opportunity && !ownerId ? "Unassigned" : "Owner unavailable",
+      acceptedQuotationValue: 0,
+    };
+    row.acceptedQuotationValue += Number(quotation.total);
+    totals.set(key, row);
+  }
+
+  return Array.from(totals.values());
 }
 
 /* ------------------------------------------------------------------ */
