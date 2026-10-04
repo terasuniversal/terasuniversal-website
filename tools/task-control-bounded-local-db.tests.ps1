@@ -24,6 +24,28 @@ $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 # to the function afterward.
 $script:RealInvokeLocalSupabaseDbPushExecutionBody = ${function:Invoke-LocalSupabaseDbPushExecution}
 
+# Task 1 (exact pending migration set): Invoke-LocalSupabaseDbPushDryRunExecution
+# is the SOLE place db-runner.ps1 shells out to the Supabase CLI's dry-run
+# preflight. It is mocked for the ENTIRE remainder of this file via this one
+# definition, driven by $script:MockPendingMigrationPaths/$script:MockDryRunExitCode/
+# $script:MockDryRunRawOutput - this file never invokes the real Supabase CLI
+# for the dry-run preflight (per Task 1's explicit instruction), and every
+# test controls the "pending set" independently of the signed allowlist.
+$script:MockPendingMigrationPaths = @()
+$script:MockDryRunExitCode = 0
+$script:MockDryRunRawOutput = $null
+function Invoke-LocalSupabaseDbPushDryRunExecution {
+    if ($null -ne $script:MockDryRunRawOutput) {
+        return [pscustomobject]@{ Output = $script:MockDryRunRawOutput; ExitCode = $script:MockDryRunExitCode }
+    }
+    $lines = @("DRY RUN: migrations will *not* be pushed to the database.")
+    foreach ($p in @($script:MockPendingMigrationPaths)) {
+        $lines += "Would push migration $(Split-Path -Leaf $p)..."
+    }
+    $lines += "Finished supabase db push."
+    return [pscustomobject]@{ Output = $lines; ExitCode = $script:MockDryRunExitCode }
+}
+
 $expectedTools = @("tools/teras-agent.ps1", "tools/agent-router.ps1", "tools/db-runner.ps1")
 $description = "Authorize " + ($expectedTools -join " ")
 $extractedTools = @(Get-ExplicitTaskPaths -Description $description)
@@ -264,6 +286,13 @@ function New-TamperTestState {
     $state.StopOnFirstFailure = $true
     $state.SyntheticDataOnly = $true
     $state.LocalMigrationAllowlist = @($MigrationPath)
+    # Task 1: by default the mocked local dry-run preflight reports exactly
+    # this allowlist as "pending" - tests that need to prove mismatch
+    # behavior override $script:MockPendingMigrationPaths explicitly after
+    # calling this constructor.
+    $script:MockPendingMigrationPaths = @($MigrationPath)
+    $script:MockDryRunExitCode = 0
+    $script:MockDryRunRawOutput = $null
     return $state
 }
 
@@ -586,6 +615,13 @@ function New-BoundedApplyFixtureState {
     New-Item -ItemType Directory -Path (Split-Path -Parent $sqlFullPath) -Force | Out-Null
     Set-Content -Path $sqlFullPath -Value "-- synthetic migration, never applied" -Encoding utf8
     $s.DbApprovedHash = Get-MigrationHash -Path $MigrationFile
+    # New-TamperTestState already pointed the mocked dry-run preflight at
+    # this exact migration file - kept here as an explicit re-assertion
+    # since this is the fixture constructor every Invoke-ApplyMigration
+    # repair test in this file depends on for pending-set equality.
+    $script:MockPendingMigrationPaths = @($MigrationFile)
+    $script:MockDryRunExitCode = 0
+    $script:MockDryRunRawOutput = $null
     return $s
 }
 
@@ -1092,4 +1128,256 @@ Remove-Item Function:\Read-Host -ErrorAction SilentlyContinue
 Remove-Item Function:\Invoke-LocalSupabaseDbPushExecution -ErrorAction SilentlyContinue
 
 $env:TERAS_APPROVAL_TRUST_DIR_OVERRIDE = $script:SavedTrustDirOverride
+
+<#
+    TASK 1: EXACT PENDING MIGRATION SET HARDENING - regression tests A-H.
+    Invoke-LocalSupabaseDbPushDryRunExecution (the sole CLI shell-out for
+    the dry-run preflight) is mocked file-wide via the definition near the
+    top of this file; the real Supabase CLI is never invoked for the
+    dry-run preflight anywhere in this file.
+#>
+$script:SavedTrustDirOverride2 = $env:TERAS_APPROVAL_TRUST_DIR_OVERRIDE
+
+# [A] allowlist A / pending A => PASS
+$fixture = New-TamperTestFixture
+try {
+    $env:TERAS_APPROVAL_TRUST_DIR_OVERRIDE = $fixture.TrustDir
+    New-DisposableApprovalTrustKey -Path (Get-ApprovalTrustKeyPath)
+    $state = New-TamperTestState -MigrationPath "supabase/migrations/20261004999999_pending_a.sql"
+    $script:MockPendingMigrationPaths = @("supabase/migrations/20261004999999_pending_a.sql")
+    $proofResult = New-ApprovalProof -State $state -RepoRoot $fixture.RepoRoot
+    $state.AuthorityProof = $proofResult.Proof
+
+    $result = Invoke-BoundedLocalDatabaseValidation -State $state -RepoRoot $fixture.RepoRoot -RequestedMigrations @($state.LocalMigrationAllowlist[0])
+    Assert-True $result.Authorized "[A] allowlist A / pending A must PASS."
+    Write-Output "Task 1 test [A] allowlist A / pending A => PASS: PASS"
+} finally {
+    Remove-TamperTestFixture -Fixture $fixture
+}
+
+# [B] allowlist A / pending A+B => BLOCK (superset pending vs allowlist)
+$fixture = New-TamperTestFixture
+try {
+    $env:TERAS_APPROVAL_TRUST_DIR_OVERRIDE = $fixture.TrustDir
+    New-DisposableApprovalTrustKey -Path (Get-ApprovalTrustKeyPath)
+    $state = New-TamperTestState -MigrationPath "supabase/migrations/20261004999999_pending_a.sql"
+    $script:MockPendingMigrationPaths = @("supabase/migrations/20261004999999_pending_a.sql")
+    $proofResult = New-ApprovalProof -State $state -RepoRoot $fixture.RepoRoot
+    $state.AuthorityProof = $proofResult.Proof
+    # After signing, the LIVE pending set grows to A+B - never re-signed.
+    $script:MockPendingMigrationPaths = @("supabase/migrations/20261004999999_pending_a.sql", "supabase/migrations/20261004999999_pending_b.sql")
+
+    $result = Invoke-BoundedLocalDatabaseValidation -State $state -RepoRoot $fixture.RepoRoot -RequestedMigrations @($state.LocalMigrationAllowlist[0])
+    Assert-True (-not $result.Authorized) "[B] allowlist A / pending A+B must BLOCK (superset pending)."
+    Assert-Equal $result.Stage "PENDING_MIGRATION_SET" "[B] must be caught at the pending-set-vs-allowlist stage."
+    Write-Output "Task 1 test [B] allowlist A / pending A+B => BLOCK: PASS"
+} finally {
+    Remove-TamperTestFixture -Fixture $fixture
+}
+
+# [C] allowlist A+B / pending A => BLOCK (subset pending vs allowlist)
+$fixture = New-TamperTestFixture
+try {
+    $env:TERAS_APPROVAL_TRUST_DIR_OVERRIDE = $fixture.TrustDir
+    New-DisposableApprovalTrustKey -Path (Get-ApprovalTrustKeyPath)
+    $state = New-TamperTestState -MigrationPath "supabase/migrations/20261004999999_pending_a.sql"
+    $state.LocalMigrationAllowlist = @("supabase/migrations/20261004999999_pending_a.sql", "supabase/migrations/20261004999999_pending_b.sql")
+    $script:MockPendingMigrationPaths = @("supabase/migrations/20261004999999_pending_a.sql", "supabase/migrations/20261004999999_pending_b.sql")
+    $proofResult = New-ApprovalProof -State $state -RepoRoot $fixture.RepoRoot
+    $state.AuthorityProof = $proofResult.Proof
+    # After signing, the LIVE pending set shrinks to just A - never re-signed.
+    $script:MockPendingMigrationPaths = @("supabase/migrations/20261004999999_pending_a.sql")
+
+    $result = Invoke-BoundedLocalDatabaseValidation -State $state -RepoRoot $fixture.RepoRoot -RequestedMigrations @("supabase/migrations/20261004999999_pending_a.sql")
+    Assert-True (-not $result.Authorized) "[C] allowlist A+B / pending A must BLOCK (subset pending)."
+    Assert-Equal $result.Stage "PENDING_MIGRATION_SET" "[C] must be caught at the pending-set-vs-allowlist stage."
+    Write-Output "Task 1 test [C] allowlist A+B / pending A => BLOCK: PASS"
+} finally {
+    Remove-TamperTestFixture -Fixture $fixture
+}
+
+# [D] reordered same set => deterministic PASS
+$fixture = New-TamperTestFixture
+try {
+    $env:TERAS_APPROVAL_TRUST_DIR_OVERRIDE = $fixture.TrustDir
+    New-DisposableApprovalTrustKey -Path (Get-ApprovalTrustKeyPath)
+    $state = New-TamperTestState -MigrationPath "supabase/migrations/20261004999999_pending_a.sql"
+    $state.LocalMigrationAllowlist = @("supabase/migrations/20261004999999_pending_b.sql", "supabase/migrations/20261004999999_pending_a.sql")
+    # Dry-run naturally returns a canonically-sorted set; simulate the CLI
+    # reporting the opposite on-disk/temporal order to prove normalization.
+    $script:MockPendingMigrationPaths = @("supabase/migrations/20261004999999_pending_a.sql", "supabase/migrations/20261004999999_pending_b.sql")
+    $proofResult = New-ApprovalProof -State $state -RepoRoot $fixture.RepoRoot
+    $state.AuthorityProof = $proofResult.Proof
+
+    $result = Invoke-BoundedLocalDatabaseValidation -State $state -RepoRoot $fixture.RepoRoot -RequestedMigrations @("supabase/migrations/20261004999999_pending_a.sql", "supabase/migrations/20261004999999_pending_b.sql")
+    Assert-True $result.Authorized "[D] A reordered but identical set must deterministically PASS."
+    Write-Output "Task 1 test [D] reordered same set => deterministic PASS: PASS"
+} finally {
+    Remove-TamperTestFixture -Fixture $fixture
+}
+
+# [E] duplicate => BLOCK
+$fixture = New-TamperTestFixture
+try {
+    $env:TERAS_APPROVAL_TRUST_DIR_OVERRIDE = $fixture.TrustDir
+    New-DisposableApprovalTrustKey -Path (Get-ApprovalTrustKeyPath)
+    $state = New-TamperTestState -MigrationPath "supabase/migrations/20261004999999_pending_a.sql"
+    $proofResult = New-ApprovalProof -State $state -RepoRoot $fixture.RepoRoot
+    $state.AuthorityProof = $proofResult.Proof
+    # Simulate a duplicate line in the CLI's dry-run output.
+    $script:MockDryRunRawOutput = @(
+        "DRY RUN: migrations will *not* be pushed to the database.",
+        "Would push migration 20261004999999_pending_a.sql...",
+        "Would push migration 20261004999999_pending_a.sql...",
+        "Finished supabase db push."
+    )
+    $script:MockDryRunExitCode = 0
+
+    $result = Invoke-BoundedLocalDatabaseValidation -State $state -RepoRoot $fixture.RepoRoot -RequestedMigrations @($state.LocalMigrationAllowlist[0])
+    Assert-True (-not $result.Authorized) "[E] A duplicate pending-set entry must BLOCK."
+    Assert-Equal $result.Stage "PENDING_SET_PREFLIGHT" "[E] duplicate CLI output must be caught at the preflight parse stage."
+    Write-Output "Task 1 test [E] duplicate => BLOCK: PASS"
+} finally {
+    $script:MockDryRunRawOutput = $null
+    Remove-TamperTestFixture -Fixture $fixture
+}
+
+# [F] malformed => BLOCK
+$fixture = New-TamperTestFixture
+try {
+    $env:TERAS_APPROVAL_TRUST_DIR_OVERRIDE = $fixture.TrustDir
+    New-DisposableApprovalTrustKey -Path (Get-ApprovalTrustKeyPath)
+    $state = New-TamperTestState -MigrationPath "supabase/migrations/20261004999999_pending_a.sql"
+    $proofResult = New-ApprovalProof -State $state -RepoRoot $fixture.RepoRoot
+    $state.AuthorityProof = $proofResult.Proof
+    # Simulate a malformed migration identifier in the CLI's dry-run output.
+    $script:MockDryRunRawOutput = @(
+        "DRY RUN: migrations will *not* be pushed to the database.",
+        "Would push migration not-a-valid-migration-name...",
+        "Finished supabase db push."
+    )
+    $script:MockDryRunExitCode = 0
+
+    $result = Invoke-BoundedLocalDatabaseValidation -State $state -RepoRoot $fixture.RepoRoot -RequestedMigrations @($state.LocalMigrationAllowlist[0])
+    Assert-True (-not $result.Authorized) "[F] A malformed migration identifier in dry-run output must BLOCK."
+    Assert-Equal $result.Stage "PENDING_SET_PREFLIGHT" "[F] malformed identifier must be caught at the preflight parse stage."
+    Write-Output "Task 1 test [F] malformed => BLOCK: PASS"
+} finally {
+    $script:MockDryRunRawOutput = $null
+    Remove-TamperTestFixture -Fixture $fixture
+}
+
+# [F2] ambiguous/unparseable output => BLOCK (unknown-line contract violation)
+$fixture = New-TamperTestFixture
+try {
+    $env:TERAS_APPROVAL_TRUST_DIR_OVERRIDE = $fixture.TrustDir
+    New-DisposableApprovalTrustKey -Path (Get-ApprovalTrustKeyPath)
+    $state = New-TamperTestState -MigrationPath "supabase/migrations/20261004999999_pending_a.sql"
+    $proofResult = New-ApprovalProof -State $state -RepoRoot $fixture.RepoRoot
+    $state.AuthorityProof = $proofResult.Proof
+    $script:MockDryRunRawOutput = @(
+        "DRY RUN: migrations will *not* be pushed to the database.",
+        "Unexpected diagnostic line from a future CLI version",
+        "Would push migration 20261004999999_pending_a.sql...",
+        "Finished supabase db push."
+    )
+    $script:MockDryRunExitCode = 0
+
+    $result = Invoke-BoundedLocalDatabaseValidation -State $state -RepoRoot $fixture.RepoRoot -RequestedMigrations @($state.LocalMigrationAllowlist[0])
+    Assert-True (-not $result.Authorized) "[F2] Ambiguous/unparseable dry-run output must BLOCK."
+    Assert-Equal $result.Stage "PENDING_SET_PREFLIGHT" "[F2] unparseable output must be caught at the preflight parse stage."
+    Write-Output "Task 1 test [F2] ambiguous/unparseable output => BLOCK: PASS"
+} finally {
+    $script:MockDryRunRawOutput = $null
+    Remove-TamperTestFixture -Fixture $fixture
+}
+
+# [G] preflight failure (nonzero exit / exception) => BLOCK before ledger
+# consumption - proves the preflight check runs and fails closed strictly
+# before Consume-ConsumptionLedgerEntry is ever called.
+$fixture = New-TamperTestFixture
+try {
+    $env:TERAS_APPROVAL_TRUST_DIR_OVERRIDE = $fixture.TrustDir
+    New-DisposableApprovalTrustKey -Path (Get-ApprovalTrustKeyPath)
+    $state = New-TamperTestState -MigrationPath "supabase/migrations/20261004999999_pending_a.sql"
+    $proofResult = New-ApprovalProof -State $state -RepoRoot $fixture.RepoRoot
+    $state.AuthorityProof = $proofResult.Proof
+    $script:MockDryRunExitCode = 1
+    $script:MockDryRunRawOutput = @("supabase: unexpected local stack error")
+
+    $script:OrderLogG = @()
+    $originalConsumeBodyG = ${function:Consume-ConsumptionLedgerEntry}
+    function Consume-ConsumptionLedgerEntry {
+        param([string]$Nonce)
+        $script:OrderLogG += "LEDGER_CONSUMED"
+        return (& $originalConsumeBodyG $Nonce)
+    }
+
+    $result = Invoke-BoundedLocalDatabaseValidation -State $state -RepoRoot $fixture.RepoRoot -RequestedMigrations @($state.LocalMigrationAllowlist[0])
+    Assert-True (-not $result.Authorized) "[G] A failed CLI/preflight call must BLOCK."
+    Assert-Equal $result.Stage "PENDING_SET_PREFLIGHT" "[G] preflight failure must be caught at the preflight stage."
+    Assert-Equal @($script:OrderLogG).Count 0 "[G] Preflight failure must occur BEFORE ledger consumption is ever attempted."
+    Write-Output "Task 1 test [G] preflight failure => BLOCK before ledger: PASS"
+} finally {
+    Set-Item -Path Function:\Consume-ConsumptionLedgerEntry -Value $originalConsumeBodyG
+    $script:MockDryRunRawOutput = $null
+    $script:MockDryRunExitCode = 0
+    Remove-TamperTestFixture -Fixture $fixture
+}
+
+# [H] full ordering: PENDING_SET_VERIFIED -> LEDGER_CONSUMED -> DB_PUSH_INVOKED
+$script:DbPushInvocationLog = @()
+$script:MockTaskState = $null
+function Get-TaskState { return $script:MockTaskState }
+function Save-TaskState { param($State) $script:MockTaskState = $State }
+function Test-LocalSupabaseRunning { return $true }
+function Read-Host { param($Prompt) return "YES" }
+
+$fixture = New-TamperTestFixture
+try {
+    $env:TERAS_APPROVAL_TRUST_DIR_OVERRIDE = $fixture.TrustDir
+    New-DisposableApprovalTrustKey -Path (Get-ApprovalTrustKeyPath)
+    $RepoRoot = $fixture.RepoRoot
+    $script:OrderLogH = @()
+
+    $originalDryRunBodyH = ${function:Invoke-LocalSupabaseDbPushDryRunExecution}
+    function Invoke-LocalSupabaseDbPushDryRunExecution {
+        $script:OrderLogH += "PENDING_SET_VERIFIED"
+        return (& $originalDryRunBodyH)
+    }
+    $originalConsumeBodyH = ${function:Consume-ConsumptionLedgerEntry}
+    function Consume-ConsumptionLedgerEntry {
+        param([string]$Nonce)
+        $script:OrderLogH += "LEDGER_CONSUMED"
+        return (& $originalConsumeBodyH $Nonce)
+    }
+    function Invoke-LocalSupabaseDbPushExecution {
+        $script:OrderLogH += "DB_PUSH_INVOKED"
+        $script:DbPushInvocationLog += "DB_PUSH_INVOKED_AT_$([DateTime]::UtcNow.Ticks)"
+        return 0
+    }
+
+    $state = New-BoundedApplyFixtureState -Fixture $fixture -MigrationFile "supabase/migrations/20261004999999_ordering_h.sql"
+    $proofResult = New-ApprovalProof -State $state -RepoRoot $fixture.RepoRoot
+    $state.AuthorityProof = $proofResult.Proof
+    $script:MockTaskState = $state
+
+    Invoke-ApplyMigration -Target "LOCAL"
+    Assert-Equal ($script:OrderLogH -join ",") "PENDING_SET_VERIFIED,LEDGER_CONSUMED,DB_PUSH_INVOKED" "[H] Full ordering must be PENDING_SET_VERIFIED -> LEDGER_CONSUMED -> DB_PUSH_INVOKED."
+    Write-Output "Task 1 test [H] ordering PENDING_SET_VERIFIED -> LEDGER_CONSUMED -> DB_PUSH_INVOKED: PASS"
+} finally {
+    Set-Item -Path Function:\Invoke-LocalSupabaseDbPushDryRunExecution -Value $originalDryRunBodyH
+    Set-Item -Path Function:\Consume-ConsumptionLedgerEntry -Value $originalConsumeBodyH
+    Remove-TamperTestFixture -Fixture $fixture
+}
+
+Remove-Item Function:\Get-TaskState -ErrorAction SilentlyContinue
+Remove-Item Function:\Save-TaskState -ErrorAction SilentlyContinue
+Remove-Item Function:\Test-LocalSupabaseRunning -ErrorAction SilentlyContinue
+Remove-Item Function:\Read-Host -ErrorAction SilentlyContinue
+Remove-Item Function:\Invoke-LocalSupabaseDbPushExecution -ErrorAction SilentlyContinue
+
+$env:TERAS_APPROVAL_TRUST_DIR_OVERRIDE = $script:SavedTrustDirOverride2
+Write-Output "ALL TASK 1 (EXACT PENDING MIGRATION SET) REGRESSION TESTS A-H: PASS"
+
 Write-Output "ALL CONTROL-PLANE HARDENING REPAIR-ROUND REGRESSION TESTS: PASS"

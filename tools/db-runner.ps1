@@ -265,27 +265,98 @@ function Test-ExactWorktreeAuthorized {
     return [pscustomobject]@{ Authorized = $true; Reason = "OK" }
 }
 
-# Exact, literal, case-sensitive membership only - never a wildcard,
-# directory-prefix, or "starts with" match. An empty requested list is
-# vacuously authorized (nothing to check); an empty allowlist authorizes
-# nothing.
+# Exact set equality after ordinal deterministic normalization. No subset,
+# prefix, wildcard, duplicate, or malformed entry can authorize execution.
 function Test-ExactMigrationAllowlist {
     param([string[]]$RequestedMigrations, [string[]]$Allowlist)
 
-    $requested = @($RequestedMigrations | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
-    $allowed = @($Allowlist)
-    $unauthorized = @()
-    foreach ($candidate in $requested) {
-        $isAllowed = $false
-        foreach ($entry in $allowed) {
-            if ([string]::Equals($candidate, $entry, [StringComparison]::Ordinal)) { $isAllowed = $true; break }
-        }
-        if (-not $isAllowed) { $unauthorized += $candidate }
+    $pattern = '^supabase/migrations/\d{14}_[a-z0-9_]+\.sql$'
+    $requested = @($RequestedMigrations | ForEach-Object { [string]$_ })
+    $allowed = @($Allowlist | ForEach-Object { [string]$_ })
+    if (@($requested | Where-Object { $_ -notmatch $pattern }).Count -gt 0 -or
+        @($allowed | Where-Object { $_ -notmatch $pattern }).Count -gt 0) {
+        return [pscustomobject]@{ Authorized = $false; Reason = "MIGRATION_SET_MALFORMED"; Unauthorized = @() }
     }
-    if ($unauthorized.Count -gt 0) {
-        return [pscustomobject]@{ Authorized = $false; Reason = "MIGRATION_NOT_IN_EXACT_ALLOWLIST: $($unauthorized -join ', ')"; Unauthorized = $unauthorized }
+    if (@($requested | Select-Object -Unique).Count -ne $requested.Count -or
+        @($allowed | Select-Object -Unique).Count -ne $allowed.Count) {
+        return [pscustomobject]@{ Authorized = $false; Reason = "MIGRATION_SET_DUPLICATE"; Unauthorized = @() }
+    }
+    [string[]]$requestedCanonical = @($requested)
+    [string[]]$allowedCanonical = @($allowed)
+    [Array]::Sort($requestedCanonical, [StringComparer]::Ordinal)
+    [Array]::Sort($allowedCanonical, [StringComparer]::Ordinal)
+    if (($requestedCanonical -join "`n") -cne ($allowedCanonical -join "`n")) {
+        return [pscustomobject]@{ Authorized = $false; Reason = "PENDING_MIGRATION_SET_MISMATCH"; Unauthorized = @($requestedCanonical) }
     }
     return [pscustomobject]@{ Authorized = $true; Reason = "OK"; Unauthorized = @() }
+}
+
+# Control-plane hardening (Task 1 - exact pending migration set): the SOLE
+# place that shells out to the Supabase CLI's dry-run preflight. Factored
+# out exactly like Invoke-LocalSupabaseDbPushExecution so it can be
+# deterministically overridden in tests (function redefinition after
+# dot-sourcing) without ever touching the real CLI/local stack during
+# regression testing. Fixed, non-caller-controlled argv only - no caller
+# anywhere can inject --linked/--db-url/a target in place of --local.
+function Invoke-LocalSupabaseDbPushDryRunExecution {
+    $dryRunArgs = @("db", "push", "--local", "--dry-run")
+    try {
+        $output = @(& supabase @dryRunArgs 2>&1 | ForEach-Object { [string]$_ })
+        return [pscustomobject]@{ Output = $output; ExitCode = $LASTEXITCODE }
+    } catch {
+        return [pscustomobject]@{ Output = @(); ExitCode = 1 }
+    }
+}
+
+# Supabase documents db push --dry-run as printing the migrations that would
+# be applied. Accept only the known line-oriented CLI contract; any extra,
+# changed, ambiguous, duplicate, or malformed output fails closed. Both
+# preflight and execution have fixed local-only argv and accept no target.
+function Get-LocalPendingMigrationSet {
+    Push-Location $RepoRoot
+    try {
+        $dryRun = Invoke-LocalSupabaseDbPushDryRunExecution
+        $output = @($dryRun.Output)
+        $exitCode = $dryRun.ExitCode
+    } catch {
+        return [pscustomobject]@{ Success = $false; Migrations = @(); Reason = "LOCAL_DRY_RUN_FAILED" }
+    } finally {
+        Pop-Location
+    }
+    if ($exitCode -ne 0) { return [pscustomobject]@{ Success = $false; Migrations = @(); Reason = "LOCAL_DRY_RUN_FAILED" } }
+
+    $foundBanner = $false
+    $foundFinished = $false
+    $migrations = @()
+    foreach ($line in $output) {
+        if ([string]::IsNullOrWhiteSpace($line)) { continue }
+        if ($line -ceq "DRY RUN: migrations will *not* be pushed to the database.") {
+            if ($foundBanner) { return [pscustomobject]@{ Success = $false; Migrations = @(); Reason = "LOCAL_DRY_RUN_AMBIGUOUS" } }
+            $foundBanner = $true
+            continue
+        }
+        if ($line -ceq "Finished supabase db push.") {
+            if ($foundFinished) { return [pscustomobject]@{ Success = $false; Migrations = @(); Reason = "LOCAL_DRY_RUN_AMBIGUOUS" } }
+            $foundFinished = $true
+            continue
+        }
+        if ($line -match '^Would push migration ([^\s]+)\.\.\.$') {
+            $name = $Matches[1]
+            if ($name -notmatch '^\d{14}_[a-z0-9_]+\.sql$') { return [pscustomobject]@{ Success = $false; Migrations = @(); Reason = "LOCAL_DRY_RUN_MALFORMED_MIGRATION" } }
+            $migrations += "supabase/migrations/$name"
+            continue
+        }
+        return [pscustomobject]@{ Success = $false; Migrations = @(); Reason = "LOCAL_DRY_RUN_UNKNOWN_OUTPUT" }
+    }
+    if (-not $foundBanner -or -not $foundFinished -or $migrations.Count -eq 0) {
+        return [pscustomobject]@{ Success = $false; Migrations = @(); Reason = "LOCAL_DRY_RUN_INCOMPLETE_OR_EMPTY" }
+    }
+    if (@($migrations | Select-Object -Unique).Count -ne $migrations.Count) {
+        return [pscustomobject]@{ Success = $false; Migrations = @(); Reason = "LOCAL_DRY_RUN_DUPLICATE_MIGRATION" }
+    }
+    [string[]]$canonical = @($migrations)
+    [Array]::Sort($canonical, [StringComparer]::Ordinal)
+    return [pscustomobject]@{ Success = $true; Migrations = $canonical; Reason = "OK" }
 }
 
 # Local disposable DB restrictions (section 11) - checked against the
@@ -351,16 +422,26 @@ function Invoke-BoundedLocalDatabaseValidation {
         return [pscustomobject]@{ Authorized = $false; Stage = "WORKTREE_GUARD"; Reason = $worktreeCheck.Reason }
     }
 
-    $allowlistCheck = Test-ExactMigrationAllowlist -RequestedMigrations $RequestedMigrations -Allowlist $State.LocalMigrationAllowlist
-    if (-not $allowlistCheck.Authorized) {
-        Set-ConsumptionLedgerLatch -Nonce $State.AuthorityProof.Nonce -Reason "MIGRATION_ALLOWLIST_FAILED: $($allowlistCheck.Reason)" | Out-Null
-        return [pscustomobject]@{ Authorized = $false; Stage = "MIGRATION_ALLOWLIST"; Reason = $allowlistCheck.Reason }
-    }
-
     $restrictionsCheck = Test-LocalDbRestrictions -State $State
     if (-not $restrictionsCheck.Compliant) {
         Set-ConsumptionLedgerLatch -Nonce $State.AuthorityProof.Nonce -Reason "LOCAL_DB_RESTRICTIONS_FAILED: $($restrictionsCheck.Reason)" | Out-Null
         return [pscustomobject]@{ Authorized = $false; Stage = "LOCAL_DB_RESTRICTIONS"; Reason = $restrictionsCheck.Reason }
+    }
+
+    $pending = Get-LocalPendingMigrationSet
+    if (-not $pending.Success) {
+        Set-ConsumptionLedgerLatch -Nonce $State.AuthorityProof.Nonce -Reason "LOCAL_PENDING_SET_PREFLIGHT_FAILED: $($pending.Reason)" | Out-Null
+        return [pscustomobject]@{ Authorized = $false; Stage = "PENDING_SET_PREFLIGHT"; Reason = $pending.Reason }
+    }
+    $allowlistCheck = Test-ExactMigrationAllowlist -RequestedMigrations $pending.Migrations -Allowlist $State.LocalMigrationAllowlist
+    if (-not $allowlistCheck.Authorized) {
+        Set-ConsumptionLedgerLatch -Nonce $State.AuthorityProof.Nonce -Reason "PENDING_MIGRATION_SET_FAILED: $($allowlistCheck.Reason)" | Out-Null
+        return [pscustomobject]@{ Authorized = $false; Stage = "PENDING_MIGRATION_SET"; Reason = $allowlistCheck.Reason }
+    }
+    $requestedCheck = Test-ExactMigrationAllowlist -RequestedMigrations $RequestedMigrations -Allowlist $State.LocalMigrationAllowlist
+    if (-not $requestedCheck.Authorized) {
+        Set-ConsumptionLedgerLatch -Nonce $State.AuthorityProof.Nonce -Reason "REQUESTED_MIGRATION_SET_FAILED: $($requestedCheck.Reason)" | Out-Null
+        return [pscustomobject]@{ Authorized = $false; Stage = "MIGRATION_ALLOWLIST"; Reason = $requestedCheck.Reason }
     }
 
     # Consume strictly before any runtime/apply step is allowed to begin -
