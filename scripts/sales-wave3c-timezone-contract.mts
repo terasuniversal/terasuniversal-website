@@ -7,6 +7,7 @@ import { parseFollowUpDateTimeLocal } from "../lib/sales/follow-up-date.ts";
 import { parseTaskDueDateTimeLocal } from "../lib/sales/task-queue.ts";
 const taskForm = await readFile(new URL("../app/admin/(protected)/sales/tasks/TaskForm.tsx", import.meta.url), "utf8");
 const followUpForm = await readFile(new URL("../app/admin/(protected)/sales/follow-ups/FollowUpInlineForm.tsx", import.meta.url), "utf8");
+const leadActionsPanel = await readFile(new URL("../app/admin/(protected)/sales/leads/[id]/LeadActionsPanel.tsx", import.meta.url), "utf8");
 const rescheduleForm = await readFile(new URL("../app/admin/(protected)/sales/tasks/TaskQueueActions.tsx", import.meta.url), "utf8");
 const taskQueue = await readFile(new URL("../lib/sales/task-queue.ts", import.meta.url), "utf8");
 
@@ -76,6 +77,7 @@ if (process.argv.includes("--timezone-probe")) {
 assert.match(followUpForm, /salesDateTimeLocal\(followUpAt\)/, "Follow-up editor prefill uses the shared Malaysia formatter");
 assert.match(rescheduleForm, /taskDueDateTimeLocal\(task\.due_at\)/, "Task quick-reschedule continues using the Malaysia formatter");
 assert.match(followUpForm, /setLeadFollowUp/, "Follow-up submission keeps its existing action contract");
+assert.match(leadActionsPanel, /salesDateTimeLocal\(followUpAt\)/, "Lead detail follow-up prefill uses the shared Malaysia formatter");
 assert.match(taskQueue, /export function salesDateTimeLocal/, "CRM datetime-local formatting is centralized in one helper");
 
 console.log("Sales Wave 3C Malaysia datetime-local contract: PASS");
