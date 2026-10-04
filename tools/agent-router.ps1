@@ -486,6 +486,21 @@ function New-EmptyTaskState {
         Category              = $null
         Risk                  = $null
         Description           = $null
+        # Bootstrap/task-control-foundation-formalization: human-facing task
+        # identity fields recorded by the dedicated -CreateTask workflow.
+        # Optional/backward-compatible - Repair-TaskStateSchema backfills
+        # $null on any task-state.json predating this field.
+        TaskName              = $null
+        TaskType              = $null
+        # Prior-task supersede/history bookkeeping populated by
+        # Preserve-PreviousTaskHistory (see Save-TaskState below). Minimal
+        # foundation only - no integrity hashing or atomic-replace rollback;
+        # that belongs to the follow-on hardening task.
+        PreviousTaskHistoryPreserved = $false
+        SupersededTaskId      = $null
+        SupersededTaskSourceKind = "NONE"
+        SupersededHistoryPath = $null
+        AdditionalSupersededHistoryPaths = @()
         Implementer           = $null
         ImplementerModel      = $null
         OriginalImplementer   = $null
@@ -636,6 +651,37 @@ function New-EmptyTaskState {
         DbVerificationStatus     = "NOT_STARTED"
         DbRollbackReversible     = $null
         DbDeploymentOrder        = $null
+
+        # --- Bootstrap/task-control-foundation-formalization: bounded local
+        # database permission fields, independent from the legacy Supabase
+        # migration-apply approval track above. Every new task starts
+        # DEFAULT DENY on all of these; only the dedicated -CreateTask
+        # workflow may set them, and only for a single task. Runtime
+        # enforcement of these fields (db-runner.ps1 gating, exact migration
+        # allowlist checks, Docker iteration budget enforcement,
+        # stop-on-first-failure enforcement, tamper-resistant/integrity-bound
+        # approval proof) is explicitly OUT OF SCOPE here and belongs to the
+        # follow-on control-plane hardening task - this phase only records
+        # the schema and the human-typed-phrase attestation.
+        LocalDisposableDatabaseAllowed = $false
+        LocalDisposableDatabaseApprovalStatus = "NOT_REQUESTED"
+        LocalDisposableDatabaseApprovedAt = $null
+        LocalDisposableDatabaseApprovalMethod = $null
+        LocalDisposableDatabaseApprovalPhrase = $null
+        LocalMigrationValidationAllowed = $false
+        DockerIterationsAllowed = 0
+        StopOnFirstFailure     = $false
+        RemoteDbAllowed        = $false
+        StagingAllowed         = $false
+        ProductionAllowed      = $false
+        PublishedPortsAllowed  = $false
+        PersistentDbVolumeAllowed = $false
+        SyntheticDataOnly      = $false
+        SourceEditAllowedDuringRuntime = $false
+        PushAllowed            = $false
+        MergeAllowed           = $false
+        DeployAllowed          = $false
+        LocalMigrationAllowlist = @()
     }
 }
 
@@ -930,9 +976,72 @@ function Add-McpActionRecord {
 
 function Save-TaskState {
     param($State)
+
+    $history = Preserve-PreviousTaskHistory -NewState $State
+    if ($history.Preserved) {
+        $State.PreviousTaskHistoryPreserved = $true
+        $State.SupersededTaskId = $history.TaskId
+        $State.SupersededTaskSourceKind = $history.SourceKind
+        $State.SupersededHistoryPath = $history.Path
+        $State.AdditionalSupersededHistoryPaths = @($history.AdditionalPaths)
+    }
+
     Sync-PendingHumanApprovals -State $State
     $State | ConvertTo-Json -Depth 10 | Set-Content -Path $TaskStatePath -Encoding utf8
     Write-CurrentTaskMarkdown -State $State
+}
+
+# Bootstrap/task-control-foundation-formalization: minimal supersede/history/
+# orphan reconciliation. Before a new task overwrites the single
+# task-state.json / CURRENT_TASK.md slot, copy the PRIOR task's evidence
+# files into .ai/history/<label>-<token>/ so they are never silently lost.
+# Deliberately NOT the hardened version (no SHA256 fingerprinting, no
+# reparse-point/junction defense, no atomic pair-write rollback) - that
+# integrity-bound archival belongs to the follow-on hardening task; this is
+# only the minimal "do not clobber a prior task's evidence" baseline.
+function Preserve-PreviousTaskHistory {
+    param($NewState)
+
+    $hasState = Test-Path -LiteralPath $TaskStatePath -PathType Leaf
+    $hasCurrent = Test-Path -LiteralPath $CurrentTaskPath -PathType Leaf
+    if (-not $hasState -and -not $hasCurrent) {
+        return [pscustomobject]@{ Preserved = $false; TaskId = $null; SourceKind = "NO_PRIOR_TASK"; Path = $null; AdditionalPaths = @() }
+    }
+
+    $priorTaskId = $null
+    $sourceKind = "ORPHANED_CURRENT_TASK_VIEW"
+    if ($hasState) {
+        try { $prior = Get-Content -LiteralPath $TaskStatePath -Raw | ConvertFrom-Json }
+        catch { $prior = $null }
+        if ($prior -and $prior.TaskId -eq $NewState.TaskId) {
+            # Re-saving the same in-flight task (e.g. a status transition) -
+            # not a supersede, nothing to archive.
+            return [pscustomobject]@{ Preserved = $false; TaskId = $null; SourceKind = "SAME_TASK_UPDATE"; Path = $null; AdditionalPaths = @() }
+        }
+        if ($prior -and $prior.TaskId) {
+            $priorTaskId = [string]$prior.TaskId
+            $sourceKind = "AUTHORITATIVE_TASK_STATE"
+        }
+    }
+
+    $sourceNames = @("task-state.json", "CURRENT_TASK.md", "IMPLEMENTATION_REPORT.md", "REVIEW_REPORT.md", "FINAL_REPORT.md", "APPROVAL.md")
+    $sourceFiles = @()
+    foreach ($name in $sourceNames) {
+        if (Test-Path -LiteralPath (Join-Path $AiDir $name) -PathType Leaf) { $sourceFiles += $name }
+    }
+    if ($sourceFiles.Count -eq 0) {
+        return [pscustomobject]@{ Preserved = $false; TaskId = $null; SourceKind = "NO_PRIOR_TASK"; Path = $null; AdditionalPaths = @() }
+    }
+
+    $historyRoot = Join-Path $AiDir "history"
+    $safeLabel = if ($priorTaskId) { [regex]::Replace($priorTaskId, '[^A-Za-z0-9_-]', '_') } else { "orphan" }
+    $historyPath = Join-Path $historyRoot ($safeLabel + "-" + [Guid]::NewGuid().ToString("N").Substring(0, 12))
+    New-Item -ItemType Directory -Path $historyPath -Force | Out-Null
+    foreach ($name in $sourceFiles) {
+        Copy-Item -LiteralPath (Join-Path $AiDir $name) -Destination (Join-Path $historyPath $name) -Force
+    }
+
+    return [pscustomobject]@{ Preserved = $true; TaskId = $priorTaskId; SourceKind = $sourceKind; Path = $historyPath; AdditionalPaths = @() }
 }
 
 function Get-TaskState {
@@ -973,7 +1082,7 @@ Task ID: $($State.TaskId)
 Created At: $($State.CreatedAt)
 Category: $($State.Category)
 Risk: $($State.Risk)
-Description: $($State.Description)
+$(if ($State.TaskName) { "Task Name: $($State.TaskName)`n" })$(if ($State.TaskType) { "Task Type: $($State.TaskType)`n" })Description: $($State.Description)
 
 State: $($State.State)
 Human Decision: $($State.HumanDecision)
@@ -1064,6 +1173,27 @@ Codex Database Review: $($State.DbReviewVerdict)
 Migration Approved: $(if ($State.DbApproved) { "YES" } else { "NO" })
 Migration Apply Approved: $(if ($State.DbApplyApproved) { "YES" } else { "NO" })
 Migration Apply Status: $($State.DbApplyStatus)
+
+LOCAL_DISPOSABLE_DATABASE_ALLOWED: $(if ($State.LocalDisposableDatabaseAllowed) { "YES" } else { "NO" })
+LOCAL_DISPOSABLE_DATABASE_APPROVAL_STATUS: $($State.LocalDisposableDatabaseApprovalStatus)
+LOCAL_MIGRATION_VALIDATION_ALLOWED: $(if ($State.LocalMigrationValidationAllowed) { "YES" } else { "NO" })
+DOCKER_ITERATIONS_ALLOWED: $($State.DockerIterationsAllowed)
+STOP_ON_FIRST_FAILURE: $(if ($State.StopOnFirstFailure) { "YES" } else { "NO" })
+REMOTE_DB_ALLOWED: $(if ($State.RemoteDbAllowed) { "YES" } else { "NO" })
+STAGING_ALLOWED: $(if ($State.StagingAllowed) { "YES" } else { "NO" })
+PRODUCTION_ALLOWED: $(if ($State.ProductionAllowed) { "YES" } else { "NO" })
+PUBLISHED_PORTS_ALLOWED: $(if ($State.PublishedPortsAllowed) { "YES" } else { "NO" })
+PERSISTENT_DB_VOLUME_ALLOWED: $(if ($State.PersistentDbVolumeAllowed) { "YES" } else { "NO" })
+SYNTHETIC_DATA_ONLY: $(if ($State.SyntheticDataOnly) { "YES" } else { "NO" })
+SOURCE_EDIT_ALLOWED_DURING_RUNTIME: $(if ($State.SourceEditAllowedDuringRuntime) { "YES" } else { "NO" })
+PUSH_ALLOWED: $(if ($State.PushAllowed) { "YES" } else { "NO" })
+MERGE_ALLOWED: $(if ($State.MergeAllowed) { "YES" } else { "NO" })
+DEPLOY_ALLOWED: $(if ($State.DeployAllowed) { "YES" } else { "NO" })
+MIGRATION_ALLOWLIST:
+$(Format-FileList -Files $State.LocalMigrationAllowlist)
+PRIOR_TASK_HISTORY_PRESERVED: $(if ($State.PreviousTaskHistoryPreserved) { "YES" } else { "NO" })
+PRIOR_TASK_HISTORY_SOURCE: $($State.SupersededTaskSourceKind)
+PRIOR_TASK_HISTORY_PATH: $(if ($State.SupersededHistoryPath) { $State.SupersededHistoryPath } else { "(none)" })
 
 ## Permissions
 

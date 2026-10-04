@@ -23,6 +23,7 @@
       teras-agent                          Interactive menu
       teras-agent "<task description>"     Classify, route, and run the task
       teras-agent -DryRun "<task>"         Classify and generate handoffs only
+      teras-agent -CreateTask -TaskName <name> -TaskType <type> -Task "<description>"  Record a task without launching an implementer (see bounded local DB switches below)
       teras-agent -Resume                  Continue the current task from its recorded state
       teras-agent -Status                  Show the current task's status
       teras-agent -Review                  Run an independent review pass only
@@ -75,6 +76,15 @@ param(
     [string]$Task,
     [switch]$DryRun,
     [switch]$PreferDeepSeek,
+    [switch]$CreateTask,
+    [string]$TaskName,
+    [string]$TaskType,
+    [switch]$LocalDisposableDatabaseAllowed,
+    [switch]$LocalMigrationValidationAllowed,
+    [int]$DockerIterationsAllowed = 0,
+    [switch]$StopOnFirstFailure,
+    [switch]$SyntheticDataOnly,
+    [string[]]$MigrationAllowlist = @(),
     [switch]$Resume,
     [switch]$Status,
     [switch]$Review,
@@ -1158,12 +1168,153 @@ function Invoke-MainLoop {
 }
 
 # ---------------------------------------------------------------------------
+# Bootstrap/task-control-foundation-formalization: -CreateTask workflow.
+#
+# Records a new task (identity + classification + bounded local database
+# permission tuple) WITHOUT launching an implementer, routing to a
+# model/reviewer, or doing any file-scope work. Every bounded local database
+# permission below defaults to NO and stays NO unless both
+# -LocalDisposableDatabaseAllowed and -LocalMigrationValidationAllowed are
+# passed together AND a human interactively types the exact confirmation
+# phrase at the console - never from redirected/piped stdin, since that
+# would let a script or another process self-approve.
+#
+# This phase intentionally does NOT implement: actual db-runner.ps1 runtime
+# enforcement of these fields, Docker iteration budget enforcement,
+# stop-on-first-failure enforcement, exact migration allowlist execution
+# gating, or a tamper-resistant/integrity-bound approval proof. Those are
+# the next hardening task - this only records the authoritative schema and
+# a plain typed-phrase attestation.
+# ---------------------------------------------------------------------------
+
+function Invoke-CreateTask {
+    param(
+        [string]$Name,
+        [string]$Type,
+        [string]$Description,
+        [bool]$AllowLocalDisposableDatabase = $false,
+        [bool]$AllowLocalMigrationValidation = $false,
+        [int]$AllowedDockerIterations = 0,
+        [bool]$RequireStopOnFirstFailure = $false,
+        [bool]$RequireSyntheticDataOnly = $false,
+        [string[]]$AllowedMigrations = @(),
+        [string[]]$ConflictingActions = @()
+    )
+
+    if (@($ConflictingActions).Count -gt 0) {
+        Write-Host "CREATE TASK BLOCKED: -CreateTask cannot be combined with another action: $($ConflictingActions -join ', ')."
+        return $false
+    }
+    if ([string]::IsNullOrWhiteSpace($Name) -or [string]::IsNullOrWhiteSpace($Type) -or [string]::IsNullOrWhiteSpace($Description)) {
+        Write-Host "CREATE TASK BLOCKED: TaskName, TaskType, and Task description are required. No task state was changed."
+        return $false
+    }
+    if ($Name -match '[\x00-\x1F\x7F]' -or $Type -match '[\x00-\x1F\x7F]') {
+        Write-Host "CREATE TASK BLOCKED: TaskName and TaskType cannot contain control characters (line-injection risk into CURRENT_TASK.md). No task state was changed."
+        return $false
+    }
+    if ($AllowLocalDisposableDatabase -ne $AllowLocalMigrationValidation) {
+        Write-Host "CREATE TASK BLOCKED: -LocalDisposableDatabaseAllowed and -LocalMigrationValidationAllowed must be requested together. No task state was changed."
+        return $false
+    }
+
+    $menuChoice = Get-AutoMenuChoice -Description $Description
+    $classification = Get-TaskClassification -MenuChoice $menuChoice -Description $Description
+    $state = New-TaskState -TaskId (Get-TaskId) -Description $Description -Classification $classification
+    $state.TaskName = $Name
+    $state.TaskType = $Type
+
+    # Default deny on every bounded field regardless of input, then enable
+    # only the exact one-iteration local-disposable-database tuple when
+    # both switches were explicitly requested together (checked above).
+    $state.LocalDisposableDatabaseAllowed = $false
+    $state.LocalMigrationValidationAllowed = $false
+    $state.DockerIterationsAllowed = 0
+    $state.StopOnFirstFailure = $false
+    $state.SyntheticDataOnly = $false
+    $state.RemoteDbAllowed = $false
+    $state.StagingAllowed = $false
+    $state.ProductionAllowed = $false
+    $state.PublishedPortsAllowed = $false
+    $state.PersistentDbVolumeAllowed = $false
+    $state.SourceEditAllowedDuringRuntime = $false
+    $state.PushAllowed = $false
+    $state.MergeAllowed = $false
+    $state.DeployAllowed = $false
+    $state.LocalMigrationAllowlist = @()
+
+    if ($AllowLocalDisposableDatabase -and $AllowLocalMigrationValidation) {
+        if ($AllowedDockerIterations -ne 1) {
+            Write-Host "CREATE TASK BLOCKED: exactly one Docker iteration is required for bounded local validation (got $AllowedDockerIterations). No task state was changed."
+            return $false
+        }
+        if (-not $RequireStopOnFirstFailure -or -not $RequireSyntheticDataOnly) {
+            Write-Host "CREATE TASK BLOCKED: -StopOnFirstFailure and -SyntheticDataOnly are both required for bounded local validation. No task state was changed."
+            return $false
+        }
+        if (@($AllowedMigrations).Count -eq 0) {
+            Write-Host "CREATE TASK BLOCKED: at least one explicit migration path is required in -MigrationAllowlist. No task state was changed."
+            return $false
+        }
+
+        if ([Console]::IsInputRedirected) {
+            Write-Host "CREATE TASK BLOCKED: local database authorization must be entered at an interactive console; redirected input is not accepted. No task state was changed."
+            return $false
+        }
+        Write-Host "Type AUTHORIZE ONE LOCAL DISPOSABLE DATABASE ITERATION to record these task-only permissions:"
+        try { $confirmation = $Host.UI.ReadLine() }
+        catch {
+            Write-Host "CREATE TASK BLOCKED: interactive confirmation was unavailable. No task state was changed."
+            return $false
+        }
+        if ($confirmation -cne "AUTHORIZE ONE LOCAL DISPOSABLE DATABASE ITERATION") {
+            Write-Host "CREATE TASK CANCELLED: bounded local database permissions were not confirmed. No task state was changed."
+            return $false
+        }
+
+        $state.LocalDisposableDatabaseAllowed = $true
+        $state.LocalMigrationValidationAllowed = $true
+        $state.DockerIterationsAllowed = 1
+        $state.StopOnFirstFailure = $true
+        $state.SyntheticDataOnly = $true
+        $state.LocalMigrationAllowlist = @($AllowedMigrations)
+        $state.LocalDisposableDatabaseApprovalStatus = "APPROVED"
+        $state.LocalDisposableDatabaseApprovedAt = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+        $state.LocalDisposableDatabaseApprovalMethod = "TYPED_PHRASE"
+        $state.LocalDisposableDatabaseApprovalPhrase = "AUTHORIZE ONE LOCAL DISPOSABLE DATABASE ITERATION"
+    }
+
+    Save-TaskState -State $state
+
+    Write-Host "Task created: $($state.TaskId)"
+    Write-Host "Task Name: $($state.TaskName)"
+    Write-Host "State: CREATED (no implementer launched)"
+    Write-Host "Bounded local disposable database validation: $(if ($state.LocalDisposableDatabaseAllowed) { 'YES' } else { 'NO' })"
+    Write-Host "Legacy migration apply approval: NO"
+    Write-Host "Remote / staging / production: NO / NO / NO"
+    Write-Host "Push / merge / deploy: NO / NO / NO"
+    Write-Host ""
+    return $true
+}
+
+# ---------------------------------------------------------------------------
 # Dispatch
 # ---------------------------------------------------------------------------
 
 if ($McpAction) {
     try { Invoke-McpAction -Action $McpAction -TaskId $McpTaskId -Description $McpDescription -IdempotencyKey $McpIdempotencyKey -TestScope $McpTestScope }
     catch { Write-McpActionResult ([ordered]@{ status = "REJECTED"; action = $McpAction; error = $_.Exception.Message }) 1 }
+} elseif ($CreateTask) {
+    $allowedCreateTaskParameters = @("CreateTask", "Task", "TaskName", "TaskType", "LocalDisposableDatabaseAllowed", "LocalMigrationValidationAllowed", "DockerIterationsAllowed", "StopOnFirstFailure", "SyntheticDataOnly", "MigrationAllowlist")
+    $conflicts = @($PSBoundParameters.Keys | Where-Object { $_ -notin $allowedCreateTaskParameters })
+    $created = Invoke-CreateTask -Name $TaskName -Type $TaskType -Description $Task `
+        -AllowLocalDisposableDatabase:$LocalDisposableDatabaseAllowed `
+        -AllowLocalMigrationValidation:$LocalMigrationValidationAllowed `
+        -AllowedDockerIterations $DockerIterationsAllowed `
+        -RequireStopOnFirstFailure:$StopOnFirstFailure `
+        -RequireSyntheticDataOnly:$SyntheticDataOnly `
+        -AllowedMigrations $MigrationAllowlist -ConflictingActions $conflicts
+    if (-not $created) { exit 2 }
 } elseif ($Validate) {
     # -Verbose is PowerShell's own built-in common parameter (available on
     # every script even without [CmdletBinding()]) - read it via
