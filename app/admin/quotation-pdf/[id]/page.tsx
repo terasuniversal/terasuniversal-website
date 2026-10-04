@@ -29,20 +29,32 @@ function packageEntries(value: unknown): PackageEntry[] {
 }
 function valueOrDash(value: string | null | undefined) { return value?.trim() || "-"; }
 
+function QuotationReadFailure() {
+  return <main role="alert" style={{ maxWidth: 620, margin: "64px auto", padding: 24, border: `1px solid ${BORDER}`, color: "#1D2939", fontFamily: SANS }}>
+    <h1 style={{ color: NAVY }}>Quotation unavailable</h1>
+    <p>We could not verify all quotation data. This quotation was not generated, and no totals or printable quotation are available.</p>
+    <p>Please refresh and try again. If the problem continues, contact a system administrator.</p>
+  </main>;
+}
+
 export default async function QuotationPdfPage({ params }: { params: Promise<{ id: string }> }) {
   await requireRole("editor");
   await requireModuleAccess("sales_quotations");
   const { id } = await params;
   const supabase = await createSupabaseServerClient();
-  const { data: quotation } = await supabase.from("sales_quotations").select("*").eq("id", id).maybeSingle();
+  const { data: quotation, error: quotationError } = await supabase.from("sales_quotations").select("*").eq("id", id).maybeSingle();
+  if (quotationError) return <QuotationReadFailure />;
   if (!quotation) notFound();
   const q = quotation as SalesQuotationRow;
   const training = parseQuotationTrainingDetails((q as unknown as { training_details?: unknown }).training_details);
-  const { data: opportunity } = await supabase.from("sales_opportunities").select("opportunity_no, company_name, contact_person, contact_email, contact_phone, company_id").eq("id", q.opportunity_id).maybeSingle();
-  const { data: company } = opportunity?.company_id
+  const { data: opportunity, error: opportunityError } = await supabase.from("sales_opportunities").select("opportunity_no, company_name, contact_person, contact_email, contact_phone, company_id").eq("id", q.opportunity_id).maybeSingle();
+  if (opportunityError) return <QuotationReadFailure />;
+  const { data: company, error: companyError } = opportunity?.company_id
     ? await supabase.from("companies").select("company_name, registration_no, email, phone, person_in_charge, pic_email, pic_phone, billing_address, address").eq("id", opportunity.company_id).maybeSingle()
-    : { data: null };
-  const { data: itemRows } = await supabase.from("sales_quotation_items").select("*").eq("quotation_id", id).order("sort_order");
+    : { data: null, error: null };
+  if (companyError) return <QuotationReadFailure />;
+  const { data: itemRows, error: itemsError } = await supabase.from("sales_quotation_items").select("*").eq("quotation_id", id).order("sort_order");
+  if (itemsError) return <QuotationReadFailure />;
   const items = (itemRows ?? []) as SalesQuotationItemRow[];
   const customer = {
     company: q.customer_company_name ?? company?.company_name ?? opportunity?.company_name,
