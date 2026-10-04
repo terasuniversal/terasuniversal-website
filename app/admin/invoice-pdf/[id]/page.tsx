@@ -78,16 +78,20 @@ export default async function InvoicePdfPage({ params }: { params: Promise<{ id:
   // invoice as if it had.
   const payments = ((paymentRows ?? []) as InvoicePaymentRow[]).filter((p) => p.status === "successful");
 
-  const finalReserve = 520 + estimateBlockHeight(`${inv.payment_terms ?? ""}\n${inv.notes ?? ""}`, 92, 14, 24) + payments.length * 28;
+  const finalReserve = 580 + estimateBlockHeight(`${inv.payment_terms ?? ""}\n${inv.notes ?? ""}`, 92, 14, 24) + payments.length * 28;
   const itemBlocks = items.map((item) => ({
     id: item.id,
     value: item,
     height: estimateBlockHeight([item.course_name_snapshot, item.description, item.package_includes_snapshot?.map((entry) => entry.label).join(" · ")].filter(Boolean).join("\n"), 68, 14, 30),
   }));
-  const itemChunks = paginateMeasuredBlocks(itemBlocks, {
+  const paginationBlocks: Array<{ id: string; height: number; value: InvoiceItemRow | null }> = [
+    ...itemBlocks,
+    { id: "invoice-final-content", value: null, height: finalReserve },
+  ];
+  const itemChunks = paginateMeasuredBlocks(paginationBlocks, {
     firstPageHeight: Math.max(260, 670 - (training ? 170 : 0)),
     continuationPageHeight: 820,
-    finalPageReserve: finalReserve,
+    finalPageReserve: 0,
   });
   const pageCount = itemChunks.length;
   const renderItems = (rows: InvoiceItemRow[]) => (
@@ -167,8 +171,7 @@ export default async function InvoicePdfPage({ params }: { params: Promise<{ id:
         @media print {
           html, body { margin: 0 !important; padding: 0 !important; }
           .inv-pdf-shell { padding: 0 !important; min-height: 0 !important; background: #fff !important; }
-          .inv-pdf-page { box-shadow: none !important; margin: 0 !important; }
-          .teras-document-running-footer { position: absolute; bottom: 8mm; left: 15mm; right: 15mm; }
+          .inv-pdf-page { width: 210mm !important; min-height: 297mm !important; padding: 48px 56px 72px !important; box-shadow: none !important; margin: 0 !important; }
           .teras-document-logo { width: 118px; }
           .teras-document-header, .inv-pdf-summary, .inv-pdf-total, .inv-pdf-balance, .inv-pdf-payment-instructions { break-inside: avoid; page-break-inside: avoid; }
           .inv-pdf-section { margin: 11px 0; padding-top: 6px; }
@@ -178,6 +181,7 @@ export default async function InvoicePdfPage({ params }: { params: Promise<{ id:
         }
       `}</style>
       {itemChunks.map((chunk, pageIndex) => {
+        const pageItems = chunk.filter((item): item is InvoiceItemRow => item !== null);
         const isFirstPage = pageIndex === 0;
         const isLastPage = pageIndex === pageCount - 1;
         return (
@@ -199,7 +203,7 @@ export default async function InvoicePdfPage({ params }: { params: Promise<{ id:
               {training && <section className="inv-pdf-section"><h2 className="inv-pdf-section-title">Training / Programme Summary</h2><div className="inv-pdf-summary"><div><small>Programme</small><strong>{training.programme.course_name_snapshot}</strong></div><div><small>Training Dates</small>{training.programme.start_date || "—"} → {training.programme.end_date || "—"}</div><div><small>Venue</small>{training.venue.name || (training.venue.type === "teras_hq" ? "TERAS HQ" : "In-House")}</div><div><small>Participants</small>{training.participants.count} Pax{training.participants.tbc ? " (TBC)" : ""}</div></div></section>}
             </>}
             {!isFirstPage && <div className="inv-pdf-continuation-header"><img className="inv-pdf-continuation-logo" src="/teras-universal-logo.png" alt="TERAS Universal" /><div className="inv-pdf-continuation-title">INVOICE — Continued</div></div>}
-            {renderItems(chunk)}
+            {pageItems.length > 0 && renderItems(pageItems)}
             {isLastPage && <>
               <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 24 }}><table style={{ fontSize: 12.5, minWidth: 260 }}><tbody>
                 <tr><td style={{ padding: "3px 0", color: "#667085" }}>Subtotal</td><td style={{ padding: "3px 0", textAlign: "right" }}>{fmt(inv.subtotal)}</td></tr>

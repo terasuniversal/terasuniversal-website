@@ -14,9 +14,8 @@ import {
 } from "../../../../../lib/sales/crm";
 import {
   resolveReportDateRange,
-  monthKeysInRange,
-  mytMonthKey,
-  monthKeyLabel,
+  buildMonthlyTrend,
+  buildAcceptedQuotationOwnerSummary,
   conversionRate,
   resolveReportArchiveState,
   REPORT_RANGE_KEYS,
@@ -61,7 +60,7 @@ export const dynamic = "force-dynamic";
  *                        by won_at
  *   Lost              <- sales_opportunities where stage = 'lost',
  *                        filtered by lost_at
- *   Accepted / Won Value <- sales_quotations where status = 'accepted',
+ *   Accepted Quotation Value <- sales_quotations where status = 'accepted',
  *                        filtered by accepted_at, SUM(total). Never
  *                        opportunities.estimated_value, never a draft or
  *                        proposal figure. An opportunity can have at most
@@ -70,7 +69,8 @@ export const dynamic = "force-dynamic";
  *                        the opportunity is already won/lost — verified
  *                        live, 0 opportunities with >1 accepted quotation
  *                        at audit time), so summing accepted quotations
- *                        directly is not a double-counting risk.
+ *                        directly is not a double-counting risk. It is not
+ *                        a revenue metric.
  *   Opportunity Stage  <- sales_opportunities, filtered by created_at;
  *                        'archived' is excluded (an administratively
  *                        hidden/dead record, not a live pipeline stage).
@@ -78,18 +78,18 @@ export const dynamic = "force-dynamic";
  *                        follow-ups / tasks due) resolve through
  *                        resolveReportArchiveState() so archived chains are
  *                        hidden (matching the Dashboard and Follow-ups
- *                        queue); won / won value remain historical and keep
+ *                        queue); won events / accepted quotation value keep
  *                        archived REAL records.
  *
  * Archive rule: archived != test/demo. is_test=true chains are excluded
  * from every metric. An archived REAL chain keeps its legitimate historical
- * Won/lost/value standing in the funnel, conversions, won/lost, sales
- * value, top programmes, monthly trend and CSV; only active-pipeline
+ * Won/lost/accepted quotation-value standing in the funnel, conversions,
+ * won/lost, top programmes, monthly trend and CSV; only active-pipeline
  * workload counts hide it. This intentionally differs from the historical
  * ed9daf1 commit ("exclude archived sales chains from reports"), which
- * removed archived real Won revenue — a business-rule conflict with the
- * official TERAS rule that a real archived sales record must not lose its
- * historical Sales revenue.
+ * removed archived real Won and accepted quotation history — a business-rule
+ * conflict with the official TERAS rule that archiving must not erase a real
+ * record from historical Sales reporting.
  *
  * Deduplication (Task 2): sales_lead_metadata has a real
  * unique(lead_source, source_id) constraint (one row per source lead) and
@@ -124,6 +124,10 @@ function Bar({ label, value, max, suffix }: { label: string; value: number; max:
 
 function money(n: number) {
   return `RM ${n.toLocaleString("en-MY", { minimumFractionDigits: 2 })}`;
+}
+
+function ReportUnavailable() {
+  return <div className="ta-sales-reports"><PageHead title="Sales Reports" subtitle="Report data is unavailable." /><div className="ta-alert ta-alert-error" role="alert">Sales reports could not be loaded. Please try again.</div></div>;
 }
 
 export default async function SalesReportsPage({
@@ -186,15 +190,15 @@ export default async function SalesReportsPage({
   const staffQuery = supabase.from("profiles").select("id, full_name").eq("is_active", true).order("full_name");
 
   const [
-    { data: leadsRaw },
-    { data: oppsRaw },
-    { data: quotationsCreatedRaw },
-    { data: quotationsSentRaw },
-    { data: acceptedRaw },
-    { data: wonRaw },
-    { data: lostRaw },
-    { data: tasksDueRaw },
-    { data: staffRaw },
+    { data: leadsRaw, error: leadsError },
+    { data: oppsRaw, error: oppsError },
+    { data: quotationsCreatedRaw, error: quotationsCreatedError },
+    { data: quotationsSentRaw, error: quotationsSentError },
+    { data: acceptedRaw, error: acceptedError },
+    { data: wonRaw, error: wonError },
+    { data: lostRaw, error: lostError },
+    { data: tasksDueRaw, error: tasksDueError },
+    { data: staffRaw, error: staffError },
   ] = await Promise.all([
     leadsQuery,
     opportunitiesQuery,
@@ -206,12 +210,24 @@ export default async function SalesReportsPage({
     tasksDueQuery,
     staffQuery,
   ]);
+  if (leadsError || oppsError || quotationsCreatedError || quotationsSentError || acceptedError || wonError || lostError || tasksDueError || staffError) return <ReportUnavailable />;
 
   const leads = leadsRaw ?? [];
   const opps = oppsRaw ?? [];
   const quotationsCreated = quotationsCreatedRaw ?? [];
   const quotationsSent = quotationsSentRaw ?? [];
   const accepted = acceptedRaw ?? [];
+  // Accepted quotations can belong to opportunities created before this
+  // range, so resolve their current owners independently of `opps`.
+  const acceptedOpportunityIds = Array.from(new Set(accepted.map((q: any) => q.opportunity_id).filter(Boolean)));
+  const { data: acceptedOpportunityOwnersRaw, error: acceptedOpportunityOwnersError } = acceptedOpportunityIds.length
+    ? await supabase
+        .from("sales_opportunities")
+        .select("id, assigned_to, owner:profiles!sales_opportunities_assigned_to_fkey(full_name)")
+        .in("id", acceptedOpportunityIds)
+    : { data: [] as any[], error: null };
+  if (acceptedOpportunityOwnersError) return <ReportUnavailable />;
+  const acceptedQuotationOwnerSummary = buildAcceptedQuotationOwnerSummary(accepted, acceptedOpportunityOwnersRaw ?? []);
   const won = wonRaw ?? [];
   const lost = lostRaw ?? [];
   const tasksDue = tasksDueRaw ?? [];
@@ -227,9 +243,10 @@ export default async function SalesReportsPage({
   // carries, since the lead's qualification is a fact regardless of which
   // period its opportunity row happens to have been created in). ----
   const leadIds = leads.map((l: any) => l.id);
-  const { data: leadsWithOppRaw } = leadIds.length
+  const { data: leadsWithOppRaw, error: leadsWithOppError } = leadIds.length
     ? await supabase.from("sales_opportunities").select("id, stage, lead_metadata_id").eq("is_test", false).in("lead_metadata_id", leadIds)
-    : { data: [] as any[] };
+    : { data: [] as any[], error: null };
+  if (leadsWithOppError) return <ReportUnavailable />;
   const leadIdsWithOpportunity = new Set((leadsWithOppRaw ?? []).map((o: any) => o.lead_metadata_id));
   const isQualified = (l: any) => QUALIFIED_OR_LATER.has(l.status) || leadIdsWithOpportunity.has(l.id);
 
@@ -246,16 +263,18 @@ export default async function SalesReportsPage({
   // range while their lead/opportunity may predate it. ----
   const workloadOppIds = new Set<string>([...opps.map((o: any) => o.id), ...tasksDue.map((t: any) => t.opportunity_id).filter(Boolean)]);
   const taskQuotationIds = tasksDue.filter((t: any) => t.quotation_id && !t.opportunity_id).map((t: any) => t.quotation_id);
-  const { data: taskQuotationRowsRaw } = taskQuotationIds.length
+  const { data: taskQuotationRowsRaw, error: taskQuotationRowsError } = taskQuotationIds.length
     ? await supabase.from("sales_quotations").select("id, opportunity_id").eq("is_test", false).in("id", taskQuotationIds)
-    : { data: [] as any[] };
+    : { data: [] as any[], error: null };
+  if (taskQuotationRowsError) return <ReportUnavailable />;
   const taskQuotationToOpp = new Map<string, string>((taskQuotationRowsRaw ?? []).map((q: any) => [q.id, q.opportunity_id]));
   for (const oppId of taskQuotationToOpp.values()) if (oppId) workloadOppIds.add(oppId);
 
   const outOfRangeOppIds = [...workloadOppIds].filter((id) => !opps.some((o: any) => o.id === id));
-  const { data: outOfRangeOppRowsRaw } = outOfRangeOppIds.length
+  const { data: outOfRangeOppRowsRaw, error: outOfRangeOppRowsError } = outOfRangeOppIds.length
     ? await supabase.from("sales_opportunities").select("id, stage, lead_metadata_id").eq("is_test", false).in("id", outOfRangeOppIds)
-    : { data: [] as any[] };
+    : { data: [] as any[], error: null };
+  if (outOfRangeOppRowsError) return <ReportUnavailable />;
 
   const workloadLeadIds = new Set<string>([
     ...leads.map((l: any) => l.id),
@@ -263,9 +282,10 @@ export default async function SalesReportsPage({
     ...(outOfRangeOppRowsRaw ?? []).map((o: any) => o.lead_metadata_id).filter(Boolean),
   ]);
   const outOfRangeLeadIds = [...workloadLeadIds].filter((id) => !leads.some((l: any) => l.id === id));
-  const { data: outOfRangeLeadRowsRaw } = outOfRangeLeadIds.length
+  const { data: outOfRangeLeadRowsRaw, error: outOfRangeLeadRowsError } = outOfRangeLeadIds.length
     ? await supabase.from("sales_lead_metadata").select("id, status").eq("is_test", false).in("id", outOfRangeLeadIds)
-    : { data: [] as any[] };
+    : { data: [] as any[], error: null };
+  if (outOfRangeLeadRowsError) return <ReportUnavailable />;
 
   const { excludedLeadIds, excludedOppIds } = resolveReportArchiveState(
     leads as any[],
@@ -281,13 +301,15 @@ export default async function SalesReportsPage({
 
   // ---- Top Programmes: participant counts, only where a real handoff exists (Phase 3 traceability). ----
   const wonOppIds = won.map((o: any) => o.id);
-  const { data: schedulesForWon } = wonOppIds.length
+  const { data: schedulesForWon, error: schedulesForWonError } = wonOppIds.length
     ? await supabase.from("course_schedules").select("id, source_opportunity_id").in("source_opportunity_id", wonOppIds)
-    : { data: [] as any[] };
+    : { data: [] as any[], error: null };
+  if (schedulesForWonError) return <ReportUnavailable />;
   const scheduleIds = (schedulesForWon ?? []).map((s: any) => s.id);
-  const { data: enrolledRows } = scheduleIds.length
+  const { data: enrolledRows, error: enrolledRowsError } = scheduleIds.length
     ? await supabase.from("schedule_participants").select("schedule_id").in("schedule_id", scheduleIds).is("deleted_at", null).neq("registration_status", "cancelled")
-    : { data: [] as any[] };
+    : { data: [] as any[], error: null };
+  if (enrolledRowsError) return <ReportUnavailable />;
   const scheduleToOpp = new Map<string, string>((schedulesForWon ?? []).map((s: any) => [s.id, s.source_opportunity_id]));
   const participantsByOpp = new Map<string, number>();
   for (const row of enrolledRows ?? []) {
@@ -296,7 +318,7 @@ export default async function SalesReportsPage({
   }
 
   // ==================================================================
-  // Task 2/3 — Funnel + conversion rates
+  // Task 2/3 — Period activity and directional ratios
   // ==================================================================
   const leadCount = leads.length;
   const qualifiedCount = leads.filter(isQualified).length;
@@ -305,20 +327,19 @@ export default async function SalesReportsPage({
   const wonCount = won.length;
 
   const funnel = [
-    { label: "Lead", value: leadCount },
-    { label: "Qualified", value: qualifiedCount },
-    { label: "Opportunity", value: opportunityCount },
-    { label: "Quotation Sent", value: quotationSentOppCount },
-    { label: "Won", value: wonCount },
+    { label: "Leads Created", value: leadCount },
+    { label: "Opportunities Created", value: opportunityCount },
+    { label: "Quotations Sent", value: quotationSentOppCount },
+    { label: "Won Events", value: wonCount },
   ];
   const funnelMax = Math.max(1, leadCount);
 
   const conversions = [
-    { label: "Lead → Qualified", value: conversionRate(qualifiedCount, leadCount) },
-    { label: "Qualified → Opportunity", value: conversionRate(opportunityCount, qualifiedCount) },
-    { label: "Opportunity → Quotation Sent", value: conversionRate(quotationSentOppCount, opportunityCount) },
-    { label: "Quotation Sent → Won", value: conversionRate(wonCount, quotationSentOppCount) },
-    { label: "Lead → Won (overall)", value: conversionRate(wonCount, leadCount) },
+    { label: "Lead cohort qualified now (estimate)", value: conversionRate(qualifiedCount, leadCount) },
+    { label: "Period Opportunities / Qualified-Now Estimate", value: conversionRate(opportunityCount, qualifiedCount) },
+    { label: "Period Quotations Sent / Opportunities Created", value: conversionRate(quotationSentOppCount, opportunityCount) },
+    { label: "Period Won Events / Quotations Sent", value: conversionRate(wonCount, quotationSentOppCount) },
+    { label: "Period Won Events / Leads Created", value: conversionRate(wonCount, leadCount) },
   ];
 
   // ==================================================================
@@ -369,7 +390,7 @@ export default async function SalesReportsPage({
   // Task 8 — Sales value
   // ==================================================================
   const acceptedValue = accepted.reduce((sum: number, q: any) => sum + Number(q.total), 0);
-  const avgWonDeal = wonCount > 0 ? acceptedValue / wonCount : null;
+
 
   // ==================================================================
   // Task 9 — Top programmes (won opportunities only, exact programme text)
@@ -393,38 +414,35 @@ export default async function SalesReportsPage({
   // ==================================================================
   // Task 10 — Monthly trend
   // ==================================================================
-  const monthKeys = monthKeysInRange(range.startUtc, range.endUtc);
-  const monthlyTrend = monthKeys.map((mk) => ({
-    month: mk,
-    label: monthKeyLabel(mk),
-    leads: leads.filter((l: any) => mytMonthKey(l.created_at) === mk).length,
-    qualified: leads.filter((l: any) => mytMonthKey(l.created_at) === mk && isQualified(l)).length,
-    opportunities: opps.filter((o: any) => mytMonthKey(o.created_at) === mk).length,
-    quotationsSent: new Set(quotationsSent.filter((q: any) => mytMonthKey(q.sent_at) === mk).map((q: any) => q.opportunity_id)).size,
-    won: won.filter((o: any) => mytMonthKey(o.won_at) === mk).length,
-    lost: lost.filter((o: any) => mytMonthKey(o.lost_at) === mk).length,
-    wonValue: accepted.filter((q: any) => mytMonthKey(q.accepted_at) === mk).reduce((s: number, q: any) => s + Number(q.total), 0),
-  }));
+  const qualifiedLeadIds = new Set<string>(leads.filter(isQualified).map((lead: any) => lead.id));
+  const monthlyTrend = buildMonthlyTrend({ range, leads, qualifiedLeadIds, opps, quotationsSent, won, lost, accepted });
 
   // ==================================================================
   // Task 11 — Owner summary (operational visibility, not a scoring/ranking)
   // ==================================================================
-  const ownerRows = staff
-    .map((s) => {
+  const acceptedByOwnerId = new Map<string, number>();
+  for (const row of acceptedQuotationOwnerSummary) {
+    if (row.ownerId) acceptedByOwnerId.set(row.ownerId, row.acceptedQuotationValue);
+  }
+  const activeOwnerIds = new Set(staff.map((s) => s.id));
+  const ownerRows = [
+    ...staff.map((s) => {
       const ownerLeads = activeWorkloadLeads.filter((l: any) => l.assigned_to === s.id).length;
       const ownerOpps = activeWorkloadOpps.filter((o: any) => o.assigned_to === s.id).length;
       const ownerFollowUps = activeWorkloadLeads.filter((l: any) => l.assigned_to === s.id && l.follow_up_at && !["won", "lost", "archived"].includes(l.status)).length;
       const ownerTasksDue = activeWorkloadTasks.filter((t: any) => t.assigned_to === s.id).length;
       const ownerWonOpps = won.filter((o: any) => o.assigned_to === s.id);
-      const ownerWonValue = ownerWonOpps.reduce((sum: number, o: any) => sum + (acceptedByOpp.get(o.id) ?? 0), 0);
-      return { name: s.full_name, leads: ownerLeads, opportunities: ownerOpps, followUps: ownerFollowUps, tasksDue: ownerTasksDue, won: ownerWonOpps.length, wonValue: ownerWonValue };
-    })
-    .filter((r) => r.leads > 0 || r.opportunities > 0 || r.followUps > 0 || r.tasksDue > 0 || r.won > 0);
+      return { ownerKey: s.id, name: s.full_name, leads: ownerLeads, opportunities: ownerOpps, followUps: ownerFollowUps, tasksDue: ownerTasksDue, won: ownerWonOpps.length, acceptedQuotationValue: acceptedByOwnerId.get(s.id) ?? 0 };
+    }),
+    ...acceptedQuotationOwnerSummary
+      .filter((row) => !row.ownerId || !activeOwnerIds.has(row.ownerId))
+      .map((row) => ({ ownerKey: row.key, name: row.name, leads: 0, opportunities: 0, followUps: 0, tasksDue: 0, won: 0, acceptedQuotationValue: row.acceptedQuotationValue })),
+  ].filter((r) => r.leads > 0 || r.opportunities > 0 || r.followUps > 0 || r.tasksDue > 0 || r.won > 0 || r.acceptedQuotationValue > 0);
 
   const rangeQs = (extra: Record<string, string> = {}) => new URLSearchParams({ range: rangeKey, ...(rangeKey === "custom" ? { from: sp.from ?? "", to: sp.to ?? "" } : {}), ...extra }).toString();
 
   return (
-    <div className="ta-sales">
+    <div className="ta-sales ta-sales-reports">
       <PageHead
         title="Sales Reports"
         subtitle={`${range.startDateLabel} to ${range.endDateLabel} (Malaysia time) — real records only.`}
@@ -434,6 +452,11 @@ export default async function SalesReportsPage({
           </a>
         }
       />
+
+      <div className="ta-sales-report-intro">
+        <strong>Period events and current state</strong>
+        <p>Leads and opportunities use creation dates; sent, won, lost and accepted quotations use their event dates. Qualification is a lower confidence current-state estimate for leads created in the selected period because no qualification timestamp exists.</p>
+      </div>
 
       <form className="ta-toolbar" style={{ flexWrap: "wrap", marginBottom: 18 }}>
         {REPORT_RANGE_KEYS.map((k) => (
@@ -462,16 +485,16 @@ export default async function SalesReportsPage({
         )}
       </form>
 
-      <div className="ta-grid cols-5" style={{ marginBottom: 22 }}>
-        <StatCard label="Leads" value={leadCount} icon="🧲" />
-        <StatCard label="Opportunities" value={opportunityCount} icon="📊" />
-        <StatCard label="Won" value={wonCount} icon="🏆" />
-        <StatCard label="Won Value" value={money(acceptedValue)} icon="💰" />
-        <StatCard label="Lead → Won" value={conversionRate(wonCount, leadCount)} icon="📈" />
+      <div className="ta-sales-report-kpis">
+        <StatCard label="Leads Created" value={leadCount} icon="🧲" />
+        <StatCard label="Opportunities Created" value={opportunityCount} icon="📊" />
+        <StatCard label="Won Events" value={wonCount} icon="🏆" />
+        <StatCard label="Accepted Quotation Value" value={money(acceptedValue)} icon="💰" />
       </div>
 
-      <Card title="Funnel">
+      <Card title="Period Activity">
         <div className="ta-card-pad">
+          <p className="ta-sales-report-note">These rows use different event dates and may represent different cohorts. Qualification estimates appear in the detail below.</p>
           {funnel.map((f) => (
             <Bar key={f.label} label={f.label} value={f.value} max={funnelMax} />
           ))}
@@ -479,8 +502,9 @@ export default async function SalesReportsPage({
       </Card>
 
       <div className="ta-grid cols-2" style={{ marginTop: 20, alignItems: "start", gap: 20 }}>
-        <Card title="Conversion Rates">
+        <Card title="Directional Ratios">
           <div className="ta-card-pad">
+            <p className="ta-sales-report-note">Different events can involve different cohorts. Qualification ratios are current-state estimates, not historical conversion rates.</p>
             <dl style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "6px 10px", margin: 0 }}>
               {conversions.map((c) => (
                 <div key={c.label} style={{ display: "contents" }}>
@@ -518,8 +542,9 @@ export default async function SalesReportsPage({
       </div>
 
       <div className="ta-grid cols-2" style={{ marginTop: 20, alignItems: "start", gap: 20 }}>
-        <Card title="Lead Source">
+        <Card title="Lead Source — Created in Period">
           <div className="ta-card-pad">
+            <p className="ta-sales-report-note">Qualified now is a current-state estimate for this lead cohort.</p>
             {leadSourceRows.every((r) => r.total === 0) ? (
               <EmptyState icon="🧲" message="No leads in this range." />
             ) : (
@@ -529,7 +554,7 @@ export default async function SalesReportsPage({
                     <tr>
                       <th>Source</th>
                       <th>Total</th>
-                      <th>Qualified</th>
+                      <th>Qualified Now (Estimate)</th>
                       <th>Opportunities</th>
                       <th>Won</th>
                     </tr>
@@ -551,7 +576,7 @@ export default async function SalesReportsPage({
           </div>
         </Card>
 
-        <Card title="Opportunity Stage">
+        <Card title="Current Stage — Opportunities Created in Period">
           <div className="ta-card-pad">
             {stageRows.every((r) => r.count === 0) ? (
               <EmptyState icon="📊" message="No opportunities in this range." />
@@ -573,7 +598,6 @@ export default async function SalesReportsPage({
           </div>
           <p style={{ fontSize: 12.5, color: "var(--ta-muted)", margin: "0 0 10px" }}>
             Acceptance/rejection rates are measured against quotations <strong>sent</strong> in this range (never against drafts).
-            {avgAcceptedValue != null && <> Average accepted value: <strong>{money(avgAcceptedValue)}</strong>.</>}
           </p>
           <div className="ta-table-wrap">
             <table className="ta-table">
@@ -591,20 +615,20 @@ export default async function SalesReportsPage({
       </Card>
 
       <div className="ta-grid cols-2" style={{ marginTop: 20, alignItems: "start", gap: 20 }}>
-        <Card title="Sales Value">
+        <Card title="Accepted Quotation Value">
           <div className="ta-card-pad">
             <dl style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "8px 10px", margin: 0 }}>
               <div style={{ display: "contents" }}>
-                <dt style={{ color: "var(--ta-muted)", fontSize: 13 }}>Accepted / Won Value</dt>
+                <dt style={{ color: "var(--ta-muted)", fontSize: 13 }}>Accepted Quotation Value</dt>
                 <dd style={{ margin: 0, fontWeight: 700, fontSize: 13 }}>{money(acceptedValue)}</dd>
               </div>
               <div style={{ display: "contents" }}>
-                <dt style={{ color: "var(--ta-muted)", fontSize: 13 }}>Average Won Deal</dt>
-                <dd style={{ margin: 0, fontWeight: 700, fontSize: 13 }}>{avgWonDeal != null ? money(avgWonDeal) : "N/A"}</dd>
+                <dt style={{ color: "var(--ta-muted)", fontSize: 13 }}>Average Accepted Quotation Value</dt>
+                <dd style={{ margin: 0, fontWeight: 700, fontSize: 13 }}>{avgAcceptedValue != null ? money(avgAcceptedValue) : "N/A"}</dd>
               </div>
             </dl>
             <p style={{ margin: "10px 0 0", fontSize: 11.5, color: "var(--ta-muted)" }}>
-              Sourced only from accepted quotation totals — never draft/proposal figures or opportunity estimates.
+              Sourced only from accepted quotations accepted in this period — never draft/proposal figures or opportunity estimates; it is not revenue.
             </p>
           </div>
         </Card>
@@ -617,7 +641,7 @@ export default async function SalesReportsPage({
               <div className="ta-table-wrap">
                 <table className="ta-table">
                   <thead>
-                    <tr><th>Programme</th><th>Won</th><th>Value</th><th>Participants</th></tr>
+                    <tr><th>Programme</th><th>Won</th><th>Accepted Quotation Value</th><th>Participants</th></tr>
                   </thead>
                   <tbody>
                     {topProgrammes.map((p) => (
@@ -636,8 +660,9 @@ export default async function SalesReportsPage({
         </Card>
       </div>
 
-      <Card title="Monthly Trend">
+      <Card title="Monthly Events and Current Qualification Estimate">
         <div className="ta-card-pad">
+          <p className="ta-sales-report-note">Qualified now is a current-state estimate grouped by lead creation month; it does not show when qualification happened.</p>
           {monthlyTrend.length === 0 ? (
             <EmptyState icon="📅" message="No months in this range." />
           ) : (
@@ -645,7 +670,7 @@ export default async function SalesReportsPage({
               <table className="ta-table">
                 <thead>
                   <tr>
-                    <th>Month</th><th>Leads</th><th>Qualified</th><th>Opportunities</th><th>Quotations Sent</th><th>Won</th><th>Lost</th><th>Won Value</th>
+                    <th>Month</th><th>Leads Created</th><th>Qualified Now (Estimate)</th><th>Opportunities Created</th><th>Quotations Sent</th><th>Won Events</th><th>Lost Events</th><th>Accepted Quotation Value</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -658,7 +683,7 @@ export default async function SalesReportsPage({
                       <td>{m.quotationsSent}</td>
                       <td>{m.won}</td>
                       <td>{m.lost}</td>
-                      <td>{money(m.wonValue)}</td>
+                      <td>{money(m.acceptedQuotationValue)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -671,7 +696,7 @@ export default async function SalesReportsPage({
       <Card title="Owner Summary">
         <div className="ta-card-pad">
           <p style={{ margin: "0 0 10px", fontSize: 11.5, color: "var(--ta-muted)" }}>
-            Operational visibility only — not a performance ranking.
+            Operational visibility only; this is not a staff ranking. Leads, opportunities and follow-ups are current-state workload for records created in the period. Tasks are due in the period; won and accepted quotation values are period events.
           </p>
           {ownerRows.length === 0 ? (
             <EmptyState icon="👤" message="No assigned activity in this range." />
@@ -679,18 +704,18 @@ export default async function SalesReportsPage({
             <div className="ta-table-wrap">
               <table className="ta-table">
                 <thead>
-                  <tr><th>Owner</th><th>Leads</th><th>Opportunities</th><th>Follow-ups Due</th><th>Tasks Due</th><th>Won</th><th>Won Value</th></tr>
+                  <tr><th>Owner</th><th>Leads (Current)</th><th>Opportunities (Current)</th><th>Follow-ups (Current)</th><th>Tasks Due (Period)</th><th>Won (Period)</th><th>Accepted Quotation Value (Period)</th></tr>
                 </thead>
                 <tbody>
                   {ownerRows.map((r) => (
-                    <tr key={r.name}>
+                    <tr key={r.ownerKey}>
                       <td>{r.name}</td>
                       <td>{r.leads}</td>
                       <td>{r.opportunities}</td>
                       <td>{r.followUps}</td>
                       <td>{r.tasksDue}</td>
                       <td>{r.won}</td>
-                      <td>{money(r.wonValue)}</td>
+                      <td>{money(r.acceptedQuotationValue)}</td>
                     </tr>
                   ))}
                 </tbody>

@@ -6,6 +6,7 @@ import { Card, Field } from "../../../../../../components/admin/ui";
 import { updateLeadStatus, assignLead, setLeadFollowUp, addLeadNote, convertLeadToOpportunity, markLeadTest, updateLeadQualification, updateLeadTemperature, type SalesActionState } from "../actions";
 import { CRM_STATUS_ORDER, CRM_STATUS_LABELS, LOST_REASONS, LOST_REASON_LABELS, type SalesCrmStatus, type SalesCrmPriority } from "../../../../../../lib/sales/crm";
 import { DISQUALIFICATION_REASONS, DISQUALIFICATION_REASON_LABELS, QUALIFICATION_REASONS, QUALIFICATION_REASON_LABELS } from "../../../../../../lib/sales/qualification";
+import { salesDateTimeLocal } from "../../../../../../lib/sales/task-queue";
 
 const INITIAL: SalesActionState = {};
 
@@ -62,7 +63,7 @@ export function LeadActionsPanel({
     setPendingQualification(qualificationStatus);
   }, [qualificationStatus]);
 
-  const localDateTimeValue = followUpAt ? new Date(followUpAt).toISOString().slice(0, 16) : "";
+  const localDateTimeValue = salesDateTimeLocal(followUpAt);
 
   function quickSetStatus(next: SalesCrmStatus) {
     if (next === "lost" && !confirm("Mark this lead as lost? Select a reason below, then submit.")) return;
@@ -90,7 +91,7 @@ export function LeadActionsPanel({
       ) : (
         canManage && (
           <Card title="Convert to Opportunity">
-            <form action={convertAction} className="ta-card-pad ta-stack">
+            <form id="lead-primary-action" action={convertAction} className="ta-card-pad ta-stack">
               {convertState.message && <div className="ta-alert ta-alert-error">{convertState.message}</div>}
               <Field label="Opportunity title" name="title" error={convertState.errors?.title}>
                 <input id="title" name="title" defaultValue={defaultOpportunityTitle ?? ""} placeholder="e.g. Basic Scaffolder — 8 pax" required />

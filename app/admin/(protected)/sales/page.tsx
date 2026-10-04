@@ -3,7 +3,8 @@ import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { requireRole, requireModuleAccess } from "../../../../lib/auth/session";
 import { PageHead, Card, StatCard, EmptyState } from "../../../../components/admin/ui";
 import { FollowUpBadge } from "../../../../components/admin/sales/FollowUpBadge";
-import { OPEN_OPPORTUNITY_STATUSES, SOURCE_LABELS, followUpState, mytEndOfTodayUtc, type SalesLeadInboxRow } from "../../../../lib/sales/crm";
+import { OPEN_OPPORTUNITY_STAGES, SOURCE_LABELS, followUpState, mytEndOfTodayUtc, type SalesLeadInboxRow } from "../../../../lib/sales/crm";
+import { resolveReportDateRange } from "../../../../lib/sales/reports";
 import { formatMalaysiaDateTime } from "../../../../lib/date-time";
 
 export const metadata = { title: "Sales Dashboard — TERAS UNIVERSAL Admin" };
@@ -11,10 +12,9 @@ export const dynamic = "force-dynamic";
 
 /**
  * Real Sales CRM V1 dashboard, replacing the Phase 1A demo dashboard.
- * Every figure below is a live count against sales_lead_metadata — no
- * revenue/pipeline-value totals are shown because neither enquiries nor
- * proposal_requests carries a monetary field (see task instruction: "Do not
- * invent financial revenue totals unless actual values exist").
+ * Opportunity estimated_value is optional user input on conversion. Summing
+ * it would treat missing estimates as zero and imply a complete pipeline;
+ * omit a dashboard value aggregate until coverage and semantics are verified.
  */
 export default async function SalesDashboardPage() {
   await requireRole("editor");
@@ -22,7 +22,7 @@ export default async function SalesDashboardPage() {
   const supabase = await createSupabaseServerClient();
 
   const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  const monthRange = resolveReportDateRange("this_month", undefined, now);
   const nowIso = now.toISOString();
   const endOfTodayMyt = mytEndOfTodayUtc(now).toISOString();
 
@@ -30,7 +30,7 @@ export default async function SalesDashboardPage() {
   // `await` inside the Promise.all array literal (CLAUDE.md §5/§13).
   // Test/demo chains (is_test=true) are excluded from every dashboard KPI.
   const newLeadsQuery = supabase.from("sales_lead_metadata").select("id", { count: "exact", head: true }).eq("status", "new").eq("is_test", false);
-  const openOpportunitiesQuery = supabase.from("sales_lead_metadata").select("id", { count: "exact", head: true }).in("status", OPEN_OPPORTUNITY_STATUSES).eq("is_test", false);
+  const openOpportunitiesQuery = supabase.from("sales_opportunities").select("id", { count: "exact", head: true }).in("stage", OPEN_OPPORTUNITY_STAGES).eq("is_test", false);
   const followUpsDueQuery = supabase
     .from("sales_lead_metadata")
     .select("id", { count: "exact", head: true })
@@ -38,9 +38,7 @@ export default async function SalesDashboardPage() {
     .lte("follow_up_at", nowIso)
     .not("follow_up_at", "is", null)
     .not("status", "in", "(won,lost,archived)");
-  const proposalSentQuery = supabase.from("sales_lead_metadata").select("id", { count: "exact", head: true }).eq("status", "proposal_sent").eq("is_test", false);
-  const wonThisMonthQuery = supabase.from("sales_lead_metadata").select("id", { count: "exact", head: true }).eq("status", "won").eq("is_test", false).gte("won_at", startOfMonth);
-  const lostQuery = supabase.from("sales_lead_metadata").select("id", { count: "exact", head: true }).eq("status", "lost").eq("is_test", false);
+  const wonThisMonthQuery = supabase.from("sales_opportunities").select("id", { count: "exact", head: true }).eq("stage", "won").eq("is_test", false).gte("won_at", monthRange.startUtc).lt("won_at", monthRange.endUtc);
   const overdueRowsQuery = supabase
     .from("v_sales_lead_inbox")
     .select("*")
@@ -51,11 +49,8 @@ export default async function SalesDashboardPage() {
     .order("follow_up_at", { ascending: true })
     .limit(10);
 
-  // Phase 4B — compact "Today" operations section. Distinct from the
-  // existing "Follow-ups Due" StatCard above (which uses <= now, a
-  // slightly different long-standing definition) — these four counts use
-  // the same overdue/today boundary as the real Follow-ups/Tasks queues,
-  // added alongside the existing KPIs, not replacing any of them.
+  // Work Requiring Attention uses the same overdue/today boundaries as the
+  // existing Follow-ups and Tasks queues.
   const overdueFollowUpsQuery = supabase
     .from("sales_lead_metadata")
     .select("id", { count: "exact", head: true })
@@ -86,59 +81,56 @@ export default async function SalesDashboardPage() {
     .not("status", "in", "(completed,cancelled)");
 
   const [
-    { count: newLeads },
-    { count: openOpportunities },
-    { count: followUpsDue },
-    { count: proposalSent },
-    { count: wonThisMonth },
-    { count: lost },
-    { data: overdueRows },
-    { count: overdueFollowUps },
-    { count: followUpsDueToday },
-    { count: overdueTasks },
-    { count: tasksDueToday },
+    newLeadsResult,
+    openOpportunitiesResult,
+    followUpsDueResult,
+    wonThisMonthResult,
+    overdueRowsResult,
+    overdueFollowUpsResult,
+    followUpsDueTodayResult,
+    overdueTasksResult,
+    tasksDueTodayResult,
   ] = await Promise.all([
     newLeadsQuery,
     openOpportunitiesQuery,
     followUpsDueQuery,
-    proposalSentQuery,
     wonThisMonthQuery,
-    lostQuery,
     overdueRowsQuery,
     overdueFollowUpsQuery,
     followUpsDueTodayQuery,
     overdueTasksQuery,
     tasksDueTodayQuery,
   ]);
+  const countValue = (result: { count: number | null; error: unknown }) => result.error || result.count == null ? "Unavailable" : result.count;
+  const followUpsDueContext = followUpsDueResult.error || followUpsDueResult.count == null
+    ? "Unable to load this metric."
+    : followUpsDueResult.count > 0 ? "Includes overdue" : undefined;
 
   return (
     <div className="ta-sales">
       <PageHead
         title="Sales Dashboard"
-        subtitle="Live lead pipeline — public contact enquiries and proposal requests."
+        subtitle="Current sales activity across leads, opportunities, follow-ups and tasks."
         action={<Link className="ta-btn ta-btn-primary" href="/admin/sales/leads">View All Leads</Link>}
       />
 
-      <Card title="Today">
-        <div className="ta-card-pad ta-grid cols-4" style={{ gap: 12 }}>
-          <StatCard label="Overdue Follow-ups" value={overdueFollowUps ?? 0} icon="📞" href="/admin/sales/follow-ups?view=overdue" />
-          <StatCard label="Follow-ups Due Today" value={followUpsDueToday ?? 0} icon="🗓" href="/admin/sales/follow-ups?view=today" />
-          <StatCard label="Overdue Tasks" value={overdueTasks ?? 0} icon="☑" href="/admin/sales/tasks?view=overdue" />
-          <StatCard label="Tasks Due Today" value={tasksDueToday ?? 0} icon="☑" href="/admin/sales/tasks?view=today" />
-        </div>
-      </Card>
-
-      <div className="ta-grid cols-3" style={{ marginBottom: 22, marginTop: 20 }}>
-        <StatCard label="New Leads" value={newLeads ?? 0} icon="🧲" href="/admin/sales/leads?status=new" />
-        <StatCard label="Open Opportunities" value={openOpportunities ?? 0} icon="📊" />
-        <StatCard label="Follow-ups Due" value={followUpsDue ?? 0} icon="📞" context={followUpsDue ? "Includes overdue" : undefined} />
-        <StatCard label="Proposal Sent" value={proposalSent ?? 0} icon="📄" href="/admin/sales/leads?status=proposal_sent" />
-        <StatCard label="Won This Month" value={wonThisMonth ?? 0} icon="🏆" href="/admin/sales/leads?status=won" />
-        <StatCard label="Lost" value={lost ?? 0} icon="🚫" href="/admin/sales/leads?status=lost" />
+      <div className="ta-sales-dashboard-kpis">
+        <StatCard label="New Leads" value={countValue(newLeadsResult)} icon="🧲" href="/admin/sales/leads?status=new" />
+        <StatCard label="Open Opportunities" value={countValue(openOpportunitiesResult)} icon="📊" href="/admin/sales/opportunities?state=open" />
+        <StatCard label="Follow-ups Due" value={countValue(followUpsDueResult)} icon="📞" context={followUpsDueContext} href="/admin/sales/follow-ups" />
+        <StatCard label="Won This Month" value={countValue(wonThisMonthResult)} icon="🏆" href="/admin/sales/reports?range=this_month" />
       </div>
 
-      <Card title="Overdue Follow-ups">
-        {overdueRows && overdueRows.length > 0 ? (
+      <Card title="Work Requiring Attention">
+        <div className="ta-sales-attention-grid">
+          <StatCard label="Overdue Follow-ups" value={countValue(overdueFollowUpsResult)} icon="📞" href="/admin/sales/follow-ups?view=overdue" />
+          <StatCard label="Follow-ups Due Today" value={countValue(followUpsDueTodayResult)} icon="🗓" href="/admin/sales/follow-ups?view=today" />
+          <StatCard label="Overdue Tasks" value={countValue(overdueTasksResult)} icon="☑" href="/admin/sales/tasks?view=overdue" />
+          <StatCard label="Tasks Due Today" value={countValue(tasksDueTodayResult)} icon="☑" href="/admin/sales/tasks?view=today" />
+        </div>
+        {overdueRowsResult.error ? (
+          <div className="ta-card-pad ta-alert ta-alert-error" role="alert">Overdue follow-ups are unavailable. Please try again.</div>
+        ) : overdueRowsResult.data && overdueRowsResult.data.length > 0 ? (
           <div className="ta-table-wrap">
             <table className="ta-table">
               <thead>
@@ -150,7 +142,7 @@ export default async function SalesDashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {(overdueRows as SalesLeadInboxRow[]).map((r) => (
+                {(overdueRowsResult.data as SalesLeadInboxRow[]).map((r) => (
                   <tr key={r.lead_metadata_id}>
                     <td><span className={`ta-badge-pill ta-source ta-source-${r.lead_source}`}>{SOURCE_LABELS[r.lead_source]}</span></td>
                     <td>

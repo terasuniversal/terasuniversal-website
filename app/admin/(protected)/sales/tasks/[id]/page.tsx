@@ -9,14 +9,25 @@ import { updateTask } from "../actions";
 import { loadStaffOptions } from "../options";
 import { TaskStatusActions } from "./TaskStatusActions";
 import type { SalesTaskRow } from "../../../../../../lib/sales/crm";
+import { normalizeTaskQueueContext, taskQueueFeedbackMessage, taskQueueHref } from "../../../../../../lib/sales/task-queue";
 
 export const metadata = { title: "Task Detail — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
 
-export default async function TaskDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function TaskDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ view?: string; owner?: string; q?: string; page?: string; feedback?: string }>;
+}) {
   const profile = await requireRole("editor");
   await requireModuleAccess("sales_tasks");
   const { id } = await params;
+  const sp = await searchParams;
+  const returnContext = normalizeTaskQueueContext(sp);
+  const returnHref = taskQueueHref(returnContext);
+  const feedbackMessage = taskQueueFeedbackMessage(sp.feedback);
   const supabase = await createSupabaseServerClient();
 
   const { data: task } = await supabase.from("sales_tasks").select("*").eq("id", id).is("deleted_at", null).maybeSingle();
@@ -43,8 +54,13 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
       <PageHead
         title={t.title}
         subtitle={relatedLink ? relatedLink.label : "Not linked to a Sales record"}
-        action={<Link href="/admin/sales/tasks" className="ta-btn ta-btn-outline">← Back to Tasks</Link>}
+        action={<Link href={returnHref} className="ta-btn ta-btn-outline">← Back to Tasks</Link>}
       />
+      {feedbackMessage && (
+        <div className={`ta-alert ${sp.feedback === "activity-warning" ? "ta-alert-error" : "ta-alert-success"}`} role={sp.feedback === "activity-warning" ? "alert" : "status"}>
+          {feedbackMessage}
+        </div>
+      )}
 
       <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 16, flexWrap: "wrap" }}>
         <Badge status={t.status} />
@@ -55,12 +71,12 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
         </span>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 20, alignItems: "start" }}>
+      <div className="ta-task-detail-layout">
         <div>
           {canManage ? (
             <Card title="Task Details">
               <div className="ta-card-pad">
-                <TaskForm action={updateTask.bind(null, t.id)} task={t} staff={staff} mode="edit" />
+                <TaskForm action={updateTask.bind(null, t.id)} task={t} staff={staff} mode="edit" returnContext={returnContext} />
               </div>
             </Card>
           ) : (
@@ -76,7 +92,7 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          {canManage && <TaskStatusActions taskId={t.id} status={t.status} />}
+          {canManage && <TaskStatusActions taskId={t.id} status={t.status} context={returnContext} />}
         </div>
       </div>
     </>

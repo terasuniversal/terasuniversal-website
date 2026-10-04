@@ -11,12 +11,14 @@ type LeadNextAction = { id: string; title: string; status: string; priority: str
 export function LeadInboxTable({
   rows,
   staffNames,
+  staffNamesUnavailable = false,
   nextActions,
   qualificationByLead,
   lastActivityByLead,
 }: {
   rows: SalesLeadInboxRow[];
   staffNames: Map<string, string>;
+  staffNamesUnavailable?: boolean;
   nextActions: Map<string, LeadNextAction>;
   qualificationByLead: Map<string, { qualification_status: string; temperature: string | null }>;
   lastActivityByLead: Map<string, string>;
@@ -27,46 +29,31 @@ export function LeadInboxTable({
         <table className="ta-table">
           <thead>
             <tr>
+              <th>Lead / Enquiry</th>
               <th>Source</th>
-              <th>Contact / Company</th>
-              <th>Email / Phone</th>
-              <th>Subject</th>
-              <th>Status</th>
-              <th>Qualification</th>
-              <th>Temperature</th>
-              <th>Priority</th>
-              <th>Age</th>
-              <th>Last activity</th>
-              <th>Assigned To</th>
+              <th>Status / Qualification</th>
+              <th>Owner</th>
               <th>Follow-up</th>
               <th>Next Action</th>
-              <th>Created</th>
+              <th>Activity / Age</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
             {rows.map((r) => (
               <tr key={r.lead_metadata_id}>
-                <td><span className={`ta-badge-pill ta-source ta-source-${r.lead_source}`}>{SOURCE_LABELS[r.lead_source]}</span></td>
                 <td>
-                  <strong>{r.contact_name ?? "—"}</strong>
+                  <Link href={`/admin/sales/leads/${r.lead_metadata_id}`} className="ta-sales-record-link"><strong>{r.contact_name ?? "Unnamed lead"}</strong></Link>
                   {r.company && <div className="ta-lead-sub">{r.company}</div>}
+                  <div className="ta-lead-sub">{r.subject ?? "No enquiry subject"}</div>
                 </td>
-                <td>
-                  <div>{r.email ?? "—"}</div>
-                  {r.phone && <div className="ta-lead-sub">{r.phone}</div>}
-                </td>
-                <td>{r.subject ?? "—"}</td>
+                <td><span className={`ta-badge-pill ta-source ta-source-${r.lead_source}`}>{SOURCE_LABELS[r.lead_source]}</span></td>
                 <td>
                   <Badge status={r.status} />
                   {r.is_test && <span className="ta-badge-pill" style={{ background: "#f4f5f7", color: "#667085", marginLeft: 4 }}>Test</span>}
+                  <div className="ta-lead-sub">{qualificationLabel(qualificationByLead.get(r.lead_metadata_id)?.qualification_status)} · {temperatureLabel(qualificationByLead.get(r.lead_metadata_id)?.temperature)}</div>
                 </td>
-                <td><span className="ta-badge-pill">{qualificationLabel(qualificationByLead.get(r.lead_metadata_id)?.qualification_status)}</span></td>
-                <td>{temperatureLabel(qualificationByLead.get(r.lead_metadata_id)?.temperature)}</td>
-                <td>{PRIORITY_LABELS[r.priority]}</td>
-                <td>{ageLabel(r.created_at)}</td>
-                <td>{daysSinceActivityLabel(lastActivityByLead.get(r.lead_metadata_id) ?? null)}</td>
-                <td>{r.assigned_to ? staffNames.get(r.assigned_to) ?? "—" : <span className="ta-lead-sub">Unassigned</span>}</td>
+                <td>{r.assigned_to ? staffNamesUnavailable ? <span className="ta-lead-sub">Owner unavailable</span> : staffNames.get(r.assigned_to) ?? "—" : <span className="ta-lead-sub">Unassigned</span>}</td>
                 <td>
                   <FollowUpBadge state={followUpState(r.follow_up_at, r.status)} />
                   {r.follow_up_at && <div className="ta-lead-sub">{formatMalaysiaDate(r.follow_up_at)}</div>}
@@ -75,10 +62,9 @@ export function LeadInboxTable({
                   {nextActions.get(r.lead_metadata_id) ? (
                     <Link href={`/admin/sales/tasks/${nextActions.get(r.lead_metadata_id)!.id}`}>{nextActions.get(r.lead_metadata_id)!.title}</Link>
                   ) : <span className="ta-lead-sub">None</span>}
+                  <div className="ta-lead-sub">Priority: {PRIORITY_LABELS[r.priority]}</div>
                 </td>
-                <td className="ta-lead-sub" style={{ whiteSpace: "nowrap" }}>
-                  {formatMalaysiaDate(r.created_at)}
-                </td>
+                <td><div>{daysSinceActivityLabel(lastActivityByLead.get(r.lead_metadata_id) ?? null)}</div><div className="ta-lead-sub">Lead age {ageLabel(r.created_at)}</div></td>
                 <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                   <Link href={`/admin/sales/leads/${r.lead_metadata_id}`} className="ta-btn ta-btn-outline ta-btn-sm">View</Link>
                 </td>
@@ -102,22 +88,16 @@ export function LeadInboxTable({
               <span>Qualification</span><span>{qualificationLabel(qualificationByLead.get(r.lead_metadata_id)?.qualification_status)}</span>
               <span>Temperature</span><span>{temperatureLabel(qualificationByLead.get(r.lead_metadata_id)?.temperature)}</span>
               <span>Priority</span><span>{PRIORITY_LABELS[r.priority]}</span>
-              <span>Lead age</span><span>{ageLabel(r.created_at)}</span>
               <span>Last activity</span><span>{daysSinceActivityLabel(lastActivityByLead.get(r.lead_metadata_id) ?? null)}</span>
             </div>
             <div className="ta-lead-card-company">
               <strong>{r.contact_name ?? "—"}</strong>
               {r.company && <div className="ta-lead-sub">{r.company}</div>}
             </div>
+            <p className="ta-lead-sub ta-lead-card-context">{r.subject ?? "No enquiry subject"}</p>
             <div className="ta-lead-card-grid">
-              <span>Email</span>
-              <span>{r.email ?? "—"}</span>
-              <span>Phone</span>
-              <span>{r.phone ?? "—"}</span>
-              <span>Subject</span>
-              <span>{r.subject ?? "—"}</span>
-              <span>Assigned To</span>
-              <span>{r.assigned_to ? staffNames.get(r.assigned_to) ?? "—" : "Unassigned"}</span>
+              <span>Owner</span>
+              <span>{r.assigned_to ? staffNamesUnavailable ? "Owner unavailable" : staffNames.get(r.assigned_to) ?? "—" : "Unassigned"}</span>
               <span>Follow-up</span>
               <span>
                 <FollowUpBadge state={followUpState(r.follow_up_at, r.status)} />
@@ -129,8 +109,6 @@ export function LeadInboxTable({
                   <Link href={`/admin/sales/tasks/${nextActions.get(r.lead_metadata_id)!.id}`}>{nextActions.get(r.lead_metadata_id)!.title}</Link>
                 ) : "None"}
               </span>
-              <span>Created</span>
-              <span>{formatMalaysiaDate(r.created_at)}</span>
             </div>
             <div className="ta-lead-card-action">
               <Link href={`/admin/sales/leads/${r.lead_metadata_id}`} className="ta-btn ta-btn-outline ta-btn-sm">View lead →</Link>

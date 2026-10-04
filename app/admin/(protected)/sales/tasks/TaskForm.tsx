@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import Link from "next/link";
 import type { TaskFormState } from "./actions";
 import { Field } from "../../../../../components/admin/ui";
+import { salesDateTimeLocal, taskQueueHref, type TaskQueueContext } from "../../../../../lib/sales/task-queue";
 
 const PRIORITIES = ["low", "medium", "high"] as const;
 
@@ -13,6 +14,7 @@ export function TaskForm({
   staff,
   mode,
   linkContext,
+  returnContext,
 }: {
   action: (prev: TaskFormState, fd: FormData) => Promise<TaskFormState>;
   task?: any;
@@ -20,6 +22,7 @@ export function TaskForm({
   mode: "create" | "edit";
   /** Present only when opened from a Lead/Opportunity/Quotation's "+ Add Task" link. */
   linkContext?: { label: string; leadId?: string; opportunityId?: string; quotationId?: string };
+  returnContext?: TaskQueueContext;
 }) {
   const [state, formAction, pending] = useActionState<TaskFormState, FormData>(action, {});
   const e = state.errors ?? {};
@@ -38,6 +41,14 @@ export function TaskForm({
       <input type="hidden" name="lead_metadata_id" value={linkContext?.leadId ?? d.lead_metadata_id ?? ""} />
       <input type="hidden" name="opportunity_id" value={linkContext?.opportunityId ?? d.opportunity_id ?? ""} />
       <input type="hidden" name="quotation_id" value={linkContext?.quotationId ?? d.quotation_id ?? ""} />
+      {mode === "edit" && returnContext && (
+        <>
+          <input type="hidden" name="return_view" value={returnContext.view} />
+          <input type="hidden" name="return_owner" value={returnContext.owner} />
+          <input type="hidden" name="return_q" value={returnContext.q ?? ""} />
+          <input type="hidden" name="return_page" value={String(returnContext.page)} />
+        </>
+      )}
 
       <Field label="Title *" name="title" error={e.title}>
         <input id="title" name="title" defaultValue={d.title ?? ""} required maxLength={200} />
@@ -58,7 +69,7 @@ export function TaskForm({
           </select>
         </Field>
         <Field label="Due date & time" name="due_at" error={e.due_at}>
-          <input id="due_at" name="due_at" type="datetime-local" defaultValue={d.due_at ? d.due_at.slice(0, 16) : ""} />
+          <input id="due_at" name="due_at" type="datetime-local" defaultValue={salesDateTimeLocal(d.due_at)} />
         </Field>
       </div>
 
@@ -74,7 +85,7 @@ export function TaskForm({
       </Field>
 
       <div className="ta-form-actions">
-        <Link href="/admin/sales/tasks" className="ta-btn ta-btn-outline">
+        <Link href={returnContext ? taskQueueHref(returnContext) : "/admin/sales/tasks"} className="ta-btn ta-btn-outline">
           Cancel
         </Link>
         <button type="submit" className="ta-btn ta-btn-primary" disabled={pending}>
