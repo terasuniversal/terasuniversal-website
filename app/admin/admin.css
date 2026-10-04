@@ -815,6 +815,7 @@
   .ta-list-toolbar .ta-spacer { display: none; }
   .ta-lead-card { padding: 16px; }
   .ta-lead-card-action > .ta-btn { min-height: 40px; }
+}
 
 /* Wave 2 Sales workflow hierarchy and responsive editor */
 .ta-list-toolbar .ta-search { flex: 1 1 320px; max-width: none; }
