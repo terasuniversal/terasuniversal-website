@@ -45,6 +45,8 @@ assert.equal(migration.split("log_event_as_service").length - 1, 1, "exactly one
 
 assert.match(receiptRoute, /requireRole\("editor"\)/);
 assert.match(receiptRoute, /requireModuleAccess\("invoices"\)/);
+assert.match(receiptRoute, /@page\s*\{\s*size:\s*A4 portrait;\s*margin:\s*0;\s*\}/);
+assert.match(receiptRoute, /body:has\(\.receipt-print-root\) \.receipt-print-section\{margin-top:8px;padding-block:5px 0\}/);
 assert.match(receiptRoute, /DocumentHeader type="RECEIPT"/);
 assert.match(receiptRoute, /Amount Received/);
 assert.match(receiptRoute, /Total Paid To Date/);
