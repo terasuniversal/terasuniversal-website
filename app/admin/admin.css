@@ -161,6 +161,8 @@
 .ta-grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
 .ta-invoice-detail-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 20px; align-items: start; }
 .ta-invoice-detail-grid > div { min-width: 0; }
+.ta-task-detail-layout { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+.ta-task-detail-layout > * { min-width: 0; }
 .ta-card { background: var(--ta-white); border: 1px solid var(--ta-line); border-radius: var(--ta-radius); box-shadow: var(--ta-shadow); overflow: hidden; }
 .ta-card-pad { padding: 18px 20px; }
 
@@ -386,6 +388,7 @@
   .ta-hamburger { display: block; }
   .ta-grid.cols-3, .ta-grid.cols-2 { grid-template-columns: 1fr; }
   .ta-invoice-detail-grid { grid-template-columns: 1fr; }
+  .ta-task-detail-layout { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 620px) {
   .ta-grid.cols-4 { grid-template-columns: 1fr; }
@@ -841,7 +844,10 @@
 
 @media (max-width: 900px) {
   .ta-filter-group { flex: 1 1 100%; }
-  .ta-filter-group > select, .ta-filter-date { flex: 1 1 150px; min-width: min(100%, 150px); }
+  .ta-filter-group > select,
+  .ta-filter-group > .ta-filter-date,
+  .ta-filter-group > .ta-filter-date-group { flex: 1 1 150px; min-width: min(100%, 150px); }
+  .ta-filter-date-group > .ta-filter-date { flex: 0 0 auto; min-height: 40px; min-width: 0; width: 100%; }
   .ta-quotation-editor-table { overflow: visible; }
   .ta-quotation-editor-table > .ta-table { min-width: 0; }
   .ta-quotation-editor-table .ta-table thead { display: none; }

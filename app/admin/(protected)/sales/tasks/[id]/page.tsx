@@ -71,7 +71,7 @@ export default async function TaskDetailPage({
         </span>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 20, alignItems: "start" }}>
+      <div className="ta-task-detail-layout">
         <div>
           {canManage ? (
             <Card title="Task Details">

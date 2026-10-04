@@ -74,6 +74,7 @@ export default async function QuotationPdfPage({ params }: { params: Promise<{ i
   }
 
   return <div className="quotation-print-root"><style>{`
+    @page{size:A4 portrait;margin:0}
     .quotation-print-root{min-height:100vh;padding:24px;background:#EEF2F6;color:#1D2939;font-family:${SANS};font-size:12px}
     .quotation-print-paper{width:794px;min-height:1123px;box-sizing:border-box;margin:0 auto;padding:44px 52px 64px;background:#fff;box-shadow:0 8px 28px rgba(11,58,99,.12);position:relative;break-after:page;page-break-after:always}
     .quotation-print-paper:last-of-type{break-after:auto;page-break-after:auto}
