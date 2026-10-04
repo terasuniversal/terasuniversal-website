@@ -155,26 +155,34 @@ function Test-RepoRelativePathsEqual {
 # Deliberately conservative - only extracts a token when it is unambiguously
 # a project source path, never a URL, a prose sentence, or an unrelated
 # dotted string.
-$script:KnownTopLevelDirs = @("app", "lib", "components", "supabase", "data", "public", "docs")
+$script:KnownTopLevelDirs = @("app", "lib", "components", "supabase", "data", "public", "docs", "tools")
 
 function Get-ExplicitTaskPaths {
     param([string]$Description)
 
     if ([string]::IsNullOrWhiteSpace($Description)) { return @() }
 
-    $prefixPattern = ($script:KnownTopLevelDirs -join "|")
+    $otherTopLevelDirs = ($script:KnownTopLevelDirs | Where-Object { $_ -ne "tools" }) -join "|"
     # Character class covers everything a real path segment in this repo
     # uses, including literal Next.js route-group/dynamic-segment syntax
     # ((protected), [scheduleId]) - matched as literal text, never as a
     # wildcard pattern (this is plain text extraction, not -like/-match
     # scope comparison).
-    $pattern = "(?:$prefixPattern)/[A-Za-z0-9_\-\.\/\(\)\[\]]+\.(?:tsx|ts|jsx|js|css|scss|sql|json|md)"
+    $pathSegments = "[A-Za-z0-9_\-\.\/\(\)\[\]]+"
+    $pattern = "(?:tools/$pathSegments\.(?:tsx|ts|jsx|js|ps1|css|scss|sql|json|md)|(?:$otherTopLevelDirs)/$pathSegments\.(?:tsx|ts|jsx|js|css|scss|sql|json|md))"
 
     $found = [regex]::Matches($Description, $pattern)
     $paths = @()
     foreach ($m in $found) {
+        # Keep extracting known roots from larger relative paths such as
+        # src/app/page.tsx, while refusing tokens embedded in absolute paths.
+        $separators = [char[]]@(32, 9, 10, 13, 39, 34, 61, 59)
+        $tokenStart = if ($m.Index -eq 0) { 0 } else { $Description.LastIndexOfAny($separators, $m.Index - 1) + 1 }
+        $localPrefix = $Description.Substring($tokenStart, $m.Index - $tokenStart)
+        if ($localPrefix -match '^[A-Za-z]:[\\/]' -or $localPrefix -match '^[\\/]' -or $localPrefix -match '^[A-Za-z]:(?![\\/])') { continue }
         $candidate = $m.Value.Trim().TrimEnd('.', ',', ';', ':')
         $normalized = Get-NormalizedRepoRelativePath -Path $candidate
+        if ($normalized -match '(^|/)\.\.?(/|$)') { continue }
         $alreadyPresent = $false
         foreach ($p in $paths) { if (Test-RepoRelativePathsEqual -A $p -B $normalized) { $alreadyPresent = $true; break } }
         if (-not $alreadyPresent) { $paths += $normalized }
@@ -187,10 +195,32 @@ function Get-ExplicitTaskPaths {
 # style segments are valid PowerShell wildcard syntax to the non-literal
 # Test-Path/Get-Item and would otherwise silently glob-match (or fail to
 # match) instead of checking the exact literal path.
+function Test-ExplicitPathComponentSafe {
+    param($Item)
+    if ($null -eq $Item) { return $false }
+    return (($Item.Attributes -band [IO.FileAttributes]::ReparsePoint) -eq 0)
+}
+
 function Test-ExplicitPathExists {
     param([string]$RelativePath)
     $normalized = Get-NormalizedRepoRelativePath -Path $RelativePath
-    $full = Join-Path $RepoRoot $normalized
+    if ([string]::IsNullOrWhiteSpace($normalized) -or [IO.Path]::IsPathRooted($normalized)) { return $false }
+    if ($normalized -match '(^|/)\.\.?(/|$)') { return $false }
+    $repoFull = [IO.Path]::GetFullPath($RepoRoot).TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
+    $full = [IO.Path]::GetFullPath((Join-Path $repoFull ($normalized -replace '/', [IO.Path]::DirectorySeparatorChar)))
+    if (-not $full.StartsWith(($repoFull + [IO.Path]::DirectorySeparatorChar), [StringComparison]::OrdinalIgnoreCase)) { return $false }
+    # Windows PowerShell 5.1 lacks a portable final-target resolver. Reject
+    # every reparse-point component (including symlinks and junctions) so an
+    # in-repo lexical path can never escape through a link. LiteralPath keeps
+    # bracketed Next.js segments intact.
+    $relative = $full.Substring($repoFull.Length + 1)
+    $cursor = $repoFull
+    foreach ($segment in $relative.Split([IO.Path]::DirectorySeparatorChar, [StringSplitOptions]::RemoveEmptyEntries)) {
+        $cursor = Join-Path $cursor $segment
+        if (-not (Test-Path -LiteralPath $cursor)) { return $false }
+        $item = Get-Item -LiteralPath $cursor -Force -ErrorAction SilentlyContinue
+        if (-not (Test-ExplicitPathComponentSafe -Item $item)) { return $false }
+    }
     return (Test-Path -LiteralPath $full -PathType Leaf)
 }
 
