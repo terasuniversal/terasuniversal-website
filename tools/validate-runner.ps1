@@ -28,6 +28,27 @@ $script:ValidationDir = Join-Path $AiDir "validation"
 $script:FixturesDir = Join-Path $script:ValidationDir "fixtures"
 $script:ValidationResultsPath = Join-Path $script:ValidationDir "VALIDATION_RESULTS.md"
 
+function New-OptionalFileBackup {
+    param([Parameter(Mandatory)][string]$Path)
+
+    $exists = Test-Path -LiteralPath $Path -PathType Leaf
+    return [pscustomobject]@{
+        Path = $Path
+        Existed = $exists
+        Bytes = if ($exists) { [System.IO.File]::ReadAllBytes($Path) } else { $null }
+    }
+}
+
+function Restore-OptionalFileBackup {
+    param([Parameter(Mandatory)]$Backup)
+
+    if ($Backup.Existed) {
+        [System.IO.File]::WriteAllBytes($Backup.Path, $Backup.Bytes)
+    } elseif (Test-Path -LiteralPath $Backup.Path) {
+        Remove-Item -LiteralPath $Backup.Path -Force
+    }
+}
+
 # ---------------------------------------------------------------------------
 # Result accumulator - a plain array of test-result objects, printed and
 # written to VALIDATION_RESULTS.md at the end. Never fabricates a result;
@@ -332,7 +353,7 @@ function Invoke-AttendanceModuleFixTests {
 
     # --- Patch-report semantic separation (section 9) ---
     $reportPath = Join-Path $AiDir "DEEPSEEK_IMPLEMENTATION_REPORT.md"
-    $reportBackup = Get-Content -Path $reportPath -Raw -Encoding utf8
+    $reportBackup = New-OptionalFileBackup -Path $reportPath
     try {
         $synthState = New-EmptyTaskState
         $synthState.TaskId = "VALIDATION-FIXTEST-REPORT"; $synthState.Description = "Synthetic report-semantics check"
@@ -344,7 +365,7 @@ function Invoke-AttendanceModuleFixTests {
         $results += New-ValidationResult -Id "fix-report-patch-application-field" -Description "Patch Application field reports REJECTED separately" -Expected "REJECTED" -Actual $escalation.PatchApplication -Result $(if ($escalation.PatchApplication -eq "REJECTED") { "PASS" } else { "FAIL" })
         $results += New-ValidationResult -Id "fix-report-orchestrator-reason-field" -Description "Orchestrator Reason field carries SCOPE_VALIDATION_FAILURE separately from Escalation Reason" -Expected "Starts with SCOPE_VALIDATION_FAILURE" -Actual $escalation.OrchestratorReason -Result $(if ($escalation.OrchestratorReason -like "SCOPE_VALIDATION_FAILURE*") { "PASS" } else { "FAIL" })
     } finally {
-        Set-Content -Path $reportPath -Value $reportBackup -Encoding utf8
+        Restore-OptionalFileBackup -Backup $reportBackup
     }
 
     return $results
@@ -413,7 +434,7 @@ function Invoke-DeepSeekSourceContextFixTests {
 
     # --- Regression 6 + 7: missing approved source aborts before any API call, reported as orchestrator failure not agent escalation ---
     $reportPath = Join-Path $AiDir "DEEPSEEK_IMPLEMENTATION_REPORT.md"
-    $reportBackup = Get-Content -Path $reportPath -Raw -Encoding utf8
+    $reportBackup = New-OptionalFileBackup -Path $reportPath
     $realState = Get-TaskState
     if ($realState.State -ne "NONE") {
         $results += New-ValidationResult -Id "srcfix-6-preflight-abort" -Description "Regression 6/7: preflight abort + report semantics" -Expected "N/A" -Actual "SKIPPED - a real task is in progress (State=$($realState.State)); the report file must not be disturbed." -Result "WARN"
@@ -434,7 +455,7 @@ function Invoke-DeepSeekSourceContextFixTests {
             $results += New-ValidationResult -Id "srcfix-7-not-agent-escalation" -Description "Regression 7: a source-read failure is reported as Escalation Required=NOT RUN, never YES (never presented as the agent's own decision)" -Expected "EscalationStatus=NOT RUN, Required=false" -Actual "EscalationStatus=$($escalation.EscalationStatus), Required=$($escalation.Required)" -Result $(if ($escalation.EscalationStatus -eq "NOT RUN" -and -not $escalation.Required) { "PASS" } else { "FAIL" })
             $results += New-ValidationResult -Id "srcfix-7-orchestrator-reason" -Description "Regression 7: Orchestrator Reason names SOURCE_CONTEXT_ERROR and the affected path" -Expected "Starts with SOURCE_CONTEXT_ERROR, mentions NonExistentFile.tsx" -Actual $escalation.OrchestratorReason -Result $(if ($escalation.OrchestratorReason -like "SOURCE_CONTEXT_ERROR*" -and $escalation.OrchestratorReason -like "*NonExistentFile.tsx*") { "PASS" } else { "FAIL" })
         } finally {
-            Set-Content -Path $reportPath -Value $reportBackup -Encoding utf8
+            Restore-OptionalFileBackup -Backup $reportBackup
         }
     }
 
@@ -777,8 +798,13 @@ function Invoke-StableOperationalModeTests {
     $results += New-ValidationResult -Id "stablemode-8-adapter-functions-intact" -Description "Test 8: every existing DeepSeek adapter function is still defined - nothing was deleted" -Expected "0 missing" -Actual "Missing: $($missingFunctions -join ', ')" -Result $(if ($missingFunctions.Count -eq 0) { "PASS" } else { "FAIL" })
     $usageLogFileIntact = (Test-Path $script:DeepSeekUsageLogPath)
     $results += New-ValidationResult -Id "stablemode-8-usage-log-intact" -Description "Test 8b: DEEPSEEK_USAGE_LOG.md still exists - usage logs were not removed" -Expected "true" -Actual $usageLogFileIntact -Result $(if ($usageLogFileIntact) { "PASS" } else { "FAIL" })
-    $configExampleHasDeepSeek = (Get-Content (Join-Path $AiDir "AGENT_CONFIG.example.json") -Raw) -match '"deepseek"'
-    $results += New-ValidationResult -Id "stablemode-8-config-example-intact" -Description "Test 8c: .ai/AGENT_CONFIG.example.json still documents the deepseek configuration block" -Expected "true" -Actual $configExampleHasDeepSeek -Result $(if ($configExampleHasDeepSeek) { "PASS" } else { "FAIL" })
+    $configExamplePath = Join-Path $AiDir "AGENT_CONFIG.example.json"
+    if (Test-Path -LiteralPath $configExamplePath -PathType Leaf) {
+        $configExampleHasDeepSeek = (Get-Content -LiteralPath $configExamplePath -Raw) -match '"deepseek"'
+        $results += New-ValidationResult -Id "stablemode-8-config-example-intact" -Description "Test 8c: .ai/AGENT_CONFIG.example.json still documents the deepseek configuration block" -Expected "true" -Actual $configExampleHasDeepSeek -Result $(if ($configExampleHasDeepSeek) { "PASS" } else { "FAIL" })
+    } else {
+        $results += New-ValidationResult -Id "stablemode-8-config-example-intact" -Description "Test 8c: .ai/AGENT_CONFIG.example.json semantic assertion (optional repository file)" -Expected "N/A - unavailable" -Actual "N/A - .ai/AGENT_CONFIG.example.json is absent" -Result "WARN"
+    }
 
     # --- Test 9: existing safety gates remain intact ---
     $safetyBlockMatch = [regex]::Match($agentSource, '(?ms)\$Safety = \[ordered\]@\{(.*?)\}')
@@ -889,7 +915,7 @@ function Invoke-ResumeFallbackFixTests {
 
         # --- Positive case: a genuinely fresh report for THIS task is NOT flagged stale (backup/restore) ---
         $reportPath = Join-Path $AiDir "DEEPSEEK_IMPLEMENTATION_REPORT.md"
-        $reportBackup = Get-Content -Path $reportPath -Raw -Encoding utf8
+        $reportBackup = New-OptionalFileBackup -Path $reportPath
         try {
             $freshParsed = [pscustomobject]@{ Status = "ESCALATE"; Summary = "Synthetic fresh escalation for staleness-test purposes."; EscalationRequired = $true; EscalationReason = "Scope turned out to require touching shared session-grouping logic used by other reports." }
             Write-DeepSeekReportFromApi -State $realState -Parsed $freshParsed -Applied @() -Rejected @() | Out-Null
@@ -904,7 +930,7 @@ function Invoke-ResumeFallbackFixTests {
             $genuineCertReason = "This requires changes to the certificate verification logic that issues trust decisions."
             $results += New-ValidationResult -Id "resumefix-4-genuine-cert-verification-still-high" -Description "Test 4b: a genuine certificate-verification escalation reason is still correctly detected as touching a blocked area" -Expected "true" -Actual (Test-EscalationTouchesBlockedArea -Text $genuineCertReason) -Result $(if (Test-EscalationTouchesBlockedArea -Text $genuineCertReason) { "PASS" } else { "FAIL" })
         } finally {
-            Set-Content -Path $reportPath -Value $reportBackup -Encoding utf8
+            Restore-OptionalFileBackup -Backup $reportBackup
         }
     } else {
         $results += New-ValidationResult -Id "resumefix-real-task-tests" -Description "Tests 2/3/4/8/9 (real stuck-task checks)" -Expected "N/A" -Actual "SKIPPED - no real attendance/DeepSeek task currently in progress (State=$($realState.State))" -Result "WARN"
@@ -1148,9 +1174,9 @@ function Invoke-DeepSeekEscalationTest {
     }
 
     $reportPath = Join-Path $AiDir "DEEPSEEK_IMPLEMENTATION_REPORT.md"
-    $backup = Get-Content -Path $reportPath -Raw
+    $backup = New-OptionalFileBackup -Path $reportPath
     $escalationHandoffPath = Join-Path $AiDir "CLAUDE_ESCALATION_HANDOFF.md"
-    $escalationBackup = Get-Content -Path $escalationHandoffPath -Raw
+    $escalationBackup = New-OptionalFileBackup -Path $escalationHandoffPath
 
     try {
         $desc = Get-Fixture "test10-deepseek-escalation.md"
@@ -1191,8 +1217,8 @@ Required change affects shared authorization Server Action - outside DeepSeek's 
         $handoffContent = Get-Content -Path $handoffPath -Raw
         $results += New-ValidationResult -Id "deepseek-escalation-handoff" -Description "CLAUDE_ESCALATION_HANDOFF.md contains DeepSeek findings, not a blank slate" -Expected "Contains DeepSeek's root cause / reason text so Claude does not restart discovery from zero" -Actual "Contains 'shared authorization Server Action': $($handoffContent -like '*shared authorization Server Action*')" -Result $(if ($handoffContent -like "*shared authorization Server Action*") { "PASS" } else { "FAIL" })
     } finally {
-        Set-Content -Path $reportPath -Value $backup -Encoding utf8
-        Set-Content -Path $escalationHandoffPath -Value $escalationBackup -Encoding utf8
+        Restore-OptionalFileBackup -Backup $backup
+        Restore-OptionalFileBackup -Backup $escalationBackup
     }
 
     return $results
@@ -1578,7 +1604,7 @@ function Invoke-DeepSeekFixturePatchTest {
 
     # --- Escalation path: writes a report, applies nothing. ---
     $reportPath = Join-Path $AiDir "DEEPSEEK_IMPLEMENTATION_REPORT.md"
-    $reportBackup = Get-Content -Path $reportPath -Raw -Encoding utf8
+    $reportBackup = New-OptionalFileBackup -Path $reportPath
     try {
         $escalateResponse = [pscustomobject]@{
             Status = "ESCALATE"; Summary = "Would require touching RLS"
@@ -1589,7 +1615,7 @@ function Invoke-DeepSeekFixturePatchTest {
         $escalation = Get-DeepSeekEscalation
         $results += New-ValidationResult -Id "deepseek-fixture-escalation-report" -Description "An ESCALATE response writes a report Get-DeepSeekEscalation parses correctly, applies no patch" -Expected "Required=true, Reason mentions RLS" -Actual "Required=$($escalation.Required), Reason='$($escalation.Reason)'" -Result $(if ($escalation.Required -and $escalation.Reason -like "*RLS*") { "PASS" } else { "FAIL" })
     } finally {
-        Set-Content -Path $reportPath -Value $reportBackup -Encoding utf8
+        Restore-OptionalFileBackup -Backup $reportBackup
     }
 
     return $results
