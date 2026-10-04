@@ -57,7 +57,7 @@ assert.deepEqual(invalidContext, { view: "all", owner: "mine", q: undefined, pag
 const longSearch = "q".repeat(250);
 assert.equal(normalizeTaskQueueContext({ q: longSearch }).q, longSearch, "return context preserves existing search text");
 
-assert.equal(parseTaskDueDateTimeLocal("2026-10-03T10:30"), new Date("2026-10-03T10:30").toISOString());
+assert.equal(parseTaskDueDateTimeLocal("2026-10-03T10:30"), "2026-10-03T02:30:00.000Z");
 assert.equal(taskDueDateTimeLocal("2026-10-03T02:30:00.000Z"), "2026-10-03T10:30", "UTC timestamps render as Malaysia local time in the queue editor");
 assert.equal(parseTaskDueDateTimeLocal("2026-02-30T10:30"), null);
 assert.equal(parseTaskDueDateTimeLocal("not-a-date"), null);

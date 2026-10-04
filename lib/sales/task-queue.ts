@@ -1,3 +1,5 @@
+import { parseMalaysiaDateTimeLocal } from "./malaysia-datetime-local.js";
+
 export const TASK_QUEUE_VIEWS = ["all", "overdue", "today", "upcoming", "completed"] as const;
 export type TaskQueueView = (typeof TASK_QUEUE_VIEWS)[number];
 export type TaskQueueFeedback = "completed" | "rescheduled" | "updated" | "activity-warning";
@@ -74,21 +76,7 @@ export function taskActionReturnHref(
 }
 
 export function parseTaskDueDateTimeLocal(value: string): string | null {
-  const match = /^(\d{4})-(\d{2})-(\d{2})T([01]\d|2[0-3]):([0-5]\d)$/.exec(value);
-  if (!match) return null;
-  const [, yearText, monthText, dayText, hourText, minuteText] = match;
-  const year = Number(yearText);
-  const month = Number(monthText);
-  const day = Number(dayText);
-  const hour = Number(hourText);
-  const minute = Number(minuteText);
-  const date = new Date(value);
-  if (year < 1000 || Number.isNaN(date.getTime())) return null;
-  if (
-    date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day ||
-    date.getHours() !== hour || date.getMinutes() !== minute
-  ) return null;
-  return date.toISOString();
+  return parseMalaysiaDateTimeLocal(value);
 }
 
 /** Render a scheduled CRM instant as a Malaysia-local datetime-local value. */

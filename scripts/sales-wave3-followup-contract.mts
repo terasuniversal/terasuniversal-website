@@ -9,7 +9,7 @@ const form = await readFile(new URL("../app/admin/(protected)/sales/follow-ups/F
 assert.deepEqual(parseFollowUpDateTimeLocal(""), { valid: true, value: null });
 assert.deepEqual(parseFollowUpDateTimeLocal("2026-10-03T10:30"), {
   valid: true,
-  value: new Date("2026-10-03T10:30").toISOString(),
+  value: "2026-10-03T02:30:00.000Z",
 });
 assert.deepEqual(parseFollowUpDateTimeLocal("2026-02-30T10:30"), { valid: false });
 assert.deepEqual(parseFollowUpDateTimeLocal("not-a-date"), { valid: false });
