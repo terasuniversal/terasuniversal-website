@@ -682,6 +682,32 @@ function New-EmptyTaskState {
         MergeAllowed           = $false
         DeployAllowed          = $false
         LocalMigrationAllowlist = @()
+
+        # --- Follow-on control-plane hardening: tamper-resistant,
+        # integrity-bound approval proof over the canonical approval tuple
+        # (schema/version, task id, exact worktree, branch, approved
+        # HEAD/base, allowed files, runtime/DB permission fields, exact
+        # migration allowlist, nonce, approval timestamp/version). These
+        # fields are themselves ordinary mutable JSON - the proof's trust
+        # comes from the HMAC-SHA256 signature (keyed with the external
+        # DPAPI CurrentUser trust-root key, never stored in this repo), not
+        # from the presence of this object. Every runtime consumer
+        # (db-runner.ps1) must independently recompute the canonical tuple
+        # from CURRENT live state/git values and re-verify the HMAC - never
+        # trust these fields, or any cached "verified" flag, on their own.
+        # Exactly these 8 subfields are authoritative - see
+        # $script:AuthorityProofFieldSchema in db-runner.ps1, which fails
+        # closed on any missing/unknown/malformed field.
+        AuthorityProof = [pscustomobject]@{
+            SchemaVersion         = $null
+            Nonce                 = $null
+            ApprovedAtUtc         = $null
+            WorktreePath          = $null
+            Branch                = $null
+            BaseHeadSha           = $null
+            Hmac                  = $null
+            ConsumptionLedgerPath = $null
+        }
     }
 }
 

@@ -1282,6 +1282,22 @@ function Invoke-CreateTask {
         $state.LocalDisposableDatabaseApprovedAt = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
         $state.LocalDisposableDatabaseApprovalMethod = "TYPED_PHRASE"
         $state.LocalDisposableDatabaseApprovalPhrase = "AUTHORIZE ONE LOCAL DISPOSABLE DATABASE ITERATION"
+
+        # Control-plane hardening: sign the canonical approval tuple ONLY
+        # now, after the human has already typed the exact confirmation
+        # phrase above. A missing/unreadable external DPAPI trust-root key
+        # fails the entire -CreateTask call closed (no local DB authority
+        # is ever recorded without a valid proof) - see approval-runner.ps1.
+        $proofResult = New-ApprovalProof -State $state -RepoRoot $RepoRoot
+        if (-not $proofResult.Success) {
+            Write-Host ""
+            Write-Host "CREATE TASK BLOCKED: could not produce a signed approval proof ($($proofResult.Reason))."
+            Write-Host "No bounded local database authority was recorded. Populate the external DPAPI trust-root key first:"
+            Write-Host "  $(Get-ApprovalTrustKeyPath)"
+            Write-Host ""
+            return $false
+        }
+        $state.AuthorityProof = $proofResult.Proof
     }
 
     Save-TaskState -State $state

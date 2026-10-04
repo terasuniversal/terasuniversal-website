@@ -33,6 +33,46 @@
       (same hash) - see Test-DbReviewStale
     - no connection string, service-role key, or credential is ever
       written into a report file - see Get-RedactedText
+
+    --- Control-plane hardening: independent bounded-local-DB runtime gate ---
+
+    Invoke-BoundedLocalDatabaseValidation is the SOLE entry point that may
+    ever authorize a local disposable database validation iteration. It
+    independently re-verifies everything end to end from CURRENT live
+    state - it never trusts a cached "verified" flag, a mutable
+    .ai/task-state.json boolean alone, or the mere presence of an
+    AuthorityProof object:
+      1. Strict authority schema (Test-AuthorityProofSchema) - missing,
+         unknown, malformed, or unsupported proof fields fail closed.
+      2. HMAC-SHA256 re-verification (Test-ApprovalProofValid) - recomputes
+         the canonical tuple from the proof's bound values plus the
+         CURRENT task-state permission/allowlist/files, and independently
+         re-derives the signature from the external DPAPI trust-root key.
+      3. Exact worktree/branch/HEAD guard (Test-ExactWorktreeAuthorized) -
+         the actual current repository location, branch, and HEAD must
+         equal exactly what the proof bound; the canonical (non-worktree)
+         checkout and any other worktree are rejected, not just "other
+         repos."
+      4. Exact migration allowlist (Test-ExactMigrationAllowlist) - every
+         migration path this iteration would touch must be a literal,
+         case-sensitive member of the proof-bound allowlist; no wildcard,
+         directory-prefix, or inferred match is ever accepted.
+      5. Local disposable DB restriction checks (Test-LocalDbRestrictions)
+         - localhost/disposable only, network isolation, no published
+         ports, no persistent volume, synthetic data only.
+      6. Consumption ledger: the one iteration is CONSUMED (via
+         Consume-ConsumptionLedgerEntry in approval-runner.ps1) only after
+         every check above has already passed, and strictly before any
+         runtime/apply step is allowed to begin. ANY failure in this
+         function - at any step - permanently latches the ledger entry
+         (Set-ConsumptionLedgerLatch) so a retried or replayed call can
+         never succeed afterward, even if the underlying defect is later
+         fixed; a fresh task/approval cycle is required.
+
+    Per AGENTS.md/this task's instructions, this orchestrator never
+    actually starts Postgres or Docker - Invoke-BoundedLocalDatabaseValidation
+    stops at "all preconditions satisfied; runtime execution out of scope
+    here" and never shells out to `docker run`/`supabase start` itself.
 #>
 
 $script:MigrationFilenamePattern = '^\d{14}_[a-z0-9_]+\.sql$'
@@ -70,6 +110,270 @@ $script:CriticalKeywords = @(
     "drop table", "drop column", "delete", "truncate", "cascade",
     "auth", "service_role", "security definer", "widen", "expand access"
 )
+
+# ---------------------------------------------------------------------------
+# Control-plane hardening: independent bounded-local-DB runtime gate.
+# See the file header for the full chain. Every function below is a pure
+# verification step with no side effect other than Invoke-
+# BoundedLocalDatabaseValidation's own ledger consumption/latch calls -
+# none of them ever starts Postgres, Docker, or any other runtime.
+# ---------------------------------------------------------------------------
+
+# Exactly these 8 fields are authoritative on an AuthorityProof object -
+# matches the AuthorityProof shape in agent-router.ps1's New-EmptyTaskState
+# and the Proof shape returned by approval-runner.ps1's New-ApprovalProof.
+# Any missing, unknown, or malformed (null/wrong-type) field fails closed,
+# per "strict authority schema" (section 5 of the hardening task).
+$script:AuthorityProofFieldSchema = @("SchemaVersion", "Nonce", "ApprovedAtUtc", "WorktreePath", "Branch", "BaseHeadSha", "Hmac", "ConsumptionLedgerPath")
+
+function Test-AuthorityProofSchema {
+    param($Proof)
+
+    if ($null -eq $Proof) {
+        return [pscustomobject]@{ Valid = $false; Reason = "AUTHORITY_PROOF_MISSING" }
+    }
+
+    $actualNames = @($Proof.PSObject.Properties.Name)
+    $missing = @($script:AuthorityProofFieldSchema | Where-Object { $_ -notin $actualNames })
+    $unknown = @($actualNames | Where-Object { $_ -notin $script:AuthorityProofFieldSchema })
+    if ($missing.Count -gt 0) {
+        return [pscustomobject]@{ Valid = $false; Reason = "AUTHORITY_PROOF_SCHEMA_MISSING_FIELDS: $($missing -join ', ')" }
+    }
+    if ($unknown.Count -gt 0) {
+        return [pscustomobject]@{ Valid = $false; Reason = "AUTHORITY_PROOF_SCHEMA_UNKNOWN_FIELDS: $($unknown -join ', ')" }
+    }
+    foreach ($field in $script:AuthorityProofFieldSchema) {
+        $value = $Proof.$field
+        if ([string]::IsNullOrWhiteSpace([string]$value)) {
+            return [pscustomobject]@{ Valid = $false; Reason = "AUTHORITY_PROOF_SCHEMA_EMPTY_FIELD: $field" }
+        }
+    }
+    if ($Proof.SchemaVersion -ne $script:ApprovalProofSchemaVersion) {
+        return [pscustomobject]@{ Valid = $false; Reason = "AUTHORITY_PROOF_SCHEMA_VERSION_UNSUPPORTED: $($Proof.SchemaVersion)" }
+    }
+    if ($Proof.BaseHeadSha -notmatch '^[0-9a-f]{40}$') {
+        return [pscustomobject]@{ Valid = $false; Reason = "AUTHORITY_PROOF_SCHEMA_MALFORMED_HEAD_SHA" }
+    }
+    if ($Proof.Hmac -notmatch '^[0-9a-f]{64}$') {
+        return [pscustomobject]@{ Valid = $false; Reason = "AUTHORITY_PROOF_SCHEMA_MALFORMED_HMAC" }
+    }
+    # HIGH-2 repair: strict nonce format is part of the strict schema -
+    # exact fixed-length lowercase hex, matching New-ApprovalProof's own
+    # generator (see $script:NonceFormatPattern / Test-NonceFormat in
+    # approval-runner.ps1). This check runs BEFORE any filesystem path is
+    # ever built from the Nonce field, anywhere in the chain below.
+    if (-not (Test-NonceFormat ([string]$Proof.Nonce))) {
+        return [pscustomobject]@{ Valid = $false; Reason = "AUTHORITY_PROOF_SCHEMA_MALFORMED_NONCE" }
+    }
+    return [pscustomobject]@{ Valid = $true; Reason = "OK" }
+}
+
+# Independently recomputes the canonical tuple and HMAC from the proof's
+# bound identity fields plus the CURRENT task-state permission/allowlist/
+# files, then re-derives the signature from the external trust root. This
+# is the actual cryptographic re-verification step - a tampered
+# permission, allowlist entry, allowed-file list, task id, or any proof
+# identity field changes the recomputed tuple bytes and therefore fails
+# the comparison; a tampered Hmac field fails it directly.
+#
+# MEDIUM-1 repair: ConsumptionLedgerPath is now (a) part of the signed
+# tuple itself (see New-ApprovalCanonicalTuple) and (b) independently
+# cross-checked here against the path actually DERIVED from the proof's
+# own (schema-validated, fixed-format) Nonce via the single canonical
+# Get-ConsumptionLedgerPathForNonce helper - never trusted as a free-form
+# string. A proof whose claimed ConsumptionLedgerPath does not match the
+# nonce-derived path fails closed here, independently of the HMAC check.
+function Test-ApprovalProofValid {
+    param($State)
+
+    $schemaCheck = Test-AuthorityProofSchema -Proof $State.AuthorityProof
+    if (-not $schemaCheck.Valid) {
+        return [pscustomobject]@{ Valid = $false; Reason = $schemaCheck.Reason }
+    }
+
+    $proof = $State.AuthorityProof
+
+    # Nonce format is already schema-validated above - safe to derive a
+    # path from it now, strictly for the cross-check comparison below.
+    # This NEVER mutates the filesystem (Get-ConsumptionLedgerPathForNonce
+    # only computes a candidate path; it is read-only).
+    $derivedLedgerPath = Get-ConsumptionLedgerPathForNonce -Nonce ([string]$proof.Nonce)
+    if ($null -eq $derivedLedgerPath) {
+        return [pscustomobject]@{ Valid = $false; Reason = "AUTHORITY_PROOF_NONCE_PATH_DERIVATION_FAILED" }
+    }
+    $claimedLedgerPath = [IO.Path]::GetFullPath([string]$proof.ConsumptionLedgerPath)
+    if (-not [string]::Equals($claimedLedgerPath, $derivedLedgerPath, [StringComparison]::OrdinalIgnoreCase)) {
+        return [pscustomobject]@{ Valid = $false; Reason = "AUTHORITY_PROOF_CONSUMPTION_LEDGER_PATH_MISMATCH" }
+    }
+
+    $keyBytes = Get-ApprovalTrustKeyBytes -Path (Get-ApprovalTrustKeyPath)
+    if ($null -eq $keyBytes) {
+        return [pscustomobject]@{ Valid = $false; Reason = "TRUST_ROOT_KEY_MISSING_OR_UNREADABLE" }
+    }
+
+    $tuple = New-ApprovalCanonicalTuple -State $State -WorktreePath $proof.WorktreePath -Branch $proof.Branch -BaseHeadSha $proof.BaseHeadSha -Nonce $proof.Nonce -ApprovedAtUtc $proof.ApprovedAtUtc -ConsumptionLedgerPath $claimedLedgerPath
+    $canonicalJson = Get-ApprovalCanonicalTupleJson -Tuple $tuple
+    $expectedHmac = Get-HmacSha256Hex -KeyBytes $keyBytes -Message $canonicalJson
+
+    if (-not (Test-ConstantTimeStringEqual -A $expectedHmac -B ([string]$proof.Hmac))) {
+        return [pscustomobject]@{ Valid = $false; Reason = "AUTHORITY_PROOF_HMAC_MISMATCH_TAMPER_DETECTED" }
+    }
+    return [pscustomobject]@{ Valid = $true; Reason = "OK" }
+}
+
+# Rejects the canonical (non-worktree) checkout and any worktree other
+# than the exact one the proof was bound to - comparing the live,
+# resolved current repository path, branch, and HEAD against the proof's
+# bound values. A worktree sharing git history with the canonical
+# checkout (as all linked worktrees do) is still rejected unless its path
+# is the literal one named in the proof.
+function Test-ExactWorktreeAuthorized {
+    param($State, [string]$RepoRoot)
+
+    $schemaCheck = Test-AuthorityProofSchema -Proof $State.AuthorityProof
+    if (-not $schemaCheck.Valid) {
+        return [pscustomobject]@{ Authorized = $false; Reason = $schemaCheck.Reason }
+    }
+    $proof = $State.AuthorityProof
+
+    if (-not (Test-Path -LiteralPath $RepoRoot)) {
+        return [pscustomobject]@{ Authorized = $false; Reason = "REPO_ROOT_NOT_FOUND" }
+    }
+    $currentWorktree = (Resolve-Path -LiteralPath $RepoRoot).Path.TrimEnd('\', '/')
+    $boundWorktree = [string]$proof.WorktreePath
+    if ($boundWorktree) { $boundWorktree = $boundWorktree.TrimEnd('\', '/') }
+    if (-not [string]::Equals($currentWorktree, $boundWorktree, [StringComparison]::OrdinalIgnoreCase)) {
+        return [pscustomobject]@{ Authorized = $false; Reason = "WORKTREE_MISMATCH: current='$currentWorktree' authorized='$boundWorktree' (canonical checkouts and other/undeclared worktrees are always rejected)" }
+    }
+
+    Push-Location $RepoRoot
+    try {
+        $currentBranch = (git rev-parse --abbrev-ref HEAD 2>$null | Out-String).Trim()
+        $currentHead = (git rev-parse HEAD 2>$null | Out-String).Trim()
+    } catch {
+        return [pscustomobject]@{ Authorized = $false; Reason = "GIT_METADATA_UNAVAILABLE" }
+    } finally {
+        Pop-Location
+    }
+
+    if (-not [string]::Equals($currentBranch, [string]$proof.Branch, [StringComparison]::Ordinal)) {
+        return [pscustomobject]@{ Authorized = $false; Reason = "BRANCH_MISMATCH: current='$currentBranch' authorized='$($proof.Branch)'" }
+    }
+    if (-not [string]::Equals($currentHead, [string]$proof.BaseHeadSha, [StringComparison]::Ordinal)) {
+        return [pscustomobject]@{ Authorized = $false; Reason = "HEAD_MISMATCH: current='$currentHead' authorized='$($proof.BaseHeadSha)'" }
+    }
+    return [pscustomobject]@{ Authorized = $true; Reason = "OK" }
+}
+
+# Exact, literal, case-sensitive membership only - never a wildcard,
+# directory-prefix, or "starts with" match. An empty requested list is
+# vacuously authorized (nothing to check); an empty allowlist authorizes
+# nothing.
+function Test-ExactMigrationAllowlist {
+    param([string[]]$RequestedMigrations, [string[]]$Allowlist)
+
+    $requested = @($RequestedMigrations | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
+    $allowed = @($Allowlist)
+    $unauthorized = @()
+    foreach ($candidate in $requested) {
+        $isAllowed = $false
+        foreach ($entry in $allowed) {
+            if ([string]::Equals($candidate, $entry, [StringComparison]::Ordinal)) { $isAllowed = $true; break }
+        }
+        if (-not $isAllowed) { $unauthorized += $candidate }
+    }
+    if ($unauthorized.Count -gt 0) {
+        return [pscustomobject]@{ Authorized = $false; Reason = "MIGRATION_NOT_IN_EXACT_ALLOWLIST: $($unauthorized -join ', ')"; Unauthorized = $unauthorized }
+    }
+    return [pscustomobject]@{ Authorized = $true; Reason = "OK"; Unauthorized = @() }
+}
+
+# Local disposable DB restrictions (section 11) - checked against the
+# live CURRENT task-state permission fields, never a cached/legacy value.
+# Any single violation fails closed.
+function Test-LocalDbRestrictions {
+    param($State)
+
+    $violations = @()
+    if (-not $State.LocalDisposableDatabaseAllowed) { $violations += "LocalDisposableDatabaseAllowed is not granted" }
+    if (-not $State.LocalMigrationValidationAllowed) { $violations += "LocalMigrationValidationAllowed is not granted" }
+    if ([int]$State.DockerIterationsAllowed -ne 1) { $violations += "DockerIterationsAllowed must be exactly 1 (got $($State.DockerIterationsAllowed))" }
+    if (-not $State.StopOnFirstFailure) { $violations += "StopOnFirstFailure is not enabled" }
+    if (-not $State.SyntheticDataOnly) { $violations += "SyntheticDataOnly is not enabled" }
+    if ($State.RemoteDbAllowed) { $violations += "RemoteDbAllowed must remain denied" }
+    if ($State.StagingAllowed) { $violations += "StagingAllowed must remain denied" }
+    if ($State.ProductionAllowed) { $violations += "ProductionAllowed must remain denied" }
+    if ($State.PublishedPortsAllowed) { $violations += "PublishedPortsAllowed must remain denied (no published ports)" }
+    if ($State.PersistentDbVolumeAllowed) { $violations += "PersistentDbVolumeAllowed must remain denied (no persistent volume)" }
+    if ($State.SourceEditAllowedDuringRuntime) { $violations += "SourceEditAllowedDuringRuntime must remain denied (no source edit during runtime)" }
+    if ($State.PushAllowed -or $State.MergeAllowed -or $State.DeployAllowed) { $violations += "Push/Merge/Deploy must remain denied during a bounded local DB iteration" }
+    if (@($State.LocalMigrationAllowlist).Count -eq 0) { $violations += "LocalMigrationAllowlist must name at least one exact migration path" }
+
+    if ($violations.Count -gt 0) {
+        return [pscustomobject]@{ Compliant = $false; Reason = ($violations -join "; ") }
+    }
+    return [pscustomobject]@{ Compliant = $true; Reason = "OK" }
+}
+
+# The sole entry point that may ever authorize a bounded local disposable
+# database validation iteration. See the file header for the full chain.
+#
+# CRITICAL TRUST ORDER (HIGH-2 repair): the first-failure latch is a
+# filesystem mutation keyed by Nonce. It may ONLY ever be applied to a
+# nonce whose identity has already been cryptographically authenticated -
+# i.e. strictly AFTER Test-ApprovalProofValid has returned Valid = $true.
+# A PROOF_VERIFICATION failure (bad schema, malformed/traversal-shaped
+# nonce, tampered tuple field, or HMAC mismatch) means the caller-supplied
+# AuthorityProof has NOT been established as authentic, so this function
+# denies WITHOUT touching the consumption ledger at all - never latching,
+# never creating, never reading past the point needed to return Invalid.
+# Every stage AFTER proof verification operates on an already-authenticated
+# nonce, so latching on those later failures remains safe and required
+# (a retried/replayed call can never silently succeed afterward, even if
+# the underlying defect is later fixed - a fresh task/approval cycle is
+# required).
+function Invoke-BoundedLocalDatabaseValidation {
+    param($State, [string]$RepoRoot, [string[]]$RequestedMigrations = @())
+
+    $proofCheck = Test-ApprovalProofValid -State $State
+    if (-not $proofCheck.Valid) {
+        # No ledger mutation here - the nonce is not yet authenticated.
+        return [pscustomobject]@{ Authorized = $false; Stage = "PROOF_VERIFICATION"; Reason = $proofCheck.Reason }
+    }
+
+    # From this point on, $State.AuthorityProof.Nonce is authenticated
+    # (its HMAC over the full canonical tuple, including this exact
+    # nonce, has been independently re-verified) - safe to use as a
+    # latch/consumption key for every remaining stage.
+    $worktreeCheck = Test-ExactWorktreeAuthorized -State $State -RepoRoot $RepoRoot
+    if (-not $worktreeCheck.Authorized) {
+        Set-ConsumptionLedgerLatch -Nonce $State.AuthorityProof.Nonce -Reason "WORKTREE_GUARD_FAILED: $($worktreeCheck.Reason)" | Out-Null
+        return [pscustomobject]@{ Authorized = $false; Stage = "WORKTREE_GUARD"; Reason = $worktreeCheck.Reason }
+    }
+
+    $allowlistCheck = Test-ExactMigrationAllowlist -RequestedMigrations $RequestedMigrations -Allowlist $State.LocalMigrationAllowlist
+    if (-not $allowlistCheck.Authorized) {
+        Set-ConsumptionLedgerLatch -Nonce $State.AuthorityProof.Nonce -Reason "MIGRATION_ALLOWLIST_FAILED: $($allowlistCheck.Reason)" | Out-Null
+        return [pscustomobject]@{ Authorized = $false; Stage = "MIGRATION_ALLOWLIST"; Reason = $allowlistCheck.Reason }
+    }
+
+    $restrictionsCheck = Test-LocalDbRestrictions -State $State
+    if (-not $restrictionsCheck.Compliant) {
+        Set-ConsumptionLedgerLatch -Nonce $State.AuthorityProof.Nonce -Reason "LOCAL_DB_RESTRICTIONS_FAILED: $($restrictionsCheck.Reason)" | Out-Null
+        return [pscustomobject]@{ Authorized = $false; Stage = "LOCAL_DB_RESTRICTIONS"; Reason = $restrictionsCheck.Reason }
+    }
+
+    # Consume strictly before any runtime/apply step is allowed to begin -
+    # never after. A consumption failure (budget exhausted, replay,
+    # already latched, lock contention) fails closed and also latches.
+    $consumeResult = Consume-ConsumptionLedgerEntry -Nonce $State.AuthorityProof.Nonce
+    if (-not $consumeResult.Success) {
+        Set-ConsumptionLedgerLatch -Nonce $State.AuthorityProof.Nonce -Reason "CONSUMPTION_FAILED: $($consumeResult.Reason)" | Out-Null
+        return [pscustomobject]@{ Authorized = $false; Stage = "CONSUMPTION_LEDGER"; Reason = $consumeResult.Reason }
+    }
+
+    return [pscustomobject]@{ Authorized = $true; Stage = "COMPLETE"; Reason = "All preconditions satisfied and the one authorized iteration has been consumed. Runtime execution (Postgres/Docker) is out of scope for this orchestrator and is never started automatically." }
+}
 
 # ---------------------------------------------------------------------------
 # Detection / static analysis - all pure text operations, no live DB query.
@@ -784,6 +1088,43 @@ function Test-LocalSupabaseRunning {
     }
 }
 
+# Control-plane hardening repair (HIGH-1, repaired again for the explicit
+# LOCAL-target blocker): the ONLY place in this file that actually shells
+# out to the Supabase CLI's `db push`. Factored out so it can be
+# deterministically overridden (function redefinition after dot-sourcing,
+# the same mocking pattern already used by this orchestrator's own test
+# harnesses - see agent-repair-loop.tests.ps1) in regression tests that
+# must prove `supabase db push` is never invoked when the bounded-
+# authorization gate denies, and IS invoked only after it authorizes.
+# Invoke-ApplyMigration's LOCAL branch is the only caller.
+#
+# Bare `supabase db push` targets whatever remote project is currently
+# `supabase link`-ed in this working directory by CLI default - it does
+# NOT target the local stack just because a local stack happens to be
+# running, and a linked remote project makes a bare push go straight to
+# that remote regardless of developer intent or `supabase status`. This
+# function takes NO parameters and builds its argument list from a fixed
+# literal array only, so no caller anywhere in this file - now or in any
+# future edit - can inject `--linked`, `--db-url`, or any other
+# target-overriding flag in place of `--local`. The explicit `--local`
+# flag is what makes a notionally-linked remote project irrelevant to
+# this specific invocation.
+function Invoke-LocalSupabaseDbPushExecution {
+    # Fixed, non-caller-controlled argv. Do not parameterize this list.
+    $supabaseDbPushLocalArgs = @("db", "push", "--local")
+    try {
+        # try/catch, not just 2>&1 - a native command's stderr output
+        # becomes a terminating error under this script's
+        # $ErrorActionPreference = "Stop" otherwise (same pattern as
+        # Invoke-ClaudeImplementation/Invoke-CodexReview).
+        & supabase @supabaseDbPushLocalArgs 2>&1 | Out-Host
+        return $LASTEXITCODE
+    } catch {
+        Write-Host "supabase db push --local failed: $($_.Exception.Message)"
+        return 1
+    }
+}
+
 function Invoke-ApplyMigration {
     param([string]$Target)
 
@@ -864,19 +1205,41 @@ function Invoke-ApplyMigration {
             return
         }
 
+        # Control-plane hardening repair (HIGH-1): this is now the SOLE
+        # live route to a LOCAL `supabase db push`. The legacy
+        # DbApproved/hash checks above remain (they are a separate,
+        # content-correctness gate), but they no longer suffice on their
+        # own to reach execution - Invoke-BoundedLocalDatabaseValidation's
+        # full fail-closed chain (strict schema -> HMAC proof ->
+        # worktree/branch/HEAD -> exact migration allowlist -> local
+        # runtime restrictions -> consumption-ledger authorization) MUST
+        # also return Authorized = $true before Invoke-
+        # LocalSupabaseDbPushExecution is ever called. There is no other
+        # call site for that execution function anywhere in this file.
+        $boundedAuth = Invoke-BoundedLocalDatabaseValidation -State $state -RepoRoot $RepoRoot -RequestedMigrations @($state.DbMigrationFile)
+        if (-not $boundedAuth.Authorized) {
+            $state.DbApplyStatus = "BLOCKED"
+            $state.DbState = "DB_ATTENTION_REQUIRED"
+            Save-TaskState -State $state
+            Write-Host ""
+            Write-Host "LOCAL APPLY BLOCKED BY BOUNDED-AUTHORIZATION GATE"
+            Write-Host ""
+            Write-Host "Stage:"
+            Write-Host $boundedAuth.Stage
+            Write-Host ""
+            Write-Host "Reason:"
+            Write-Host $boundedAuth.Reason
+            Write-Host ""
+            Write-Host "supabase db push was never invoked."
+            Write-Host ""
+            return
+        }
+
         $state.DbState = "DB_APPLYING"
         Save-TaskState -State $state
         Push-Location $RepoRoot
         try {
-            # try/catch, not just 2>&1 - a native command's stderr output
-            # becomes a terminating error under this script's
-            # $ErrorActionPreference = "Stop" otherwise (same pattern as
-            # Invoke-ClaudeImplementation/Invoke-CodexReview).
-            supabase db push 2>&1 | Out-Host
-            $exitCode = $LASTEXITCODE
-        } catch {
-            Write-Host "supabase db push failed: $($_.Exception.Message)"
-            $exitCode = 1
+            $exitCode = Invoke-LocalSupabaseDbPushExecution
         } finally {
             Pop-Location
         }
@@ -1103,7 +1466,7 @@ function Invoke-DryRunMigration {
     Write-Host "Required approvals: -ApproveMigration (exact phrase APPROVE DATABASE MIGRATION), then -ApplyMigration -Target <LOCAL|STAGING|PRODUCTION>"
     Write-Host "  PRODUCTION additionally requires the exact phrase APPLY APPROVED PRODUCTION MIGRATION, and is never executed automatically even then - see -ApplyMigration."
     Write-Host ""
-    Write-Host "Intended Supabase command: 'supabase db push' (LOCAL only, only if a local stack is detected running)"
+    Write-Host "Intended Supabase command: 'supabase db push --local' (LOCAL only, only if a local stack is detected running)"
     Write-Host "Verification plan: 'supabase migration list' (read-only) plus manual confirmation of expected objects: $(if (@($state.DbObjectsChanged).Count -gt 0) { $state.DbObjectsChanged -join '; ' } else { '(none detected yet)' })"
     Write-Host ""
 }
