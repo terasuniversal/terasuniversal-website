@@ -33,6 +33,9 @@ alter table public.certificate_issuance_snapshots
 
 do $marker_authority_preflight$
 begin
+  if current_user <> 'postgres' then
+    raise exception 'C4 Wave 1A precondition failed: migration requires migration role postgres';
+  end if;
   if (select r.rolcanlogin from pg_catalog.pg_roles r
       where r.rolname = 'certificate_lifecycle_executor') is distinct from false
      or pg_catalog.pg_has_role('anon', 'certificate_lifecycle_executor', 'SET')
@@ -42,6 +45,25 @@ begin
   end if;
 end;
 $marker_authority_preflight$;
+
+-- Ownership model for the three new trigger functions below (guard, capture,
+-- persist): all three are SECURITY INVOKER and execute with the privileges of
+-- whichever role performed the triggering INSERT/UPDATE. That role is always
+-- certificate_lifecycle_executor in practice, because public.certificates and
+-- public.certificate_issuance_snapshots writes are reachable only through the
+-- SECURITY DEFINER app.issue_certificate_with_skill_snapshot (and its sibling
+-- lifecycle RPCs) owned by certificate_lifecycle_executor — current_user is
+-- already that role for the whole nested call chain, including these
+-- triggers. Ownership of the trigger functions therefore does not need to be
+-- certificate_lifecycle_executor: only EXECUTE privilege matters for a
+-- SECURITY INVOKER function. Each function keeps its default owner (the
+-- migration role, postgres) and is granted EXECUTE to certificate_lifecycle_executor
+-- only, with PUBLIC/anon/authenticated/service_role explicitly revoked.
+-- This avoids the unsupported alternative of transferring ownership to
+-- certificate_lifecycle_executor, which would require either CREATE ON
+-- SCHEMA app for that role or SET-capable membership for postgres — both of
+-- which I3 (20260924180000) deliberately withholds as a standing security
+-- invariant and which this migration must not weaken.
 
 create or replace function app.guard_certificate_render_contract()
 returns trigger
@@ -97,11 +119,11 @@ begin
 end;
 $guard$;
 
-alter function app.guard_certificate_render_contract() owner to certificate_lifecycle_executor;
-set local role certificate_lifecycle_executor;
+-- SECURITY INVOKER / owner postgres (default) / required current_user at
+-- trigger-fire-time: certificate_lifecycle_executor (enforced inside the
+-- function body). No ownership transfer: see ownership-model note above.
 revoke all on function app.guard_certificate_render_contract() from public, anon, authenticated, service_role;
 grant execute on function app.guard_certificate_render_contract() to certificate_lifecycle_executor;
-reset role;
 
 drop trigger if exists trg_guard_certificate_render_contract on public.certificates;
 create trigger trg_guard_certificate_render_contract
@@ -330,11 +352,11 @@ begin
 end;
 $capture$;
 
-alter function app.capture_c4_wave1_erector_snapshot() owner to certificate_lifecycle_executor;
-set local role certificate_lifecycle_executor;
+-- SECURITY INVOKER / owner postgres (default) / required current_user at
+-- trigger-fire-time: certificate_lifecycle_executor (enforced inside the
+-- function body). No ownership transfer: see ownership-model note above.
 revoke all on function app.capture_c4_wave1_erector_snapshot() from public, anon, authenticated, service_role;
 grant execute on function app.capture_c4_wave1_erector_snapshot() to certificate_lifecycle_executor;
-reset role;
 
 create trigger trg_capture_c4_wave1_erector_snapshot
 before insert on public.certificate_issuance_snapshots
@@ -394,11 +416,19 @@ begin
 end;
 $persist$;
 
-alter function app.persist_certificate_render_contract_marker() owner to certificate_lifecycle_executor;
-set local role certificate_lifecycle_executor;
+-- SECURITY INVOKER / owner postgres (default) / required current_user at
+-- trigger-fire-time: certificate_lifecycle_executor (enforced inside the
+-- function body). No ownership transfer: see ownership-model note above.
+-- This function's UPDATE on public.certificates is column-scoped to
+-- render_contract_version only — SELECT privilege on public.certificates
+-- is not separately required here: the executor already holds table-level
+-- SELECT on public.certificates (20260924180000), and the UPDATE's WHERE
+-- clause (id = new.certificate_id and render_contract_version is null)
+-- reads columns already covered by the id INSERT privilege and this new
+-- render_contract_version UPDATE grant, not any column outside them.
 revoke all on function app.persist_certificate_render_contract_marker() from public, anon, authenticated, service_role;
 grant execute on function app.persist_certificate_render_contract_marker() to certificate_lifecycle_executor;
-reset role;
+grant update (render_contract_version) on public.certificates to certificate_lifecycle_executor;
 
 create trigger trg_persist_certificate_render_contract_marker
 after insert on public.certificate_issuance_snapshots
@@ -441,10 +471,10 @@ begin
     raise exception 'C4 Wave 1A postcondition failed: immutable render contract guard is not enabled';
   end if;
   if not exists (select 1 from pg_catalog.pg_proc p where p.oid = v_trigger_fn
-      and pg_catalog.pg_get_userbyid(p.proowner) = 'certificate_lifecycle_executor'
+      and pg_catalog.pg_get_userbyid(p.proowner) = current_user
       and not p.prosecdef
       and p.proconfig is not distinct from array['search_path=pg_catalog']::text[]
-      and p.proacl::text = '{certificate_lifecycle_executor=X/certificate_lifecycle_executor}'
+      and p.proacl::text = format('{certificate_lifecycle_executor=X/%s}', current_user)
       and not pg_catalog.has_function_privilege('anon', p.oid, 'EXECUTE')
       and not pg_catalog.has_function_privilege('authenticated', p.oid, 'EXECUTE')
       and not pg_catalog.has_function_privilege('service_role', p.oid, 'EXECUTE')
@@ -452,10 +482,10 @@ begin
     raise exception 'C4 Wave 1A postcondition failed: capture helper exact owner/security/search_path/ACL contract differs';
   end if;
   if not exists (select 1 from pg_catalog.pg_proc p where p.oid = v_marker_fn
-      and pg_catalog.pg_get_userbyid(p.proowner) = 'certificate_lifecycle_executor'
+      and pg_catalog.pg_get_userbyid(p.proowner) = current_user
       and not p.prosecdef
       and p.proconfig is not distinct from array['search_path=pg_catalog']::text[]
-      and p.proacl::text = '{certificate_lifecycle_executor=X/certificate_lifecycle_executor}'
+      and p.proacl::text = format('{certificate_lifecycle_executor=X/%s}', current_user)
       and not pg_catalog.has_function_privilege('anon', p.oid, 'EXECUTE')
       and not pg_catalog.has_function_privilege('authenticated', p.oid, 'EXECUTE')
       and not pg_catalog.has_function_privilege('service_role', p.oid, 'EXECUTE')
@@ -463,15 +493,34 @@ begin
     raise exception 'C4 Wave 1A postcondition failed: after-snapshot marker helper exact owner/security/search_path/ACL contract differs';
   end if;
   if not exists (select 1 from pg_catalog.pg_proc p where p.oid = v_guard_fn
-      and pg_catalog.pg_get_userbyid(p.proowner) = 'certificate_lifecycle_executor'
+      and pg_catalog.pg_get_userbyid(p.proowner) = current_user
       and not p.prosecdef
       and p.proconfig is not distinct from array['search_path=pg_catalog']::text[]
-      and p.proacl::text = '{certificate_lifecycle_executor=X/certificate_lifecycle_executor}'
+      and p.proacl::text = format('{certificate_lifecycle_executor=X/%s}', current_user)
       and not pg_catalog.has_function_privilege('anon', p.oid, 'EXECUTE')
       and not pg_catalog.has_function_privilege('authenticated', p.oid, 'EXECUTE')
       and not pg_catalog.has_function_privilege('service_role', p.oid, 'EXECUTE')
       and pg_catalog.has_function_privilege('certificate_lifecycle_executor', p.oid, 'EXECUTE')) then
     raise exception 'C4 Wave 1A postcondition failed: render contract guard exact security contract differs';
+  end if;
+  if not pg_catalog.has_column_privilege('certificate_lifecycle_executor', 'public.certificates', 'render_contract_version', 'UPDATE') then
+    raise exception 'C4 Wave 1A postcondition failed: executor is missing the narrow render_contract_version UPDATE privilege';
+  end if;
+  if exists (
+    select 1
+    from pg_catalog.pg_attribute a
+    where a.attrelid = 'public.certificates'::regclass
+      and a.attnum > 0 and not a.attisdropped
+      and a.attname <> 'render_contract_version'
+      and pg_catalog.has_column_privilege('certificate_lifecycle_executor', 'public.certificates', a.attname, 'UPDATE')
+      and a.attname not in (
+        'verification_url','status','remarks','expiry_date','deleted_at','verification_enabled','public_verification_enabled'
+      )
+  ) then
+    raise exception 'C4 Wave 1A postcondition failed: executor holds an UPDATE privilege on public.certificates beyond the pre-existing I3E grant plus render_contract_version';
+  end if;
+  if pg_catalog.has_table_privilege('certificate_lifecycle_executor', 'public.certificates', 'UPDATE') then
+    raise exception 'C4 Wave 1A postcondition failed: executor must not hold table-wide (whole-row) UPDATE on public.certificates, only column-scoped grants';
   end if;
   if exists (
     select 1
@@ -495,6 +544,9 @@ begin
      or pg_catalog.pg_has_role('authenticated', 'certificate_lifecycle_executor', 'SET')
      or pg_catalog.pg_has_role('service_role', 'certificate_lifecycle_executor', 'SET') then
     raise exception 'C4 Wave 1A postcondition failed: an API role can assume the lifecycle executor identity';
+  end if;
+  if pg_catalog.has_schema_privilege('certificate_lifecycle_executor', 'app', 'CREATE') then
+    raise exception 'C4 Wave 1A postcondition failed: executor must not hold CREATE on schema app';
   end if;
   if not exists (select 1 from pg_catalog.pg_proc p where p.oid = v_fn
       and pg_catalog.pg_get_userbyid(p.proowner) = 'certificate_lifecycle_executor'
