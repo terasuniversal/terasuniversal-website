@@ -513,6 +513,7 @@ function New-EmptyTaskState {
             CanonicalWorkspace = $null
             DeclaredAllowedScope = @()
             DeclaredBlockedScope = @()
+            IsGitRepository = $null
             Branch = $null
             Upstream = $null
             AheadOfOriginMain = $null
@@ -638,6 +639,43 @@ function New-EmptyTaskState {
     }
 }
 
+# Runs a git subcommand against a directory that may or may not be a git
+# repository, treating "fatal: not a git repository" as an expected,
+# non-terminating negative probe result rather than a script-ending error.
+# Windows PowerShell 5.1 can turn a native command's stderr write into a
+# terminating NativeCommandError under $ErrorActionPreference = "Stop" (the
+# script-wide setting), even with 2>$null on the call - so this function
+# locally switches to "Continue" for the duration of the single native call
+# only, and restores the prior preference immediately afterward (success or
+# failure) rather than touching the global/script-wide setting. The git exit
+# code is checked explicitly: 0 means success (output returned), 128 with
+# the specific "not a git repository" message means the expected negative
+# probe (Success=$false, IsGitRepository=$false), and anything else is an
+# unexpected failure (Success=$false, IsGitRepository=$null) that callers
+# must not silently treat as a clean negative probe - this keeps a genuine,
+# unrelated git failure from being misreported as "not a git repository".
+function Invoke-GitRepositoryProbe {
+    param([string]$RepoRoot, [string[]]$GitArguments)
+
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $output = @(& git -C $RepoRoot @GitArguments 2>&1)
+        $exitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+
+    $outputText = ($output | ForEach-Object { [string]$_ }) -join "`n"
+    if ($exitCode -eq 0) {
+        return [pscustomobject]@{ Success = $true; IsGitRepository = $true; Output = @($output); ExitCode = $exitCode }
+    }
+    if ($outputText -match "not a git repository") {
+        return [pscustomobject]@{ Success = $false; IsGitRepository = $false; Output = @(); ExitCode = $exitCode }
+    }
+    return [pscustomobject]@{ Success = $false; IsGitRepository = $null; Output = @($output); ExitCode = $exitCode }
+}
+
 function New-TaskState {
     param(
         [string]$TaskId,
@@ -667,18 +705,26 @@ function New-TaskState {
     # Persist canonical work-boundary facts in the existing durable task
     # record. This is observational only and does not mutate repository files.
     $state.WorkspaceBoundary.CanonicalWorkspace = $RepoRoot
-    $state.WorkspaceBoundary.Branch = (git -C $RepoRoot branch --show-current 2>$null | Select-Object -First 1)
-    $remote = (git -C $RepoRoot config --get "branch.$($state.WorkspaceBoundary.Branch).remote" 2>$null | Select-Object -First 1)
-    $mergeRef = (git -C $RepoRoot config --get "branch.$($state.WorkspaceBoundary.Branch).merge" 2>$null | Select-Object -First 1)
-    $state.WorkspaceBoundary.Upstream = if ($remote -and $mergeRef) { "$remote/$($mergeRef -replace '^refs/heads/', '')" } else { $null }
-    $dirty = @(git -C $RepoRoot status --porcelain 2>$null)
-    $state.WorkspaceBoundary.DirtyStatusEntries = $dirty.Count
-    $state.WorkspaceBoundary.DirtyUntrackedEntries = @($dirty | Where-Object { $_ -match '^\?\?' }).Count
-    $state.WorkspaceBoundary.DirtyTrackedContentFiles = @($dirty | Where-Object { $_ -and $_ -notmatch '^\?\?' }).Count
-    $compare = @(git -C $RepoRoot rev-list --left-right --count HEAD...origin/main 2>$null)
-    if ($compare.Count -gt 0 -and $compare[0] -match '^\s*(\d+)\s+(\d+)\s*$') {
-        $state.WorkspaceBoundary.AheadOfOriginMain = [int]$Matches[1]
-        $state.WorkspaceBoundary.BehindOriginMain = [int]$Matches[2]
+    $branchProbe = Invoke-GitRepositoryProbe -RepoRoot $RepoRoot -GitArguments @("branch", "--show-current")
+    $state.WorkspaceBoundary.IsGitRepository = $branchProbe.IsGitRepository
+    if ($branchProbe.Success) {
+        $state.WorkspaceBoundary.Branch = ($branchProbe.Output | Select-Object -First 1)
+        $remoteProbe = Invoke-GitRepositoryProbe -RepoRoot $RepoRoot -GitArguments @("config", "--get", "branch.$($state.WorkspaceBoundary.Branch).remote")
+        $mergeRefProbe = Invoke-GitRepositoryProbe -RepoRoot $RepoRoot -GitArguments @("config", "--get", "branch.$($state.WorkspaceBoundary.Branch).merge")
+        $remote = if ($remoteProbe.Success) { $remoteProbe.Output | Select-Object -First 1 } else { $null }
+        $mergeRef = if ($mergeRefProbe.Success) { $mergeRefProbe.Output | Select-Object -First 1 } else { $null }
+        $state.WorkspaceBoundary.Upstream = if ($remote -and $mergeRef) { "$remote/$($mergeRef -replace '^refs/heads/', '')" } else { $null }
+        $statusProbe = Invoke-GitRepositoryProbe -RepoRoot $RepoRoot -GitArguments @("status", "--porcelain")
+        $dirty = if ($statusProbe.Success) { @($statusProbe.Output) } else { @() }
+        $state.WorkspaceBoundary.DirtyStatusEntries = $dirty.Count
+        $state.WorkspaceBoundary.DirtyUntrackedEntries = @($dirty | Where-Object { $_ -match '^\?\?' }).Count
+        $state.WorkspaceBoundary.DirtyTrackedContentFiles = @($dirty | Where-Object { $_ -and $_ -notmatch '^\?\?' }).Count
+        $compareProbe = Invoke-GitRepositoryProbe -RepoRoot $RepoRoot -GitArguments @("rev-list", "--left-right", "--count", "HEAD...origin/main")
+        $compare = if ($compareProbe.Success) { @($compareProbe.Output) } else { @() }
+        if ($compare.Count -gt 0 -and $compare[0] -match '^\s*(\d+)\s+(\d+)\s*$') {
+            $state.WorkspaceBoundary.AheadOfOriginMain = [int]$Matches[1]
+            $state.WorkspaceBoundary.BehindOriginMain = [int]$Matches[2]
+        }
     }
 
     # Flag the separate database-safety track (db-runner.ps1) whenever the
