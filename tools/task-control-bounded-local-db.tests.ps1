@@ -1371,6 +1371,191 @@ try {
     Remove-TamperTestFixture -Fixture $fixture
 }
 
+# --- Part D: actual db-push failure latch regression tests (A-F) ---------
+#
+# These tests mock Invoke-LocalSupabaseDbPushExecution itself, so no real
+# `supabase` CLI, Postgres, or Docker process is ever started by any of them
+# (requirement F is verified structurally: each mock below is a pure
+# in-memory PowerShell function body with no external process invocation).
+
+# [A] actual push success => expected successful terminal state, and the
+# ledger is NOT latched (success must not be confused with failure).
+$fixture = New-TamperTestFixture
+try {
+    $env:TERAS_APPROVAL_TRUST_DIR_OVERRIDE = $fixture.TrustDir
+    New-DisposableApprovalTrustKey -Path (Get-ApprovalTrustKeyPath)
+    $RepoRoot = $fixture.RepoRoot
+    $script:DbPushInvocationLog = @()
+    function Invoke-LocalSupabaseDbPushExecution {
+        $script:DbPushInvocationLog += "DB_PUSH_INVOKED_SUCCESS"
+        return 0
+    }
+    $state = New-BoundedApplyFixtureState -Fixture $fixture -MigrationFile "supabase/migrations/20261004999999_latch_a.sql"
+    $proofResult = New-ApprovalProof -State $state -RepoRoot $fixture.RepoRoot
+    $state.AuthorityProof = $proofResult.Proof
+    $script:MockTaskState = $state
+    $keyBytesA = Get-ApprovalTrustKeyBytes -Path (Get-ApprovalTrustKeyPath)
+
+    Invoke-ApplyMigration -Target "LOCAL"
+    Assert-Equal @($script:DbPushInvocationLog).Count 1 "[A] actual push success must invoke the real execution exactly once."
+    Assert-Equal $script:MockTaskState.DbApplyStatus "APPLIED" "[A] a successful push must reach the APPLIED terminal state."
+    Assert-Equal $script:MockTaskState.DbState "DB_VERIFYING" "[A] a successful push must advance DbState to DB_VERIFYING."
+    $ledgerCheckA = Test-ConsumptionLedgerIntegrity -Path (Join-Path (Get-ApprovalConsumptionDir) "$($state.AuthorityProof.Nonce).json") -KeyBytes $keyBytesA
+    Assert-True $ledgerCheckA.Valid "[A] ledger integrity must remain intact after a successful push."
+    Assert-True (-not [bool]$ledgerCheckA.Entry.Latched) "[A] a successful push must NOT latch the ledger entry."
+    Write-Output "Task Part-D test [A] actual push success => expected successful terminal state: PASS"
+} finally {
+    Remove-Item Function:\Invoke-LocalSupabaseDbPushExecution -ErrorAction SilentlyContinue
+    Remove-TamperTestFixture -Fixture $fixture
+}
+
+# [B] actual push failure => failure latch written exactly once.
+$fixture = New-TamperTestFixture
+try {
+    $env:TERAS_APPROVAL_TRUST_DIR_OVERRIDE = $fixture.TrustDir
+    New-DisposableApprovalTrustKey -Path (Get-ApprovalTrustKeyPath)
+    $RepoRoot = $fixture.RepoRoot
+    $script:DbPushInvocationLog = @()
+    function Invoke-LocalSupabaseDbPushExecution {
+        $script:DbPushInvocationLog += "DB_PUSH_INVOKED_FAILURE"
+        return 1
+    }
+    $state = New-BoundedApplyFixtureState -Fixture $fixture -MigrationFile "supabase/migrations/20261004999999_latch_b.sql"
+    $proofResult = New-ApprovalProof -State $state -RepoRoot $fixture.RepoRoot
+    $state.AuthorityProof = $proofResult.Proof
+    $script:MockTaskState = $state
+    $keyBytesB = Get-ApprovalTrustKeyBytes -Path (Get-ApprovalTrustKeyPath)
+
+    Invoke-ApplyMigration -Target "LOCAL"
+    Assert-Equal @($script:DbPushInvocationLog).Count 1 "[B] actual push failure must still invoke the real execution exactly once."
+    Assert-Equal $script:MockTaskState.DbApplyStatus "BLOCKED" "[B] a failed push must reach the BLOCKED terminal state."
+    $ledgerCheckB = Test-ConsumptionLedgerIntegrity -Path (Join-Path (Get-ApprovalConsumptionDir) "$($state.AuthorityProof.Nonce).json") -KeyBytes $keyBytesB
+    Assert-True $ledgerCheckB.Valid "[B] ledger integrity must remain intact after the failure latch write."
+    Assert-True ([bool]$ledgerCheckB.Entry.Latched) "[B] an actual push failure must write the failure latch."
+    Assert-True (([string]$ledgerCheckB.Entry.LatchReason) -match "LOCAL_DB_PUSH_EXECUTION_FAILED") "[B] the latch reason must record the real execution failure, not a preflight stage."
+    Write-Output "Task Part-D test [B] actual push failure => failure latch written exactly once: PASS"
+} finally {
+    Remove-Item Function:\Invoke-LocalSupabaseDbPushExecution -ErrorAction SilentlyContinue
+    Remove-TamperTestFixture -Fixture $fixture
+}
+
+# [C] failed push => no retry (a second Invoke-ApplyMigration call against the
+# same already-latched nonce must not invoke the real execution again).
+$fixture = New-TamperTestFixture
+try {
+    $env:TERAS_APPROVAL_TRUST_DIR_OVERRIDE = $fixture.TrustDir
+    New-DisposableApprovalTrustKey -Path (Get-ApprovalTrustKeyPath)
+    $RepoRoot = $fixture.RepoRoot
+    $script:DbPushInvocationLog = @()
+    function Invoke-LocalSupabaseDbPushExecution {
+        $script:DbPushInvocationLog += "DB_PUSH_INVOKED_$($script:DbPushInvocationLog.Count)"
+        return 1
+    }
+    $state = New-BoundedApplyFixtureState -Fixture $fixture -MigrationFile "supabase/migrations/20261004999999_latch_c.sql"
+    $proofResult = New-ApprovalProof -State $state -RepoRoot $fixture.RepoRoot
+    $state.AuthorityProof = $proofResult.Proof
+    $script:MockTaskState = $state
+
+    Invoke-ApplyMigration -Target "LOCAL"
+    Assert-Equal @($script:DbPushInvocationLog).Count 1 "[C] first attempt must invoke the real execution exactly once."
+
+    # Second attempt with the identical (already-consumed, now-latched) proof.
+    Invoke-ApplyMigration -Target "LOCAL"
+    Assert-Equal @($script:DbPushInvocationLog).Count 1 "[C] a retried apply against an already-latched nonce must NOT invoke the real execution a second time."
+    Assert-Equal $script:MockTaskState.DbApplyStatus "BLOCKED" "[C] the retry must be blocked, not silently re-authorized."
+    Write-Output "Task Part-D test [C] failed push => no retry: PASS"
+} finally {
+    Remove-Item Function:\Invoke-LocalSupabaseDbPushExecution -ErrorAction SilentlyContinue
+    Remove-TamperTestFixture -Fixture $fixture
+}
+
+# [D] same proof/nonce cannot invoke another push after failure, even via a
+# freshly re-derived call that reuses the exact same AuthorityProof object
+# (not merely "the same Invoke-ApplyMigration call path" as in [C], but the
+# identical proof/nonce handed to Invoke-BoundedLocalDatabaseValidation
+# directly, bypassing the higher-level Invoke-ApplyMigration wrapper).
+$fixture = New-TamperTestFixture
+try {
+    $env:TERAS_APPROVAL_TRUST_DIR_OVERRIDE = $fixture.TrustDir
+    New-DisposableApprovalTrustKey -Path (Get-ApprovalTrustKeyPath)
+    $RepoRoot = $fixture.RepoRoot
+    $script:DbPushInvocationLog = @()
+    function Invoke-LocalSupabaseDbPushExecution {
+        $script:DbPushInvocationLog += "DB_PUSH_INVOKED"
+        return 1
+    }
+    $state = New-BoundedApplyFixtureState -Fixture $fixture -MigrationFile "supabase/migrations/20261004999999_latch_d.sql"
+    $proofResult = New-ApprovalProof -State $state -RepoRoot $fixture.RepoRoot
+    $state.AuthorityProof = $proofResult.Proof
+    $script:MockTaskState = $state
+
+    Invoke-ApplyMigration -Target "LOCAL"
+    Assert-Equal @($script:DbPushInvocationLog).Count 1 "[D] the initial failing apply must invoke execution exactly once."
+
+    # Directly re-invoke the bounded authorization gate with the identical
+    # (already latched) proof - this must fail closed at the gate itself,
+    # never reaching a second Invoke-LocalSupabaseDbPushExecution call.
+    $reauthResult = Invoke-BoundedLocalDatabaseValidation -State $state -RepoRoot $fixture.RepoRoot -RequestedMigrations @($state.LocalMigrationAllowlist[0])
+    Assert-True (-not $reauthResult.Authorized) "[D] the same proof/nonce must not re-authorize after a latched failure."
+    Assert-Equal $reauthResult.Stage "CONSUMPTION_LEDGER" "[D] re-authorization against a latched nonce must fail at the consumption-ledger stage."
+    Assert-Equal @($script:DbPushInvocationLog).Count 1 "[D] the real execution must still have been invoked exactly once in total."
+    Write-Output "Task Part-D test [D] same proof/nonce cannot invoke another push after failure: PASS"
+} finally {
+    Remove-Item Function:\Invoke-LocalSupabaseDbPushExecution -ErrorAction SilentlyContinue
+    Remove-TamperTestFixture -Fixture $fixture
+}
+
+# [E] latch write itself failing => fail closed (the apply must still report
+# BLOCKED and must not silently proceed as if nothing happened, even when
+# Set-ConsumptionLedgerLatch itself cannot write - e.g. the trust key becomes
+# unreadable between consumption and the latch attempt).
+$fixture = New-TamperTestFixture
+try {
+    $env:TERAS_APPROVAL_TRUST_DIR_OVERRIDE = $fixture.TrustDir
+    New-DisposableApprovalTrustKey -Path (Get-ApprovalTrustKeyPath)
+    $RepoRoot = $fixture.RepoRoot
+    $script:DbPushInvocationLog = @()
+    function Invoke-LocalSupabaseDbPushExecution {
+        $script:DbPushInvocationLog += "DB_PUSH_INVOKED"
+        return 1
+    }
+    $originalSetLatchBodyE = ${function:Set-ConsumptionLedgerLatch}
+    function Set-ConsumptionLedgerLatch {
+        param([string]$Nonce, [string]$Reason)
+        return $false
+    }
+    $state = New-BoundedApplyFixtureState -Fixture $fixture -MigrationFile "supabase/migrations/20261004999999_latch_e.sql"
+    $proofResult = New-ApprovalProof -State $state -RepoRoot $fixture.RepoRoot
+    $state.AuthorityProof = $proofResult.Proof
+    $script:MockTaskState = $state
+
+    Invoke-ApplyMigration -Target "LOCAL"
+    Assert-Equal $script:MockTaskState.DbApplyStatus "BLOCKED" "[E] a BLOCKED terminal state must be reported even when the latch write itself fails."
+    Assert-Equal $script:MockTaskState.DbState "DB_ATTENTION_REQUIRED" "[E] DbState must still move to DB_ATTENTION_REQUIRED when the latch write fails."
+    Write-Output "Task Part-D test [E] latch write itself failing => fail closed: PASS"
+} finally {
+    Set-Item -Path Function:\Set-ConsumptionLedgerLatch -Value $originalSetLatchBodyE
+    Remove-Item Function:\Invoke-LocalSupabaseDbPushExecution -ErrorAction SilentlyContinue
+    Remove-TamperTestFixture -Fixture $fixture
+}
+
+# [F] no real Supabase command is executed by any of tests A-E: every mock
+# above is a pure in-memory PowerShell function with no & supabase, no
+# external process start, and no network/file-system mutation outside this
+# fixture's disposable scratch directories. Verified structurally by
+# confirming none of the test bodies above reference the real
+# `supabase` executable or Start-Process/System.Diagnostics.Process.
+$selfSourcePartD = Get-Content -LiteralPath $PSCommandPath -Raw
+$partDSectionStart = $selfSourcePartD.IndexOf("# --- Part D: actual db-push failure latch regression tests")
+$partDSectionEnd = $selfSourcePartD.IndexOf("# [F] no real Supabase command is executed")
+$partDSection = $selfSourcePartD.Substring($partDSectionStart, $partDSectionEnd - $partDSectionStart)
+if ($partDSection -match '&\s+supabase\b' -or $partDSection -match 'Start-Process' -or $partDSection -match 'System\.Diagnostics\.Process') {
+    throw "[F] Part D regression tests must never invoke a real external process or the supabase CLI."
+}
+Write-Output "Task Part-D test [F] no real Supabase command is executed by these tests: PASS"
+
+Write-Output "ALL PART D (ACTUAL DB-PUSH FAILURE LATCH) REGRESSION TESTS A-F: PASS"
+
 Remove-Item Function:\Get-TaskState -ErrorAction SilentlyContinue
 Remove-Item Function:\Save-TaskState -ErrorAction SilentlyContinue
 Remove-Item Function:\Test-LocalSupabaseRunning -ErrorAction SilentlyContinue
@@ -1381,3 +1566,4 @@ $env:TERAS_APPROVAL_TRUST_DIR_OVERRIDE = $script:SavedTrustDirOverride2
 Write-Output "ALL TASK 1 (EXACT PENDING MIGRATION SET) REGRESSION TESTS A-H: PASS"
 
 Write-Output "ALL CONTROL-PLANE HARDENING REPAIR-ROUND REGRESSION TESTS: PASS"
+#

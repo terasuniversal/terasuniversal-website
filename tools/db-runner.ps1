@@ -1331,10 +1331,30 @@ function Invoke-ApplyMigration {
             Write-Host ""
             Write-Host "Applied to LOCAL. Next: teras-agent -VerifyDatabase"
         } else {
+            # Control-plane hardening repair (Part D): an ACTUAL `supabase db
+            # push --local` failure must permanently latch the just-consumed
+            # ledger entry so the same authorization/nonce can never be
+            # replayed into a second push attempt. Consumption already
+            # happened (inside Invoke-BoundedLocalDatabaseValidation, before
+            # this execution call) - a failed push must not leave that
+            # consumption "refundable" or retryable. This mirrors the
+            # existing preflight-failure latch calls above, extended to the
+            # one stage that previously had none: the real execution result.
+            $latched = Set-ConsumptionLedgerLatch -Nonce $state.AuthorityProof.Nonce -Reason "LOCAL_DB_PUSH_EXECUTION_FAILED: exit=$exitCode"
             $state.DbApplyStatus = "BLOCKED"
             $state.DbState = "DB_ATTENTION_REQUIRED"
             Write-Host ""
             Write-Host "LOCAL apply failed - see output above."
+            if (-not $latched) {
+                # Fail closed even harder: if we cannot prove the ledger is
+                # latched, do not imply any path to retry exists. The
+                # consumed iteration is already spent either way (consumption
+                # budget was decremented before execution), so this is a
+                # reporting/audit gap, not a re-authorization risk - but it
+                # must never be silently swallowed.
+                Write-Host ""
+                Write-Host "WARNING: failure latch could not be written for this authorization. Treat this nonce as permanently unusable regardless."
+            }
         }
         Save-TaskState -State $state
         Write-Host ""
