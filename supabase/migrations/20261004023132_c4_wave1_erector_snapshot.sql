@@ -474,33 +474,51 @@ begin
       and pg_catalog.pg_get_userbyid(p.proowner) = current_user
       and not p.prosecdef
       and p.proconfig is not distinct from array['search_path=pg_catalog']::text[]
-      and p.proacl::text = format('{certificate_lifecycle_executor=X/%s}', current_user)
       and not pg_catalog.has_function_privilege('anon', p.oid, 'EXECUTE')
       and not pg_catalog.has_function_privilege('authenticated', p.oid, 'EXECUTE')
       and not pg_catalog.has_function_privilege('service_role', p.oid, 'EXECUTE')
-      and pg_catalog.has_function_privilege('certificate_lifecycle_executor', p.oid, 'EXECUTE')) then
+      and pg_catalog.has_function_privilege('certificate_lifecycle_executor', p.oid, 'EXECUTE')
+      and exists (select 1 from pg_catalog.aclexplode(p.proacl) acl
+        where acl.privilege_type = 'EXECUTE'
+          and acl.grantee = 'certificate_lifecycle_executor'::regrole and not acl.is_grantable)
+      and not exists (select 1 from pg_catalog.aclexplode(coalesce(p.proacl, pg_catalog.acldefault('f', p.proowner))) acl
+        where acl.privilege_type = 'EXECUTE'
+          and (acl.grantee not in (p.proowner, 'certificate_lifecycle_executor'::regrole)
+            or (acl.grantee = 'certificate_lifecycle_executor'::regrole and acl.is_grantable)))) then
     raise exception 'C4 Wave 1A postcondition failed: capture helper exact owner/security/search_path/ACL contract differs';
   end if;
   if not exists (select 1 from pg_catalog.pg_proc p where p.oid = v_marker_fn
       and pg_catalog.pg_get_userbyid(p.proowner) = current_user
       and not p.prosecdef
       and p.proconfig is not distinct from array['search_path=pg_catalog']::text[]
-      and p.proacl::text = format('{certificate_lifecycle_executor=X/%s}', current_user)
       and not pg_catalog.has_function_privilege('anon', p.oid, 'EXECUTE')
       and not pg_catalog.has_function_privilege('authenticated', p.oid, 'EXECUTE')
       and not pg_catalog.has_function_privilege('service_role', p.oid, 'EXECUTE')
-      and pg_catalog.has_function_privilege('certificate_lifecycle_executor', p.oid, 'EXECUTE')) then
+      and pg_catalog.has_function_privilege('certificate_lifecycle_executor', p.oid, 'EXECUTE')
+      and exists (select 1 from pg_catalog.aclexplode(p.proacl) acl
+        where acl.privilege_type = 'EXECUTE'
+          and acl.grantee = 'certificate_lifecycle_executor'::regrole and not acl.is_grantable)
+      and not exists (select 1 from pg_catalog.aclexplode(coalesce(p.proacl, pg_catalog.acldefault('f', p.proowner))) acl
+        where acl.privilege_type = 'EXECUTE'
+          and (acl.grantee not in (p.proowner, 'certificate_lifecycle_executor'::regrole)
+            or (acl.grantee = 'certificate_lifecycle_executor'::regrole and acl.is_grantable)))) then
     raise exception 'C4 Wave 1A postcondition failed: after-snapshot marker helper exact owner/security/search_path/ACL contract differs';
   end if;
   if not exists (select 1 from pg_catalog.pg_proc p where p.oid = v_guard_fn
       and pg_catalog.pg_get_userbyid(p.proowner) = current_user
       and not p.prosecdef
       and p.proconfig is not distinct from array['search_path=pg_catalog']::text[]
-      and p.proacl::text = format('{certificate_lifecycle_executor=X/%s}', current_user)
       and not pg_catalog.has_function_privilege('anon', p.oid, 'EXECUTE')
       and not pg_catalog.has_function_privilege('authenticated', p.oid, 'EXECUTE')
       and not pg_catalog.has_function_privilege('service_role', p.oid, 'EXECUTE')
-      and pg_catalog.has_function_privilege('certificate_lifecycle_executor', p.oid, 'EXECUTE')) then
+      and pg_catalog.has_function_privilege('certificate_lifecycle_executor', p.oid, 'EXECUTE')
+      and exists (select 1 from pg_catalog.aclexplode(p.proacl) acl
+        where acl.privilege_type = 'EXECUTE'
+          and acl.grantee = 'certificate_lifecycle_executor'::regrole and not acl.is_grantable)
+      and not exists (select 1 from pg_catalog.aclexplode(coalesce(p.proacl, pg_catalog.acldefault('f', p.proowner))) acl
+        where acl.privilege_type = 'EXECUTE'
+          and (acl.grantee not in (p.proowner, 'certificate_lifecycle_executor'::regrole)
+            or (acl.grantee = 'certificate_lifecycle_executor'::regrole and acl.is_grantable)))) then
     raise exception 'C4 Wave 1A postcondition failed: render contract guard exact security contract differs';
   end if;
   if not pg_catalog.has_column_privilege('certificate_lifecycle_executor', 'public.certificates', 'render_contract_version', 'UPDATE') then

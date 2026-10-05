@@ -310,6 +310,59 @@ function runFunctionSecurityTests(code) {
 const functionGrantBlocks = runFunctionSecurityTests(wave1Code);
 console.log("TEST 4 — each new Wave1A trigger function's SECURITY INVOKER declaration, no-SET-ROLE, no-ownership-transfer, and its own REVOKE/GRANT pair are bound to that function's associated DDL region: PASS");
 
+// The three helper postconditions must inspect effective access and expanded
+// EXECUTE grantees, not compare proacl's serialized representation. The
+// issuer's deliberately exact predecessor contract is checked separately.
+const helperPostconditionOids = ["v_guard_fn", "v_trigger_fn", "v_marker_fn"];
+function assertHelperPostconditions(code) {
+  const block = extractDoBlock(code, "postconditions");
+  for (const oid of helperPostconditionOids) {
+    const match = block.match(new RegExp(`if not exists \\(select 1 from pg_catalog\\.pg_proc p where p\\.oid = ${oid}\\b([\\s\\S]*?)\\) then`, "i"));
+    check(match !== null, "HELPER_POSTCONDITION_MISSING", `${oid} must have its own enforced postcondition`);
+    const condition = normalizeCondition(match[1]);
+    const required = [
+      "pg_catalog.pg_get_userbyid(p.proowner) = current_user",
+      "not p.prosecdef",
+      "p.proconfig is not distinct from array['search_path=pg_catalog']::text[]",
+      "not pg_catalog.has_function_privilege('anon', p.oid, 'EXECUTE')",
+      "not pg_catalog.has_function_privilege('authenticated', p.oid, 'EXECUTE')",
+      "not pg_catalog.has_function_privilege('service_role', p.oid, 'EXECUTE')",
+      "pg_catalog.has_function_privilege('certificate_lifecycle_executor', p.oid, 'EXECUTE')",
+      "exists (select 1 from pg_catalog.aclexplode(p.proacl) acl where acl.privilege_type = 'EXECUTE' and acl.grantee = 'certificate_lifecycle_executor'::regrole and not acl.is_grantable)",
+      "not exists (select 1 from pg_catalog.aclexplode(coalesce(p.proacl, pg_catalog.acldefault('f', p.proowner))) acl where acl.privilege_type = 'EXECUTE' and (acl.grantee not in (p.proowner, 'certificate_lifecycle_executor'::regrole) or (acl.grantee = 'certificate_lifecycle_executor'::regrole and acl.is_grantable)))",
+    ];
+    check(condition === `and ${required.join(" and ")}`, "HELPER_POSTCONDITION_INVALID", `${oid} must enforce the complete owner/invoker/path/effective ACL and unexpected-grantee contract`);
+    check(!/p\.proacl::text/.test(condition), "HELPER_SERIALIZED_ACL_FORBIDDEN", `${oid} must not compare serialized ACLs`);
+  }
+}
+assertHelperPostconditions(wave1Code);
+console.log("TEST 4A — all three helper postconditions enforce semantic owner, mode, path and EXECUTE ACL checks: PASS");
+
+// DB-free truth table for the ACL policy encoded by the exact SQL clauses
+// above; these fixtures do not purport to query a PostgreSQL catalog.
+function helperAclAllowed({ owner = "postgres", invoker = true, path = "pg_catalog", grants = ["postgres", "certificate_lifecycle_executor"], grantable = [] }) {
+  return owner === "postgres" && invoker && path === "pg_catalog"
+    && grants.includes("certificate_lifecycle_executor")
+    && !grants.some((role) => role !== owner && role !== "certificate_lifecycle_executor")
+    && !grantable.includes("certificate_lifecycle_executor");
+}
+assert.equal(helperAclAllowed({}), true, "owner EXECUTE entry and executor EXECUTE must pass");
+assert.equal(helperAclAllowed({ grants: ["certificate_lifecycle_executor"] }), true, "owner ACL entry may be absent");
+for (const role of ["PUBLIC", "anon", "authenticated", "service_role", "third_party"]) {
+  assert.equal(helperAclAllowed({ grants: ["postgres", "certificate_lifecycle_executor", role] }), false, `${role} EXECUTE must fail`);
+}
+assert.equal(helperAclAllowed({ grants: ["postgres"] }), false, "missing executor EXECUTE must fail");
+assert.equal(helperAclAllowed({ grantable: ["certificate_lifecycle_executor"] }), false, "executor grant option must fail");
+assert.equal(helperAclAllowed({ invoker: false }), false, "SECURITY DEFINER must fail");
+assert.equal(helperAclAllowed({ path: "public" }), false, "wrong search_path must fail");
+assert.equal(helperAclAllowed({ owner: "third_party" }), false, "wrong owner must fail");
+console.log("TEST 4B — owner-entry PASS and ten forbidden ACL/security fixtures FAIL: PASS");
+
+const issuerPostcondition = extractDoBlock(wave1Code, "postconditions").match(/if not exists \(select 1 from pg_catalog\.pg_proc p where p\.oid = v_fn\b[\s\S]*?\) then/);
+assert.ok(issuerPostcondition, "issuer must retain its own postcondition");
+assert.match(issuerPostcondition[0], /p\.proacl::text = '\{certificate_lifecycle_executor=X\/certificate_lifecycle_executor\}'/);
+console.log("TEST 4C — issuer's exact ACL postcondition remains separate and unchanged: PASS");
+
 // Exact UPDATE grant set, bound to the persist function's own grant block
 // (where the real grant statement lives) AND cross-checked against the
 // whole migration (so a stray/duplicate/broad grant placed elsewhere in the
@@ -691,6 +744,28 @@ function addUnrelatedActorCheck(source) {
   const mutatedCode = prepare(replaceOnce(wave1Raw, "  v_pos integer;\nbegin", "  v_pos integer;\nbegin\n  return;"));
   assert.match(extractDoBlock(mutatedCode, "preflight"), /begin\s+return;/);
   expectThrows("issuer early RETURN", "issuer checks bypassed before catalog lookup", "ISSUER_PREFLIGHT_REACHABILITY_INVALID", () => runIssuerPreconditionTests(mutatedCode));
+}
+
+// Each protected postcondition must reject independently weakened SQL, even
+// when the other two helpers retain the correct predicate.
+const helperClauseMutations = [
+  ["owner", "pg_catalog.pg_get_userbyid(p.proowner) = current_user", "true"],
+  ["SECURITY DEFINER", "not p.prosecdef", "true"],
+  ["search_path", "p.proconfig is not distinct from array['search_path=pg_catalog']::text[]", "true"],
+  ["anon EXECUTE", "not pg_catalog.has_function_privilege('anon', p.oid, 'EXECUTE')", "true"],
+  ["authenticated EXECUTE", "not pg_catalog.has_function_privilege('authenticated', p.oid, 'EXECUTE')", "true"],
+  ["service_role EXECUTE", "not pg_catalog.has_function_privilege('service_role', p.oid, 'EXECUTE')", "true"],
+  ["missing executor EXECUTE", "pg_catalog.has_function_privilege('certificate_lifecycle_executor', p.oid, 'EXECUTE')", "true"],
+  ["explicit executor entry", "and acl.grantee = 'certificate_lifecycle_executor'::regrole and not acl.is_grantable", "and false"],
+  ["PUBLIC / third-party EXECUTE", "acl.grantee not in (p.proowner, 'certificate_lifecycle_executor'::regrole)", "false"],
+  ["executor grant option", "acl.grantee = 'certificate_lifecycle_executor'::regrole and acl.is_grantable", "false"],
+];
+for (const oid of helperPostconditionOids) {
+  for (const [label, clause, replacement] of helperClauseMutations) {
+    const mutatedCode = replaceOnceAfter(wave1Code, `p.oid = ${oid}`, clause, replacement);
+    assert.notEqual(mutatedCode, wave1Code, "negative fixture must change executable SQL");
+    expectThrows(`${oid}: ${label}`, "weakened helper postcondition", "HELPER_POSTCONDITION_INVALID", () => assertHelperPostconditions(mutatedCode));
+  }
 }
 
 console.log("ALL NEGATIVE CONTROL TESTS: PASS");
