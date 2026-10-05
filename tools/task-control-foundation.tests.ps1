@@ -311,6 +311,28 @@ try {
     [IO.File]::Delete($bookkeeping)
     Write-Output 'Q canonical bookkeeping: PASS'
 
+    # The migration handoff is orchestrator-managed only at this exact path.
+    # Similar names and nested paths remain ordinary scope-controlled files.
+    $databaseHandoff = Join-Path $script:AiDir 'DATABASE_HANDOFF.md'
+    [IO.File]::WriteAllText($databaseHandoff, 'synthetic orchestrator handoff')
+    $output = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $cli -CheckScope 2>&1
+    Assert-Condition ($LASTEXITCODE -eq 0 -and ((@($output) -join "`n") -match 'SCOPE CHECK: PASS')) "Q1: exact database handoff path must be managed: $($output -join ' | ')"
+    $after = Assert-ScopeInvariants -Expected $before -Ledger $ledgerBefore -Label 'Q1'
+    Assert-Condition ($after.ScopeCheck -ceq 'PASS') 'Q1: exact database handoff must preserve PASS'
+    [IO.File]::Delete($databaseHandoff)
+
+    $nearMatch = Join-Path $script:AiDir 'DATABASE_HANDOFF.md.bak'
+    [IO.File]::WriteAllText($nearMatch, 'must remain scope-controlled')
+    Assert-LiveScopeFailure -Label 'Q2 similar database handoff name' -UnauthorizedPath '.ai/DATABASE_HANDOFF.md.bak' -Expected $before -Ledger $ledgerBefore -Cli $cli
+    [IO.File]::Delete($nearMatch)
+
+    $nestedHandoff = Join-Path $script:AiDir 'nested/DATABASE_HANDOFF.md'
+    New-Item -ItemType Directory -Path (Split-Path -Parent $nestedHandoff) -Force | Out-Null
+    [IO.File]::WriteAllText($nestedHandoff, 'must remain scope-controlled')
+    Assert-LiveScopeFailure -Label 'Q3 nested database handoff path' -UnauthorizedPath '.ai/nested/DATABASE_HANDOFF.md' -Expected $before -Ledger $ledgerBefore -Cli $cli
+    Remove-Item -LiteralPath (Join-Path $script:AiDir 'nested') -Recurse -Force
+    Write-Output 'Q1 exact database handoff allowlist and Q2/Q3 near-match controls: PASS'
+
     $extraAi = Join-Path $script:AiDir 'unauthorized.txt'
     [IO.File]::WriteAllText($extraAi, 'not task bookkeeping')
     Assert-LiveScopeFailure -Label 'R arbitrary .ai file' -UnauthorizedPath '.ai/unauthorized.txt' -Expected $before -Ledger $ledgerBefore -Cli $cli

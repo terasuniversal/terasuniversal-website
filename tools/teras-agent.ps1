@@ -498,7 +498,8 @@ function Get-OrchestratorManagedPaths {
         ".ai/REVIEW_REPORT.md",
         ".ai/REPAIR_HANDOFF.md",
         ".ai/FINAL_REPORT.md",
-        ".ai/IMPLEMENTATION_REPORT.md"
+        ".ai/IMPLEMENTATION_REPORT.md",
+        ".ai/DATABASE_HANDOFF.md"
     )
 }
 
