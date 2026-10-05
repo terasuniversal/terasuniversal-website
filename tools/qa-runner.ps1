@@ -17,13 +17,20 @@ function Test-CommandAvailable {
 
 function Invoke-GitDiffCheck {
     Push-Location $RepoRoot
+    $previousErrorActionPreference = $ErrorActionPreference
     try {
+        $ErrorActionPreference = "Continue"
+        $global:LASTEXITCODE = $null
         $output = git diff --check 2>&1
-        if ($LASTEXITCODE -eq 0) {
+        $gitExitCode = $LASTEXITCODE
+        if ($gitExitCode -eq 0) {
             return [pscustomobject]@{ Result = "PASS"; Reason = "No whitespace/conflict-marker issues." }
         }
         return [pscustomobject]@{ Result = "FAIL"; Reason = ($output -join " | ") }
+    } catch {
+        return [pscustomobject]@{ Result = "FAIL"; Reason = $_.Exception.Message }
     } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
         Pop-Location
     }
 }

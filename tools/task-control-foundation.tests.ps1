@@ -693,3 +693,42 @@ try {
     if (Test-Path -LiteralPath $otherRoot) { Remove-Item -LiteralPath $otherRoot -Recurse -Force }
     if (Test-Path -LiteralPath $trust) { Remove-Item -LiteralPath $trust -Recurse -Force }
 }
+
+# Invoke-GitDiffCheck regressions use task-local commands, so exit behavior
+# and stderr are deterministic and independent of user Git config.
+$gitQaRoot = Join-Path $testScratch ("teras-git-diff-check-" + [guid]::NewGuid().ToString('N'))
+$gitShim = Join-Path $gitQaRoot 'shim'
+New-Item -ItemType Directory -Path $gitShim -Force | Out-Null
+$gitRunnerPath = Join-Path $PSScriptRoot 'qa-runner.ps1'
+$oldPath = $env:PATH
+$oldEap = $ErrorActionPreference
+$oldLastExitCode = $global:LASTEXITCODE
+try {
+    . $gitRunnerPath
+    $script:RepoRoot = $gitQaRoot
+    $env:PATH = $gitShim + [IO.Path]::PathSeparator + $oldPath
+
+    [IO.File]::WriteAllText((Join-Path $gitShim 'git.cmd'), "@echo off`r`necho warning: CRLF/LF conversion 1>&2`r`nexit /b 0`r`n")
+    $ErrorActionPreference = 'Stop'
+    $warningResult = Invoke-GitDiffCheck
+    Assert-Equal $warningResult.Result 'PASS' 'Git exit 0 with stderr warning must pass.'
+    Assert-Equal $ErrorActionPreference 'Stop' 'Caller ErrorActionPreference must be restored after successful check.'
+
+    [IO.File]::WriteAllText((Join-Path $gitShim 'git.cmd'), "@echo off`r`necho synthetic git diff failure 1>&2`r`nexit /b 7`r`n")
+    $failureResult = Invoke-GitDiffCheck
+    Assert-Equal $failureResult.Result 'FAIL' 'Nonzero Git exit must fail.'
+    Assert-True ($failureResult.Reason -match 'synthetic git diff failure') 'Nonzero Git failure reason must retain actual Git output.'
+    Assert-Equal $ErrorActionPreference 'Stop' 'Caller ErrorActionPreference must be restored after failed check.'
+
+    Remove-Item -LiteralPath (Join-Path $gitShim 'git.cmd') -Force
+    $env:PATH = $gitShim
+    $global:LASTEXITCODE = 0
+    $missingGitResult = Invoke-GitDiffCheck
+    Assert-Equal $missingGitResult.Result 'FAIL' 'Unlaunchable Git with stale successful LASTEXITCODE must fail closed.'
+} finally {
+    $env:PATH = $oldPath
+    $ErrorActionPreference = $oldEap
+    $global:LASTEXITCODE = $oldLastExitCode
+    if (Test-Path -LiteralPath $gitQaRoot) { Remove-Item -LiteralPath $gitQaRoot -Recurse -Force }
+}
+Write-Output 'Invoke-GitDiffCheck native stderr regressions: PASS'
