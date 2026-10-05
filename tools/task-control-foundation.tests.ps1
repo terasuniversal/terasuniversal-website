@@ -571,6 +571,23 @@ try {
     try { git checkout test/scope --quiet } finally { Pop-Location }
     Write-Output 'D branch mismatch: PASS'
 
+    # TargetWorkspacePath must still reject directories that are not exact
+    # repository roots. These subprocesses use Windows PowerShell 5.1.
+    $nonGitRoot = Join-Path $scratch ('teras-scope-non-git-' + [guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Path $nonGitRoot -Force | Out-Null
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $output = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $cli -CheckScope -TargetWorkspacePath $nonGitRoot 2>&1
+        $nonGitExitCode = $LASTEXITCODE
+        Assert-Condition ($nonGitExitCode -ne 0 -and ((@($output) -join "`n") -match '(?i)(TargetWorkspacePath is not a Git repository|fatal: not a git repository)')) "E0: genuine non-Git directory must be rejected: $($output -join ' | ')"
+        $output = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $cli -CheckScope -TargetWorkspacePath (Join-Path $root 'allowed-dir') 2>&1
+        $nonRootExitCode = $LASTEXITCODE
+        Assert-Condition ($nonRootExitCode -ne 0 -and ((@($output) -join "`n") -match 'TargetWorkspacePath must be the repository root')) "E0: repository subdirectory must be rejected: $($output -join ' | ')"
+    } finally { $ErrorActionPreference = $previousErrorActionPreference }
+    Remove-Item -LiteralPath $nonGitRoot -Force
+    Write-Output 'E0 non-Git and non-root TargetWorkspacePath rejection: PASS'
+
     # An independently initialized repository has its own root but receives
     # a copy of the signed task. Its proof must not authorize that root.
     New-Item -ItemType Directory -Path (Join-Path $otherRoot 'tools'), (Join-Path $otherRoot '.ai') -Force | Out-Null

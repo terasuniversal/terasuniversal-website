@@ -182,10 +182,12 @@ if (-not [string]::IsNullOrWhiteSpace($TargetWorkspacePath)) {
 
     # A Git worktree can use a .git file (or another valid Git indirection),
     # so repository validation must use Git rather than inspecting .git.
-    [string]$insideWorkTree = (& git -C $requestedTarget rev-parse --is-inside-work-tree 2>$null | Select-Object -First 1)
+    $insideWorkTreeOutput = & git -C $requestedTarget rev-parse --is-inside-work-tree 2>$null
     $insideWorkTreeExitCode = $LASTEXITCODE
-    [string]$targetRepo = (& git -C $requestedTarget rev-parse --show-toplevel 2>$null | Select-Object -First 1)
+    [string]$insideWorkTree = @($insideWorkTreeOutput | Select-Object -First 1)
+    $targetRepoOutput = & git -C $requestedTarget rev-parse --show-toplevel 2>$null
     $targetRepoExitCode = $LASTEXITCODE
+    [string]$targetRepo = @($targetRepoOutput | Select-Object -First 1)
     if ($insideWorkTreeExitCode -ne 0 -or $insideWorkTree.Trim() -ne "true" -or $targetRepoExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($targetRepo)) {
         throw "TargetWorkspacePath is not a Git repository: $requestedTarget"
     }
