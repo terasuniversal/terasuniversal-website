@@ -26,6 +26,7 @@
       teras-agent -CreateTask -TaskName <name> -TaskType <type> -Task "<description>"  Record a task without launching an implementer (see bounded local DB switches below)
       teras-agent -Resume                  Continue the current task from its recorded state
       teras-agent -Status                  Show the current task's status
+      teras-agent -CheckScope              Check the signed task's approved scope without launching agents or database work
       teras-agent -Review                  Run an independent review pass only
       teras-agent -Approve                 Approve the current task (gated - see approval-runner.ps1)
       teras-agent -Reject                  Reject the current task
@@ -87,6 +88,7 @@ param(
     [string[]]$MigrationAllowlist = @(),
     [switch]$Resume,
     [switch]$Status,
+    [switch]$CheckScope,
     [switch]$Review,
     [switch]$Approve,
     [switch]$Reject,
@@ -135,6 +137,13 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+if ($CheckScope) {
+    $scopeParameters = @('CheckScope', 'WorktreePath', 'TargetWorkspacePath')
+    $otherScopeParameters = @($PSBoundParameters.Keys | Where-Object { $_ -notin $scopeParameters })
+    if ($otherScopeParameters.Count -gt 0) {
+        throw "CheckScope cannot be combined with another action or option: $($otherScopeParameters -join ', ')."
+    }
+}
 if ($PSBoundParameters.ContainsKey('MigrationFile') -and -not $PrepareMigration) {
     throw 'MigrationFile is valid only with -PrepareMigration.'
 }
@@ -471,7 +480,13 @@ function Get-ImplementationDelta {
     # These files are written by the orchestrator while it records the
     # implementation result; they are not files changed by the agent and
     # must not become scope violations or implementation outputs.
-    $orchestratorManaged = @(
+    $orchestratorManaged = @(Get-OrchestratorManagedPaths)
+    $delta.TaskGenerated = @($delta.TaskGenerated | Where-Object { $_ -notin $orchestratorManaged })
+    return $delta
+}
+
+function Get-OrchestratorManagedPaths {
+    return @(
         ".ai/CURRENT_TASK.md",
         ".ai/PROJECT_STATUS.md",
         ".ai/task-state.json",
@@ -485,8 +500,6 @@ function Get-ImplementationDelta {
         ".ai/FINAL_REPORT.md",
         ".ai/IMPLEMENTATION_REPORT.md"
     )
-    $delta.TaskGenerated = @($delta.TaskGenerated | Where-Object { $_ -notin $orchestratorManaged })
-    return $delta
 }
 
 function Invoke-ClaudeRepairLoop {
@@ -885,6 +898,205 @@ function Invoke-ReviewCurrentChanges {
         Pop-Location
     }
     Write-Host ""
+}
+
+function Test-StandaloneScopePath {
+    param([string]$Path)
+
+    # Canonical matching examines generated paths only; validate both lists
+    # before calling it, including an authorization-only task with no delta.
+    if ([string]::IsNullOrWhiteSpace($Path) -or $Path -cne $Path.Trim() -or
+        $Path -match '[\x00-\x1f\x7f]' -or $Path -match ':' -or
+        [IO.Path]::IsPathRooted($Path)) { return $false }
+    $normalized = Get-NormalizedRepoRelativePath -Path $Path
+    if ($normalized -match '(^|/)\.\.?(/|$)' -or $normalized -match '(^/|//|/$)') { return $false }
+
+    $root = [IO.Path]::GetFullPath($RepoRoot).TrimEnd('\', '/')
+    $full = [IO.Path]::GetFullPath((Join-Path $root ($normalized -replace '/', [IO.Path]::DirectorySeparatorChar)))
+    if (-not $full.StartsWith(($root + [IO.Path]::DirectorySeparatorChar), [StringComparison]::OrdinalIgnoreCase)) { return $false }
+    # Enumerate directory entries rather than asking Test-Path whether a
+    # target resolves: a dangling link is present even when its target is not.
+    try {
+        $rootAttributes = [IO.File]::GetAttributes($root)
+        if (-not (Test-ExplicitPathComponentSafe -Item ([pscustomobject]@{ Attributes = $rootAttributes }))) {
+            throw "REPARSE_COMPONENT: $root"
+        }
+    } catch {
+        if ($_.Exception.Message -match '^REPARSE_COMPONENT:') { throw }
+        throw "REPARSE_INSPECTION_FAILED: $root"
+    }
+    $cursor = $root
+    $segments = $normalized.Split('/')
+    for ($i = 0; $i -lt $segments.Length; $i++) {
+        $segment = $segments[$i]
+        try {
+            $entries = @([IO.Directory]::EnumerateFileSystemEntries($cursor) | Where-Object {
+                [string]::Equals([IO.Path]::GetFileName($_), $segment, [StringComparison]::OrdinalIgnoreCase)
+            })
+        } catch { throw "REPARSE_INSPECTION_FAILED: $cursor" }
+        if ($entries.Count -gt 1) { throw "AMBIGUOUS_PATH_COMPONENT: $segment" }
+        if ($entries.Count -eq 0) {
+            # A tracked deletion has no leaf to inspect. An absent parent,
+            # however, cannot establish a safe chain for a changed path.
+            return ($i -eq $segments.Length - 1)
+        }
+        $cursor = $entries[0]
+        try { $attributes = [IO.File]::GetAttributes($cursor) }
+        catch { throw "REPARSE_INSPECTION_FAILED: $cursor" }
+        if (-not (Test-ExplicitPathComponentSafe -Item ([pscustomobject]@{ Attributes = $attributes }))) {
+            throw "REPARSE_COMPONENT: $cursor"
+        }
+        if ($i -lt $segments.Length - 1 -and ($attributes -band [IO.FileAttributes]::Directory) -eq 0) { return $false }
+    }
+    return $true
+}
+
+function Get-StandaloneChangedPaths {
+    # The snapshot helper parses human-readable status and tolerates failed
+    # path probes; neither is suitable for a fail-closed live attestation.
+    # Reuse the repository's Git probe, but parse NUL-delimited porcelain v1
+    # so quoted names, spaces and rename source paths cannot be lost.
+    $probe = Invoke-GitRepositoryProbe -RepoRoot $RepoRoot -GitArguments @('status', '--porcelain=v1', '-z', '--untracked-files=all', '--ignore-submodules=none')
+    if (-not $probe.Success) { throw 'Live Git status unavailable.' }
+    return @(ConvertFrom-StandaloneGitStatus -Output @($probe.Output))
+}
+
+function ConvertFrom-StandaloneGitStatus {
+    param([object[]]$Output)
+
+    $output = @($Output)
+    if ($output.Count -eq 0) { return @() }
+    if ($output.Count -ne 1) { throw 'Malformed live Git status output (multiple records).' }
+    $raw = [string]$output[0]
+    if ($raw.Contains([char]0xfffd) -or -not $raw.EndsWith([string][char]0)) { throw 'Malformed live Git status output (encoding or terminator).' }
+    $records = $raw.Split([char]0)
+    $paths = @()
+    for ($i = 0; $i -lt $records.Length - 1; $i++) {
+        $record = $records[$i]
+        if ($record.Length -lt 4 -or $record[2] -cne ' ') { throw 'Malformed live Git status record.' }
+        $xy = $record.Substring(0, 2)
+        if ($xy -cne '??' -and
+            ($xy -notmatch '^[ MADRCTU]{2}$' -or $xy -eq '  ' -or $xy -match 'U' -or $xy -in @('AA', 'DD'))) {
+            throw "Unsupported live Git status: $xy"
+        }
+        $paths += $record.Substring(3)
+        if ($xy -match '[RC]') {
+            $i++
+            if ($i -ge $records.Length - 1 -or [string]::IsNullOrEmpty($records[$i])) {
+                throw 'Malformed live Git rename/copy record.'
+            }
+            $paths += $records[$i]
+        }
+    }
+    return $paths
+}
+
+function Test-StandaloneAuthorityRequired {
+    param($State)
+
+    # Reuse the exact permission set and migration allowlist that the HMAC
+    # signs. A new signed capability added to the canonical tuple cannot be
+    # accidentally omitted from this decision.
+    $tuple = New-ApprovalCanonicalTuple -State $State -WorktreePath '' -Branch '' -BaseHeadSha '' -Nonce '' -ApprovedAtUtc '' -ConsumptionLedgerPath ''
+    foreach ($name in $tuple.Permissions.Keys) {
+        if ([bool]$tuple.Permissions[$name]) { return $true }
+    }
+    return (@($tuple.MigrationAllowlist).Count -gt 0)
+}
+
+function Test-StandaloneProofAbsent {
+    param($Proof)
+    if ($null -eq $Proof) { return $true }
+    $actualNames = @($Proof.PSObject.Properties.Name)
+    if (@($actualNames | Where-Object { $_ -notin $script:AuthorityProofFieldSchema }).Count -gt 0 -or
+        @($script:AuthorityProofFieldSchema | Where-Object { $_ -notin $actualNames }).Count -gt 0) { return $false }
+    foreach ($field in $script:AuthorityProofFieldSchema) {
+        if ($null -ne $Proof.$field) { return $false }
+    }
+    return $true
+}
+
+function Invoke-StandaloneScopeCheck {
+    try {
+        if (-not (Test-Path -LiteralPath $TaskStatePath -PathType Leaf)) { throw 'No current task state found.' }
+        $state = Get-TaskState
+        if ($state.State -eq 'NONE' -or [string]::IsNullOrWhiteSpace([string]$state.TaskId)) { throw 'No current task found.' }
+
+        # These checks are observational. The bounded DB gate consumes or
+        # latches the ledger and must never be used for this action. An
+        # ordinary CreateTask has the canonical empty proof placeholder.
+        $required = Test-StandaloneAuthorityRequired -State $state
+        $absent = Test-StandaloneProofAbsent -Proof $state.AuthorityProof
+        if ($required -and $absent) { throw 'AUTHORITY_PROOF_REQUIRED: signed capability or migration allowlist' }
+        if (-not $absent) {
+            $proof = Test-ApprovalProofValid -State $state
+            if (-not $proof.Valid) { throw "Proof verification failed: $($proof.Reason)" }
+            $binding = Test-ExactWorktreeAuthorized -State $state -RepoRoot $RepoRoot
+            if (-not $binding.Authorized) { throw "Task binding failed: $($binding.Reason)" }
+        } else {
+            # No unsigned privilege is inferred. Compare the recorded task
+            # worktree/branch with live Git before examining any scope path.
+            $boundary = $state.WorkspaceBoundary
+            if ($null -eq $boundary -or [string]::IsNullOrWhiteSpace([string]$boundary.CanonicalWorkspace) -or
+                [string]::IsNullOrWhiteSpace([string]$boundary.Branch)) { throw 'TASK_IDENTITY_BINDING_MISSING' }
+            $currentRoot = (Resolve-Path -LiteralPath $RepoRoot).Path.TrimEnd('\', '/')
+            $boundRoot = [string]$boundary.CanonicalWorkspace
+            if (-not [string]::Equals($currentRoot, $boundRoot.TrimEnd('\', '/'), [StringComparison]::OrdinalIgnoreCase)) {
+                throw 'WORKTREE_MISMATCH: task workspace differs from selected worktree'
+            }
+            $branchProbe = Invoke-GitRepositoryProbe -RepoRoot $RepoRoot -GitArguments @('rev-parse', '--abbrev-ref', 'HEAD')
+            $headProbe = Invoke-GitRepositoryProbe -RepoRoot $RepoRoot -GitArguments @('rev-parse', '--verify', 'HEAD')
+            if (-not $branchProbe.Success -or @($branchProbe.Output).Count -ne 1 -or
+                -not [string]::Equals([string]$branchProbe.Output[0], [string]$boundary.Branch, [StringComparison]::Ordinal)) {
+                throw 'BRANCH_MISMATCH: live branch differs from task branch'
+            }
+            if (-not $headProbe.Success -or @($headProbe.Output).Count -ne 1 -or
+                [string]$headProbe.Output[0] -notmatch '^[0-9a-f]{40}$') { throw 'HEAD_INVALID: live Git HEAD unavailable or malformed' }
+        }
+
+        foreach ($path in @($state.AllowedFiles) + @($state.TaskGeneratedFiles)) {
+            if (-not (Test-StandaloneScopePath -Path ([string]$path))) { throw "Invalid or escaping scope path: $path" }
+        }
+        $livePaths = @(Get-StandaloneChangedPaths)
+        foreach ($path in $livePaths) {
+            if (-not (Test-StandaloneScopePath -Path ([string]$path))) { throw "Invalid or escaping live Git path: $path" }
+        }
+        $managed = @(Get-OrchestratorManagedPaths)
+        # Supersede/orphan history is orchestrator bookkeeping. Exclude only
+        # known archive files directly inside a canonical immediate child of
+        # .ai/history; all other history content remains subject to scope.
+        $historyRoot = [IO.Path]::GetFullPath((Join-Path $AiDir 'history')).TrimEnd('\', '/')
+        $archiveFiles = @('task-state.json', 'CURRENT_TASK.md', 'IMPLEMENTATION_REPORT.md', 'REVIEW_REPORT.md', 'FINAL_REPORT.md', 'APPROVAL.md')
+        foreach ($path in $livePaths) {
+            $normalized = ([string]$path).Replace('/', '\')
+            if ($normalized -match '^\.ai\\history\\([^\\]+)\\([^\\]+)$' -and $Matches[2] -in $archiveFiles) {
+                $candidate = [IO.Path]::GetFullPath((Join-Path $RepoRoot $normalized.Replace('\', [IO.Path]::DirectorySeparatorChar)))
+                $parent = [IO.Path]::GetDirectoryName($candidate)
+                $leaf = [IO.Path]::GetFileName($parent)
+                if ([string]::Equals($parent, (Join-Path $historyRoot $leaf), [StringComparison]::OrdinalIgnoreCase) -and
+                    ($leaf -match '^[A-Za-z0-9_-]+-[0-9a-f]{12}$' -or $leaf -match '^TERAS-[A-Za-z0-9-]+$')) {
+                    $managed += [string]$path
+                }
+            }
+        }
+        $liveFiles = @($livePaths | Where-Object { $_ -notin $managed })
+        $scope = Test-ScopeViolation -TaskGeneratedFiles $state.TaskGeneratedFiles -AllowedFiles $state.AllowedFiles
+        $liveScope = Test-ScopeViolation -TaskGeneratedFiles $liveFiles -AllowedFiles $state.AllowedFiles
+        if ($scope.Status -notin @('PASS', 'FAIL') -or $liveScope.Status -notin @('PASS', 'FAIL')) {
+            throw 'Canonical scope checker returned an unsupported status.'
+        }
+        $state.ScopeCheck = if ($scope.Status -eq 'FAIL' -or $liveScope.Status -eq 'FAIL') { 'FAIL' } else { 'PASS' }
+        Save-TaskState -State $state | Out-Null
+        Write-Host "SCOPE CHECK: $($state.ScopeCheck)"
+        if ($state.ScopeCheck -eq 'FAIL') {
+            foreach ($path in @($scope.Unauthorized) + @($liveScope.Unauthorized) | Select-Object -Unique) { Write-Host "Unauthorized file: $path" }
+            return $false
+        }
+        return $true
+    } catch {
+        Write-Host "SCOPE CHECK: BLOCKED - $($_.Exception.Message)"
+        return $false
+    }
 }
 
 function Invoke-ProductionAudit {
@@ -1333,6 +1545,8 @@ function Invoke-CreateTask {
 if ($McpAction) {
     try { Invoke-McpAction -Action $McpAction -TaskId $McpTaskId -Description $McpDescription -IdempotencyKey $McpIdempotencyKey -TestScope $McpTestScope }
     catch { Write-McpActionResult ([ordered]@{ status = "REJECTED"; action = $McpAction; error = $_.Exception.Message }) 1 }
+} elseif ($CheckScope) {
+    if (-not (Invoke-StandaloneScopeCheck)) { exit 2 }
 } elseif ($CreateTask) {
     $allowedCreateTaskParameters = @("CreateTask", "Task", "TaskName", "TaskType", "LocalDisposableDatabaseAllowed", "LocalMigrationValidationAllowed", "DockerIterationsAllowed", "StopOnFirstFailure", "SyntheticDataOnly", "MigrationAllowlist")
     $conflicts = @($PSBoundParameters.Keys | Where-Object { $_ -notin $allowedCreateTaskParameters })
