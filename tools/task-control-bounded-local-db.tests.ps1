@@ -69,26 +69,131 @@ $outsideTraversal = "tools/../../outside-repo/db-runner.ps1"
 Assert-Equal @(Get-ExplicitTaskPaths -Description $outsideTraversal).Count 0 "A traversal path must not be extracted."
 Assert-True (-not (Test-ExplicitPathExists -RelativePath $outsideTraversal)) "A traversal path must not be accepted."
 
-# A directory junction inside the repo points to the parent directory. The
-# fixture uses an existing repository file through that escape and is always
-# removed. Junction creation normally requires no elevation on Windows.
+# ---------------------------------------------------------------------------
+# Path-safety junction/reparse-point containment test
+#
+# The escape target is a small, isolated, test-owned scratch directory -
+# NEVER the real repository parent or any shared/sibling worktree directory.
+# A junction that points into a large, real directory tree turns any future
+# cleanup defect into a runaway MAX_PATH traversal across unrelated
+# worktrees (this happened once); bounding the target to a disposable
+# scratch directory keeps that blast radius to nothing. Cleanup always
+# targets the reparse point itself via a guarded, non-recursive deletion
+# that verifies the resolved path and the ReparsePoint attribute before
+# deleting - it never calls Remove-Item recursively on a reparse point and
+# never traverses into the link's target.
+# ---------------------------------------------------------------------------
+
+function Remove-JunctionFixtureSafely {
+    param([string]$ExpectedFixturePath)
+
+    # Idempotent: a fixture that is already absent is not an error.
+    if (-not (Test-Path -LiteralPath $ExpectedFixturePath)) { return }
+
+    $expectedResolved = [IO.Path]::GetFullPath($ExpectedFixturePath).TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
+    $fixtureItem = Get-Item -LiteralPath $ExpectedFixturePath -Force
+    $actualResolved = [IO.Path]::GetFullPath($fixtureItem.FullName).TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
+    if (-not $actualResolved.Equals($expectedResolved, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Refusing to delete: resolved fixture path does not match the expected path exactly ($actualResolved vs $expectedResolved)."
+    }
+
+    $isReparsePoint = ($fixtureItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0
+    if (-not $isReparsePoint) {
+        throw "Refusing to delete: expected fixture path is not a reparse point - recursive deletion of a real directory would be unsafe."
+    }
+
+    # recursive=$false unlinks only the reparse point entry itself; it never
+    # traverses into or deletes the junction target's contents.
+    [IO.Directory]::Delete($actualResolved, $false)
+}
+
 $linkFixture = Join-Path $PSScriptRoot "__path_safety_junction_fixture"
 $reparseEscapeStatus = "NOT_TESTED"
-$reparseFixtureMethod = "Windows directory Junction"
-$junctionTarget = Split-Path -Parent $RepoRoot
-$escapedExistingPath = "tools/__path_safety_junction_fixture/$(Split-Path -Leaf $RepoRoot)/AGENTS.md"
+$reparseFixtureMethod = "Windows directory Junction (isolated scratch target)"
+$reparseFixtureReason = $null
+
+$scratchBase = $env:TMPDIR
+if ([string]::IsNullOrWhiteSpace($scratchBase)) {
+    if (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) { $scratchBase = Join-Path $env:LOCALAPPDATA "hermes/cache/scratch" }
+    else { $scratchBase = [IO.Path]::GetTempPath() }
+}
+if (-not (Test-Path -LiteralPath $scratchBase)) { New-Item -ItemType Directory -Path $scratchBase -Force | Out-Null }
+$isolatedEscapeTarget = Join-Path $scratchBase ("teras-junction-fixture-" + [Guid]::NewGuid().ToString("N"))
+$markerRelativePath = "marker-subdir/marker.txt"
+$markerFullPath = Join-Path $isolatedEscapeTarget ($markerRelativePath -replace '/', [IO.Path]::DirectorySeparatorChar)
+New-Item -ItemType Directory -Path (Split-Path -Parent $markerFullPath) -Force | Out-Null
+$markerOriginalContent = "sentinel-" + [Guid]::NewGuid().ToString("N")
+Set-Content -LiteralPath $markerFullPath -Value $markerOriginalContent -NoNewline -Encoding utf8
+$escapedExistingPath = "tools/__path_safety_junction_fixture/$markerRelativePath"
+
 try {
-    New-Item -ItemType Junction -Path $linkFixture -Target $junctionTarget -ErrorAction Stop | Out-Null
-    $reparseEscapeStatus = if (-not (Test-ExplicitPathExists -RelativePath $escapedExistingPath)) { "PASS" } else { "FAIL" }
+    try {
+        New-Item -ItemType Junction -Path $linkFixture -Target $isolatedEscapeTarget -ErrorAction Stop | Out-Null
+
+        # --- A: junction fixture is created successfully ---
+        Assert-True (Test-Path -LiteralPath $linkFixture) "Junction fixture must exist immediately after creation."
+        $fixtureItem = Get-Item -LiteralPath $linkFixture -Force
+        Assert-True (($fixtureItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) "Junction fixture must be a reparse point."
+
+        # --- B: containment/reparse test still catches the unsafe path ---
+        $reparseEscapeStatus = if (-not (Test-ExplicitPathExists -RelativePath $escapedExistingPath)) { "PASS" } else { "FAIL" }
+    }
+    finally {
+        Remove-JunctionFixtureSafely -ExpectedFixturePath $linkFixture
+    }
+
+    # --- C: fixture is removed after a successful test run ---
+    Assert-True (-not (Test-Path -LiteralPath $linkFixture)) "Junction fixture must be removed after a successful test run."
 }
 catch {
     $reparseEscapeStatus = "NOT_TESTED"
     $reparseFixtureReason = $_.Exception.Message
+    # Defense in depth: a failure anywhere between creation and the primary
+    # finally above must still never leave the fixture behind.
+    Remove-JunctionFixtureSafely -ExpectedFixturePath $linkFixture
 }
-finally {
-    if (Test-Path -LiteralPath $linkFixture) { Remove-Item -LiteralPath $linkFixture -Force -ErrorAction SilentlyContinue }
-}
+
 if ($reparseEscapeStatus -eq "FAIL") { throw "ASSERTION FAILED: A reparse-point path resolving outside the repository was accepted." }
+
+# --- D: fixture is removed after an intentionally-triggered failure ---
+# Only exercised when junction creation is actually supported on this host
+# (established by A/B above succeeding) - mirrors the original NOT_TESTED
+# tolerance rather than hard-failing on a host without junction privileges.
+$reparseFailureCleanupStatus = "NOT_TESTED"
+if ($reparseEscapeStatus -ne "NOT_TESTED") {
+    try {
+        New-Item -ItemType Junction -Path $linkFixture -Target $isolatedEscapeTarget -ErrorAction Stop | Out-Null
+        try {
+            throw "intentional-test-failure"
+        }
+        finally {
+            Remove-JunctionFixtureSafely -ExpectedFixturePath $linkFixture
+        }
+    }
+    catch {
+        if ($_.Exception.Message -eq "intentional-test-failure") {
+            $reparseFailureCleanupStatus = if (-not (Test-Path -LiteralPath $linkFixture)) { "PASS" } else { "FAIL" }
+        } else {
+            $reparseFailureCleanupStatus = "FAIL"
+        }
+    }
+    if ($reparseFailureCleanupStatus -eq "FAIL") { throw "ASSERTION FAILED: Junction fixture must be removed even when the test body fails after creation." }
+}
+
+# --- E: target directory remains untouched ---
+Assert-True (Test-Path -LiteralPath $markerFullPath) "The isolated escape target's marker file must still exist after the test."
+$markerContentAfter = Get-Content -LiteralPath $markerFullPath -Raw
+Assert-Equal $markerContentAfter $markerOriginalContent "The isolated escape target's marker content must be unmodified by the junction test."
+
+# --- F: no recursive path remains after test completion ---
+Assert-True (-not (Test-Path -LiteralPath $linkFixture)) "No junction/reparse point may remain under tools/ after the test completes."
+Assert-Equal @(Get-ChildItem -LiteralPath $PSScriptRoot -Force | Where-Object { $_.Name -eq "__path_safety_junction_fixture" }).Count 0 "No residual junction-fixture directory entry may remain in tools/."
+
+# The isolated scratch target is a real, test-owned directory (never a
+# reparse point), so ordinary recursive removal is safe here.
+if (Test-Path -LiteralPath $isolatedEscapeTarget) { Remove-Item -LiteralPath $isolatedEscapeTarget -Recurse -Force -ErrorAction SilentlyContinue }
+
 Write-Output "REPARSE_ESCAPE_REJECTION=$reparseEscapeStatus"
 Write-Output "REPARSE_FIXTURE_METHOD=$reparseFixtureMethod"
+Write-Output "REPARSE_FAILURE_CLEANUP=$reparseFailureCleanupStatus"
 if ($reparseEscapeStatus -eq "NOT_TESTED") { Write-Output "REPARSE_FIXTURE_REASON=$reparseFixtureReason" }
