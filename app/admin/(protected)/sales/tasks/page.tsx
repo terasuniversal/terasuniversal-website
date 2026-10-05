@@ -8,6 +8,7 @@ import { clampPage, normalizePage, pageCountFor, pageRange, SALES_QUEUE_PAGE_SIZ
 import { loadStaffOptions } from "./options";
 import { formatMalaysiaDateTime } from "../../../../../lib/date-time";
 import { normalizeTaskQueueContext, resolveTaskRelatedRecord, taskQueueFeedbackMessage, taskQueueHref, type TaskQueueContext, type TaskQueueView } from "../../../../../lib/sales/task-queue";
+import { fetchSalesRowsInPages, isCurrentActiveTask, loadTaskArchiveState } from "../../../../../lib/sales/active-state";
 import { TaskQueueActions } from "./TaskQueueActions";
 
 export const metadata = { title: "Sales Tasks — TERAS UNIVERSAL Admin" };
@@ -15,6 +16,7 @@ export const dynamic = "force-dynamic";
 
 const VIEWS: readonly TaskQueueView[] = ["today", "overdue", "upcoming", "completed", "all"];
 const VIEW_LABELS: Record<TaskQueueView, string> = { all: "All Open", overdue: "Overdue", today: "Due Today", upcoming: "Upcoming", completed: "Completed" };
+
 
 type OpportunityLabel = { id: string; opportunity_no: string };
 type QuotationLabel = { id: string; quotation_no: string; opportunity_id: string | null };
@@ -101,12 +103,41 @@ export default async function SalesTasksPage({
     return query;
   };
 
-  const { count = 0, error: countError } = await createQuery("count");
-  const pageCount = pageCountFor(count ?? 0);
-  const page = clampPage(requestedPage, pageCount);
-  const range = pageRange(page, SALES_QUEUE_PAGE_SIZE);
-  const { data: rows, error: rowsError } = await createQuery("rows").range(range.from, range.to);
-  const tasks = (rows ?? []) as SalesTaskRow[];
+  let count = 0;
+  let countError: unknown = null;
+  let rowsError: unknown = null;
+  let page = 1;
+  let pageCount = 1;
+  let tasks: SalesTaskRow[] = [];
+  if (view === "completed") {
+    // Completed is a history surface; keep archived-chain records accessible here.
+    const countResult = await createQuery("count");
+    count = countResult.count ?? 0;
+    countError = countResult.error;
+    pageCount = pageCountFor(count);
+    page = clampPage(requestedPage, pageCount);
+    const range = pageRange(page, SALES_QUEUE_PAGE_SIZE);
+    const rowsResult = await createQuery("rows").range(range.from, range.to);
+    rowsError = rowsResult.error;
+    tasks = (rowsResult.data ?? []) as SalesTaskRow[];
+  } else {
+    const countResult = await createQuery("count");
+    countError = countResult.error;
+    const candidateCount = countResult.count ?? 0;
+    const { rows: candidateTasks, error: pageReadError } = await fetchSalesRowsInPages<SalesTaskRow>(
+      candidateCount,
+      (from, to) => createQuery("rows").range(from, to),
+    );
+    rowsError = pageReadError;
+    const { state: taskArchiveState, error: taskArchiveError } = await loadTaskArchiveState(supabase, candidateTasks);
+    rowsError = rowsError ?? taskArchiveError;
+    const activeTasks = candidateTasks.filter((task) => isCurrentActiveTask(task, taskArchiveState));
+    count = activeTasks.length;
+    pageCount = pageCountFor(count);
+    page = clampPage(requestedPage, pageCount);
+    const range = pageRange(page, SALES_QUEUE_PAGE_SIZE);
+    tasks = activeTasks.slice(range.from, range.to + 1);
+  }
 
   const quotationIds = [...new Set(tasks.map((task) => task.quotation_id).filter((id): id is string => Boolean(id)))];
   const directOpportunityIds = [...new Set(tasks.map((task) => task.opportunity_id).filter((id): id is string => Boolean(id)))];
@@ -134,9 +165,7 @@ export default async function SalesTasksPage({
   ];
   const opportunitiesById = new Map(opportunityRows.map((opportunity) => [opportunity.id, opportunity]));
   const quotationsById = new Map(quotationRows.map((quotation) => [quotation.id, quotation]));
-  const hasReadError = Boolean(
-    countError || rowsError || quotationResult.error || opportunityResult.error || extraOpportunityResult.error,
-  );
+  const hasReadError = Boolean(countError || rowsError || quotationResult.error || opportunityResult.error || extraOpportunityResult.error);
 
   const queueContext: TaskQueueContext = { ...normalized, page };
   const qsBase: Record<string, string> = { view, owner };

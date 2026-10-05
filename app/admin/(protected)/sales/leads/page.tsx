@@ -46,7 +46,9 @@ export default async function SalesLeadsPage({
     const term = sanitizeSearchTerm(sp.q);
     if (term) query = query.or(`contact_name.ilike.%${term}%,company.ilike.%${term}%,email.ilike.%${term}%,subject.ilike.%${term}%`);
   }
-  if (sp.status) query = query.eq("status", sp.status);
+  if (sp.status === "archived") query = query.eq("status", "archived");
+  else if (sp.status) query = query.eq("status", sp.status);
+  else query = query.neq("status", "archived");
   if (sp.source) query = query.eq("lead_source", sp.source);
   if (sp.assigned) query = sp.assigned === "unassigned" ? query.is("assigned_to", null) : query.eq("assigned_to", sp.assigned);
   const now = new Date();

@@ -227,10 +227,21 @@ export function buildAcceptedQuotationOwnerSummary(
 /* ------------------------------------------------------------------ */
 
 export interface ReportArchiveState {
-  /** Lead ids whose chain is archived (the lead itself, or its only opportunity, is archived). */
+  /** Lead ids archived by their own current status. */
   excludedLeadIds: Set<string>;
-  /** Opportunity ids whose chain is archived (itself, or its source lead, is archived). */
+  /** Opportunity ids archived directly, or linked to a Lead archived by status. */
   excludedOppIds: Set<string>;
+}
+
+export function isTaskInArchivedReportChain(
+  task: { lead_metadata_id?: string | null; opportunity_id?: string | null; quotation_id?: string | null },
+  archiveState: ReportArchiveState,
+  quotationOpportunityById: ReadonlyMap<string, string>,
+): boolean {
+  if (task.lead_metadata_id && archiveState.excludedLeadIds.has(task.lead_metadata_id)) return true;
+  if (task.opportunity_id && archiveState.excludedOppIds.has(task.opportunity_id)) return true;
+  const quotationOpportunityId = task.quotation_id ? quotationOpportunityById.get(task.quotation_id) : undefined;
+  return Boolean(quotationOpportunityId && archiveState.excludedOppIds.has(quotationOpportunityId));
 }
 
 /**
@@ -248,10 +259,12 @@ export interface ReportArchiveState {
  * inside the range while its lead/opportunity may have been created long
  * before it.
  *
- * Chain rule — matches the Lead inbox's "archived is hidden, not historical"
- * convention:
- *   - an archived lead hides the lead and its opportunity;
- *   - an archived opportunity hides the opportunity and its source lead.
+ * Current-state rule:
+ *   - an archived lead hides the lead and its opportunities;
+ *   - an archived opportunity is hidden from current opportunity workload,
+ *     but does not hide its still-active source Lead or lead-level follow-up.
+ *     The Qualified Now estimate separately excludes active Leads whose only
+ *     linked Opportunities are archived.
  */
 export function resolveReportArchiveState(
   leads: { id: string; status?: string | null }[],
@@ -278,17 +291,16 @@ export function resolveReportArchiveState(
   const archivedOppIds = new Set<string>();
   for (const [id, stage] of oppStage) if (stage === "archived") archivedOppIds.add(id);
 
-  // 2. A lead is excluded when it — or its only opportunity (unique
-  //    lead_metadata_id) — is archived.
+  // 2. Lead activity is lead-level: only the Lead's own archived status
+  //    excludes its active lead/follow-up count.
   const excludedLeadIds = new Set<string>(archivedLeadIds);
-  for (const [oppId, leadId] of oppLead) if (archivedOppIds.has(oppId) && leadId) excludedLeadIds.add(leadId);
 
   // 3. An opportunity is excluded when it — or its source lead — is archived.
   const excludedOppIds = new Set<string>(archivedOppIds);
   for (const [oppId, stage] of oppStage) {
     if (stage === "archived") continue;
     const leadId = oppLead.get(oppId);
-    if (leadId && excludedLeadIds.has(leadId)) excludedOppIds.add(oppId);
+    if (leadId && archivedLeadIds.has(leadId)) excludedOppIds.add(oppId);
   }
 
   return { excludedLeadIds, excludedOppIds };

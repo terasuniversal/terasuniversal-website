@@ -3,12 +3,22 @@ import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { requireRole, requireModuleAccess } from "../../../../lib/auth/session";
 import { PageHead, Card, StatCard, EmptyState } from "../../../../components/admin/ui";
 import { FollowUpBadge } from "../../../../components/admin/sales/FollowUpBadge";
-import { OPEN_OPPORTUNITY_STAGES, SOURCE_LABELS, followUpState, mytEndOfTodayUtc, type SalesLeadInboxRow } from "../../../../lib/sales/crm";
+import { OPEN_OPPORTUNITY_STAGES, SOURCE_LABELS, followUpState, mytEndOfTodayUtc, type SalesLeadInboxRow, type SalesOpportunityStage, type SalesTaskRow } from "../../../../lib/sales/crm";
 import { resolveReportDateRange } from "../../../../lib/sales/reports";
 import { formatMalaysiaDateTime } from "../../../../lib/date-time";
+import {
+  fetchSalesRowsByIdsInBatches,
+  fetchSalesRowsInPages,
+  filterActiveOpenOpportunities,
+  isCurrentActiveTask,
+  loadTaskArchiveState,
+} from "../../../../lib/sales/active-state";
 
 export const metadata = { title: "Sales Dashboard — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
+
+type DashboardOpenOpportunity = { id: string; lead_metadata_id: string; stage: SalesOpportunityStage };
+type DashboardTaskArchiveRow = Pick<SalesTaskRow, "id" | "status" | "deleted_at" | "lead_metadata_id" | "opportunity_id" | "quotation_id">;
 
 /**
  * Real Sales CRM V1 dashboard, replacing the Phase 1A demo dashboard.
@@ -101,6 +111,45 @@ export default async function SalesDashboardPage() {
     overdueTasksQuery,
     tasksDueTodayQuery,
   ]);
+  const openOpportunityRowsResult = await fetchSalesRowsInPages<DashboardOpenOpportunity>(
+    openOpportunitiesResult.count ?? 0,
+    (from, to) => supabase.from("sales_opportunities").select("id, lead_metadata_id, stage").in("stage", OPEN_OPPORTUNITY_STAGES).eq("is_test", false).order("id").range(from, to),
+  );
+  const openOpportunityRows = openOpportunityRowsResult.rows;
+  const openLeadIds = [...new Set(openOpportunityRows.map((opportunity: any) => opportunity.lead_metadata_id).filter(Boolean))];
+  const { rows: openLeadRows, error: openLeadError } = await fetchSalesRowsByIdsInBatches<{ id: string; status: string }>(
+    openLeadIds,
+    (batch) => supabase.from("sales_lead_metadata").select("id, status").in("id", batch),
+  );
+  const archivedLeadIds = new Set<string>(openLeadRows.filter((lead: { id: string; status: string }) => lead.status === "archived").map((lead: { id: string }) => lead.id));
+  const openOpportunitiesMetric = {
+    count: filterActiveOpenOpportunities(openOpportunityRows, archivedLeadIds).length,
+    error: openOpportunitiesResult.error ?? openOpportunityRowsResult.error ?? openLeadError,
+  };
+  const taskFields = "id, status, deleted_at, lead_metadata_id, opportunity_id, quotation_id";
+  const overdueTaskRowsResult = await fetchSalesRowsInPages<DashboardTaskArchiveRow>(
+    overdueTasksResult.count ?? 0,
+    (from, to) => supabase.from("sales_tasks").select(taskFields).is("deleted_at", null).lt("due_at", nowIso).not("due_at", "is", null).not("status", "in", "(completed,cancelled)").order("id").range(from, to),
+  );
+  const tasksDueTodayRowsResult = await fetchSalesRowsInPages<DashboardTaskArchiveRow>(
+    tasksDueTodayResult.count ?? 0,
+    (from, to) => supabase.from("sales_tasks").select(taskFields).is("deleted_at", null).gte("due_at", nowIso).lt("due_at", endOfTodayMyt).not("status", "in", "(completed,cancelled)").order("id").range(from, to),
+  );
+  const overdueTaskRows = overdueTaskRowsResult.rows;
+  const tasksDueTodayRows = tasksDueTodayRowsResult.rows;
+  const dashboardTaskRows = [...overdueTaskRows, ...tasksDueTodayRows];
+  const { state: taskArchiveState, error: taskArchiveError } = await loadTaskArchiveState(supabase, dashboardTaskRows);
+  const currentDashboardTasks = dashboardTaskRows.filter((task: any) => isCurrentActiveTask(task, taskArchiveState));
+  const overdueTaskIds = new Set(overdueTaskRows.map((task: any) => task.id));
+  const dueTodayTaskIds = new Set(tasksDueTodayRows.map((task: any) => task.id));
+  const overdueTasksMetric = {
+    count: currentDashboardTasks.filter((task: any) => overdueTaskIds.has(task.id)).length,
+    error: overdueTasksResult.error ?? overdueTaskRowsResult.error ?? taskArchiveError,
+  };
+  const tasksDueTodayMetric = {
+    count: currentDashboardTasks.filter((task: any) => dueTodayTaskIds.has(task.id)).length,
+    error: tasksDueTodayResult.error ?? tasksDueTodayRowsResult.error ?? taskArchiveError,
+  };
   const countValue = (result: { count: number | null; error: unknown }) => result.error || result.count == null ? "Unavailable" : result.count;
   const followUpsDueContext = followUpsDueResult.error || followUpsDueResult.count == null
     ? "Unable to load this metric."
@@ -116,7 +165,7 @@ export default async function SalesDashboardPage() {
 
       <div className="ta-sales-dashboard-kpis">
         <StatCard label="New Leads" value={countValue(newLeadsResult)} icon="🧲" href="/admin/sales/leads?status=new" />
-        <StatCard label="Open Opportunities" value={countValue(openOpportunitiesResult)} icon="📊" href="/admin/sales/opportunities?state=open" />
+        <StatCard label="Open Opportunities" value={countValue(openOpportunitiesMetric)} icon="📊" href="/admin/sales/opportunities?state=open" />
         <StatCard label="Follow-ups Due" value={countValue(followUpsDueResult)} icon="📞" context={followUpsDueContext} href="/admin/sales/follow-ups" />
         <StatCard label="Won This Month" value={countValue(wonThisMonthResult)} icon="🏆" href="/admin/sales/reports?range=this_month" />
       </div>
@@ -125,8 +174,8 @@ export default async function SalesDashboardPage() {
         <div className="ta-sales-attention-grid">
           <StatCard label="Overdue Follow-ups" value={countValue(overdueFollowUpsResult)} icon="📞" href="/admin/sales/follow-ups?view=overdue" />
           <StatCard label="Follow-ups Due Today" value={countValue(followUpsDueTodayResult)} icon="🗓" href="/admin/sales/follow-ups?view=today" />
-          <StatCard label="Overdue Tasks" value={countValue(overdueTasksResult)} icon="☑" href="/admin/sales/tasks?view=overdue" />
-          <StatCard label="Tasks Due Today" value={countValue(tasksDueTodayResult)} icon="☑" href="/admin/sales/tasks?view=today" />
+          <StatCard label="Overdue Tasks" value={countValue(overdueTasksMetric)} icon="☑" href="/admin/sales/tasks?view=overdue" />
+          <StatCard label="Tasks Due Today" value={countValue(tasksDueTodayMetric)} icon="☑" href="/admin/sales/tasks?view=today" />
         </div>
         {overdueRowsResult.error ? (
           <div className="ta-card-pad ta-alert ta-alert-error" role="alert">Overdue follow-ups are unavailable. Please try again.</div>

@@ -12,7 +12,6 @@ import {
 } from "../../../../../lib/sales/crm";
 import {
   expectedCloseState,
-  formatMoney,
   isStalledOpportunity,
   latestOpportunityActivity,
   mytTodayKey,
@@ -20,6 +19,7 @@ import {
   shiftMytDateKey,
   type OpportunityExpectedCloseState,
 } from "../../../../../lib/sales/opportunity-pipeline";
+import { filterActiveOpenOpportunities } from "../../../../../lib/sales/active-state";
 import { OpportunityTable } from "./OpportunityTable";
 import { clampPage, normalizePage, pageCountFor, pageRange } from "../../../../../lib/sales/pagination";
 import { buildAssigneeFilterState } from "../../../../../lib/sales/assignee-filter";
@@ -101,6 +101,16 @@ export default async function OpportunitiesPage({
   const staffNames = new Map(staff.map((s) => [s.id, s.full_name]));
   const assigneeFilterState = buildAssigneeFilterState(Boolean(staffError), sp.assigned, staff);
 
+  const { data: archivedLeadRows, error: archivedLeadError } = await supabase
+    .from("sales_lead_metadata")
+    .select("id")
+    .eq("status", "archived");
+  const archivedLeadIds = new Set<string>((archivedLeadRows ?? []).map((lead: { id: string }) => lead.id));
+  const { data: archivedLeadOpenRows, error: archivedLeadOpenError } = archivedLeadIds.size
+    ? await supabase.from("sales_opportunities").select("id").in("lead_metadata_id", [...archivedLeadIds]).in("stage", OPEN_OPPORTUNITY_STAGES)
+    : { data: [] as { id: string }[], error: null };
+  const archivedLeadOpenOpportunityIds = (archivedLeadOpenRows ?? []).map((opportunity: { id: string }) => opportunity.id);
+
   const needsDerivedFilter = sp.stalled === "true";
   const stalledCutoff = new Date(now.getTime() - 7 * 86_400_000).toISOString();
   const listSelect = needsDerivedFilter
@@ -123,6 +133,13 @@ export default async function OpportunitiesPage({
     if (term) query = query.or(`opportunity_no.ilike.%${term}%,company_name.ilike.%${term}%,contact_person.ilike.%${term}%,title.ilike.%${term}%,programme.ilike.%${term}%`);
   }
   if (sp.stage) query = query.eq("stage", sp.stage);
+  else if (sp.state !== "resolved") query = query.neq("stage", "archived");
+  const queryMayIncludeOpenStages = sp.stage
+    ? OPEN_OPPORTUNITY_STAGES.includes(sp.stage as SalesOpportunityRow["stage"])
+    : sp.state !== "resolved";
+  if (queryMayIncludeOpenStages && archivedLeadOpenOpportunityIds.length) {
+    query = query.not("id", "in", `(${archivedLeadOpenOpportunityIds.join(",")})`);
+  }
   if (sp.assigned) query = sp.assigned === "unassigned" ? query.is("assigned_to", null) : query.eq("assigned_to", sp.assigned);
   if (sp.from) query = query.gte("created_at", sp.from);
   if (sp.to) query = query.lte("created_at", `${sp.to}T23:59:59`);
@@ -141,13 +158,14 @@ export default async function OpportunitiesPage({
   const requestedRange = pageRange(page, PAGE_SIZE);
   const [listResult, summaryResult] = await Promise.all([
     query.range(requestedRange.from, requestedRange.to),
-    supabase.from("sales_opportunities").select("id, stage, estimated_value, probability, expected_close_date, created_at").in("stage", OPEN_OPPORTUNITY_STAGES),
+    supabase.from("sales_opportunities").select("id, stage, lead_metadata_id, expected_close_date, created_at").in("stage", OPEN_OPPORTUNITY_STAGES),
   ]);
   let rawRows = listResult.data;
   let count = listResult.count;
   let listReadError = listResult.error;
   const summaryRaw = summaryResult.data;
-  const summaryReadError = summaryResult.error;
+  const summaryReadError = summaryResult.error ?? archivedLeadError ?? archivedLeadOpenError;
+  listReadError = listReadError ?? archivedLeadError ?? archivedLeadOpenError;
   const clampedPage = clampPage(page, pageCountFor(count ?? 0, PAGE_SIZE));
   if (!listReadError && clampedPage !== page) {
     page = clampedPage;
@@ -158,7 +176,12 @@ export default async function OpportunitiesPage({
     listReadError = correctedResult.error;
   }
   const candidateRows = (rawRows ?? []) as SalesOpportunityRow[];
-  const summaryRows = (summaryRaw ?? []) as Pick<SalesOpportunityRow, "id" | "stage" | "estimated_value" | "probability" | "expected_close_date" | "created_at">[];
+  // V1 intentionally omits aggregate pipeline-value KPIs: estimated_value
+  // remains optional record-level information, not an authoritative total.
+  const summaryRows = filterActiveOpenOpportunities(
+    (summaryRaw ?? []) as Pick<SalesOpportunityRow, "id" | "stage" | "lead_metadata_id">[],
+    archivedLeadIds,
+  );
   const allSignalIds = Array.from(new Set([...summaryRows.map((row) => row.id), ...candidateRows.map((row) => row.id)]));
   const signals = await loadSignals(supabase, allSignalIds);
   const enrichedCandidates = enrichRows(candidateRows, signals, now);
@@ -168,9 +191,7 @@ export default async function OpportunitiesPage({
   const rows = needsDerivedFilter ? enrichedCandidates.map((row) => ({ ...row, stalled: true })) : enrichedCandidates;
 
   const summarySignals = enrichRows(summaryRows as SalesOpportunityRow[], signals, now);
-  const openValue = summaryRows.reduce((sum, row) => sum + Number(row.estimated_value ?? 0), 0);
-  const weightedValue = summaryRows.reduce((sum, row) => sum + Math.max(0, Number(row.estimated_value ?? 0)) * Math.max(0, Math.min(100, Number(row.probability ?? 0))) / 100, 0);
-  const overdueClose = summaryRows.filter((row) => expectedCloseState(row.expected_close_date, now) === "overdue").length;
+  const overdueClose = summarySignals.filter((row) => expectedCloseState(row.expected_close_date, now) === "overdue").length;
   const stalled = summarySignals.filter((row) => row.stalled).length;
 
   const qsBase: Record<string, string> = {};
@@ -185,10 +206,8 @@ export default async function OpportunitiesPage({
       <PageHead title="Opportunities" subtitle="Pipeline intelligence from existing Opportunities, Tasks and Activity history." />
       {summaryReadError ? <ReadErrorState message="Pipeline summary could not be loaded. Retry the page to see current totals." /> : <div className="ta-stat-grid">
         <StatCard label="Open Opportunities" value={summaryRows.length} icon="📊" />
-        <StatCard label="Open Pipeline Value" value={formatMoney(openValue)} icon="💰" />
-        <StatCard label="Weighted Pipeline" value={formatMoney(weightedValue)} icon="📈" context="Null probability counts as 0%." />
         <StatCard label="Overdue Close" value={overdueClose} icon="⏰" />
-        <StatCard label="Stalled" value={stalled} icon="⚠️" context="Open, no future task, 7+ days since activity." />
+        <StatCard label="Stalled" value={stalled} icon="⚠️" context="Open, no future task, more than 7 days since activity." />
       </div>}
       {hasStaffError && <ReadErrorState title="Owner filter unavailable" message="Opportunity records remain available, but owner names and assignee filter options could not be loaded. Assigned owners are labelled unavailable rather than unassigned." />}
       <ListToolbar style={{ alignItems: "flex-end" }}>

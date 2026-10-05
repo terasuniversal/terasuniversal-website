@@ -40,7 +40,9 @@ export async function GET(request: NextRequest) {
     const term = sanitizeSearchTerm(p.get("q")!);
     if (term) query = query.or(`contact_name.ilike.%${term}%,company.ilike.%${term}%,email.ilike.%${term}%,subject.ilike.%${term}%`);
   }
-  if (p.get("status")) query = query.eq("status", p.get("status")!);
+  if (p.get("status") === "archived") query = query.eq("status", "archived");
+  else if (p.get("status")) query = query.eq("status", p.get("status")!);
+  else query = query.neq("status", "archived");
   if (p.get("source")) query = query.eq("lead_source", p.get("source")!);
   if (p.get("assigned")) query = p.get("assigned") === "unassigned" ? query.is("assigned_to", null) : query.eq("assigned_to", p.get("assigned")!);
   if (p.get("from")) query = query.gte("created_at", p.get("from")!);

@@ -6,6 +6,7 @@ import { mytEndOfTodayUtc, type SalesLeadInboxRow } from "../../../../../lib/sal
 import { clampPage, normalizePage, pageCountFor, pageRange, SALES_QUEUE_PAGE_SIZE } from "../../../../../lib/sales/pagination";
 import { formatMalaysiaDate } from "../../../../../lib/date-time";
 import { FollowUpInlineForm } from "./FollowUpInlineForm";
+import { isCurrentLeadFollowUp } from "../../../../../lib/sales/active-state";
 
 export const metadata = { title: "Follow-ups — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
@@ -70,7 +71,7 @@ export default async function FollowUpsPage({
   const range = pageRange(page, SALES_QUEUE_PAGE_SIZE);
   const { data: rows, error: rowsError } = await createQuery("rows").range(range.from, range.to);
   const hasReadError = Boolean(countError || rowsError);
-  const leads = (rows ?? []) as SalesLeadInboxRow[];
+  const leads = ((rows ?? []) as SalesLeadInboxRow[]).filter((lead) => isCurrentLeadFollowUp(lead.status, lead.follow_up_at));
   const returnTo = `/admin/sales/follow-ups?view=${encodeURIComponent(view)}&owner=${encodeURIComponent(owner)}&page=${page}`;
   const leadIds = leads.map((l) => l.lead_metadata_id);
 

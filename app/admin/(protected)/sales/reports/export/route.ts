@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "../../../../../../lib/supabase/serve
 import { getCurrentProfile, hasModuleAccess } from "../../../../../../lib/auth/session";
 import { isEditor } from "../../../../../../lib/auth/rbac";
 import { resolveReportDateRange, buildMonthlyTrend, REPORT_RANGE_KEYS, type ReportRangeKey } from "../../../../../../lib/sales/reports";
+import { qualifiedNowLeadIds } from "../../../../../../lib/sales/active-state";
 
 /**
  * Exports the Monthly Trend summary for the selected date range as CSV.
@@ -11,7 +12,8 @@ import { resolveReportDateRange, buildMonthlyTrend, REPORT_RANGE_KEYS, type Repo
  * activity text (Task 13's explicit exclusions).
  *
  * Historical event totals include archived real records, matching the page.
- * Only test/demo records are excluded from the monthly trend.
+ * The current qualification estimate excludes archived lead/opportunity
+ * state, also matching the page.
  */
 export async function GET(request: NextRequest) {
   const profile = await getCurrentProfile();
@@ -63,20 +65,16 @@ export async function GET(request: NextRequest) {
   const won = wonRaw ?? [];
   const lost = lostRaw ?? [];
   const accepted = acceptedRaw ?? [];
-  const qualifiedStatuses = new Set(["qualified", "proposal_sent", "negotiation", "won", "lost"]);
 
-  // Same correction as the report page: convert_lead_to_opportunity() does
-  // not update the source lead's own status, so status alone undercounts —
-  // a lead with an Opportunity at all counts as qualified regardless of
-  // its own (possibly stale) status column.
+  // Same current-state qualification calculation as the report page;
+  // archived leads and archived-only opportunity chains are excluded.
   const leadIds = leads.map((l: any) => l.id);
   const { data: leadsWithOppRaw, error: leadsWithOppError } = leadIds.length
     ? await supabase.from("sales_opportunities").select("id, stage, lead_metadata_id").eq("is_test", false).in("lead_metadata_id", leadIds)
     : { data: [] as any[], error: null };
   if (leadsWithOppError) return new NextResponse("Sales report export unavailable", { status: 500 });
 
-  const leadIdsWithOpportunity = new Set<string>((leadsWithOppRaw ?? []).map((o: any) => o.lead_metadata_id));
-  const qualifiedLeadIds = new Set<string>(leads.filter((l: any) => qualifiedStatuses.has(l.status) || leadIdsWithOpportunity.has(l.id)).map((l: any) => l.id));
+  const qualifiedLeadIds = qualifiedNowLeadIds(leads, leadsWithOppRaw ?? []);
 
   // Use the same source rows and date buckets as the page's Monthly Trend.
   const rows = buildMonthlyTrend({

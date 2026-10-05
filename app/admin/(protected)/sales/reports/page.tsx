@@ -15,6 +15,7 @@ import {
 import {
   resolveReportDateRange,
   buildMonthlyTrend,
+  isTaskInArchivedReportChain,
   buildAcceptedQuotationOwnerSummary,
   conversionRate,
   resolveReportArchiveState,
@@ -22,6 +23,7 @@ import {
   REPORT_RANGE_LABELS,
   type ReportRangeKey,
 } from "../../../../../lib/sales/reports";
+import { qualifiedNowLeadIds } from "../../../../../lib/sales/active-state";
 
 export const metadata = { title: "Sales Reports — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
@@ -38,18 +40,13 @@ export const dynamic = "force-dynamic";
  * DATA SOURCE / TIMESTAMP MAP (Task 19 — documented explicitly, never
  * silently chosen):
  *   Lead              <- sales_lead_metadata, filtered by created_at
- *   Qualified         <- sales_lead_metadata, filtered by created_at:
- *                        current status in (qualified, proposal_sent,
- *                        negotiation, won, lost) OR the lead already has a
- *                        sales_opportunities row. The OR-opportunity check
- *                        is required, not optional — verified live that
- *                        convert_lead_to_opportunity() does NOT update the
- *                        source lead's own status column, so a lead that
- *                        has genuinely become a full Opportunity can still
- *                        read status='new'; status alone would silently
- *                        undercount. No qualified_at timestamp exists on
- *                        this table, so this is a current-state snapshot,
- *                        not a reconstructed historical funnel.
+ *   Qualified         <- sales_lead_metadata, filtered by created_at, then
+ *                        evaluated as current state: active lead status in
+ *                        (qualified, proposal_sent, negotiation, won, lost)
+ *                        or at least one non-archived Opportunity. Archived
+ *                        leads and leads with only archived Opportunities do
+ *                        not count. No qualified_at timestamp exists, so
+ *                        this is not a reconstructed historical funnel.
  *   Opportunity       <- sales_opportunities, filtered by created_at
  *   Quotation Sent     <- sales_quotations, filtered by sent_at (not
  *                        created_at — a drafted-but-never-sent quotation
@@ -74,18 +71,19 @@ export const dynamic = "force-dynamic";
  *   Opportunity Stage  <- sales_opportunities, filtered by created_at;
  *                        'archived' is excluded (an administratively
  *                        hidden/dead record, not a live pipeline stage).
- *   Owner Summary      <- active-workload columns (leads / opportunities /
- *                        follow-ups / tasks due) resolve through
- *                        resolveReportArchiveState() so archived chains are
- *                        hidden (matching the Dashboard and Follow-ups
- *                        queue); won events / accepted quotation value keep
- *                        archived REAL records.
+ *   Owner Summary      <- archived Leads are excluded from lead-level
+ *                        workload/follow-ups; archived Opportunities and
+ *                        their tasks are excluded from opportunity workload.
+ *                        An archived Opportunity does not hide a still-active
+ *                        Lead-level follow-up. Won events / accepted
+ *                        quotation value keep archived REAL records.
  *
  * Archive rule: archived != test/demo. is_test=true chains are excluded
  * from every metric. An archived REAL chain keeps its legitimate historical
- * Won/lost/accepted quotation-value standing in the funnel, conversions,
- * won/lost, top programmes, monthly trend and CSV; only active-pipeline
- * workload counts hide it. This intentionally differs from the historical
+ * Won/lost/accepted quotation-value standing in event metrics, top
+ * programmes, monthly trend and CSV. Current qualification excludes archived
+ * Leads and archived-only Opportunity chains; lead-level follow-ups exclude
+ * archived Leads only. This intentionally differs from the historical
  * ed9daf1 commit ("exclude archived sales chains from reports"), which
  * removed archived real Won and accepted quotation history — a business-rule
  * conflict with the official TERAS rule that archiving must not erase a real
@@ -104,7 +102,6 @@ export const dynamic = "force-dynamic";
 
 const LEAD_SOURCES: SalesLeadSourceKind[] = ["enquiry", "proposal_request", "marketing_contact", "internal"];
 const REPORTABLE_STAGES: SalesOpportunityStage[] = OPPORTUNITY_STAGE_ORDER.filter((s) => s !== "archived");
-const QUALIFIED_OR_LATER = new Set(["qualified", "proposal_sent", "negotiation", "won", "lost"]);
 
 function Bar({ label, value, max, suffix }: { label: string; value: number; max: number; suffix?: string }) {
   const pct = max > 0 ? Math.round((value / max) * 100) : 0;
@@ -233,22 +230,15 @@ export default async function SalesReportsPage({
   const tasksDue = tasksDueRaw ?? [];
   const staff = (staffRaw ?? []) as { id: string; full_name: string }[];
 
-  // ---- Qualified, corrected for a real data-model gap found during
-  // verification: convert_lead_to_opportunity() does not update the source
-  // lead's own sales_lead_metadata.status -- a lead that has already become
-  // a full Opportunity (proof of qualification by definition) can still
-  // read status='new'. Relying on status alone would silently undercount.
-  // A lead counts as qualified if its status says so OR it has an
-  // Opportunity at all (checked without the date-range filter that `opps`
-  // carries, since the lead's qualification is a fact regardless of which
-  // period its opportunity row happens to have been created in). ----
+  // ---- Qualified-now is a current-state estimate, not a historical
+  // event. The shared helper preserves the status-or-opportunity model while
+  // excluding archived leads and archived-only opportunity chains. ----
   const leadIds = leads.map((l: any) => l.id);
   const { data: leadsWithOppRaw, error: leadsWithOppError } = leadIds.length
     ? await supabase.from("sales_opportunities").select("id, stage, lead_metadata_id").eq("is_test", false).in("lead_metadata_id", leadIds)
     : { data: [] as any[], error: null };
   if (leadsWithOppError) return <ReportUnavailable />;
-  const leadIdsWithOpportunity = new Set((leadsWithOppRaw ?? []).map((o: any) => o.lead_metadata_id));
-  const isQualified = (l: any) => QUALIFIED_OR_LATER.has(l.status) || leadIdsWithOpportunity.has(l.id);
+  const qualifiedLeadIds = qualifiedNowLeadIds(leads, leadsWithOppRaw ?? []);
 
   // ---- Archive exclusion — ACTIVE-pipeline surfaces only. Official rule:
   // archived != test/demo. A real archived chain never loses its legitimate
@@ -293,8 +283,7 @@ export default async function SalesReportsPage({
     [...(leads as any[]), ...(outOfRangeLeadRowsRaw ?? [])],
     [...(opps as any[]), ...(leadsWithOppRaw ?? []), ...(outOfRangeOppRowsRaw ?? [])]
   );
-  const taskInArchivedChain = (t: any) =>
-    excludedLeadIds.has(t.lead_metadata_id) || excludedOppIds.has(t.opportunity_id) || excludedOppIds.has(taskQuotationToOpp.get(t.quotation_id) ?? "");
+  const taskInArchivedChain = (t: any) => isTaskInArchivedReportChain(t, { excludedLeadIds, excludedOppIds }, taskQuotationToOpp);
   const activeWorkloadLeads = leads.filter((l: any) => !excludedLeadIds.has(l.id));
   const activeWorkloadOpps = opps.filter((o: any) => !excludedOppIds.has(o.id));
   const activeWorkloadTasks = tasksDue.filter((t: any) => !taskInArchivedChain(t));
@@ -321,7 +310,7 @@ export default async function SalesReportsPage({
   // Task 2/3 — Period activity and directional ratios
   // ==================================================================
   const leadCount = leads.length;
-  const qualifiedCount = leads.filter(isQualified).length;
+  const qualifiedCount = qualifiedLeadIds.size;
   const opportunityCount = opps.length;
   const quotationSentOppCount = new Set(quotationsSent.map((q: any) => q.opportunity_id)).size;
   const wonCount = won.length;
@@ -348,7 +337,7 @@ export default async function SalesReportsPage({
   const leadSourceRows = LEAD_SOURCES.map((source) => {
     const sourceLeads = leads.filter((l: any) => l.lead_source === source);
     const sourceLeadIds = new Set(sourceLeads.map((l: any) => l.id));
-    const sourceQualified = sourceLeads.filter(isQualified).length;
+    const sourceQualified = sourceLeads.filter((lead: any) => qualifiedLeadIds.has(lead.id)).length;
     const sourceOpps = opps.filter((o: any) => sourceLeadIds.has(o.lead_metadata_id)).length;
     const sourceWon = won.filter((o: any) => sourceLeadIds.has(o.lead_metadata_id)).length;
     return { source, label: SOURCE_LABELS[source], total: sourceLeads.length, qualified: sourceQualified, opportunities: sourceOpps, won: sourceWon };
@@ -414,7 +403,6 @@ export default async function SalesReportsPage({
   // ==================================================================
   // Task 10 — Monthly trend
   // ==================================================================
-  const qualifiedLeadIds = new Set<string>(leads.filter(isQualified).map((lead: any) => lead.id));
   const monthlyTrend = buildMonthlyTrend({ range, leads, qualifiedLeadIds, opps, quotationsSent, won, lost, accepted });
 
   // ==================================================================
