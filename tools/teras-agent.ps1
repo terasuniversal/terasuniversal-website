@@ -112,6 +112,7 @@ param(
     [switch]$Validate,
     [switch]$DatabaseStatus,
     [switch]$PrepareMigration,
+    [string]$MigrationFile,
     [switch]$ReviewMigration,
     [switch]$ApproveMigration,
     [switch]$ApplyMigration,
@@ -134,6 +135,18 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+if ($PSBoundParameters.ContainsKey('MigrationFile') -and -not $PrepareMigration) {
+    throw 'MigrationFile is valid only with -PrepareMigration.'
+}
+if ($PSBoundParameters.ContainsKey('MigrationFile') -and [string]::IsNullOrWhiteSpace($MigrationFile)) {
+    throw 'MigrationFile must be a non-empty repo-relative SQL migration path.'
+}
+if ($PSBoundParameters.ContainsKey('MigrationFile')) {
+    $otherActions = @($PSBoundParameters.Keys | Where-Object { $_ -notin @('PrepareMigration', 'MigrationFile', 'TargetWorkspacePath') })
+    if ($otherActions.Count -gt 0) {
+        throw 'MigrationFile cannot be combined with another action or target option.'
+    }
+}
 
 $CanonicalRepoRoot = Split-Path -Parent $PSScriptRoot
 $RepoRoot = $CanonicalRepoRoot
@@ -1375,7 +1388,11 @@ if ($McpAction) {
 } elseif ($DryRunMigration) {
     Invoke-DryRunMigration
 } elseif ($PrepareMigration) {
-    Invoke-PrepareMigration
+    if ($PSBoundParameters.ContainsKey('MigrationFile')) {
+        Invoke-PrepareMigration -MigrationFile $MigrationFile
+    } else {
+        Invoke-PrepareMigration
+    }
 } elseif ($ReviewMigration) {
     Invoke-ReviewMigration
 } elseif ($ApproveMigration) {

@@ -614,11 +614,87 @@ function Find-MigrationFile {
     return $null
 }
 
+# Read-only admission: preparation does not consume a local DB iteration.
+# Both the index blob and the normalized working-file blob must match HEAD.
+function Assert-ExistingTrackedMigrationForReview {
+    param($State, [string]$MigrationFile)
+
+    if ($State.State -eq 'NONE' -or [string]::IsNullOrWhiteSpace([string]$State.TaskId)) {
+        throw 'TRACKED_MIGRATION_REJECTED: no current task'
+    }
+    if ($MigrationFile -cnotmatch '^supabase/migrations/\d{14}_[a-z0-9_]+\.sql$') {
+        throw 'TRACKED_MIGRATION_REJECTED: path must be an exact repo-relative migration SQL path'
+    }
+    $proof = Test-ApprovalProofValid -State $State
+    if (-not $proof.Valid) { throw "TRACKED_MIGRATION_REJECTED: signed authorization invalid ($($proof.Reason))" }
+    $identity = Test-ExactWorktreeAuthorized -State $State -RepoRoot $RepoRoot
+    if (-not $identity.Authorized) { throw "TRACKED_MIGRATION_REJECTED: worktree/branch/HEAD mismatch ($($identity.Reason))" }
+    $restrictions = Test-LocalDbRestrictions -State $State
+    if (-not $restrictions.Compliant) { throw "TRACKED_MIGRATION_REJECTED: local authorization restricted ($($restrictions.Reason))" }
+    $allowed = @($State.LocalMigrationAllowlist | Where-Object { [string]::Equals([string]$_, $MigrationFile, [StringComparison]::Ordinal) })
+    if ($allowed.Count -ne 1) { throw 'TRACKED_MIGRATION_REJECTED: file is not an exact member of the signed migration allowlist' }
+    if (-not (Test-ExplicitPathExists -RelativePath $MigrationFile)) {
+        throw 'TRACKED_MIGRATION_REJECTED: missing file or reparse-point path component'
+    }
+
+    $tree = Invoke-GitRepositoryProbe -RepoRoot $RepoRoot -GitArguments @('ls-tree', '-r', '--name-only', 'HEAD', '--', 'supabase/migrations/')
+    if (-not $tree.Success) { throw 'TRACKED_MIGRATION_REJECTED: HEAD migration tree unavailable' }
+    $version = $MigrationFile.Substring('supabase/migrations/'.Length, 14)
+    $sameVersion = @($tree.Output | Where-Object { [string]$_ -cmatch "^supabase/migrations/${version}_" })
+    if ($sameVersion.Count -ne 1 -or [string]$sameVersion[0] -cne $MigrationFile) {
+        throw 'TRACKED_MIGRATION_REJECTED: migration version/path absent or ambiguous in HEAD'
+    }
+    $localVersion = @(Get-ChildItem -LiteralPath (Join-Path $RepoRoot 'supabase/migrations') -File -Force |
+        Where-Object { $_.Name -cmatch "^${version}_" })
+    if ($localVersion.Count -ne 1 -or $localVersion[0].Name -cne (Split-Path -Leaf $MigrationFile)) {
+        throw 'TRACKED_MIGRATION_REJECTED: migration version/path ambiguous in working tree'
+    }
+    $headEntry = Invoke-GitRepositoryProbe -RepoRoot $RepoRoot -GitArguments @('ls-tree', 'HEAD', '--', $MigrationFile)
+    if (-not $headEntry.Success -or @($headEntry.Output).Count -ne 1 -or
+        [string]$headEntry.Output[0] -cnotmatch '^100(?:644|755) blob ([0-9a-f]{40})\t') {
+        throw 'TRACKED_MIGRATION_REJECTED: path is not a tracked HEAD blob'
+    }
+    $headBlob = $Matches[1]
+    $index = Invoke-GitRepositoryProbe -RepoRoot $RepoRoot -GitArguments @('ls-files', '--stage', '--', $MigrationFile)
+    if (-not $index.Success -or @($index.Output).Count -ne 1 -or
+        [string]$index.Output[0] -cnotmatch '^100(?:644|755) ([0-9a-f]{40}) 0\t') {
+        throw 'TRACKED_MIGRATION_REJECTED: index entry missing or conflicted'
+    }
+    if ($Matches[1] -cne $headBlob) { throw 'TRACKED_MIGRATION_REJECTED: staged migration differs from HEAD' }
+    $status = Invoke-GitRepositoryProbe -RepoRoot $RepoRoot -GitArguments @('status', '--porcelain', '--untracked-files=all', '--', $MigrationFile)
+    if (-not $status.Success -or @($status.Output).Count -ne 0) {
+        throw 'TRACKED_MIGRATION_REJECTED: migration has staged or unstaged changes'
+    }
+    $normalized = Invoke-GitRepositoryProbe -RepoRoot $RepoRoot -GitArguments @('hash-object', "--path=$MigrationFile", '--', $MigrationFile)
+    if (-not $normalized.Success -or @($normalized.Output).Count -ne 1 -or [string]$normalized.Output[0] -cne $headBlob) {
+        throw 'TRACKED_MIGRATION_REJECTED: normalized working content differs from HEAD'
+    }
+    return $MigrationFile
+}
+
+# A provenance label alone cannot downgrade a migration already in HEAD.
+function Assert-MigrationReviewProvenance {
+    param($State)
+    if ($State.DbMigrationProvenance -eq 'EXISTING_TRACKED_HEAD') {
+        Assert-ExistingTrackedMigrationForReview -State $State -MigrationFile $State.DbMigrationFile | Out-Null
+        return
+    }
+    $entry = Invoke-GitRepositoryProbe -RepoRoot $RepoRoot -GitArguments @('ls-tree', 'HEAD', '--', $State.DbMigrationFile)
+    if (-not $entry.Success -or @($entry.Output).Count -ne 0) {
+        throw 'TRACKED_MIGRATION_REJECTED: a HEAD-tracked file requires signed tracked-HEAD provenance'
+    }
+}
+
 function New-DatabaseHandoff {
     param($State)
 
     $path = Join-Path $AiDir "DATABASE_HANDOFF.md"
-    $allowedText = if (@($State.AllowedFiles).Count -gt 0) { (@($State.AllowedFiles) | ForEach-Object { "- $_" }) -join "`n" } else { "- supabase/migrations/ (new file only - see MIGRATION FILE RULE below)" }
+    $allowedText = if (@($State.AllowedFiles).Count -gt 0) { (@($State.AllowedFiles) | ForEach-Object { "- $_" }) -join "`n" } elseif ($State.DbMigrationProvenance -eq 'EXISTING_TRACKED_HEAD') { '- supabase/migrations/ (selected existing tracked migration only - see MIGRATION FILE RULE below)' } else { '- supabase/migrations/ (new file only - see MIGRATION FILE RULE below)' }
+    $migrationRule = if ($State.DbMigrationProvenance -eq 'EXISTING_TRACKED_HEAD') {
+        "The selected existing SQL is an exact tracked blob at the task's signed HEAD, unchanged in index and working tree. This is review preparation only; never edit a historical migration."
+    } else {
+        "A single new file under supabase/migrations/ named YYYYMMDDHHMMSS_description.sql (project convention). Historical migrations are IMMUTABLE - write a NEW correcting migration, never edit an old one."
+    }
 
     $content = @"
 # DATABASE_HANDOFF.md
@@ -650,7 +726,7 @@ Only touch database objects directly required by the task description above. Do 
 
 ## ALLOWED MIGRATION FILE
 
-A single new file under ``supabase/migrations/`` named ``YYYYMMDDHHMMSS_description.sql`` (project convention). Historical migrations are IMMUTABLE - if a past migration was wrong, write a NEW correcting migration, never edit an old one.
+$migrationRule
 
 ## BLOCKED DATABASE OBJECTS
 
@@ -684,12 +760,35 @@ Do NOT bypass RLS.
 }
 
 function Invoke-PrepareMigration {
+    param([string]$MigrationFile)
     $state = Get-TaskState
     if ($state.State -eq "NONE") {
         Write-Host ""
         Write-Host "No current task found."
         Write-Host ""
         return
+    }
+
+    $adopting = $PSBoundParameters.ContainsKey('MigrationFile')
+    if ($adopting) {
+        if ([string]::IsNullOrWhiteSpace($MigrationFile)) {
+            throw 'TRACKED_MIGRATION_REJECTED: explicit migration path is empty'
+        }
+        $MigrationFile = Assert-ExistingTrackedMigrationForReview -State $state -MigrationFile $MigrationFile
+        $state.DbMigrationProvenance = 'EXISTING_TRACKED_HEAD'
+        $state.DbReviewedHash = $null
+        $state.DbReviewVerdict = 'PENDING'
+        $state.DbApproved = $false
+        $state.DbApprovedAt = $null
+        $state.DbApprovedHash = $null
+        $state.DbApprovedCommitSha = $null
+        $state.DbApplyApproved = $false
+    } else {
+        if ($state.DbMigrationProvenance -eq 'EXISTING_TRACKED_HEAD') {
+            throw 'TRACKED_MIGRATION_REJECTED: re-preparing an adopted migration requires its explicit -MigrationFile path'
+        }
+        $MigrationFile = Find-MigrationFile -State $state
+        $state.DbMigrationProvenance = if ($MigrationFile) { 'TASK_GENERATED_NEW' } else { $null }
     }
 
     if (-not $state.DbRequired) {
@@ -702,7 +801,7 @@ function Invoke-PrepareMigration {
     Write-Host ""
     Write-Host "Database handoff generated: $handoffPath"
 
-    $migrationFile = Find-MigrationFile -State $state
+    $migrationFile = $MigrationFile
     if (-not $migrationFile) {
         Write-Host ""
         Write-Host "No migration file found yet under supabase/migrations/ among this task's changed files."
@@ -721,7 +820,7 @@ function Invoke-PrepareMigration {
         Write-Host "$migrationFile does not match supabase/migrations/YYYYMMDDHHMMSS_description.sql"
         Write-Host ""
     }
-    if (-not (Test-MigrationIsNew -Path $migrationFile)) {
+    if (-not $adopting -and -not (Test-MigrationIsNew -Path $migrationFile)) {
         $staticOk = $false
         Write-Host ""
         Write-Host "HISTORICAL MIGRATION MODIFIED"
@@ -737,6 +836,7 @@ function Invoke-PrepareMigration {
 
     $state.DbMigrationFile = $migrationFile
     $state.DbMigrationHash = Get-MigrationHash -Path $migrationFile
+
     $state.DbObjectsChanged = $analysis.ObjectsChanged
     $state.DbDangerousStatements = $analysis.DangerousStatements
     $state.DbSecurityDefinerDetected = $analysis.SecurityDefiner
@@ -803,6 +903,9 @@ $($State.TaskId)
 
 Migration:
 $(if ($State.DbMigrationFile) { $State.DbMigrationFile } else { "(none)" })
+
+Provenance:
+$(if ($State.DbMigrationProvenance) { $State.DbMigrationProvenance } else { "(none)" })
 
 Migration Hash:
 $(if ($State.DbMigrationHash) { $State.DbMigrationHash } else { "(none)" })
@@ -982,6 +1085,7 @@ function Invoke-ReviewMigration {
         Write-Host ""
         return
     }
+    Assert-MigrationReviewProvenance -State $state
 
     if ($state.DbStaticValidation -eq "FAIL") {
         Write-Host ""
@@ -1044,6 +1148,7 @@ function Invoke-ApproveMigration {
         Write-Host ""; Write-Host "No migration file recorded. Run -PrepareMigration first."; Write-Host ""
         return
     }
+    Assert-MigrationReviewProvenance -State $state
     if ($state.DbState -ne "DB_AWAITING_APPROVAL") {
         Write-Host ""
         Write-Host "MIGRATION APPROVAL BLOCKED"
@@ -1219,6 +1324,8 @@ function Invoke-ApplyMigration {
         Write-Host ""
         return
     }
+
+    Assert-MigrationReviewProvenance -State $state
 
     if ((Get-MigrationHash -Path $state.DbMigrationFile) -ne $state.DbApprovedHash) {
         $state.DbApproved = $false

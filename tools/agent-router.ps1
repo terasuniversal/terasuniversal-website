@@ -625,6 +625,7 @@ function New-EmptyTaskState {
         DbState                  = "DB_NOT_REQUIRED"
         DbRisk                   = $null
         DbMigrationFile          = $null
+        DbMigrationProvenance    = $null
         DbMigrationHash          = $null
         DbObjectsChanged         = @()
         DbDangerousStatements    = @()
@@ -1194,6 +1195,7 @@ Database Task: $(if ($State.DbRequired) { "YES" } else { "NO" })
 Database State: $($State.DbState)
 Database Risk: $(if ($State.DbRisk) { $State.DbRisk } else { "(not yet classified)" })
 Migration File: $(if ($State.DbMigrationFile) { $State.DbMigrationFile } else { "(none)" })
+Migration Provenance: $(if ($State.DbMigrationProvenance) { $State.DbMigrationProvenance } else { "(none)" })
 Static Validation: $($State.DbStaticValidation)
 Codex Database Review: $($State.DbReviewVerdict)
 Migration Approved: $(if ($State.DbApproved) { "YES" } else { "NO" })
