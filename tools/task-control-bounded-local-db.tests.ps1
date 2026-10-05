@@ -275,10 +275,29 @@ function New-TamperTestFixture {
     return [pscustomobject]@{ RepoRoot = $root; TrustDir = $trustDir }
 }
 
+function Add-TrackedFixtureMigrations {
+    param($Fixture, [string[]]$Paths)
+    foreach ($path in $Paths) {
+        $full = Join-Path $Fixture.RepoRoot $path
+        if (-not (Test-Path -LiteralPath $full)) {
+            New-Item -ItemType Directory -Path (Split-Path -Parent $full) -Force | Out-Null
+            Set-Content -LiteralPath $full -Value '-- synthetic migration, never applied' -Encoding utf8
+        }
+    }
+    Push-Location $Fixture.RepoRoot
+    try {
+        git add -- @Paths
+        git diff --cached --quiet
+        if ($LASTEXITCODE -eq 1) { git commit -m 'tracked fixture migrations' --quiet }
+        elseif ($LASTEXITCODE -ne 0) { throw 'Fixture Git index probe failed' }
+    } finally { Pop-Location }
+}
+
 function New-TamperTestState {
     param([string]$MigrationPath = "supabase/migrations/20261004999999_tamper_fixture.sql")
     $state = New-EmptyTaskState
     $state.TaskId = "TERAS-TAMPER-" + [Guid]::NewGuid().ToString("N").Substring(0, 8)
+    $state.State = 'CREATED'
     $state.AllowedFiles = @("tools/db-runner.ps1")
     $state.LocalDisposableDatabaseAllowed = $true
     $state.LocalMigrationValidationAllowed = $true
@@ -286,6 +305,10 @@ function New-TamperTestState {
     $state.StopOnFirstFailure = $true
     $state.SyntheticDataOnly = $true
     $state.LocalMigrationAllowlist = @($MigrationPath)
+    $state.DbMigrationFile = $MigrationPath
+    # The runtime gate attests the signed HEAD, not merely the mocked CLI.
+    # $fixture is the current disposable repository for every caller here.
+    Add-TrackedFixtureMigrations -Fixture $fixture -Paths @($MigrationPath)
     # Task 1: by default the mocked local dry-run preflight reports exactly
     # this allowlist as "pending" - tests that need to prove mismatch
     # behavior override $script:MockPendingMigrationPaths explicitly after
@@ -597,6 +620,9 @@ $env:TERAS_APPROVAL_TRUST_DIR_OVERRIDE = $script:SavedTrustDirOverride
 $script:DbPushInvocationLog = @()
 $script:MockTaskState = $null
 
+# The tracked-migration adoption suite covers this separate preparation
+# gate. Here failed proofs must reach the bounded runtime gate itself.
+function Assert-MigrationReviewProvenance { param($State) }
 function Get-TaskState { return $script:MockTaskState }
 function Save-TaskState { param($State) $script:MockTaskState = $State }
 function Test-LocalSupabaseRunning { return $true }
@@ -611,9 +637,9 @@ function New-BoundedApplyFixtureState {
     $s = New-TamperTestState -MigrationPath $MigrationFile
     $s.DbApproved = $true
     $s.DbMigrationFile = $MigrationFile
+    $s.DbMigrationProvenance = 'EXISTING_TRACKED_HEAD'
     $sqlFullPath = Join-Path $Fixture.RepoRoot $MigrationFile
-    New-Item -ItemType Directory -Path (Split-Path -Parent $sqlFullPath) -Force | Out-Null
-    Set-Content -Path $sqlFullPath -Value "-- synthetic migration, never applied" -Encoding utf8
+    Assert-True (Test-Path -LiteralPath $sqlFullPath) 'Bounded apply fixture migration must already exist at HEAD.'
     $s.DbApprovedHash = Get-MigrationHash -Path $MigrationFile
     # New-TamperTestState already pointed the mocked dry-run preflight at
     # this exact migration file - kept here as an explicit re-assertion
@@ -695,17 +721,21 @@ try {
     $proofResult = New-ApprovalProof -State $state -RepoRoot $fixture.RepoRoot
     $state.AuthorityProof = $proofResult.Proof
     # Change the ACTUAL file the apply would touch to one NOT in the
-    # signed allowlist, without re-signing - the live apply call reads
-    # DbMigrationFile for -RequestedMigrations.
+    # signed allowlist, without re-signing - the bounded gate must still
+    # check the single reviewed target independently of the full push set.
     $otherFile = "supabase/migrations/20261004999999_not_allowed.sql"
     $otherFullPath = Join-Path $fixture.RepoRoot $otherFile
     Set-Content -Path $otherFullPath -Value "-- synthetic migration, never applied" -Encoding utf8
     $state.DbMigrationFile = $otherFile
+    $state.DbMigrationProvenance = 'TASK_GENERATED_NEW'
     $state.DbApprovedHash = Get-MigrationHash -Path $otherFile
     $script:MockTaskState = $state
 
     Invoke-ApplyMigration -Target "LOCAL"
     Assert-Equal @($script:DbPushInvocationLog).Count 0 "Non-allowlisted migration: supabase db push must never be invoked."
+    $targetLedger = Test-ConsumptionLedgerIntegrity -Path $state.AuthorityProof.ConsumptionLedgerPath -KeyBytes (Get-ApprovalTrustKeyBytes -Path (Get-ApprovalTrustKeyPath))
+    Assert-True ($targetLedger.Valid -and $targetLedger.Entry.Latched -and [int]$targetLedger.Entry.ConsumedIterations -eq 0) "Non-allowlisted review target must latch before consumption."
+    Assert-True ([string]$targetLedger.Entry.LatchReason -match 'REQUESTED_MIGRATION_SET_FAILED') "Non-allowlisted review target must retain the requested-set failure reason."
     Write-Output "Repair test (HIGH-1 disconnected-gate / non-allowlisted migration): PASS"
 } finally {
     Remove-TamperTestFixture -Fixture $fixture
@@ -1182,6 +1212,7 @@ try {
     New-DisposableApprovalTrustKey -Path (Get-ApprovalTrustKeyPath)
     $state = New-TamperTestState -MigrationPath "supabase/migrations/20261004999999_pending_a.sql"
     $state.LocalMigrationAllowlist = @("supabase/migrations/20261004999999_pending_a.sql", "supabase/migrations/20261004999999_pending_b.sql")
+    Add-TrackedFixtureMigrations -Fixture $fixture -Paths $state.LocalMigrationAllowlist
     $script:MockPendingMigrationPaths = @("supabase/migrations/20261004999999_pending_a.sql", "supabase/migrations/20261004999999_pending_b.sql")
     $proofResult = New-ApprovalProof -State $state -RepoRoot $fixture.RepoRoot
     $state.AuthorityProof = $proofResult.Proof
@@ -1203,6 +1234,7 @@ try {
     New-DisposableApprovalTrustKey -Path (Get-ApprovalTrustKeyPath)
     $state = New-TamperTestState -MigrationPath "supabase/migrations/20261004999999_pending_a.sql"
     $state.LocalMigrationAllowlist = @("supabase/migrations/20261004999999_pending_b.sql", "supabase/migrations/20261004999999_pending_a.sql")
+    Add-TrackedFixtureMigrations -Fixture $fixture -Paths $state.LocalMigrationAllowlist
     # Dry-run naturally returns a canonically-sorted set; simulate the CLI
     # reporting the opposite on-disk/temporal order to prove normalization.
     $script:MockPendingMigrationPaths = @("supabase/migrations/20261004999999_pending_a.sql", "supabase/migrations/20261004999999_pending_b.sql")
@@ -1370,6 +1402,136 @@ try {
     Set-Item -Path Function:\Consume-ConsumptionLedgerEntry -Value $originalConsumeBodyH
     Remove-TamperTestFixture -Fixture $fixture
 }
+
+# Full signed local-push set with a single reviewed target. Intercept the
+# actual apply-to-gate call while delegating to the real gate and ledger.
+$originalBoundedBodyMulti = ${function:Invoke-BoundedLocalDatabaseValidation}
+function Invoke-BoundedLocalDatabaseValidation {
+    param($State, [string]$RepoRoot, [string[]]$RequestedMigrations = @())
+    $script:CapturedApplyRequested = @($RequestedMigrations)
+    return (& $originalBoundedBodyMulti -State $State -RepoRoot $RepoRoot -RequestedMigrations $RequestedMigrations)
+}
+function Invoke-LocalSupabaseDbPushExecution {
+    $script:DbPushInvocationLog += 'MOCK_LOCAL_PUSH'
+    return 0
+}
+$multiSet = @(
+    'supabase/migrations/20261001000000_historical_a.sql',
+    'supabase/migrations/20261002000000_historical_b.sql',
+    'supabase/migrations/20261004023132_c4_wave1_erector_snapshot.sql'
+)
+try {
+    foreach ($scenario in @('exact', 'added', 'missing', 'duplicate', 'malformed', 'unstaged', 'staged', 'deleted', 'untracked-replacement', 'symlink-head')) {
+        $fixture = New-TamperTestFixture
+        try {
+            $env:TERAS_APPROVAL_TRUST_DIR_OVERRIDE = $fixture.TrustDir
+            New-DisposableApprovalTrustKey -Path (Get-ApprovalTrustKeyPath)
+            $RepoRoot = $fixture.RepoRoot
+            $state = New-BoundedApplyFixtureState -Fixture $fixture -MigrationFile $multiSet[2]
+            $state.LocalMigrationAllowlist = @($multiSet)
+            Add-TrackedFixtureMigrations -Fixture $fixture -Paths $multiSet
+            if ($scenario -eq 'untracked-replacement') {
+                Push-Location $fixture.RepoRoot
+                try {
+                    git rm --cached -- $multiSet[0] | Out-Null
+                    git commit -m 'remove historical migration from HEAD' --quiet
+                } finally { Pop-Location }
+            }
+            if ($scenario -eq 'symlink-head') {
+                Push-Location $fixture.RepoRoot
+                try {
+                    $linkBlob = ('target.sql' | git hash-object -w --stdin | Out-String).Trim()
+                    git update-index --add --cacheinfo "120000,$linkBlob,$($multiSet[0])"
+                    git commit -m 'non-regular HEAD fixture' --quiet
+                } finally { Pop-Location }
+            }
+            $script:MockPendingMigrationPaths = @($multiSet)
+            $proofResult = New-ApprovalProof -State $state -RepoRoot $fixture.RepoRoot
+            Assert-True $proofResult.Success "[$scenario] three-migration proof must sign."
+            $state.AuthorityProof = $proofResult.Proof
+            $script:MockDryRunRawOutput = $null
+            $historicalPath = Join-Path $fixture.RepoRoot $multiSet[0]
+            switch ($scenario) {
+                'added' { $script:MockPendingMigrationPaths += 'supabase/migrations/20261005000000_unapproved.sql' }
+                'missing' { $script:MockPendingMigrationPaths = @($multiSet[0], $multiSet[2]) }
+                'duplicate' { $script:MockPendingMigrationPaths += $multiSet[0] }
+                'malformed' {
+                    $script:MockDryRunRawOutput = @(
+                        'DRY RUN: migrations will *not* be pushed to the database.',
+                        'Would push migration not-valid.sql...',
+                        'Finished supabase db push.'
+                    )
+                }
+                'unstaged' { Add-Content -LiteralPath $historicalPath -Value '-- tampered after signing' }
+                'staged' {
+                    Add-Content -LiteralPath $historicalPath -Value '-- staged tamper after signing'
+                    Push-Location $fixture.RepoRoot
+                    try { git add -- $multiSet[0] } finally { Pop-Location }
+                }
+                'deleted' { Remove-Item -LiteralPath $historicalPath }
+            }
+            $script:MockTaskState = $state
+            $script:DbPushInvocationLog = @()
+            $script:CapturedApplyRequested = @()
+
+            Invoke-ApplyMigration -Target 'LOCAL'
+            Assert-Equal ($script:CapturedApplyRequested -join "`n") ($multiSet -join "`n") "[$scenario] LOCAL apply must request the entire signed set, not DbMigrationFile alone."
+            $ledger = Test-ConsumptionLedgerIntegrity -Path $state.AuthorityProof.ConsumptionLedgerPath -KeyBytes (Get-ApprovalTrustKeyBytes -Path (Get-ApprovalTrustKeyPath))
+            Assert-True $ledger.Valid "[$scenario] ledger integrity must hold."
+            if ($scenario -eq 'exact') {
+                foreach ($path in $multiSet) {
+                    $entry = Invoke-GitRepositoryProbe -RepoRoot $fixture.RepoRoot -GitArguments @('ls-tree', $state.AuthorityProof.BaseHeadSha, '--', $path)
+                    Assert-True ($entry.Success -and @($entry.Output).Count -eq 1) "Clean allowlisted path must exist at bound HEAD: $path"
+                }
+                Assert-Equal $state.DbMigrationFile $multiSet[2] 'Single review target must remain the latest migration.'
+                Assert-Equal $script:MockTaskState.DbApplyStatus 'APPLIED' 'Exact multi-migration pending set must authorize.'
+                Assert-Equal @($script:DbPushInvocationLog).Count 1 'Exact multi-migration set must reach mocked execution once.'
+                Assert-Equal ([int]$ledger.Entry.ConsumedIterations) 1 'Exact multi-migration authorization consumes exactly one iteration.'
+                Assert-True (-not $ledger.Entry.Latched) 'Successful multi-migration authorization must not latch.'
+            } else {
+                Assert-Equal $script:MockTaskState.DbApplyStatus 'BLOCKED' "[$scenario] pending-set mismatch must fail closed."
+                Assert-Equal @($script:DbPushInvocationLog).Count 0 "[$scenario] no execution before matching pending set."
+                Assert-Equal ([int]$ledger.Entry.ConsumedIterations) 0 "[$scenario] mismatch cannot consume an iteration."
+                Assert-True $ledger.Entry.Latched "[$scenario] first failure must latch."
+                $expectedReason = if ($scenario -in @('unstaged', 'staged', 'deleted', 'untracked-replacement', 'symlink-head')) { 'ALLOWLIST_HEAD_CONTENT_FAILED' } elseif ($scenario -in @('duplicate', 'malformed')) { 'LOCAL_PENDING_SET_PREFLIGHT_FAILED' } else { 'PENDING_MIGRATION_SET_FAILED' }
+                Assert-True ([string]$ledger.Entry.LatchReason -match $expectedReason) "[$scenario] failure must have its proper pending-set latch reason."
+                if ($scenario -in @('unstaged', 'staged', 'deleted', 'untracked-replacement', 'symlink-head')) {
+                    Assert-True ([string]$ledger.Entry.LatchReason -match [regex]::Escape($multiSet[0])) "[$scenario] must identify the non-target path."
+                }
+            }
+            Write-Output "Multi-migration LOCAL apply [$scenario]: PASS"
+        } finally {
+            $script:MockDryRunRawOutput = $null
+            Remove-TamperTestFixture -Fixture $fixture
+        }
+    }
+} finally {
+    Set-Item -Path Function:\Invoke-BoundedLocalDatabaseValidation -Value $originalBoundedBodyMulti
+    Remove-Item Function:\Invoke-LocalSupabaseDbPushExecution -ErrorAction SilentlyContinue
+}
+
+# A missing review target must be rejected by the runtime gate itself,
+# even when the signed pending set and the requested set are identical.
+foreach ($missingTarget in @($null, '', '   ')) {
+    $fixture = New-TamperTestFixture
+    try {
+        $env:TERAS_APPROVAL_TRUST_DIR_OVERRIDE = $fixture.TrustDir
+        New-DisposableApprovalTrustKey -Path (Get-ApprovalTrustKeyPath)
+        $RepoRoot = $fixture.RepoRoot
+        $state = New-BoundedApplyFixtureState -Fixture $fixture
+        $proof = New-ApprovalProof -State $state -RepoRoot $fixture.RepoRoot
+        $state.AuthorityProof = $proof.Proof
+        $state.DbMigrationFile = $missingTarget
+        $result = Invoke-BoundedLocalDatabaseValidation -State $state -RepoRoot $fixture.RepoRoot -RequestedMigrations $state.LocalMigrationAllowlist
+        Assert-True (-not $result.Authorized) 'Missing review target must block.'
+        Assert-Equal $result.Stage 'MIGRATION_ALLOWLIST' 'Missing review target must fail the membership gate.'
+        Assert-Equal $result.Reason 'REVIEW_TARGET_MISSING' 'Missing review target needs an explicit reason.'
+        $ledger = Test-ConsumptionLedgerIntegrity -Path $state.AuthorityProof.ConsumptionLedgerPath -KeyBytes (Get-ApprovalTrustKeyBytes -Path (Get-ApprovalTrustKeyPath))
+        Assert-True ($ledger.Valid -and $ledger.Entry.Latched -and [int]$ledger.Entry.ConsumedIterations -eq 0) 'Missing review target must latch with zero consumption.'
+        Assert-Equal ([string]$ledger.Entry.LatchReason) 'REQUESTED_MIGRATION_SET_FAILED: REVIEW_TARGET_MISSING' 'Missing target latch reason must be explicit.'
+    } finally { Remove-TamperTestFixture -Fixture $fixture }
+}
+Write-Output 'Missing review target (null/empty/whitespace): PASS'
 
 # --- Part D: actual db-push failure latch regression tests (A-F) ---------
 #

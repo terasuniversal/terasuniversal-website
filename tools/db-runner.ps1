@@ -265,6 +265,43 @@ function Test-ExactWorktreeAuthorized {
     return [pscustomobject]@{ Authorized = $true; Reason = "OK" }
 }
 
+# The proof-bound HEAD supplies the content root for every signed migration.
+# These are the same literal path, Git blob/index and normalized working-file
+# probes used by tracked-migration review, without its unrelated approval gate.
+function Test-AllowlistedMigrationHeadContent {
+    param($State, [string]$RepoRoot)
+
+    foreach ($path in @($State.LocalMigrationAllowlist)) {
+        if ([string]$path -cnotmatch '^supabase/migrations/\d{14}_[a-z0-9_]+\.sql$') {
+            return [pscustomobject]@{ Valid = $false; Reason = "MIGRATION_PATH_MALFORMED: $path" }
+        }
+        if (-not (Test-ExplicitPathExists -RelativePath $path)) {
+            return [pscustomobject]@{ Valid = $false; Reason = "MIGRATION_MISSING_OR_REPARSE_POINT: $path" }
+        }
+        $head = Invoke-GitRepositoryProbe -RepoRoot $RepoRoot -GitArguments @('ls-tree', $State.AuthorityProof.BaseHeadSha, '--', $path)
+        $headPattern = '^100(644|755) blob ([0-9a-f]{40})\t' + [regex]::Escape($path) + '$'
+        if (-not $head.Success -or @($head.Output).Count -ne 1 -or [string]$head.Output[0] -cnotmatch $headPattern) {
+            return [pscustomobject]@{ Valid = $false; Reason = "MIGRATION_NOT_REGULAR_HEAD_BLOB: $path" }
+        }
+        $headMode = $Matches[1]
+        $headBlob = $Matches[2]
+        $index = Invoke-GitRepositoryProbe -RepoRoot $RepoRoot -GitArguments @('ls-files', '--stage', '--', $path)
+        $indexPattern = '^100' + $headMode + ' ' + $headBlob + ' 0\t' + [regex]::Escape($path) + '$'
+        if (-not $index.Success -or @($index.Output).Count -ne 1 -or [string]$index.Output[0] -cnotmatch $indexPattern) {
+            return [pscustomobject]@{ Valid = $false; Reason = "MIGRATION_INDEX_DIFFERS_FROM_HEAD: $path" }
+        }
+        $status = Invoke-GitRepositoryProbe -RepoRoot $RepoRoot -GitArguments @('status', '--porcelain', '--untracked-files=all', '--', $path)
+        if (-not $status.Success -or @($status.Output).Count -ne 0) {
+            return [pscustomobject]@{ Valid = $false; Reason = "MIGRATION_STATUS_DIRTY: $path" }
+        }
+        $working = Invoke-GitRepositoryProbe -RepoRoot $RepoRoot -GitArguments @('hash-object', "--path=$path", '--', $path)
+        if (-not $working.Success -or @($working.Output).Count -ne 1 -or [string]$working.Output[0] -cne $headBlob) {
+            return [pscustomobject]@{ Valid = $false; Reason = "MIGRATION_WORKTREE_DIFFERS_FROM_HEAD: $path" }
+        }
+    }
+    return [pscustomobject]@{ Valid = $true; Reason = 'OK' }
+}
+
 # Exact set equality after ordinal deterministic normalization. No subset,
 # prefix, wildcard, duplicate, or malformed entry can authorize execution.
 function Test-ExactMigrationAllowlist {
@@ -422,6 +459,16 @@ function Invoke-BoundedLocalDatabaseValidation {
         return [pscustomobject]@{ Authorized = $false; Stage = "WORKTREE_GUARD"; Reason = $worktreeCheck.Reason }
     }
 
+    try {
+        $contentCheck = Test-AllowlistedMigrationHeadContent -State $State -RepoRoot $RepoRoot
+    } catch {
+        $contentCheck = [pscustomobject]@{ Valid = $false; Reason = 'ALLOWLIST_HEAD_CONTENT_PROBE_FAILED' }
+    }
+    if (-not $contentCheck.Valid) {
+        Set-ConsumptionLedgerLatch -Nonce $State.AuthorityProof.Nonce -Reason "ALLOWLIST_HEAD_CONTENT_FAILED: $($contentCheck.Reason)" | Out-Null
+        return [pscustomobject]@{ Authorized = $false; Stage = 'ALLOWLIST_HEAD_CONTENT'; Reason = $contentCheck.Reason }
+    }
+
     $restrictionsCheck = Test-LocalDbRestrictions -State $State
     if (-not $restrictionsCheck.Compliant) {
         Set-ConsumptionLedgerLatch -Nonce $State.AuthorityProof.Nonce -Reason "LOCAL_DB_RESTRICTIONS_FAILED: $($restrictionsCheck.Reason)" | Out-Null
@@ -442,6 +489,18 @@ function Invoke-BoundedLocalDatabaseValidation {
     if (-not $requestedCheck.Authorized) {
         Set-ConsumptionLedgerLatch -Nonce $State.AuthorityProof.Nonce -Reason "REQUESTED_MIGRATION_SET_FAILED: $($requestedCheck.Reason)" | Out-Null
         return [pscustomobject]@{ Authorized = $false; Stage = "MIGRATION_ALLOWLIST"; Reason = $requestedCheck.Reason }
+    }
+    # The reviewed migration is a single target, but a local push applies
+    # every pending migration. Keep that target inside the signed set too.
+    if ([string]::IsNullOrWhiteSpace([string]$State.DbMigrationFile)) {
+        Set-ConsumptionLedgerLatch -Nonce $State.AuthorityProof.Nonce -Reason "REQUESTED_MIGRATION_SET_FAILED: REVIEW_TARGET_MISSING" | Out-Null
+        return [pscustomobject]@{ Authorized = $false; Stage = "MIGRATION_ALLOWLIST"; Reason = "REVIEW_TARGET_MISSING" }
+    }
+    if (@($State.LocalMigrationAllowlist | Where-Object {
+        [string]::Equals([string]$_, [string]$State.DbMigrationFile, [StringComparison]::Ordinal)
+    }).Count -ne 1) {
+        Set-ConsumptionLedgerLatch -Nonce $State.AuthorityProof.Nonce -Reason "REQUESTED_MIGRATION_SET_FAILED: REVIEW_TARGET_NOT_ALLOWLISTED" | Out-Null
+        return [pscustomobject]@{ Authorized = $false; Stage = "MIGRATION_ALLOWLIST"; Reason = "REVIEW_TARGET_NOT_ALLOWLISTED" }
     }
 
     # Consume strictly before any runtime/apply step is allowed to begin -
@@ -1383,7 +1442,7 @@ function Invoke-ApplyMigration {
         }
 
         Write-Host ""
-        Write-Host "This will apply $($state.DbMigrationFile) to your LOCAL Supabase instance only."
+        Write-Host "This will apply the full signed pending migration set ($(@($state.LocalMigrationAllowlist).Count) migration file(s)) to your LOCAL Supabase instance only. Reviewed target: $($state.DbMigrationFile)."
         Write-Host ""
         $confirm = Read-Host "Type YES to apply locally"
         if ($confirm -cne "YES") {
@@ -1404,7 +1463,7 @@ function Invoke-ApplyMigration {
         # also return Authorized = $true before Invoke-
         # LocalSupabaseDbPushExecution is ever called. There is no other
         # call site for that execution function anywhere in this file.
-        $boundedAuth = Invoke-BoundedLocalDatabaseValidation -State $state -RepoRoot $RepoRoot -RequestedMigrations @($state.DbMigrationFile)
+        $boundedAuth = Invoke-BoundedLocalDatabaseValidation -State $state -RepoRoot $RepoRoot -RequestedMigrations @($state.LocalMigrationAllowlist)
         if (-not $boundedAuth.Authorized) {
             $state.DbApplyStatus = "BLOCKED"
             $state.DbState = "DB_ATTENTION_REQUIRED"
