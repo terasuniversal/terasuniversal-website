@@ -79,6 +79,70 @@ try {
         throw "CRITICAL QA/E2E gate is not represented in the router task requirements."
     }
 
+    # Narrow parser contract: scripts/*.mjs is explicitly supported, while
+    # directory-wide, wildcard, traversal, absolute, and unsupported paths
+    # remain outside the extractor's accepted path vocabulary.
+    $scriptsRoot = Join-Path $tempRoot "scripts"
+    $toolsRoot = Join-Path $tempRoot "tools"
+    New-Item -ItemType Directory -Path $scriptsRoot, $toolsRoot -Force | Out-Null
+    foreach ($relative in @("scripts/foo.mjs", "scripts/foo.js", "scripts/foo.ts", "scripts/foo.sql", "scripts/foo.json", "app/foo.ts", "app/foo.tsx", "tools/foo.ps1")) {
+        $full = Join-Path $tempRoot ($relative -replace '/', [IO.Path]::DirectorySeparatorChar)
+        $parent = Split-Path -Parent $full
+        New-Item -ItemType Directory -Path $parent -Force | Out-Null
+        [IO.File]::WriteAllText($full, "fixture")
+    }
+
+    function Assert-Extracts {
+        param([string]$Description, [string]$Expected, [string]$Label)
+        $paths = @(Get-ExplicitTaskPaths -Description $Description)
+        if ($paths.Count -ne 1 -or $paths[0] -cne $Expected) {
+            throw "$Label extraction mismatch: $($paths -join ', ')"
+        }
+        if (-not (Test-ExplicitPathExists -RelativePath $Expected)) {
+            throw "$Label resolved worktree path was not accepted."
+        }
+    }
+
+    function Assert-DoesNotExtract {
+        param([string]$Description, [string]$Label)
+        if (@(Get-ExplicitTaskPaths -Description $Description).Count -ne 0) {
+            throw "$Label was extracted unexpectedly."
+        }
+    }
+
+    Assert-Extracts "scripts/foo.mjs" "scripts/foo.mjs" "scripts mjs"
+    Assert-DoesNotExtract "scripts/foo.js" "scripts js extension"
+    Assert-DoesNotExtract "scripts/foo.ts" "scripts ts extension"
+    Assert-DoesNotExtract "scripts/foo.sql" "scripts sql extension"
+    Assert-DoesNotExtract "scripts/foo.json" "scripts json extension"
+    Assert-Extracts "scripts/foo.mjs." "scripts/foo.mjs" "scripts mjs sentence punctuation"
+    Assert-DoesNotExtract "scripts/foo.mjs.bak" "scripts mjs backup extension"
+    Assert-DoesNotExtract "scripts/foo.mjsx" "scripts mjsx extension"
+    Assert-Extracts "app/foo.ts" "app/foo.ts" "existing ts"
+    Assert-Extracts "app/foo.tsx" "app/foo.tsx" "existing tsx"
+    Assert-Extracts "tools/foo.ps1" "tools/foo.ps1" "existing ps1"
+    Assert-DoesNotExtract "C:\outside\foo.mjs" "absolute outside path"
+    Assert-DoesNotExtract "../outside/foo.mjs" "parent traversal"
+    Assert-DoesNotExtract "scripts/../../outside.mjs" "scripts traversal"
+    Assert-DoesNotExtract "scripts/foo.txt" "unsupported scripts extension"
+    Assert-DoesNotExtract "scripts/*.mjs" "scripts wildcard"
+    Assert-DoesNotExtract "scripts" "scripts directory blanket authorization"
+
+    $outsideRoot = Join-Path ([IO.Path]::GetTempPath()) ("hermes-routing-outside-" + [guid]::NewGuid().ToString("N"))
+    $escapeRoot = Join-Path $scriptsRoot "escape"
+    New-Item -ItemType Directory -Path $outsideRoot -Force | Out-Null
+    [IO.File]::WriteAllText((Join-Path $outsideRoot "foo.mjs"), "outside")
+    New-Item -ItemType Junction -Path $escapeRoot -Target $outsideRoot | Out-Null
+    try {
+        if (Test-ExplicitPathExists -RelativePath "scripts/escape/foo.mjs") {
+            throw "symlink/junction escape was accepted."
+        }
+    } finally {
+        if (Test-Path -LiteralPath $escapeRoot) { [IO.Directory]::Delete($escapeRoot, $false) }
+        if (Test-Path -LiteralPath $outsideRoot) { Remove-Item -LiteralPath $outsideRoot -Recurse -Force }
+    }
+    Write-Output "Explicit task path parser scope tests: PASS"
+
     Write-Output "Agent routing tests: PASS"
 } finally {
     if (Test-Path -LiteralPath $tempRoot) { Remove-Item -LiteralPath $tempRoot -Recurse -Force }

@@ -155,21 +155,21 @@ function Test-RepoRelativePathsEqual {
 # Deliberately conservative - only extracts a token when it is unambiguously
 # a project source path, never a URL, a prose sentence, or an unrelated
 # dotted string.
-$script:KnownTopLevelDirs = @("app", "lib", "components", "supabase", "data", "public", "docs", "tools")
+$script:KnownTopLevelDirs = @("app", "lib", "components", "supabase", "data", "public", "docs", "tools", "scripts")
 
 function Get-ExplicitTaskPaths {
     param([string]$Description)
 
     if ([string]::IsNullOrWhiteSpace($Description)) { return @() }
 
-    $otherTopLevelDirs = ($script:KnownTopLevelDirs | Where-Object { $_ -ne "tools" }) -join "|"
+    $otherTopLevelDirs = ($script:KnownTopLevelDirs | Where-Object { $_ -notin @("tools", "scripts") }) -join "|"
     # Character class covers everything a real path segment in this repo
     # uses, including literal Next.js route-group/dynamic-segment syntax
     # ((protected), [scheduleId]) - matched as literal text, never as a
     # wildcard pattern (this is plain text extraction, not -like/-match
     # scope comparison).
     $pathSegments = "[A-Za-z0-9_\-\.\/\(\)\[\]]+"
-    $pattern = "(?:tools/$pathSegments\.(?:tsx|ts|jsx|js|ps1|css|scss|sql|json|md)|(?:$otherTopLevelDirs)/$pathSegments\.(?:tsx|ts|jsx|js|css|scss|sql|json|md))"
+    $pattern = "(?:tools/$pathSegments\.(?:tsx|ts|jsx|js|ps1|css|scss|sql|json|md)|scripts/$pathSegments\.mjs(?![A-Za-z0-9_\-\/\(\)\[\]]|\.[A-Za-z0-9_])|(?:$otherTopLevelDirs)/$pathSegments\.(?:tsx|ts|jsx|js|css|scss|sql|json|md))"
 
     $found = [regex]::Matches($Description, $pattern)
     $paths = @()
