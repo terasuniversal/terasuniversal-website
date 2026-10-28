@@ -25,6 +25,21 @@ export interface CertificateSkillsResolution {
   skills: CertificateSkillRow[];
 }
 
+/** Owner-approved presentation exception; never alters the stored snapshot. */
+export function shouldShowCapturedErectorSkills(input: {
+  rendererVersion: string | null | undefined;
+  hasSnapshot: boolean;
+  isVerifiedErector: boolean;
+  rows: CertificateSkillRow[];
+}): boolean {
+  const { rendererVersion, hasSnapshot, isVerifiedErector, rows } = input;
+  if (!hasSnapshot || rendererVersion !== "c4_wave1_v1" || !isVerifiedErector) return false;
+  const areas = new Set(rows.map((row) => row.area));
+  return rows.length === CERTIFICATE_SKILL_AREAS.length
+    && CERTIFICATE_SKILL_AREAS.every((area) => areas.has(area))
+    && rows.every((row) => row.status !== "not_recorded" && Object.prototype.hasOwnProperty.call(CERTIFICATE_SKILL_STATUS_LABELS, row.status));
+}
+
 export const CERTIFICATE_SKILL_AREA_LABELS: Record<string, string> = {
   theory_session: "Theory Session",
   practical_training: "Practical Training",

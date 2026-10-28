@@ -4,7 +4,7 @@ import { generateQrSvg, formatHumanDate } from "../../../../lib/certificate-form
 import { findStandardScaffoldProgrammeByCourseId } from "../../../../lib/standard-scaffold-programmes";
 import { findWorkingAtHeightProgrammeByCourseId } from "../../../../lib/working-at-height-programme";
 import { GOLDEN_REFERENCE_OWNER_TITLES } from "../../../../lib/certificate-design-system";
-import { resolveCertificateSkills, type CertificateSkillRow } from "../../../../lib/certificate-skills";
+import { resolveCertificateSkills, shouldShowCapturedErectorSkills, type CertificateSkillRow } from "../../../../lib/certificate-skills";
 import { applyLegacyProgrammePage2, resolveSnapshotPageVisibility, resolveSnapshotProgrammePage2 } from "../../../../lib/certificate-page2-snapshot";
 import type { CertData, TemplateConfig } from "../../../../components/admin/CertificateDocument";
 
@@ -263,6 +263,13 @@ export async function loadCertificateRender(id: string): Promise<
   // display code like "TU-000158") — the eligibility view keys on the uuid.
   const certificateSkillsRecord = await buildCertificateSkillsRecord(supabase, c.id);
   const skillsResolution = resolveCertificateSkills(Boolean(snapshot), certificateSkillsRecord);
+  const programme = findStandardScaffoldProgrammeByCourseId(c.course_id);
+  if (config.design_variant === "standard_scaffold_certificate" && shouldShowCapturedErectorSkills({
+    rendererVersion: snapshot?.renderer_version,
+    hasSnapshot: Boolean(snapshot),
+    isVerifiedErector: programme?.content_status === "verified" && programme.category === "Scaffold Erection",
+    rows: certificateSkillsRecord,
+  })) config.show_skills_record = true;
 
   const data: CertData = {
     render_mode: renderMode,

@@ -25,9 +25,9 @@ import { spawn } from "node:child_process";
 // of this file existing.
 
 const root = process.cwd();
-const bin = path.join(root, "node_modules", ".bin", process.platform === "win32" ? "tsc.cmd" : "tsc");
+const bin = path.join(root, "node_modules", "typescript", "bin", "tsc");
 
-const child = spawn(bin, ["--noEmit"], { stdio: "inherit", cwd: root });
+const child = spawn(process.execPath, [bin, "--noEmit"], { stdio: "inherit", cwd: root });
 child.on("error", (error) => {
   console.error("Could not run tsc — have you run `npm install`?", error.message);
   process.exitCode = 1;

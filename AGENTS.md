@@ -49,6 +49,14 @@ For normal TERAS tasks:
 - if information outside the allowed workspace appears necessary, stop and request approval
 - never use another worktree as an alternate source of truth unless explicitly authorized
 
+### Owner-approved targeted Erector integration, 28 October 2026
+
+This decision applies only to C:\Users\PC\Documents\Codex\2026-10-28\referenced-chatgpt-conversation-this-is-an\work\certificate-c4b-baseline at starting commit 94ad9a767ac4500e369bd48d3f121252de3e7b37, under the owner's targeted policy/typecheck approval in this chat. It authorizes this session's direct isolated maintenance without a Hermes dispatch or transfer of any existing task ownership.
+For this task only, this clause takes precedence over conflicting workspace and application-source prohibitions below. Application edits are limited to lib/certificate-skills.ts and app/admin/(protected)/certificates/certData.ts, by original patch SHA256 1FD4915AD1923ADD87F9126A3B45FD270C241618F6B61246F29A14865CB500A4, for Basic/Intermediate/Advanced Erector historical skills presentation. Separately, scripts/typecheck.mjs may only be repaired to launch the same TypeScript compiler via process.execPath and its JavaScript entry point, preserving --noEmit and all checking settings. No other application or configuration edits are authorized.
+Read and preserve inherited Marketing .ai records byte-for-byte; they do not authorize Marketing work or identify this task. Conflicting .ai update/handoff requirements are satisfied for this task by reports in the calling chat's outputs/targeted-integration directory. No metadata regeneration or fabricated task ID is authorized.
+C4B remains FAIL with the owner's accepted matching baseline deviation concerning next.config.mjs; neither test nor next.config.mjs may change. npm run typecheck must actually pass. Browser golden-path QA remains a later acceptance gate; any Preview deployment needs separate approval.
+No database/snapshot, Production, stamp asset, issuance, Git ownership/configuration, commit/push/merge or deployment permission is granted. Existing host controls and all other safety requirements remain in force. Stop on unexpected scope or source changes.
+
 STRICT RULES:
 
 - Do not modify application code.
