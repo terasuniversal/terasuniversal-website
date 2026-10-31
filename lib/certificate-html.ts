@@ -376,13 +376,19 @@ export function renderCertificateBack(data: CertData, config: TemplateConfig): s
         <span style="flex:1;height:1px;background:#e3e7ee;align-self:center;"></span>
       </div>`;
   const section = (icon: IconKind, title: string, body: string) =>
-    `<div style="margin-bottom:16px;">
+    `<div style="margin-bottom:10px;">
       ${sectionHead(icon, title)}${body}
     </div>`;
-  /** Mirrors BulletList in CertificateDocument.tsx — one gold-square bullet treatment for every list on this page. */
+  /**
+   * Mirrors BulletList in CertificateDocument.tsx — one gold-square bullet
+   * treatment for every list on this page. line-height/margin (not
+   * font-size) tightened for the full-length real programme content — see
+   * that component's matching comment and the Verification/footer
+   * clearance fix this accompanies.
+   */
   const bulletList = (items: string[]) =>
-    `<ul style="margin:0;padding:0;list-style:none;font-size:10.5px;line-height:1.7;color:#374151;">${items
-      .map((it) => `<li style="display:flex;gap:8px;margin-bottom:4px;"><span style="width:6px;height:1px;background:${gold};margin-top:8px;flex-shrink:0;"></span><span>${esc(it)}</span></li>`)
+    `<ul style="margin:0;padding:0;list-style:none;font-size:10.5px;line-height:1.55;color:#374151;">${items
+      .map((it) => `<li style="display:flex;gap:8px;margin-bottom:3px;"><span style="width:6px;height:1px;background:${gold};margin-top:8px;flex-shrink:0;"></span><span>${esc(it)}</span></li>`)
       .join("")}</ul>`;
   const colDivider = `<div style="width:1px;align-self:stretch;background:#edf0f4;"></div>`;
   const thStyle = `text-align:left;font-weight:700;color:#8a94a6;font-family:${SANS};font-size:8px;letter-spacing:1.1px;text-transform:uppercase;border-bottom:1px solid ${gold};`;
@@ -422,27 +428,27 @@ export function renderCertificateBack(data: CertData, config: TemplateConfig): s
     ${ribbonBanner(`<span style="font-size:9px;font-weight:700;letter-spacing:2.2px;font-family:${SANS};text-indent:2.2px;">PARTICIPANT SKILLS RECORD</span>`, navy, gold, "align-self:center;display:block;width:fit-content;margin:0 auto;")}
     <div style="text-align:center;font-size:16px;font-weight:700;color:${navy};text-transform:uppercase;margin:13px 0 0;line-height:1.3;letter-spacing:.8px;font-family:'Montserrat','Poppins','Inter',Arial,sans-serif;overflow-wrap:anywhere;">${esc(config.programme_title || data.course_name || "")}</div>
     <div style="display:flex;justify-content:center;gap:18px;flex-wrap:wrap;margin:8px 0 0;color:#667085;font-family:${SANS};font-size:8.5px;"><span>Participant: <strong style="color:${navy}">${esc(data.holder_name)}</strong></span>${data.ic_passport ? `<span style="overflow-wrap:anywhere;">IC / Passport No.: <strong style="color:${navy}">${esc(data.ic_passport)}</strong></span>` : ""}<span>Certificate No.: <strong style="color:${navy}">${esc(data.certificate_number)}</strong></span><span>Training period: <strong style="color:${navy}">${esc(formatDateRange(data.training_date, data.training_end_date) || "—")}</strong></span></div>
-    <div style="display:flex;margin:10px 0 15px;">
+    <div style="display:flex;margin:8px 0 10px;">
       <span style="width:28px;height:1.5px;background:${gold};"></span>
       <span style="flex:1;height:1px;background:#e3e7ee;align-self:center;"></span>
     </div>
-    ${showSkillsRecord ? `<div style="border-top:1px solid ${navy};border-bottom:1px solid #e3e7ee;padding:12px 14px 10px;margin-bottom:18px;">${skillsTable}</div>` : ""}
+    ${showSkillsRecord ? `<div style="border-top:1px solid ${navy};border-bottom:1px solid #e3e7ee;padding:12px 14px 10px;margin-bottom:10px;">${skillsTable}</div>` : ""}
     <div style="display:flex;gap:26px;flex:1;">
-      <div style="flex:1;padding-top:16px;">
-        ${config.objectives_text ? section("target", "PROGRAMME OBJECTIVES", `<p style="margin:0;font-size:10px;line-height:1.7;color:#374151;">${esc(config.objectives_text)}</p>`) : ""}
+      <div style="flex:1;padding-top:8px;">
+        ${config.objectives_text ? section("target", "PROGRAMME OBJECTIVES", `<p style="margin:0;font-size:10px;line-height:1.55;color:#374151;">${esc(config.objectives_text)}</p>`) : ""}
         ${coverage.length ? section("book", "PROGRAMME COVERAGE", bulletList(coverage)) : ""}
       </div>
       ${colDivider}
-      <div style="flex:1;padding-top:16px;">
+      <div style="flex:1;padding-top:8px;">
         ${outcomes.length ? section(
                   "bulb",
                   "LEARNING OUTCOMES",
-                  `<p style="margin:0 0 10px;font-size:10.5px;line-height:1.7;color:#6b7280;">Upon successful completion, participants should be able to:</p>
+                  `<p style="margin:0 0 8px;font-size:10.5px;line-height:1.55;color:#6b7280;">Upon successful completion, participants should be able to:</p>
                    ${bulletList(outcomes)}`
                 ) : ""}
       </div>
       ${colDivider}
-      <div style="flex:1;padding-top:16px;">
+      <div style="flex:1;padding-top:8px;">
         ${assessment.length ? section("clipboard", "ASSESSMENT METHOD", bulletList(assessment)) : ""}
       </div>
     </div>
@@ -450,7 +456,7 @@ export function renderCertificateBack(data: CertData, config: TemplateConfig): s
           ${sectionHead("warning", "IMPORTANT NOTICE")}
           ${noticeHtml}
         </div>` : ""}
-    <div style="margin-top:16px;padding-bottom:8px;">
+    <div style="margin-top:10px;padding-bottom:8px;">
       ${sectionHead("shield", "VERIFICATION")}
       <div style="display:flex;align-items:center;justify-content:space-between;gap:22px;">
         <div style="flex:1;display:grid;grid-template-columns:1fr 1fr;row-gap:11px;column-gap:24px;font-size:10px;color:#374151;">

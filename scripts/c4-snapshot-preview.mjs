@@ -37,6 +37,11 @@ execFileSync(process.execPath, [
   resolve(root, "lib/certificate-watermark-assets.ts"),
   resolve(root, "lib/certificate-approval-assets.ts"),
   resolve(root, "lib/teras-company.ts"),
+  // Compiled too, for the HTML/Bulk-ZIP render path check below (Task 3:
+  // "Test both React and HTML/Bulk ZIP render paths where supported") --
+  // this is the exact string renderer app/.../download-zip/route.ts uses,
+  // not a separate reimplementation.
+  resolve(root, "lib/certificate-html.ts"),
 ], { cwd: root, stdio: "inherit" });
 
 process.env.NODE_PATH = [process.env.PLAYWRIGHT_NODE_PATH, resolve(root, "node_modules"), process.env.NODE_PATH].filter(Boolean).join(delimiter);
@@ -45,6 +50,7 @@ const require = createRequire(import.meta.url);
 const React = require("react");
 const { renderToStaticMarkup } = require("react-dom/server");
 const { CertificateFront, CertificateBack } = require(resolve(compileDir, "components/admin/CertificateRenderer.js"));
+const { renderCertificateFront: renderHtmlFront, renderCertificateBack: renderHtmlBack } = require(resolve(compileDir, "lib/certificate-html.js"));
 const { chromium } = require("playwright-core");
 
 const publicUrl = pathToFileURL(resolve(root, "public") + "/").href;
@@ -90,6 +96,14 @@ const baseData = {
   ],
 };
 
+// Content below is copied verbatim from lib/standard-scaffold-programmes.ts's
+// basic_erection/intermediate_erection/advanced_erection entries (the real,
+// "verified" / content_status catalog content, sourced from
+// data/courseCatalog.js) -- not a shortened placeholder. The prior revision
+// of this fixture used 2-4 item coverage/outcome lists where the real
+// catalog has 7 and 5 respectively; that under-stressed the Page 2 middle
+// block and is why a passing local QA run did not predict the real
+// Verification/footer overlap the owner found on actual staging PDFs.
 const levels = [
   {
     key: "erector-basic",
@@ -98,10 +112,24 @@ const levels = [
     config: {
       programme_title: "TERAS BASIC SCAFFOLD ERECTION PROGRAMME",
       duration_label: "10-Day Practical Training",
-      objectives_text: "Fundamental knowledge and practical skills to safely erect, modify, inspect and dismantle scaffolding structures.",
-      coverage_items: ["Scaffolding Components & Terminology", "Workplace Hazard Identification"],
-      learning_outcomes: ["Identify scaffolding components and terminology correctly"],
-      assessment_methods: ["Theory Assessment", "Practical Assessment"],
+      objectives_text: "Fundamental knowledge and practical skills to safely erect, modify, inspect and dismantle scaffolding structures in accordance with industry standards and workplace safety requirements.",
+      coverage_items: [
+        "Scaffolding Components & Terminology",
+        "Workplace Hazard Identification",
+        "Personal Protective Equipment (PPE)",
+        "Safe Scaffold Erection & Dismantling",
+        "Pre-Use Component Inspection",
+        "Safety Procedures & Best Practices",
+        "Teamwork in Scaffolding Operations",
+      ],
+      learning_outcomes: [
+        "Identify scaffolding components and terminology correctly",
+        "Recognise and control common workplace hazards",
+        "Select and use PPE correctly",
+        "Erect and dismantle basic scaffold structures safely",
+        "Carry out a pre-use inspection of scaffold components",
+      ],
+      assessment_methods: ["Theory Assessment", "Practical Assessment", "Continuous Trainer Evaluation"],
     },
   },
   {
@@ -113,9 +141,23 @@ const levels = [
     config: {
       programme_title: "TERAS INTERMEDIATE SCAFFOLD ERECTION PROGRAMME",
       duration_label: "10-Day Practical Training",
-      objectives_text: "Further develops the knowledge, technical skills and practical competency of scaffolders who have completed Basic Scaffold Erection.",
-      coverage_items: ["Work Planning & Organisation", "Reading Scaffold Drawings & Instructions", "Erecting Complex Scaffold Structures"],
-      learning_outcomes: ["Plan scaffolding work activities safely", "Interpret scaffold drawings and work instructions"],
+      objectives_text: "Further develops the knowledge, technical skills and practical competency of scaffolders who have completed Basic Scaffold Erection, for greater responsibilities in construction, maintenance, petrochemical and Oil & Gas operations.",
+      coverage_items: [
+        "Work Planning & Organisation",
+        "Reading Scaffold Drawings & Instructions",
+        "Erecting Complex Scaffold Structures",
+        "Hazard Identification & Control Measures",
+        "Inspecting Completed Structures",
+        "Safe Supervision Practices",
+        "Industry Standards & Regulatory Requirements",
+      ],
+      learning_outcomes: [
+        "Plan scaffolding work activities safely",
+        "Interpret scaffold drawings and work instructions",
+        "Erect, modify and dismantle more complex scaffold structures",
+        "Identify hazards and apply effective control measures",
+        "Conduct inspections on completed scaffold structures",
+      ],
       assessment_methods: ["Theory Assessment", "Practical Assessment", "Continuous Trainer Evaluation"],
     },
   },
@@ -126,9 +168,55 @@ const levels = [
     config: {
       programme_title: "TERAS ADVANCED SCAFFOLD ERECTION PROGRAMME",
       duration_label: "10-Day Practical Training",
-      objectives_text: "Designed for experienced scaffolders who wish to further enhance their technical expertise and leadership capabilities in complex scaffolding operations.",
-      coverage_items: ["Planning Complex Scaffolding Operations", "Team Supervision & Safety", "Advanced Drawings & Specifications", "Scaffold Stability Evaluation"],
-      learning_outcomes: ["Plan and coordinate complex scaffolding operations", "Supervise scaffolding teams effectively and safely"],
+      objectives_text: "Designed for experienced scaffolders who wish to further enhance their technical expertise and leadership capabilities in complex scaffolding operations, covering advanced planning, supervision, structural stability, inspection and risk management.",
+      coverage_items: [
+        "Planning Complex Scaffolding Operations",
+        "Team Supervision & Safety",
+        "Advanced Drawings & Specifications",
+        "Scaffold Stability Evaluation",
+        "Comprehensive Inspection & Corrective Action",
+        "Risk Management & Compliance",
+        "Leadership & Communication",
+      ],
+      learning_outcomes: [
+        "Plan and coordinate complex scaffolding operations",
+        "Supervise scaffolding teams effectively and safely",
+        "Evaluate scaffold stability and identify structural hazards",
+        "Conduct comprehensive scaffold inspections",
+        "Apply risk management strategies and regulatory requirements",
+      ],
+      assessment_methods: ["Theory Assessment", "Practical Assessment", "Continuous Trainer Evaluation"],
+    },
+  },
+  {
+    key: "erector-long-number-stress",
+    name: "ADVANCED SCAFFOLDING ERECTOR",
+    // Deliberately longer than the intermediate level's already-long number,
+    // isolating certificate-number length from programme-content length as
+    // a separate stress dimension (Task 3's explicit "long certificate
+    // number stress case"), reusing the Advanced level's real (longest)
+    // content so both stresses combine in one fixture.
+    certificateNumber: "TU-CERT-2026-ADVANCED-SCAFFOLDING-ERECTOR-SUPERVISOR-QUALIFICATION-000999",
+    config: {
+      programme_title: "TERAS ADVANCED SCAFFOLD ERECTION PROGRAMME",
+      duration_label: "10-Day Practical Training",
+      objectives_text: "Designed for experienced scaffolders who wish to further enhance their technical expertise and leadership capabilities in complex scaffolding operations, covering advanced planning, supervision, structural stability, inspection and risk management.",
+      coverage_items: [
+        "Planning Complex Scaffolding Operations",
+        "Team Supervision & Safety",
+        "Advanced Drawings & Specifications",
+        "Scaffold Stability Evaluation",
+        "Comprehensive Inspection & Corrective Action",
+        "Risk Management & Compliance",
+        "Leadership & Communication",
+      ],
+      learning_outcomes: [
+        "Plan and coordinate complex scaffolding operations",
+        "Supervise scaffolding teams effectively and safely",
+        "Evaluate scaffold stability and identify structural hazards",
+        "Conduct comprehensive scaffold inspections",
+        "Apply risk management strategies and regulatory requirements",
+      ],
       assessment_methods: ["Theory Assessment", "Practical Assessment", "Continuous Trainer Evaluation"],
     },
   },
@@ -175,6 +263,34 @@ try {
       await page.close();
     }
     console.log(`generated ${resolve(output, `${level.key}.pdf`)}`);
+
+    // HTML/Bulk-ZIP render path (lib/certificate-html.ts, the string
+    // renderer app/.../certificates/download-zip/route.ts actually uses --
+    // not a reimplementation) -- Task 3 explicitly requires both the React
+    // and HTML paths be exercised, not just the React admin preview path.
+    const htmlFront = renderHtmlFront(data, config);
+    const htmlBack = renderHtmlBack(data, config);
+    const htmlDoc = `<!doctype html><html lang="en"><head><meta charset="utf-8"><style>${styles}</style></head><body><section class="cert-page">${rewritePublicPaths(htmlFront)}</section><section class="cert-page">${rewritePublicPaths(htmlBack)}</section></body></html>`;
+    const htmlDocPath = resolve(runDir, `${level.key}-html.html`);
+    writeFileSync(htmlDocPath, htmlDoc, "utf8");
+
+    const htmlPage = await browserContext.newPage();
+    try {
+      await htmlPage.goto(pathToFileURL(htmlDocPath).href, { waitUntil: "load" });
+      await htmlPage.emulateMedia({ media: "print" });
+      await htmlPage.pdf({
+        path: resolve(output, `${level.key}-html.pdf`),
+        format: "A4",
+        preferCSSPageSize: true,
+        printBackground: true,
+        displayHeaderFooter: false,
+        margin: { top: "0", right: "0", bottom: "0", left: "0" },
+        scale: 1,
+      });
+    } finally {
+      await htmlPage.close();
+    }
+    console.log(`generated ${resolve(output, `${level.key}-html.pdf`)}`);
   }
 } finally {
   await browserContext.close();

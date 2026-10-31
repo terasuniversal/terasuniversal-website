@@ -697,7 +697,7 @@ export function CertificateBackPage({ data, config }: { data: CertData; config: 
     </>
   );
   const Section = ({ icon, title, children }: { icon: IconKind; title: string; children: ReactNode }) => (
-    <div style={{ marginBottom: 16 }}>
+    <div style={{ marginBottom: 10 }}>
       <SectionHead icon={icon} title={title} />
       {children}
     </div>
@@ -708,11 +708,17 @@ export function CertificateBackPage({ data, config }: { data: CertData; config: 
    * used browser disc bullets, so three adjacent columns each announced their
    * items differently. A dash sits quieter than a square at this size and
    * matches the rule language used by the section heads.
+   *
+   * line-height/margin (not font-size) were tightened for the full-length
+   * real programme content (7 coverage items + a multi-line objectives
+   * paragraph on every Erector level, not the shorter placeholder text this
+   * was first tuned against) — see the Verification/footer clearance fix
+   * this accompanies. Reclaims vertical budget without shrinking type.
    */
   const BulletList = ({ items }: { items: string[] }) => (
-    <ul style={{ margin: 0, padding: 0, listStyle: "none", fontSize: 10.5, lineHeight: 1.7, color: "#374151" }}>
+    <ul style={{ margin: 0, padding: 0, listStyle: "none", fontSize: 10.5, lineHeight: 1.55, color: "#374151" }}>
       {items.map((it, i) => (
-        <li key={i} style={{ display: "flex", gap: 8, marginBottom: 4 }}>
+        <li key={i} style={{ display: "flex", gap: 8, marginBottom: 3 }}>
           <span style={{ width: 6, height: 1, background: gold, marginTop: 8, flexShrink: 0 }} />
           <span>{it}</span>
         </li>
@@ -741,13 +747,13 @@ export function CertificateBackPage({ data, config }: { data: CertData; config: 
         {/* Masthead close: a full-width layered rule rather than a floating
             44px gold dash, so the title block terminates with the same
             gold-into-hairline device the sections below use. */}
-        <div style={{ display: "flex", margin: "10px 0 15px" }}>
+        <div style={{ display: "flex", margin: "8px 0 10px" }}>
           <span style={{ width: 28, height: 1.5, background: gold }} />
           <span style={{ flex: 1, height: 1, background: "#e3e7ee", alignSelf: "center" }} />
         </div>
 
         {showSkillsRecord && (
-          <div style={{ borderTop: `1px solid ${navy}`, borderBottom: "1px solid #e3e7ee", padding: "12px 14px 10px", marginBottom: 18 }}>
+          <div style={{ borderTop: `1px solid ${navy}`, borderBottom: "1px solid #e3e7ee", padding: "12px 14px 10px", marginBottom: 10 }}>
             <SectionHead icon="doc" title="PARTICIPANT SKILLS RECORD" />
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 9.5 }}>
               <thead><tr>
@@ -766,21 +772,21 @@ export function CertificateBackPage({ data, config }: { data: CertData; config: 
         )}
 
         <div style={{ display: "flex", gap: 26, flex: 1 }}>
-          <div style={{ flex: 1, paddingTop: 16 }}>
+          <div style={{ flex: 1, paddingTop: 8 }}>
             {config.objectives_text && <Section icon="target" title="PROGRAMME OBJECTIVES">
-              <p style={{ margin: 0, fontSize: 10, lineHeight: 1.7, color: "#374151" }}>{config.objectives_text}</p>
+              <p style={{ margin: 0, fontSize: 10, lineHeight: 1.55, color: "#374151" }}>{config.objectives_text}</p>
             </Section>}
             {coverage.length > 0 && <Section icon="book" title="PROGRAMME COVERAGE"><BulletList items={coverage} /></Section>}
           </div>
           <ColumnDivider />
-          <div style={{ flex: 1, paddingTop: 16 }}>
+          <div style={{ flex: 1, paddingTop: 8 }}>
             {outcomes.length > 0 && <Section icon="bulb" title="LEARNING OUTCOMES">
-              <p style={{ margin: "0 0 10px", fontSize: 10.5, lineHeight: 1.7, color: "#6b7280" }}>Upon successful completion, participants should be able to:</p>
+              <p style={{ margin: "0 0 8px", fontSize: 10.5, lineHeight: 1.55, color: "#6b7280" }}>Upon successful completion, participants should be able to:</p>
               <BulletList items={outcomes} />
             </Section>}
           </div>
           <ColumnDivider />
-          <div style={{ flex: 1, paddingTop: 16 }}>
+          <div style={{ flex: 1, paddingTop: 8 }}>
             {assessment.length > 0 && <Section icon="clipboard" title="ASSESSMENT METHOD"><BulletList items={assessment} /></Section>}
 
                       </div>
@@ -795,7 +801,7 @@ export function CertificateBackPage({ data, config }: { data: CertData; config: 
           ))}
         </div>}
 
-        <div style={{ marginTop: 16, paddingBottom: 8 }}>
+        <div style={{ marginTop: 10, paddingBottom: 8 }}>
           <SectionHead icon="shield" title="VERIFICATION" />
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 22 }}>
             <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", rowGap: 11, columnGap: 24, fontSize: 10, color: "#374151" }}>
