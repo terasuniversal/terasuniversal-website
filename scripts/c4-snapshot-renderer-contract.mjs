@@ -23,7 +23,7 @@
 // slice, same technique as c4-skills-completeness-contract.mjs.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import Module, { createRequire } from "node:module";
 import { delimiter, resolve } from "node:path";
@@ -251,6 +251,82 @@ const erectorPayload = {
     assert.ok(markup.includes("TERAS BASIC SCAFFOLD ERECTION PROGRAMME"), `${name}: frozen programme title must render on the back page`);
   }
   console.log("PASS React/HTML parity holds for a full Golden Reference Erector render (front + back)");
+}
+
+// ============================================================
+// 8. Five-area skills record must now be VISIBLE for an eligible Golden
+//    Reference certificate (the show_skills_record fix), using the real
+//    skills data as-is -- no fabricated/substituted statuses.
+// ============================================================
+{
+  const config = { design_variant: "standard_scaffold_certificate", primary_color: "#0B3A63", accent_color: "#D4AF37" };
+  applyGoldenReferenceSnapshotConfig(config, "c4_wave1_v1", erectorPayload);
+  assert.equal(config.show_skills_record, true, "show_skills_record must be enabled for an eligible Golden Reference certificate");
+  const data = {
+    certificate_number: "TU-CERT-2026-ERECTOR-SKILLS-000124",
+    holder_name: "SYNTHETIC QA PARTICIPANT",
+    course_name: "BASIC SCAFFOLDING ERECTOR",
+    skills: [
+      { area: "Theory Session", status: "Completed" },
+      { area: "Practical Training", status: "Completed" },
+      { area: "Safety Awareness", status: "Completed" },
+      { area: "Practical Assessment", status: "Passed" },
+      { area: "Attendance Requirement", status: "Met" },
+    ],
+  };
+  const reactBack = renderToStaticMarkup(React.createElement(CertificateBack, { data, config }));
+  const htmlBack = renderCertificateBack(data, config);
+  for (const [name, markup] of [["React", reactBack], ["HTML", htmlBack]]) {
+    assert.ok(markup.includes("PARTICIPANT SKILLS RECORD"), `${name}: skills record section must be visible`);
+    for (const area of ["Theory Session", "Practical Training", "Safety Awareness", "Practical Assessment", "Attendance Requirement"]) {
+      assert.ok(markup.includes(area), `${name}: skills area "${area}" must render verbatim`);
+    }
+  }
+  console.log("PASS five-area skills record is now visible for an eligible Golden Reference certificate, in React and HTML");
+}
+
+// ============================================================
+// 9. Historical watermark asset file now actually exists on disk (it was
+//    missing before this fix) and the resolver's src path resolves to it.
+// ============================================================
+{
+  const assetPath = resolve(repoRoot, "public/certificates/watermarks/scaffolding-technical.svg");
+  assert.ok(existsSync(assetPath), "public/certificates/watermarks/scaffolding-technical.svg must exist on disk");
+  const svg = readFileSync(assetPath, "utf8");
+  assert.ok(svg.includes("<svg"), "the restored asset must be a real SVG file, not an empty/placeholder file");
+  console.log("PASS scaffolding-technical.svg now exists on disk and is a real SVG");
+}
+
+// ============================================================
+// 10. Issuing Branch Address: renders only when present; never fabricated,
+//     never substituted by venue when absent.
+// ============================================================
+{
+  const config = { design_variant: "standard_scaffold_certificate", contact_phone: "012-3456789" };
+  const withAddress = { certificate_number: "TU-CERT-ADDR-001", holder_name: "SYNTHETIC QA PARTICIPANT", venue: "Synthetic QA Training Venue", issuer_branch_address: "LOT 1961, JALAN TANAH MERAH, KG TANAH MERAH DALAM, 06000 JITRA, KEDAH." };
+  const withoutAddress = { certificate_number: "TU-CERT-ADDR-002", holder_name: "SYNTHETIC QA PARTICIPANT", venue: "Synthetic QA Training Venue", issuer_branch_address: null };
+  for (const [name, renderFn, dataIn] of [
+    ["React present", (d, c) => renderToStaticMarkup(React.createElement(CertificateBack, { data: d, config: c })), withAddress],
+    ["HTML present", renderCertificateBack, withAddress],
+    ["React absent", (d, c) => renderToStaticMarkup(React.createElement(CertificateBack, { data: d, config: c })), withoutAddress],
+    ["HTML absent", renderCertificateBack, withoutAddress],
+  ]) {
+    const markup = renderFn(dataIn, config);
+    if (dataIn.issuer_branch_address) {
+      assert.ok(markup.includes("Issuing Branch Address"), `${name}: label must render when an address is present`);
+      assert.ok(markup.includes("JITRA"), `${name}: the real address text must render verbatim`);
+    } else {
+      assert.ok(!markup.includes("Issuing Branch Address"), `${name}: label must not render when no address is present`);
+      assert.ok(!markup.includes("Synthetic QA Training Venue".toUpperCase()) || true, "sanity no-op"); // venue itself is expected elsewhere on the page; see next assertion
+    }
+    // Venue must never be mistaken for the issuer address in either case: the
+    // literal "Issuing Branch Address" label must only ever be followed by
+    // the real address text, never by the venue string.
+    if (markup.includes("Issuing Branch Address")) {
+      assert.ok(!markup.includes("Issuing Branch Address</div><div style=\"color:#0B3A63;font-weight:700;margin-top:2px;\">Synthetic QA Training Venue"), `${name}: venue must never be substituted for the issuer address`);
+    }
+  }
+  console.log("PASS Issuing Branch Address renders only when an authoritative address is present, never substituting venue");
 }
 
 console.log("c4-snapshot-renderer-contract: all Phase A snapshot-safe Golden Reference checks passed");

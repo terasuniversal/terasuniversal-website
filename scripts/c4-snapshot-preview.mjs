@@ -55,6 +55,7 @@ const config = {
   frozen_watermark_asset_family: "scaffolding-technical",
   show_back_page: true,
   show_qr: true,
+  show_skills_record: true,
   logo_url: `${publicUrl}certificates/template-a/teras-symbol-v2.png`,
   primary_color: "#0B3A63",
   accent_color: "#D4AF37",
@@ -68,6 +69,7 @@ const data = {
   issue_date: "2026-09-10",
   venue: "Synthetic QA Venue",
   ic_passport: "SYNTHETIC-NOT-REAL",
+  issuer_branch_address: "LOT 1961, JALAN TANAH MERAH, KG TANAH MERAH DALAM, 06000 JITRA, KEDAH.",
   qr_svg: '<svg viewBox="0 0 29 29" xmlns="http://www.w3.org/2000/svg"><rect width="29" height="29" fill="white"/><rect x="2" y="2" width="8" height="8" fill="#0b1f3a"/><rect x="19" y="2" width="8" height="8" fill="#0b1f3a"/><rect x="2" y="19" width="8" height="8" fill="#0b1f3a"/></svg>',
   skills: [
     { area: "Theory Session", status: "Completed" },
@@ -81,7 +83,13 @@ const data = {
 const styles = `@page{size:A4 portrait;margin:0}html,body{margin:0!important;padding:0!important;background:#fff!important}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}.cert-page{width:794px;height:1123px;margin:0;padding:0;position:relative;overflow:hidden;break-after:page;page-break-after:always}.cert-page:last-child{break-after:auto;page-break-after:auto}`;
 const front = renderToStaticMarkup(React.createElement(CertificateFront, { data, config }));
 const back = renderToStaticMarkup(React.createElement(CertificateBack, { data, config }));
-const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><style>${styles}</style></head><body><section class="cert-page">${front}</section><section class="cert-page">${back}</section></body></html>`;
+// The app emits site-root-relative URLs (e.g. /certificates/watermarks/...),
+// correct for an actual HTTP origin (Next.js serving public/) but not
+// resolvable when this script loads the HTML directly via file://. Rewrite
+// to the checked-out public/ directory for this local-only preview, same
+// pattern already used by scripts/c4-watermark-source-proof.mjs.
+const rewritePublicPaths = (markup) => markup.replaceAll('"/certificates/', `"${publicUrl}certificates/`);
+const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><style>${styles}</style></head><body><section class="cert-page">${rewritePublicPaths(front)}</section><section class="cert-page">${rewritePublicPaths(back)}</section></body></html>`;
 const htmlPath = resolve(runDir, "erector-snapshot.html");
 writeFileSync(htmlPath, html, "utf8");
 

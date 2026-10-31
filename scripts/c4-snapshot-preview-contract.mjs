@@ -27,4 +27,10 @@ assert.ok(pages[0].normalized.includes(normalize("TU-CERT-2026-ERECTOR-SNAPSHOT-
 assert.ok(pages[0].normalized.includes("SYNTHETICQAPARTICIPANT"), "Page 1: participant must be synthetic");
 assert.ok(pages[1].normalized.includes("QRVERIFICATION"), "Page 2: QR heading missing");
 assert.ok(pages[1].normalized.includes(normalize("TERAS BASIC SCAFFOLD ERECTION PROGRAMME")), "Page 2: frozen programme title missing");
-console.log("c4-snapshot-preview-contract: 2 nonblank A4 pages; Golden Reference title, certificate number, QR and frozen programme content all verified");
+assert.ok(pages[1].normalized.includes("PARTICIPANTSKILLSRECORD"), "Page 2: skills record section missing");
+for (const area of ["THEORYSESSION", "PRACTICALTRAINING", "SAFETYAWARENESS", "PRACTICALASSESSMENT", "ATTENDANCEREQUIREMENT"]) {
+  assert.ok(pages[1].normalized.includes(area), `Page 2: skills area ${area} missing from the rendered table`);
+}
+assert.ok(pages[1].normalized.includes("ISSUINGBRANCHADDRESS"), "Page 2: Issuing Branch Address label missing");
+assert.ok(pages[1].normalized.includes(normalize("JALAN TANAH MERAH")) && pages[1].normalized.includes("JITRA"), "Page 2: issuer address text missing or clipped");
+console.log("c4-snapshot-preview-contract: 2 nonblank A4 pages; Golden Reference title, certificate number, QR, frozen programme content, five-area skills record and issuing branch address all verified");

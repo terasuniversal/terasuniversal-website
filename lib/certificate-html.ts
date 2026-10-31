@@ -458,6 +458,7 @@ export function renderCertificateBack(data: CertData, config: TemplateConfig): s
           ${config.contact_phone ? verifyRow("Contact Number", config.contact_phone) : ""}
           ${config.contact_website ? verifyRow("Website", config.contact_website) : ""}
           ${config.contact_email ? verifyRow("Email", config.contact_email) : ""}
+          ${data.issuer_branch_address ? verifyRow("Issuing Branch Address", data.issuer_branch_address) : ""}
         </div>
         ${qrHtml}
       </div>

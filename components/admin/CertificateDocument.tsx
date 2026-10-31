@@ -56,6 +56,14 @@ export interface CertData {
   effective_skills_record?: CertificateSkillRow[] | null;
   /** Normalized historical skills consumed identically by React and HTML renderers. */
   skills?: CertificateSkillRow[] | null;
+  /**
+   * Issuing branch's registered address, as an authoritative historical fact
+   * resolved once by certData.ts (MODERN_SNAPSHOT: only the frozen snapshot
+   * row's own branch_address, never a live/legacy fallback; LEGACY_FALLBACK:
+   * the certificate's own base row). Null when no authoritative address was
+   * captured -- the renderer must not substitute venue or any other field.
+   */
+  issuer_branch_address?: string | null;
 }
 
 export interface TemplateConfig {
@@ -796,6 +804,7 @@ export function CertificateBackPage({ data, config }: { data: CertData; config: 
                 { label: "Contact Number", value: config.contact_phone },
                 { label: "Website", value: config.contact_website },
                 { label: "Email", value: config.contact_email },
+                { label: "Issuing Branch Address", value: data.issuer_branch_address },
               ].filter((row): row is { label: string; value: string } => Boolean(row.value)).map((row) => (
                 <div key={row.label} style={{ borderLeft: "1px solid #e3e7ee", paddingLeft: 10 }}>
                   <div style={{ fontSize: 8, letterSpacing: 1.1, color: "#8a94a6", fontFamily: SANS, textTransform: "uppercase" }}>{row.label}</div>

@@ -75,6 +75,15 @@ export function applyGoldenReferenceSnapshotConfig(
   config.certificate_title = payload.certificate_title;
   config.show_back_page = true;
   config.show_qr ??= true;
+  // Direct assignment, not ??=: the shared certificate_templates row this
+  // frozen template_config was copied from at issuance sets
+  // show_skills_record:false explicitly (see the !snapshot Standard Scaffold
+  // block above), so ??= would never flip it. The table this reveals is
+  // backed only by certificateSkillsRecord (certificate_skill_results, an
+  // immutable, RPC-only-written table -- never participant_skill_results),
+  // resolved above via resolveCertificateSkills() into effectiveSkillsRecord/
+  // data.skills -- never recomputed from mutable programme/participant data.
+  config.show_skills_record = true;
   config.frozen_watermark_asset_family = payload.watermark_asset_family ?? null;
   const content = payload.programme_content;
   if (content) {
@@ -128,7 +137,7 @@ export async function loadCertificateRender(id: string): Promise<
   const c = cert as any;
   const { data: issuanceSnapshot, error: snapshotError } = await supabase
     .from("certificate_issuance_snapshots")
-    .select("snapshot_version, renderer_version, holder_name, identity_no, identity_last4, course_name, training_start_date, training_end_date, venue, trainer_name, template_id, template_name, template_config, signature_reference, verification_metadata, render_payload")
+    .select("snapshot_version, renderer_version, holder_name, identity_no, identity_last4, course_name, training_start_date, training_end_date, venue, trainer_name, template_id, template_name, template_config, signature_reference, verification_metadata, render_payload, branch_address")
     .eq("certificate_id", c.id)
     .maybeSingle();
   if (snapshotError) {
@@ -148,8 +157,21 @@ export async function loadCertificateRender(id: string): Promise<
     signature_reference?: string | null;
     verification_metadata?: Record<string, unknown> | null;
     render_payload?: Record<string, unknown> | null;
+    branch_address?: string | null;
   } | null;
   const renderMode = snapshot ? "MODERN_SNAPSHOT" : "LEGACY_FALLBACK";
+  // Issuing branch's registered address, as an authoritative historical fact.
+  // MODERN_SNAPSHOT: only the frozen snapshot row's own branch_address --
+  // deliberately never falls through to the live `certificates` row or to
+  // certificate_branches if the snapshot's own value is missing, so a
+  // snapshot-backed certificate can never silently acquire an address from a
+  // different (mutable or legacy) source. LEGACY_FALLBACK: the base
+  // certificates row's own branch_address, captured at that certificate's
+  // own (pre-snapshot) issuance -- not recomputed from current branch
+  // settings either.
+  const issuerBranchAddress: string | null = snapshot
+    ? (snapshot.branch_address ?? null)
+    : (c.branch_address ?? null);
   let tpl = snapshot
     ? { config: snapshot.template_config ?? {} }
     : c.certificate_templates as { config?: TemplateConfig } | null;
@@ -318,6 +340,7 @@ export async function loadCertificateRender(id: string): Promise<
     participant_skills_record: null,
     effective_skills_record: skillsResolution.skills,
     skills: skillsResolution.skills,
+    issuer_branch_address: issuerBranchAddress,
   };
   return { cert, data, config };
 }
