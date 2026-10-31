@@ -407,7 +407,7 @@ export function renderCertificateBack(data: CertData, config: TemplateConfig): s
     .map((p, i) => `<p style="position:relative;margin:${i === 0 ? 0 : "6px 0 0"};font-size:9.5px;line-height:1.65;color:#6b7280;">${esc(p.replace("{{PROGRAMME_NAME}}", data.course_name || "this programme"))}</p>`)
     .join("");
   const verifyRow = (label: string, value: string) =>
-    `<div style="border-left:1px solid #e3e7ee;padding-left:10px;">
+    `<div style="border-left:1px solid #e3e7ee;padding-left:10px;${label === "Issuing Branch Address" ? "grid-column:1 / -1;" : ""}">
       <div style="font-size:8px;letter-spacing:1.1px;color:#8a94a6;font-family:${SANS};text-transform:uppercase;">${esc(label)}</div>
       <div style="color:${navy};font-weight:700;margin-top:2px;">${esc(value)}</div>
     </div>`;

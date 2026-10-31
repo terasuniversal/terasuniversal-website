@@ -329,4 +329,28 @@ const erectorPayload = {
   console.log("PASS Issuing Branch Address renders only when an authoritative address is present, never substituting venue");
 }
 
+// ============================================================
+// 11. Issuing Branch Address spans the full Verification grid width
+//     (fixes the Page 2 footer-overlap defect); every other field in the
+//     same grid stays single-column, unchanged.
+// ============================================================
+{
+  const config = { design_variant: "standard_scaffold_certificate", contact_phone: "012-3456789", contact_website: "www.terasuniversal.com.my", contact_email: "info@terasuniversal.com.my" };
+  const data = { certificate_number: "TU-CERT-ADDR-003", holder_name: "SYNTHETIC QA PARTICIPANT", issuer_branch_address: "LOT 1961, JALAN TANAH MERAH, KG TANAH MERAH DALAM, 06000 JITRA, KEDAH." };
+  const reactMarkup = renderToStaticMarkup(React.createElement(CertificateBack, { data, config }));
+  const htmlMarkup = renderCertificateBack(data, config);
+  // React's renderToStaticMarkup serializes the gridColumn style prop as
+  // kebab-case CSS text in the actual HTML output (not the JSX source
+  // spelling), so match that rendered form.
+  assert.ok(reactMarkup.includes("grid-column:1 / -1"), "React: Issuing Branch Address cell must span the full grid width");
+  assert.ok(htmlMarkup.includes("grid-column:1 / -1"), "HTML: Issuing Branch Address cell must span the full grid width");
+  // Scoping: the span rule must appear exactly once per render (only on the
+  // address cell), not applied to Contact Number/Website/Email too.
+  const reactSpanCount = (reactMarkup.match(/grid-column:1 \/ -1/g) || []).length;
+  const htmlSpanCount = (htmlMarkup.match(/grid-column:1 \/ -1/g) || []).length;
+  assert.equal(reactSpanCount, 1, "React: full-width span must be scoped to exactly the address cell, not applied elsewhere");
+  assert.equal(htmlSpanCount, 1, "HTML: full-width span must be scoped to exactly the address cell, not applied elsewhere");
+  console.log("PASS Issuing Branch Address spans the full Verification grid width, scoped only to that one field, in React and HTML");
+}
+
 console.log("c4-snapshot-renderer-contract: all Phase A snapshot-safe Golden Reference checks passed");

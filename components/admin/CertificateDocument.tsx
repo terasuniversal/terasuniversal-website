@@ -806,7 +806,7 @@ export function CertificateBackPage({ data, config }: { data: CertData; config: 
                 { label: "Email", value: config.contact_email },
                 { label: "Issuing Branch Address", value: data.issuer_branch_address },
               ].filter((row): row is { label: string; value: string } => Boolean(row.value)).map((row) => (
-                <div key={row.label} style={{ borderLeft: "1px solid #e3e7ee", paddingLeft: 10 }}>
+                <div key={row.label} style={{ borderLeft: "1px solid #e3e7ee", paddingLeft: 10, ...(row.label === "Issuing Branch Address" ? { gridColumn: "1 / -1" } : {}) }}>
                   <div style={{ fontSize: 8, letterSpacing: 1.1, color: "#8a94a6", fontFamily: SANS, textTransform: "uppercase" }}>{row.label}</div>
                   <div style={{ color: navy, fontWeight: 700, marginTop: 2 }}>{row.value}</div>
                 </div>
