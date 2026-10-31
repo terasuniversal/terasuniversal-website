@@ -68,8 +68,12 @@ assert.match(react, /translate\(-56px, -26px\)/);
 assert.match(html, /translate\(-56px,-26px\)/);
 assert.match(react, /size=\{CERTIFICATE_DESIGN\.qr\.sizePx - 34\} caption safeZone \/>/);
 assert.match(html, /CERTIFICATE_DESIGN\.qr\.sizePx - 34, true, true\)/);
-assert.equal((react.match(/<TaglineFooter navy=/g) || []).length, 2, "React must render the official tagline once on each generic page");
-assert.equal((html.match(/\$\{taglineFooter\(navy, gold\)\}/g) || []).length, 2, "HTML must render the official tagline once on each generic page");
+// 3, not 2: the generic front page, the generic back page, and (added by the
+// Phase A C4 Golden Reference port) GoldenReferencePageOne all render their
+// own TaglineFooter -- every certificate page carries the tagline, not just
+// the two generic ones this count originally covered.
+assert.equal((react.match(/<TaglineFooter navy=/g) || []).length, 3, "React must render the official tagline on every page, including Golden Reference Page One");
+assert.equal((html.match(/\$\{taglineFooter\(navy, gold\)\}/g) || []).length, 3, "HTML must render the official tagline on every page, including Golden Reference Page One");
 assert.match(react, /width: 228, height: 106/);
 assert.match(html, /width:228px;height:106px/);
 assert.match(react, /zIndex: 2, display: "flex"/);
@@ -80,7 +84,9 @@ assert.match(react, /width: 900, height: 720/);
 assert.match(html, /width:900px;height:720px/);
 assert.match(react, /resolveCertificateWatermarkAsset/);
 assert.match(html, /resolveCertificateWatermarkAsset/);
-assert.match(react, /opacity: corner \? asset\.page2Opacity : asset\.primaryOpacity/);
+// goldenReferencePageOne is now the first branch (added by the Phase A C4
+// Golden Reference port) ahead of the original corner/primary choice.
+assert.match(react, /opacity: goldenReferencePageOne \? 0\.048 : corner \? asset\.page2Opacity : asset\.primaryOpacity/);
 assert.match(html, /opacity:\$\{opacity\}/);
 assert.doesNotMatch(react, /CERTIFICATE TYPE FROM TEMPLATE/);
 assert.doesNotMatch(html, /CERTIFICATE TYPE FROM TEMPLATE/);
@@ -90,7 +96,9 @@ assert.doesNotMatch(react, /019-519 3834|www\.terasuniversal\.com\.my|admin@tera
 assert.doesNotMatch(html, /019-519 3834|www\.terasuniversal\.com\.my|admin@terasuniversal\.com\.my/);
 
 assert.match(dispatch, /ProfessionalScaffoldCertificateDocument/);
-assert.match(dispatch, /return <CertificateDocument data=\{data\} config=\{config\} \/>/);
+// qaPreview threading (added by the Phase A C4 Golden Reference port) is now
+// part of the dispatch call.
+assert.match(dispatch, /return <CertificateDocument data=\{data\} config=\{config\} qaPreview=\{qaPreview\} \/>/);
 assert.match(dispatch, /return <CertificateBackPage data=\{data\} config=\{config\} \/>/);
 
 // C4B visual-only guard: the active diff must not broaden into C2/C3/database paths.

@@ -10,7 +10,8 @@ export type WatermarkFamily =
   | "erector"
   | "inspector"
   | "working-at-height"
-  | "professional";
+  | "professional"
+  | "legacy-scaffolding";
 export type WatermarkLevel = "basic" | "intermediate" | "advanced";
 
 export interface WatermarkAssetConfig {
@@ -18,6 +19,19 @@ export interface WatermarkAssetConfig {
   watermark_level?: string;
   inspector_watermark_level?: string;
   wah_watermark?: boolean;
+  /**
+   * A frozen render_payload.watermark_asset_family value from an immutable
+   * certificate_issuance_snapshots row -- e.g. the live
+   * app.capture_c4_wave1_erector_snapshot() trigger writes
+   * 'scaffolding-technical' for already-issued Erector certificates. When
+   * present and recognized, takes precedence over every field below: a
+   * historical fact about an already-issued certificate must never be
+   * recomputed against this resolver's current, newer per-level mapping
+   * (that would silently restyle an issued certificate). An unrecognized
+   * value falls through to normal resolution rather than failing closed --
+   * watermark choice is decorative, not a verification-critical fact.
+   */
+  frozen_watermark_asset_family?: string | null;
 }
 
 export interface CertificateWatermarkAsset {
@@ -58,14 +72,32 @@ function asset(
 }
 
 /**
+ * Legacy frozen watermark families already baked into real, immutable
+ * issuance snapshots before this resolver's current per-level naming
+ * existed. Only 'scaffolding-technical' is confirmed real today (the live
+ * Erector Wave1A trigger). The asset file itself is unchanged -- still the
+ * original generic scaffolding illustration, not remapped to a newer
+ * per-level file.
+ */
+const LEGACY_FROZEN_WATERMARK_ASSETS: Partial<Record<string, CertificateWatermarkAsset>> = {
+  "scaffolding-technical": asset("legacy-scaffolding", "scaffolding-technical.svg"),
+};
+
+/**
  * Resolve the approved technical illustration for a certificate template.
- * Precedence is explicit and stable: Professional, WAH, Inspector, Erector.
- * When no approved mapping exists, return null rather than substituting a
- * visually incorrect family.
+ * A frozen historical fact (frozen_watermark_asset_family) always wins first.
+ * Otherwise precedence is explicit and stable: Professional, WAH, Inspector,
+ * Erector. When no approved mapping exists, return null rather than
+ * substituting a visually incorrect family.
  */
 export function resolveCertificateWatermarkAsset(
   config: WatermarkAssetConfig,
 ): CertificateWatermarkAsset | null {
+  if (config.frozen_watermark_asset_family) {
+    const legacy = LEGACY_FROZEN_WATERMARK_ASSETS[config.frozen_watermark_asset_family];
+    if (legacy) return legacy;
+  }
+
   if (config.design_variant === "professional_scaffold_erection_skills") {
     return asset("professional", "professional-scaffold-programme.svg");
   }
