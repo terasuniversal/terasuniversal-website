@@ -2,7 +2,7 @@ import type { CertData, TemplateConfig } from "../components/admin/CertificateDo
 import { fitHolderNameSize, formatAddressLines, formatDateRange, formatHumanDate, isAffirmativeStatus } from "./certificate-format";
 import { CERTIFICATE_DESIGN, certificateFamilyLabel, isGoldenReferenceFamily } from "./certificate-design-system";
 import { TERAS_COMPANY_NAME, TERAS_COMPANY_REGISTRATION, TERAS_COMPANY_TAGLINE } from "./teras-company";
-import { resolveCertificateWatermarkAsset } from "./certificate-watermark-assets";
+import { inspectorGoldenWatermarkBox, resolveCertificateWatermarkAsset } from "./certificate-watermark-assets";
 import { DIRECTOR_SIGNATURE_ASSET, EMBOSS_MEDALLION_LIFT_PX, EMBOSS_MEDALLION_SIZE_PX } from "./certificate-approval-assets";
 import { renderProfessionalScaffoldCertificateDocument } from "./professional-scaffold-certificate-html";
 
@@ -134,6 +134,13 @@ function certificateFrame(navy: string, gold: string): string {
 function certificateWatermark(config: TemplateConfig, corner: boolean, goldenReferencePageOne = false): string {
   const asset = resolveCertificateWatermarkAsset(config);
   if (!asset) return "";
+  const inspectorPlacement = asset.family === "inspector" && isGoldenReferenceFamily(config)
+    ? inspectorGoldenWatermarkBox(asset.level, goldenReferencePageOne ? "pageOne" : "pageTwo")
+    : null;
+  if (inspectorPlacement) {
+    const p = inspectorPlacement;
+    return `<img src="${esc(p.src)}" alt="" aria-hidden="true" style="position:absolute;top:${p.top}px;left:${p.left}px;width:${p.width}px;height:${p.height}px;object-fit:contain;pointer-events:none;opacity:${p.opacity};"/>`;
+  }
   const pos = goldenReferencePageOne ? "top:270px;right:-24px;width:800px;height:560px;" : corner ? "top:220px;right:-190px;width:900px;height:720px;" : "top:253px;right:-95px;width:700px;height:560px;";
   const opacity = goldenReferencePageOne ? 0.048 : corner ? asset.page2Opacity : asset.primaryOpacity;
   return `<img src="${esc(asset.src)}" alt="" aria-hidden="true" style="position:absolute;${pos}object-fit:contain;pointer-events:none;opacity:${opacity};"/>`;
