@@ -1,0 +1,10 @@
+certificate-previews/
+# C4A-6D: verified (grep across app/, lib/, components/, next.config.mjs)
+# zero runtime import/readFileSync reference to any of the three
+# directories below -- all three are dev-/agent-tooling-only and never
+# read by `next build` or `next start`. Package manifests, lockfile,
+# public assets, and all application source are deliberately NOT listed
+# here.
+/supabase/
+scripts/
+.ai/

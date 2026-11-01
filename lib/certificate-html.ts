@@ -212,7 +212,12 @@ function renderGoldenReferencePageOne(data: CertData, config: TemplateConfig, na
   const directorName = "Director";
   const programmeSubtitle = resolveDistinctProgrammeSubtitle(data.course_name, config.programme_title);
   const logo = `<img src="${esc(config.logo_url || DEFAULT_LOGO_URL)}" alt="TERAS Universal" style="width:124px;height:91px;object-fit:contain;object-position:center;display:block;mix-blend-mode:multiply;"/>`;
-  const dateInfo = `${dateRange ? `<div style="color:#8a94a6;font-size:7.5px;letter-spacing:1.4px;text-transform:uppercase;">Conducted from</div><div style="font-size:10.5px;font-weight:600;margin-top:2px;">${esc(dateRange)}</div>` : ""}${data.venue ? `<div style="color:#8a94a6;font-size:7.5px;letter-spacing:1.4px;text-transform:uppercase;margin-top:8px;">At</div><div style="font-size:10px;margin-top:1px;">${esc(data.venue)}</div>` : ""}${duration ? `<div style="color:${navy};font-size:9px;font-weight:700;letter-spacing:.85px;margin-top:8px;">TRAINING DURATION: ${esc(duration)}</div>` : ""}`;
+  // C4A-7B: Training Duration directly above Training Venue, both using the
+  // same label/value pattern as "Conducted from" -- mirrors
+  // CertificateDocument.tsx's GoldenReferencePageOne exactly. data.venue is
+  // the frozen training-location text (never the issuing branch address,
+  // which stays on Page 2 only); omitted entirely when absent.
+  const dateInfo = `${dateRange ? `<div style="color:#8a94a6;font-size:7.5px;letter-spacing:1.4px;text-transform:uppercase;">Conducted from</div><div style="font-size:10.5px;font-weight:600;margin-top:2px;">${esc(dateRange)}</div>` : ""}${duration ? `<div style="color:#8a94a6;font-size:7.5px;letter-spacing:1.4px;text-transform:uppercase;margin-top:8px;">Training Duration</div><div style="font-size:10.5px;font-weight:600;margin-top:2px;">${esc(duration)}</div>` : ""}${data.venue ? `<div style="color:#8a94a6;font-size:7.5px;letter-spacing:1.4px;text-transform:uppercase;margin-top:8px;">Training Venue</div><div style="font-size:10px;margin-top:1px;max-width:520px;margin-left:auto;margin-right:auto;overflow-wrap:anywhere;">${esc(data.venue)}</div>` : ""}`;
   const signature = `<div style="height:68px;display:flex;align-items:flex-end;justify-content:center;"><img src="${esc(signatureUrl)}" alt="" style="max-height:62px;max-width:180px;object-fit:contain;"/></div>`;
   const bodyText = pageOneText ? `<p style="font-size:9px;line-height:1.55;max-width:520px;margin:11px auto 0;color:#596273;overflow-wrap:anywhere;">${esc(pageOneText)}</p>` : "";
 

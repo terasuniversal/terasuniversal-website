@@ -435,8 +435,19 @@ function GoldenReferencePageOne({ data, config, navy, gold, qaPreview }: { data:
 
         <div style={{ margin: "30px auto 0", color: navy, fontFamily: SANS, lineHeight: 1.5 }}>
           {dateRange && <><div style={{ color: "#8a94a6", fontSize: 7.5, letterSpacing: 1.4, textTransform: "uppercase" }}>Conducted from</div><div style={{ fontSize: 10.5, fontWeight: 600, marginTop: 2 }}>{dateRange}</div></>}
-          {data.venue && <><div style={{ color: "#8a94a6", fontSize: 7.5, letterSpacing: 1.4, textTransform: "uppercase", marginTop: 8 }}>At</div><div style={{ fontSize: 10, marginTop: 1 }}>{data.venue}</div></>}
-          {duration && <div style={{ color: navy, fontSize: 9, fontWeight: 700, letterSpacing: 0.85, marginTop: 8 }}>TRAINING DURATION: {duration}</div>}
+          {/*
+           * C4A-7B: Training Duration directly above Training Venue, both
+           * using the same label/value pattern as "Conducted from" above --
+           * owner-approved layout decision. data.venue is the frozen
+           * training-location text captured at issuance (course_schedules.
+           * venue -> certificates.venue -> certificate_issuance_snapshots.
+           * venue), never the issuing branch address (that's
+           * data.issuer_branch_address, rendered only on Page 2 and
+           * untouched by this change). Omitted entirely when absent -- never
+           * fabricated.
+           */}
+          {duration && <><div style={{ color: "#8a94a6", fontSize: 7.5, letterSpacing: 1.4, textTransform: "uppercase", marginTop: 8 }}>Training Duration</div><div style={{ fontSize: 10.5, fontWeight: 600, marginTop: 2 }}>{duration}</div></>}
+          {data.venue && <><div style={{ color: "#8a94a6", fontSize: 7.5, letterSpacing: 1.4, textTransform: "uppercase", marginTop: 8 }}>Training Venue</div><div style={{ fontSize: 10, marginTop: 1, maxWidth: 520, margin: "1px auto 0", overflowWrap: "anywhere" }}>{data.venue}</div></>}
         </div>
         {pageOneText && <p style={{ fontSize: 9, lineHeight: 1.55, maxWidth: 520, margin: "11px auto 0", color: "#596273", overflowWrap: "anywhere" }}>{pageOneText}</p>}
 

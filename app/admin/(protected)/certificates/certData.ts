@@ -1,5 +1,5 @@
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { siteOrigin } from "../../../../lib/site-origin";
+import { canonicalSiteOrigin } from "../../../../lib/site-origin";
 import { generateQrSvg, formatHumanDate } from "../../../../lib/certificate-format";
 import { findStandardScaffoldProgrammeByCourseId } from "../../../../lib/standard-scaffold-programmes";
 import { findWorkingAtHeightProgrammeByCourseId } from "../../../../lib/working-at-height-programme";
@@ -286,7 +286,14 @@ export async function loadCertificateRender(id: string): Promise<
   const certificateNumber: string = String(
     verificationMetadata.certificate_number ?? renderPayload.certificate_number ?? c.certificate_number ?? c.certificate_no ?? ""
   );
-  const origin = await siteOrigin();
+  // Canonical, not request-host-reflecting: this URL is baked into the
+  // certificate's QR code and PDF, so it must stay identical regardless of
+  // which admin/preview hostname happened to render it (see
+  // lib/site-origin.ts's own comment on canonicalSiteOrigin() vs
+  // siteOrigin()). Using the host-reflecting siteOrigin() here previously
+  // meant a certificate rendered from a non-canonical admin host could ship
+  // with a QR code that stops resolving once that host is gone.
+  const origin = await canonicalSiteOrigin();
   // Prefer the certificate's own stored verification_url — issuance
   // (app/admin/(protected)/certificates/actions.ts) sets this from
   // verification_token at insert time, and verify_and_log's p_method:'auto'
