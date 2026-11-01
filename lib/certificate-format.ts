@@ -84,3 +84,51 @@ export function formatDateRange(start?: string | null, end?: string | null): str
 export function isAffirmativeStatus(status: string): boolean {
   return /^(completed|achieved|pass(ed)?|present|competent|met)$/i.test((status || "").trim());
 }
+
+/**
+ * Display-only layout of a frozen address (C4 Page 1 Training Venue). The
+ * stored snapshot value is never rewritten -- this only decides how it is
+ * broken into lines: whitespace is collapsed, comma spacing normalised
+ * ("A,B" / "A , B" -> "A, B"), and the comma-separated parts are grouped into
+ * at most 3 contiguous lines of roughly equal length, so a long
+ * address reads as 2-3 balanced centred lines instead of one ragged wrap.
+ *
+ * A leading site name (first part, no digits, more parts after it -- e.g.
+ * "TERAS HQ") is returned separately as `lead` so the renderer can set it
+ * apart; detection is generic, nothing here knows any particular address.
+ * Parts are never split mid-text; a single over-long part is left to CSS
+ * wrapping.
+ */
+export function formatAddressLines(value: string | null | undefined): { lead: string | null; lines: string[] } {
+  // ~58 chars sits comfortably inside the 520px Page 1 venue block at 10px.
+  const maxLines = 3;
+  const lineChars = 58;
+  const parts = (value || "").replace(/\s+/g, " ").split(",").map((p) => p.trim()).filter(Boolean);
+  if (parts.length === 0) return { lead: null, lines: [] };
+
+  const hasLead = parts.length >= 3 && !/\d/.test(parts[0]) && parts[0].length <= 40;
+  const lead = hasLead ? parts[0] : null;
+  const rest = hasLead ? parts.slice(1) : parts;
+  const totalLen = rest.join(", ").length;
+  const wanted = Math.ceil(totalLen / lineChars);
+  const count = Math.max(1, Math.min(wanted, maxLines - (lead ? 1 : 0), rest.length));
+
+  // Contiguous partition of `rest` into `count` groups minimising the longest
+  // line. Inputs are a handful of parts, so the exhaustive DP is trivial.
+  const len = (from: number, to: number) => rest.slice(from, to).join(", ").length + (to < rest.length ? 1 : 0);
+  const best: number[][] = Array.from({ length: count + 1 }, () => Array(rest.length + 1).fill(Infinity));
+  const cut: number[][] = Array.from({ length: count + 1 }, () => Array(rest.length + 1).fill(0));
+  best[0][0] = 0;
+  for (let k = 1; k <= count; k++) {
+    for (let j = k; j <= rest.length; j++) {
+      for (let i = k - 1; i < j; i++) {
+        const cost = Math.max(best[k - 1][i], len(i, j));
+        if (cost < best[k][j]) { best[k][j] = cost; cut[k][j] = i; }
+      }
+    }
+  }
+  const bounds: number[] = [rest.length];
+  for (let k = count, j = rest.length; k > 0; k--) { j = cut[k][j]; bounds.unshift(j); }
+  const lines = bounds.slice(1).map((end, idx) => rest.slice(bounds[idx], end).join(", ") + (end < rest.length ? "," : ""));
+  return { lead, lines };
+}
