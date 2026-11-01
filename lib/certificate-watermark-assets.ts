@@ -72,6 +72,41 @@ function asset(
 }
 
 /**
+ * Placement for the Inspector illustration on Golden Reference certificates,
+ * shared by the React and HTML renderers. At the generic full-page size the
+ * scaffold drawing sat directly behind the holder name and programme columns.
+ * Instead, the artwork is fitted into open space: page 1 in the band
+ * between Training Venue and the signature row,
+ * page 2 under Assessment Method, clear of the Skills Record, text columns
+ * and QR. Golden Reference Inspector certificates use the approved ImageGen
+ * artwork, extracted to transparent navy line-art PNGs: the inspector scene
+ * on page 1 and the checklist/scaffold detail (no figure) on page 2, the
+ * same for every level. Each PNG's own pixel aspect is fitted into its area.
+ * Legacy Inspector layouts keep inspector-<level>.svg at their existing
+ * placement.
+ */
+const INSPECTOR_GOLDEN_AREAS = {
+  pageOne: { src: "inspector-scene.png", aspect: 970 / 850, centerX: 397, top: 600, maxW: 420, maxH: 225, opacity: 0.14 },
+  pageTwo: { src: "inspector-detail.png", aspect: 505 / 610, centerX: 632, top: 600, maxW: 195, maxH: 200, opacity: 0.14 },
+} as const;
+
+export function inspectorGoldenWatermarkBox(level: WatermarkLevel | undefined, page: keyof typeof INSPECTOR_GOLDEN_AREAS) {
+  if (!level) return null;
+  const a = INSPECTOR_GOLDEN_AREAS[page];
+  const width = Math.min(a.maxW, a.maxH * a.aspect);
+  const height = width / a.aspect;
+  const round = (n: number) => Math.round(n * 10) / 10;
+  return {
+    src: `${ASSET_ROOT}/${a.src}`,
+    left: round(a.centerX - width / 2),
+    top: round(a.top + (a.maxH - height) / 2),
+    width: round(width),
+    height: round(height),
+    opacity: a.opacity,
+  };
+}
+
+/**
  * Legacy frozen watermark families already baked into real, immutable
  * issuance snapshots before this resolver's current per-level naming
  * existed. Only 'scaffolding-technical' is confirmed real today (the live
