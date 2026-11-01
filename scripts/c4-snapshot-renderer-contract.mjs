@@ -216,6 +216,50 @@ for (const level of ["basic", "intermediate", "advanced"]) {
   console.log("PASS WAH proposed c4_wave1_wah_v1 synthetic payload dispatches correctly (not yet DB-activated)");
 }
 
+{
+  // Production-confirmed defect (CERT-2026-000099): template_config freezes these
+  // lists as [], and ??= would keep them.
+  const emptyArrays = () => ({ coverage_items: [], learning_outcomes: [], assessment_methods: [] });
+  const list = (prefix, n) => Array.from({ length: n }, (_, i) => `${prefix} ${i + 1}`);
+  const contentOf = (cov, out, asm) => ({ programme_title: "T", programme_duration: "D", objectives: "O", coverage: list("C", cov), outcomes: list("L", out), assessment: list("A", asm) });
+  const families = [
+    ["Inspector", "c4_wave1_inspector_v1", "standard_scaffold_certificate", { certificate_family: "scaffold_inspector", certificate_title: "SCAFFOLDING INSPECTION CERTIFICATE", inspector_watermark_level: "basic" }, [7, 5, 3]],
+    ["Erector", "c4_wave1_v1", "standard_scaffold_certificate", { certificate_family: "scaffold_erector", certificate_title: "SCAFFOLDING TRAINING CERTIFICATE", watermark_asset_family: "scaffolding-technical" }, [7, 5, 3]],
+    ["WAH", "c4_wave1_wah_v1", "working_at_height_certificate", { certificate_family: "working_at_height", certificate_title: "WORKING AT HEIGHT TRAINING CERTIFICATE", watermark_asset_family: "working-at-height" }, [9, 6, 5]],
+  ];
+  for (const [label, version, variant, facts, [cov, out, asm]] of families) {
+    const content = contentOf(cov, out, asm);
+    const payload = { ...facts, programme_content: content };
+    const before = JSON.stringify(payload);
+    const config = { design_variant: variant, show_skills_record: false, ...emptyArrays() };
+    applyGoldenReferenceSnapshotConfig(config, version, payload);
+    assert.deepEqual([config.coverage_items, config.learning_outcomes, config.assessment_methods], [content.coverage, content.outcomes, content.assessment]);
+    assert.equal(config.certificate_title, facts.certificate_title);
+    assert.equal(config.show_skills_record, true);
+    assert.equal(config.frozen_watermark_asset_family, facts.watermark_asset_family ?? null);
+    assert.equal(JSON.stringify(payload), before, "the frozen payload must not be mutated");
+    // Conflicting template values never replace frozen content.
+    const conflicting = { design_variant: variant, programme_title: "TEMPLATE", duration_label: "TEMPLATE", objectives_text: "TEMPLATE", coverage_items: ["TEMPLATE"], learning_outcomes: ["TEMPLATE"], assessment_methods: ["TEMPLATE"] };
+    applyGoldenReferenceSnapshotConfig(conflicting, version, payload);
+    assert.deepEqual([conflicting.programme_title, conflicting.duration_label, conflicting.objectives_text, conflicting.coverage_items, conflicting.learning_outcomes, conflicting.assessment_methods], [content.programme_title, content.programme_duration, content.objectives, content.coverage, content.outcomes, content.assessment]);
+    // Missing frozen fields are not invented; the snapshot's own value stays.
+    const partial = { design_variant: variant, programme_title: "OWN", coverage_items: ["OWN"] };
+    applyGoldenReferenceSnapshotConfig(partial, version, { ...facts, programme_content: { objectives: "O" } });
+    assert.deepEqual([partial.programme_title, partial.coverage_items, partial.duration_label, partial.objectives_text], ["OWN", ["OWN"], undefined, "O"]);
+    console.log(`PASS ${label} frozen ${cov}/${out}/${asm} content replaces empty and conflicting template values`);
+  }
+  // Legacy and unrelated paths: no C4 renderer_version, no change, even when a
+  // payload happens to carry content.
+  const stray = { certificate_family: "working_at_height", certificate_title: "X", programme_content: contentOf(9, 6, 5) };
+  for (const [version, variant] of [["certificate_renderer_v1", "working_at_height_certificate"], [null, "working_at_height_certificate"], ["certificate_renderer_v1", "standard_scaffold_certificate"], ["certificate_renderer_v1", "professional_scaffold_erection_skills"]]) {
+    const config = { design_variant: variant, ...emptyArrays() };
+    const before = JSON.stringify(config);
+    applyGoldenReferenceSnapshotConfig(config, version, stray);
+    assert.equal(JSON.stringify(config), before);
+  }
+  console.log("PASS legacy WAH, legacy scaffold and Professional configs untouched; no retroactive content");
+}
+
 // ============================================================
 // 5. Frozen facts stay stable even when "current" programme data disagrees
 //    -- the function takes no course_id/programme lookup input at all, so

@@ -95,12 +95,15 @@ export function applyGoldenReferenceSnapshotConfig(
   if (frozenInspectorLevel) config.inspector_watermark_level = frozenInspectorLevel;
   const content = payload.programme_content;
   if (content) {
-    config.programme_title ??= content.programme_title;
-    config.duration_label ??= content.programme_duration;
-    config.objectives_text ??= content.objectives;
-    config.coverage_items ??= content.coverage;
-    config.learning_outcomes ??= content.outcomes;
-    config.assessment_methods ??= content.assessment;
+    // The digest-protected content is authoritative. Not ??=: template_config
+    // freezes the lists as [] (or whatever the template form last saved), which
+    // ??= would keep. A field missing from the frozen content is left as it is.
+    if (content.programme_title) config.programme_title = content.programme_title;
+    if (content.programme_duration) config.duration_label = content.programme_duration;
+    if (content.objectives) config.objectives_text = content.objectives;
+    if (content.coverage?.length) config.coverage_items = content.coverage;
+    if (content.outcomes?.length) config.learning_outcomes = content.outcomes;
+    if (content.assessment?.length) config.assessment_methods = content.assessment;
   }
 }
 
