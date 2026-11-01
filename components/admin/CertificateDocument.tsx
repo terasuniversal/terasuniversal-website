@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
-import { fitHolderNameSize, formatDateRange, formatHumanDate, isAffirmativeStatus } from "../../lib/certificate-format";
+import { fitHolderNameSize, formatAddressLines, formatDateRange, formatHumanDate, isAffirmativeStatus } from "../../lib/certificate-format";
 import type { CertificateSkillRow, CertificateSkillsCompleteness, CertificateSkillsProvenance } from "../../lib/certificate-skills";
 import { resolveCertificateWatermarkAsset, type WatermarkLevel } from "../../lib/certificate-watermark-assets";
 import { CERTIFICATE_DESIGN, certificateFamilyLabel, isGoldenReferenceFamily, type GoldenReferenceFamily } from "../../lib/certificate-design-system";
@@ -410,6 +410,7 @@ function GoldenReferencePageOne({ data, config, navy, gold, qaPreview }: { data:
   const signatureUrl = DIRECTOR_SIGNATURE_ASSET;
   const directorName = "Director";
   const programmeSubtitle = resolveDistinctProgrammeSubtitle(data.course_name, config.programme_title);
+  const venue = formatAddressLines(data.venue);
 
   return (
     <div style={{ width: PAGE_W, height: PAGE_H, margin: "0 auto", position: "relative", background: CERTIFICATE_DESIGN.colors.white, boxSizing: "border-box", padding: CERTIFICATE_DESIGN.page.safeMarginPx, fontFamily: CERTIFICATE_DESIGN.typography.sans, color: CERTIFICATE_DESIGN.colors.ink, overflow: "hidden", pageBreakAfter: config.show_back_page !== false ? "always" : undefined }}>
@@ -447,7 +448,7 @@ function GoldenReferencePageOne({ data, config, navy, gold, qaPreview }: { data:
            * fabricated.
            */}
           {duration && <><div style={{ color: "#8a94a6", fontSize: 7.5, letterSpacing: 1.4, textTransform: "uppercase", marginTop: 8 }}>Training Duration</div><div style={{ fontSize: 10.5, fontWeight: 600, marginTop: 2 }}>{duration}</div></>}
-          {data.venue && <><div style={{ color: "#8a94a6", fontSize: 7.5, letterSpacing: 1.4, textTransform: "uppercase", marginTop: 8 }}>Training Venue</div><div style={{ fontSize: 10, marginTop: 1, maxWidth: 520, margin: "1px auto 0", overflowWrap: "anywhere" }}>{data.venue}</div></>}
+          {venue.lines.length > 0 && <><div style={{ color: "#8a94a6", fontSize: 7.5, letterSpacing: 1.4, textTransform: "uppercase", marginTop: 8 }}>Training Venue</div><div style={{ fontSize: 10, lineHeight: 1.45, maxWidth: 520, margin: "1px auto 0", overflowWrap: "anywhere" }}>{venue.lead && <span style={{ display: "block", fontWeight: 700, letterSpacing: 0.4 }}>{venue.lead}</span>}{venue.lines.map((line, i) => <span key={i} style={{ display: "block" }}>{line}</span>)}</div></>}
         </div>
         {pageOneText && <p style={{ fontSize: 9, lineHeight: 1.55, maxWidth: 520, margin: "11px auto 0", color: "#596273", overflowWrap: "anywhere" }}>{pageOneText}</p>}
 
@@ -680,6 +681,7 @@ export function CertificateBackPage({ data, config }: { data: CertData; config: 
   const showSkillsRecord = config.show_skills_record !== false;
   const skillsRecord = data.skills?.length ? data.skills : DEFAULT_SKILLS_RECORD;
   const noticeParagraphs = config.important_notice?.split(/\n{2,}/).filter(Boolean) || [];
+  const goldenReference = isGoldenReferenceFamily(config);
 
   /**
    * Editorial section head: gold glyph, tracked navy label, and a two-tone rule
@@ -823,9 +825,10 @@ export function CertificateBackPage({ data, config }: { data: CertData; config: 
                 { label: "Email", value: config.contact_email },
                 { label: "Issuing Branch Address", value: data.issuer_branch_address },
               ].filter((row): row is { label: string; value: string } => Boolean(row.value)).map((row) => (
-                <div key={row.label} style={{ borderLeft: "1px solid #e3e7ee", paddingLeft: 10, ...(row.label === "Issuing Branch Address" ? { gridColumn: "1 / -1" } : {}) }}>
+                <div key={row.label} style={{ borderLeft: "1px solid #e3e7ee", paddingLeft: 10, ...(row.label === "Issuing Branch Address" ? { gridColumn: "1 / -1" } : {}), ...(goldenReference ? { minWidth: 0, ...(row.label === "Issuing Branch Address" ? { paddingRight: 24 } : {}) } : {}) }}>
                   <div style={{ fontSize: 8, letterSpacing: 1.1, color: "#8a94a6", fontFamily: SANS, textTransform: "uppercase" }}>{row.label}</div>
-                  <div style={{ color: navy, fontWeight: 700, marginTop: 2 }}>{row.value}</div>
+                  {/* C4 only: the stored text is rendered verbatim, just allowed to wrap inside its cell, and the full-width address cell keeps 24px clear on the right because the QR caption overhangs ~13px left of its column -- so a long branch address can't run into the QR block. Legacy back pages keep their exact prior styling. */}
+                  <div style={{ color: navy, fontWeight: 700, marginTop: 2, ...(goldenReference ? { overflowWrap: "anywhere", lineHeight: 1.4 } : {}) }}>{row.value}</div>
                 </div>
               ))}
             </div>

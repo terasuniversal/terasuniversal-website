@@ -1,5 +1,5 @@
 import type { CertData, TemplateConfig } from "../components/admin/CertificateDocument";
-import { fitHolderNameSize, formatDateRange, formatHumanDate, isAffirmativeStatus } from "./certificate-format";
+import { fitHolderNameSize, formatAddressLines, formatDateRange, formatHumanDate, isAffirmativeStatus } from "./certificate-format";
 import { CERTIFICATE_DESIGN, certificateFamilyLabel, isGoldenReferenceFamily } from "./certificate-design-system";
 import { TERAS_COMPANY_NAME, TERAS_COMPANY_REGISTRATION, TERAS_COMPANY_TAGLINE } from "./teras-company";
 import { resolveCertificateWatermarkAsset } from "./certificate-watermark-assets";
@@ -211,13 +211,14 @@ function renderGoldenReferencePageOne(data: CertData, config: TemplateConfig, na
   const signatureUrl = DIRECTOR_SIGNATURE_ASSET;
   const directorName = "Director";
   const programmeSubtitle = resolveDistinctProgrammeSubtitle(data.course_name, config.programme_title);
+  const venue = formatAddressLines(data.venue);
   const logo = `<img src="${esc(config.logo_url || DEFAULT_LOGO_URL)}" alt="TERAS Universal" style="width:124px;height:91px;object-fit:contain;object-position:center;display:block;mix-blend-mode:multiply;"/>`;
   // C4A-7B: Training Duration directly above Training Venue, both using the
   // same label/value pattern as "Conducted from" -- mirrors
   // CertificateDocument.tsx's GoldenReferencePageOne exactly. data.venue is
   // the frozen training-location text (never the issuing branch address,
   // which stays on Page 2 only); omitted entirely when absent.
-  const dateInfo = `${dateRange ? `<div style="color:#8a94a6;font-size:7.5px;letter-spacing:1.4px;text-transform:uppercase;">Conducted from</div><div style="font-size:10.5px;font-weight:600;margin-top:2px;">${esc(dateRange)}</div>` : ""}${duration ? `<div style="color:#8a94a6;font-size:7.5px;letter-spacing:1.4px;text-transform:uppercase;margin-top:8px;">Training Duration</div><div style="font-size:10.5px;font-weight:600;margin-top:2px;">${esc(duration)}</div>` : ""}${data.venue ? `<div style="color:#8a94a6;font-size:7.5px;letter-spacing:1.4px;text-transform:uppercase;margin-top:8px;">Training Venue</div><div style="font-size:10px;margin-top:1px;max-width:520px;margin-left:auto;margin-right:auto;overflow-wrap:anywhere;">${esc(data.venue)}</div>` : ""}`;
+  const dateInfo = `${dateRange ? `<div style="color:#8a94a6;font-size:7.5px;letter-spacing:1.4px;text-transform:uppercase;">Conducted from</div><div style="font-size:10.5px;font-weight:600;margin-top:2px;">${esc(dateRange)}</div>` : ""}${duration ? `<div style="color:#8a94a6;font-size:7.5px;letter-spacing:1.4px;text-transform:uppercase;margin-top:8px;">Training Duration</div><div style="font-size:10.5px;font-weight:600;margin-top:2px;">${esc(duration)}</div>` : ""}${venue.lines.length > 0 ? `<div style="color:#8a94a6;font-size:7.5px;letter-spacing:1.4px;text-transform:uppercase;margin-top:8px;">Training Venue</div><div style="font-size:10px;line-height:1.45;margin-top:1px;max-width:520px;margin-left:auto;margin-right:auto;overflow-wrap:anywhere;">${venue.lead ? `<span style="display:block;font-weight:700;letter-spacing:.4px;">${esc(venue.lead)}</span>` : ""}${venue.lines.map((line) => `<span style="display:block;">${esc(line)}</span>`).join("")}</div>` : ""}`;
   const signature = `<div style="height:68px;display:flex;align-items:flex-end;justify-content:center;"><img src="${esc(signatureUrl)}" alt="" style="max-height:62px;max-width:180px;object-fit:contain;"/></div>`;
   const bodyText = pageOneText ? `<p style="font-size:9px;line-height:1.55;max-width:520px;margin:11px auto 0;color:#596273;overflow-wrap:anywhere;">${esc(pageOneText)}</p>` : "";
 
@@ -417,10 +418,14 @@ export function renderCertificateBack(data: CertData, config: TemplateConfig): s
   const noticeHtml = noticeParagraphs
     .map((p, i) => `<p style="position:relative;margin:${i === 0 ? 0 : "6px 0 0"};font-size:9.5px;line-height:1.65;color:#6b7280;">${esc(p.replace("{{PROGRAMME_NAME}}", data.course_name || "this programme"))}</p>`)
     .join("");
+  // C4 only, mirrors CertificateBackPage: stored value verbatim, allowed to
+  // wrap inside its cell, address cell kept clear of the QR caption's
+  // leftward overhang; legacy back pages keep their exact prior styling.
+  const goldenReference = isGoldenReferenceFamily(config);
   const verifyRow = (label: string, value: string) =>
-    `<div style="border-left:1px solid #e3e7ee;padding-left:10px;${label === "Issuing Branch Address" ? "grid-column:1 / -1;" : ""}">
+    `<div style="border-left:1px solid #e3e7ee;padding-left:10px;${label === "Issuing Branch Address" ? "grid-column:1 / -1;" : ""}${goldenReference ? `min-width:0;${label === "Issuing Branch Address" ? "padding-right:24px;" : ""}` : ""}">
       <div style="font-size:8px;letter-spacing:1.1px;color:#8a94a6;font-family:${SANS};text-transform:uppercase;">${esc(label)}</div>
-      <div style="color:${navy};font-weight:700;margin-top:2px;">${esc(value)}</div>
+      <div style="color:${navy};font-weight:700;margin-top:2px;${goldenReference ? "overflow-wrap:anywhere;line-height:1.4;" : ""}">${esc(value)}</div>
     </div>`;
   const qrHtml = config.show_qr !== false && data.qr_svg
     ? `<div style="border-left:1px solid #e3e7ee;padding-left:20px;">${qrBlock(data.qr_svg, navy, gold, CERTIFICATE_DESIGN.qr.sizePx - 34, true, true)}</div>`
