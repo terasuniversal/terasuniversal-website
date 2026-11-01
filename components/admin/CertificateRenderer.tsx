@@ -10,11 +10,11 @@ import { ProfessionalScaffoldCertificateDocument, ProfessionalScaffoldCertificat
  * through this instead of importing CertificateDocument directly, so a new
  * design variant only has to be wired here once.
  */
-export function CertificateFront({ data, config }: { data: CertData; config: TemplateConfig }) {
+export function CertificateFront({ data, config, qaPreview = false }: { data: CertData; config: TemplateConfig; qaPreview?: boolean }) {
   if (config.design_variant === "professional_scaffold_erection_skills") {
     return <ProfessionalScaffoldCertificateDocument data={data} config={config} />;
   }
-  return <CertificateDocument data={data} config={config} />;
+  return <CertificateDocument data={data} config={config} qaPreview={qaPreview} />;
 }
 
 export function CertificateBack({ data, config }: { data: CertData; config: TemplateConfig }) {

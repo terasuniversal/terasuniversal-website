@@ -1,9 +1,10 @@
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { siteOrigin } from "../../../../lib/site-origin";
+import { canonicalSiteOrigin } from "../../../../lib/site-origin";
 import { generateQrSvg, formatHumanDate } from "../../../../lib/certificate-format";
 import { findStandardScaffoldProgrammeByCourseId } from "../../../../lib/standard-scaffold-programmes";
 import { findWorkingAtHeightProgrammeByCourseId } from "../../../../lib/working-at-height-programme";
 import { resolveCertificateSkills, type CertificateSkillRow } from "../../../../lib/certificate-skills";
+import type { GoldenReferenceFamily } from "../../../../lib/certificate-design-system";
 import type { CertData, TemplateConfig } from "../../../../components/admin/CertificateDocument";
 
 // Delegates to the same UTC-safe, round-trip-validated parser the renderers
@@ -13,6 +14,86 @@ import type { CertData, TemplateConfig } from "../../../../components/admin/Cert
 // "2026-07-12" back a day in any timezone west of UTC.
 function fmtDate(d?: string | null): string | null {
   return d ? formatHumanDate(d) : null;
+}
+
+/**
+ * Renderer_version values whose render_payload carries the frozen C4 Golden
+ * Reference facts applyGoldenReferenceSnapshotConfig below dispatches on.
+ * "c4_wave1_v1" is real and live today -- app.capture_c4_wave1_erector_snapshot()
+ * (a BEFORE INSERT trigger on certificate_issuance_snapshots) bumps new
+ * Erector issuances to this renderer_version and bakes certificate_family/
+ * certificate_title/programme_content/watermark_asset_family into
+ * render_payload at that moment, re-verified read-only against the canonical
+ * staging project (eokiaehnvzbggmacifcf) 2026-10-31. The other two entries
+ * are this app's own PROPOSED, not-yet-written-by-any-trigger contract for
+ * an eventual Inspector/WAH equivalent -- listing them here costs nothing
+ * (no real snapshot will ever carry one until that trigger exists) but
+ * means zero app-code changes are needed once it does.
+ */
+const GOLDEN_REFERENCE_RENDERER_VERSIONS = new Set([
+  "c4_wave1_v1",
+  // PROPOSED -- not yet written by any trigger:
+  "c4_wave1_inspector_v1",
+  "c4_wave1_wah_v1",
+]);
+
+interface GoldenReferenceRenderPayload {
+  certificate_family?: string;
+  certificate_title?: string;
+  watermark_asset_family?: string;
+  programme_content?: {
+    programme_title?: string;
+    programme_duration?: string;
+    objectives?: string;
+    coverage?: string[];
+    outcomes?: string[];
+    assessment?: string[];
+  };
+}
+
+/**
+ * Populates config's Golden Reference / programme-content fields from a
+ * frozen issuance snapshot's renderer_version + render_payload only --
+ * never recomputed from current certificate_templates/programme data, so an
+ * already-issued certificate's rendering can never change because a
+ * programme or template was edited afterwards. A no-op for every
+ * renderer_version this file doesn't recognize (legacy/no-snapshot
+ * certificates, or a MODERN_SNAPSHOT certificate issued before any C4
+ * trigger existed), which is what preserves their historical layout.
+ * Exported for scripts/c4-snapshot-renderer-contract.mjs's direct,
+ * standalone unit test.
+ */
+export function applyGoldenReferenceSnapshotConfig(
+  config: TemplateConfig,
+  rendererVersion: string | null | undefined,
+  renderPayload: Record<string, unknown>,
+): void {
+  if (!rendererVersion || !GOLDEN_REFERENCE_RENDERER_VERSIONS.has(rendererVersion)) return;
+  const payload = renderPayload as GoldenReferenceRenderPayload;
+  if (!payload.certificate_family || !payload.certificate_title) return;
+  config.golden_reference_family = payload.certificate_family as GoldenReferenceFamily;
+  config.certificate_title = payload.certificate_title;
+  config.show_back_page = true;
+  config.show_qr ??= true;
+  // Direct assignment, not ??=: the shared certificate_templates row this
+  // frozen template_config was copied from at issuance sets
+  // show_skills_record:false explicitly (see the !snapshot Standard Scaffold
+  // block above), so ??= would never flip it. The table this reveals is
+  // backed only by certificateSkillsRecord (certificate_skill_results, an
+  // immutable, RPC-only-written table -- never participant_skill_results),
+  // resolved above via resolveCertificateSkills() into effectiveSkillsRecord/
+  // data.skills -- never recomputed from mutable programme/participant data.
+  config.show_skills_record = true;
+  config.frozen_watermark_asset_family = payload.watermark_asset_family ?? null;
+  const content = payload.programme_content;
+  if (content) {
+    config.programme_title ??= content.programme_title;
+    config.duration_label ??= content.programme_duration;
+    config.objectives_text ??= content.objectives;
+    config.coverage_items ??= content.coverage;
+    config.learning_outcomes ??= content.outcomes;
+    config.assessment_methods ??= content.assessment;
+  }
 }
 
 async function buildCertificateSkillsRecord(
@@ -56,7 +137,7 @@ export async function loadCertificateRender(id: string): Promise<
   const c = cert as any;
   const { data: issuanceSnapshot, error: snapshotError } = await supabase
     .from("certificate_issuance_snapshots")
-    .select("snapshot_version, renderer_version, holder_name, identity_no, identity_last4, course_name, training_start_date, training_end_date, venue, trainer_name, template_id, template_name, template_config, signature_reference, verification_metadata, render_payload")
+    .select("snapshot_version, renderer_version, holder_name, identity_no, identity_last4, course_name, training_start_date, training_end_date, venue, trainer_name, template_id, template_name, template_config, signature_reference, verification_metadata, render_payload, branch_address")
     .eq("certificate_id", c.id)
     .maybeSingle();
   if (snapshotError) {
@@ -76,8 +157,21 @@ export async function loadCertificateRender(id: string): Promise<
     signature_reference?: string | null;
     verification_metadata?: Record<string, unknown> | null;
     render_payload?: Record<string, unknown> | null;
+    branch_address?: string | null;
   } | null;
   const renderMode = snapshot ? "MODERN_SNAPSHOT" : "LEGACY_FALLBACK";
+  // Issuing branch's registered address, as an authoritative historical fact.
+  // MODERN_SNAPSHOT: only the frozen snapshot row's own branch_address --
+  // deliberately never falls through to the live `certificates` row or to
+  // certificate_branches if the snapshot's own value is missing, so a
+  // snapshot-backed certificate can never silently acquire an address from a
+  // different (mutable or legacy) source. LEGACY_FALLBACK: the base
+  // certificates row's own branch_address, captured at that certificate's
+  // own (pre-snapshot) issuance -- not recomputed from current branch
+  // settings either.
+  const issuerBranchAddress: string | null = snapshot
+    ? (snapshot.branch_address ?? null)
+    : (c.branch_address ?? null);
   let tpl = snapshot
     ? { config: snapshot.template_config ?? {} }
     : c.certificate_templates as { config?: TemplateConfig } | null;
@@ -187,10 +281,19 @@ export async function loadCertificateRender(id: string): Promise<
 
   const verificationMetadata = snapshot?.verification_metadata ?? {};
   const renderPayload = snapshot?.render_payload ?? {};
+  applyGoldenReferenceSnapshotConfig(config, snapshot?.renderer_version, renderPayload);
+
   const certificateNumber: string = String(
     verificationMetadata.certificate_number ?? renderPayload.certificate_number ?? c.certificate_number ?? c.certificate_no ?? ""
   );
-  const origin = await siteOrigin();
+  // Canonical, not request-host-reflecting: this URL is baked into the
+  // certificate's QR code and PDF, so it must stay identical regardless of
+  // which admin/preview hostname happened to render it (see
+  // lib/site-origin.ts's own comment on canonicalSiteOrigin() vs
+  // siteOrigin()). Using the host-reflecting siteOrigin() here previously
+  // meant a certificate rendered from a non-canonical admin host could ship
+  // with a QR code that stops resolving once that host is gone.
+  const origin = await canonicalSiteOrigin();
   // Prefer the certificate's own stored verification_url — issuance
   // (app/admin/(protected)/certificates/actions.ts) sets this from
   // verification_token at insert time, and verify_and_log's p_method:'auto'
@@ -244,6 +347,7 @@ export async function loadCertificateRender(id: string): Promise<
     participant_skills_record: null,
     effective_skills_record: skillsResolution.skills,
     skills: skillsResolution.skills,
+    issuer_branch_address: issuerBranchAddress,
   };
   return { cert, data, config };
 }

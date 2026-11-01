@@ -1,6 +1,6 @@
 import type { CertData, TemplateConfig } from "../components/admin/CertificateDocument";
-import { fitHolderNameSize, formatDateRange, isAffirmativeStatus } from "./certificate-format";
-import { CERTIFICATE_DESIGN, certificateFamilyLabel } from "./certificate-design-system";
+import { fitHolderNameSize, formatDateRange, formatHumanDate, isAffirmativeStatus } from "./certificate-format";
+import { CERTIFICATE_DESIGN, certificateFamilyLabel, isGoldenReferenceFamily } from "./certificate-design-system";
 import { TERAS_COMPANY_NAME, TERAS_COMPANY_REGISTRATION, TERAS_COMPANY_TAGLINE } from "./teras-company";
 import { resolveCertificateWatermarkAsset } from "./certificate-watermark-assets";
 import { DIRECTOR_SIGNATURE_ASSET, EMBOSS_MEDALLION_LIFT_PX, EMBOSS_MEDALLION_SIZE_PX } from "./certificate-approval-assets";
@@ -20,6 +20,60 @@ const PAGE_H = CERTIFICATE_DESIGN.page.heightPx;
 const DEFAULT_LOGO_URL = "/certificates/template-a/teras-symbol-v2.png";
 /** Mirrors SANS in CertificateDocument.tsx — see that constant's comment. */
 const SANS = CERTIFICATE_DESIGN.typography.sans;
+
+export interface CertificateRenderOptions {
+  /** QA-only opt-in; never stored in a certificate template or issuance snapshot. */
+  qaPreview?: boolean;
+}
+
+/** Mirrors resolveDistinctProgrammeSubtitle in CertificateDocument.tsx. */
+function resolveDistinctProgrammeSubtitle(primary: string | null | undefined, subtitle: string | null | undefined): string | null {
+  if (typeof subtitle !== "string") return null;
+  const candidate = subtitle.trim();
+  if (!candidate) return null;
+  const normalize = (value: string) => value.trim().toLowerCase().replace(/\s+/g, " ");
+  return normalize(typeof primary === "string" ? primary : "") === normalize(candidate) ? null : candidate;
+}
+
+function isLongCertificateNumber(value: string): boolean {
+  return (value || "").trim().length > 28;
+}
+
+function fitCertificateNumberSize(value: string, regularSize: number): number {
+  const length = (value || "").trim().length;
+  if (length > 40) return Math.min(regularSize, 8);
+  if (length > 28) return Math.min(regularSize, 9);
+  return regularSize;
+}
+
+function longCertificateNumberWrapCss(value: string, maxWidth: string, display?: string): string {
+  if (!isLongCertificateNumber(value)) return "";
+  return `${display ? `display:${display};` : ""}max-width:${maxWidth};overflow-wrap:anywhere;word-break:break-word;line-height:1.1;`;
+}
+
+// Golden Reference Page 1 body-text budget -- mirrors
+// GOLDEN_REFERENCE_BODY_TEXT_LIMIT in CertificateDocument.tsx. No
+// continuation-page mechanism exists on this master layout.
+const GOLDEN_REFERENCE_BODY_TEXT_LIMIT = 360;
+
+function splitCertificateTextChunk(text: string, limit: number): [string, string] {
+  if (text.length <= limit) return [text, ""];
+  let splitAt = -1;
+  for (let index = Math.min(limit, text.length - 1); index > 0; index -= 1) {
+    if (/\s/.test(text[index])) {
+      splitAt = index;
+      break;
+    }
+  }
+  if (splitAt <= 0) splitAt = limit;
+  return [text.slice(0, splitAt), text.slice(splitAt)];
+}
+
+function splitCertificateBodyText(bodyText: string | null = ""): { pageOneText: string } {
+  const safeBodyText = typeof bodyText === "string" ? bodyText : "";
+  const [pageOneText] = splitCertificateTextChunk(safeBodyText, GOLDEN_REFERENCE_BODY_TEXT_LIMIT);
+  return { pageOneText };
+}
 
 
 // Neutral by design — see the same constant's comment in CertificateDocument.tsx.
@@ -77,11 +131,11 @@ function certificateFrame(navy: string, gold: string): string {
 }
 
 /** Mirrors CertificateWatermark in CertificateDocument.tsx exactly. */
-function certificateWatermark(config: TemplateConfig, corner: boolean): string {
+function certificateWatermark(config: TemplateConfig, corner: boolean, goldenReferencePageOne = false): string {
   const asset = resolveCertificateWatermarkAsset(config);
   if (!asset) return "";
-  const pos = corner ? "top:220px;right:-190px;width:900px;height:720px;" : "top:253px;right:-95px;width:700px;height:560px;";
-  const opacity = corner ? asset.page2Opacity : asset.primaryOpacity;
+  const pos = goldenReferencePageOne ? "top:270px;right:-24px;width:800px;height:560px;" : corner ? "top:220px;right:-190px;width:900px;height:720px;" : "top:253px;right:-95px;width:700px;height:560px;";
+  const opacity = goldenReferencePageOne ? 0.048 : corner ? asset.page2Opacity : asset.primaryOpacity;
   return `<img src="${esc(asset.src)}" alt="" aria-hidden="true" style="position:absolute;${pos}object-fit:contain;pointer-events:none;opacity:${opacity};"/>`;
 }
 
@@ -146,8 +200,59 @@ function ribbonBanner(inner: string, navy: string, gold: string, wrapStyle = "")
   return `<div style="display:inline-block;background:${navy};color:#fff;padding:5px 30px;border-top:1px solid ${gold};border-bottom:1px solid ${gold};${wrapStyle}">${inner}</div>`;
 }
 
+/**
+ * Golden Reference Page 1 — HTML-string mirror of GoldenReferencePageOne in
+ * CertificateDocument.tsx. Keep the two in exact visual sync.
+ */
+function renderGoldenReferencePageOne(data: CertData, config: TemplateConfig, navy: string, gold: string, options: CertificateRenderOptions): string {
+  const dateRange = formatDateRange(data.training_date, data.training_end_date);
+  const duration = data.programme_duration || config.duration_label;
+  const { pageOneText } = splitCertificateBodyText(config.body_text);
+  const signatureUrl = DIRECTOR_SIGNATURE_ASSET;
+  const directorName = "Director";
+  const programmeSubtitle = resolveDistinctProgrammeSubtitle(data.course_name, config.programme_title);
+  const logo = `<img src="${esc(config.logo_url || DEFAULT_LOGO_URL)}" alt="TERAS Universal" style="width:124px;height:91px;object-fit:contain;object-position:center;display:block;mix-blend-mode:multiply;"/>`;
+  // C4A-7B: Training Duration directly above Training Venue, both using the
+  // same label/value pattern as "Conducted from" -- mirrors
+  // CertificateDocument.tsx's GoldenReferencePageOne exactly. data.venue is
+  // the frozen training-location text (never the issuing branch address,
+  // which stays on Page 2 only); omitted entirely when absent.
+  const dateInfo = `${dateRange ? `<div style="color:#8a94a6;font-size:7.5px;letter-spacing:1.4px;text-transform:uppercase;">Conducted from</div><div style="font-size:10.5px;font-weight:600;margin-top:2px;">${esc(dateRange)}</div>` : ""}${duration ? `<div style="color:#8a94a6;font-size:7.5px;letter-spacing:1.4px;text-transform:uppercase;margin-top:8px;">Training Duration</div><div style="font-size:10.5px;font-weight:600;margin-top:2px;">${esc(duration)}</div>` : ""}${data.venue ? `<div style="color:#8a94a6;font-size:7.5px;letter-spacing:1.4px;text-transform:uppercase;margin-top:8px;">Training Venue</div><div style="font-size:10px;margin-top:1px;max-width:520px;margin-left:auto;margin-right:auto;overflow-wrap:anywhere;">${esc(data.venue)}</div>` : ""}`;
+  const signature = `<div style="height:68px;display:flex;align-items:flex-end;justify-content:center;"><img src="${esc(signatureUrl)}" alt="" style="max-height:62px;max-width:180px;object-fit:contain;"/></div>`;
+  const bodyText = pageOneText ? `<p style="font-size:9px;line-height:1.55;max-width:520px;margin:11px auto 0;color:#596273;overflow-wrap:anywhere;">${esc(pageOneText)}</p>` : "";
+
+  return `<div style="width:${PAGE_W}px;height:${PAGE_H}px;margin:0 auto;position:relative;background:${CERTIFICATE_DESIGN.colors.white};box-sizing:border-box;padding:${CERTIFICATE_DESIGN.page.safeMarginPx}px;font-family:${CERTIFICATE_DESIGN.typography.sans};color:${CERTIFICATE_DESIGN.colors.ink};overflow:hidden;">
+    ${certificateWatermark(config, false, true)}
+    ${certificateFrame(navy, gold)}
+    <div style="position:relative;z-index:2;height:100%;box-sizing:border-box;padding:15px 8px 120px;display:flex;flex-direction:column;text-align:center;">
+      <header style="display:flex;flex-direction:column;align-items:center;text-align:center;">
+        ${logo}
+        <div style="color:${navy};font-family:${CERTIFICATE_DESIGN.typography.heading};font-size:13.5px;font-weight:700;letter-spacing:2.1px;margin-top:1px;">${TERAS_COMPANY_NAME}</div>
+        <div style="color:#667085;font-family:${SANS};font-size:6.5px;letter-spacing:.65px;margin-top:3px;">${TERAS_COMPANY_TAGLINE}</div>
+        <div style="color:#667085;font-family:${SANS};font-size:7px;letter-spacing:.65px;margin-top:3px;">REG. NO. ${TERAS_COMPANY_REGISTRATION}</div>
+        <div style="width:100%;height:1px;margin-top:12px;background:linear-gradient(90deg,${navy} 0 31%,${gold} 31% 69%,${navy} 69% 100%);"></div>
+      </header>
+      <h1 style="color:${navy};font-family:${CERTIFICATE_DESIGN.typography.heading};font-size:22px;font-weight:700;letter-spacing:2.3px;line-height:1.2;margin:14px 0 0;">${esc(config.certificate_title || "")}</h1>
+      <p style="color:#8a94a6;font-family:${SANS};font-size:9px;letter-spacing:1.55px;line-height:1.4;margin:21px 0 9px;text-transform:uppercase;">This certificate is proudly presented to</p>
+      <div style="font-size:${Math.min(fitHolderNameSize(data.holder_name) + 8, CERTIFICATE_DESIGN.typography.participantNamePx)}px;font-weight:700;color:${navy};padding:0 8px 12px;word-break:break-word;line-height:1.15;letter-spacing:.35px;font-family:${CERTIFICATE_DESIGN.typography.heading};">${esc(data.holder_name)}</div>
+      <div style="width:210px;max-width:60%;height:1px;background:#d3d9e2;margin:0 auto;"><span style="display:block;width:52px;height:2px;margin:0 auto;background:${gold};"></span></div>
+      ${data.ic_passport ? `<p style="font-size:9px;color:#667085;margin:7px 0 0;letter-spacing:.35px;font-family:${SANS};overflow-wrap:anywhere;">IC / Passport No.: <strong style="color:${navy};font-weight:700;">${esc(data.ic_passport)}</strong></p>` : ""}
+      <p style="font-size:8.5px;margin:16px 0 6px;color:#8a94a6;letter-spacing:1.6px;font-family:${SANS};text-transform:uppercase;">For successfully completing the</p>
+      <div style="font-size:20px;font-weight:700;color:${navy};text-transform:uppercase;line-height:1.25;max-width:610px;margin:0 auto;letter-spacing:.65px;font-family:${CERTIFICATE_DESIGN.typography.heading};overflow-wrap:anywhere;">${esc(data.course_name)}</div>
+      ${programmeSubtitle ? `<div style="color:#536174;font-family:${SANS};font-size:8px;font-weight:600;letter-spacing:1.05px;margin-top:6px;">${esc(programmeSubtitle)}</div>` : ""}
+      <div style="margin:30px auto 0;color:${navy};font-family:${SANS};line-height:1.5;">${dateInfo}</div>
+      ${bodyText}
+      <div style="margin-top:auto;padding-top:18px;display:flex;align-items:flex-end;justify-content:space-between;gap:12px;text-align:center;">
+        <div style="flex:0 0 165px;text-align:left;font-size:9px;"><div style="color:#8a94a6;font-size:7px;letter-spacing:1.1px;font-family:${SANS};text-transform:uppercase;margin-bottom:4px;">Certificate No.</div><strong style="color:${navy};font-family:Georgia,serif;font-size:${isLongCertificateNumber(data.certificate_number) ? fitCertificateNumberSize(data.certificate_number, 10) : 10}px;overflow-wrap:anywhere;${longCertificateNumberWrapCss(data.certificate_number, "165px", "block")}">${esc(data.certificate_number)}</strong>${data.issue_date ? `<div style="color:#667085;font-size:8px;margin-top:5px;">Issued ${esc(formatHumanDate(data.issue_date))}</div>` : ""}</div>
+        <div style="flex:1 1 270px;max-width:300px;min-width:220px;display:flex;flex-direction:column;align-items:center;font-size:9px;">${signature}<div style="width:86%;border-top:1px solid ${navy};margin:3px 0 4px;"></div><strong style="color:${navy};font-family:${CERTIFICATE_DESIGN.typography.heading};font-size:8.5px;letter-spacing:.3px;">${esc(directorName)}</strong><div style="color:${navy};font-family:${SANS};font-size:7.5px;font-weight:700;letter-spacing:1.1px;margin-top:2px;">AUTHORIZED DIRECTOR</div><div style="color:#667085;font-family:${SANS};font-size:7px;letter-spacing:.45px;margin-top:2px;">${TERAS_COMPANY_NAME}</div></div>
+        <div style="flex:0 0 145px;display:flex;flex-direction:column;align-items:center;">${options.qaPreview ? `<div aria-label="STAMP_ASSET_PENDING — neutral seal placeholder for review only" style="width:108px;height:108px;border:1.5px solid rgba(201,162,39,.72);border-radius:50%;box-sizing:border-box;display:flex;align-items:center;justify-content:center;padding:9px;color:#8a94a6;font-family:${SANS};font-size:7px;letter-spacing:.8px;line-height:1.4;text-align:center;">STAMP_ASSET_PENDING</div><div style="color:#8a94a6;font-family:${SANS};font-size:6.5px;letter-spacing:.65px;margin-top:3px;">FOR REVIEW ONLY</div>` : `<div data-certificate-stamp-area="reserved" aria-hidden="true" style="width:108px;height:108px;border:1.5px solid rgba(201,162,39,.72);border-radius:50%;box-sizing:border-box;"></div>`}</div>
+      </div>
+    </div>
+    ${taglineFooter(navy, gold)}</div>`;
+}
+
 /** Render the certificate front (page 1, the A4 card) as an HTML string. */
-export function renderCertificateFront(data: CertData, config: TemplateConfig): string {
+export function renderCertificateFront(data: CertData, config: TemplateConfig, options: CertificateRenderOptions = {}): string {
   const navy = config.primary_color || "#0B3A63";
   const gold = config.accent_color || "#D4AF37";
   const dateRange = formatDateRange(data.training_date, data.training_end_date);
@@ -155,6 +260,9 @@ export function renderCertificateFront(data: CertData, config: TemplateConfig): 
   const showDurationRibbon = config.design_variant !== "standard_scaffold_certificate";
   const nameSize = fitHolderNameSize(data.holder_name) + 8;
   const bgImage = config.background_url ? `background-image:url('${esc(config.background_url)}');background-size:cover;background-position:center;` : "";
+
+  const useGoldenReferencePageOne = isGoldenReferenceFamily(config);
+  if (useGoldenReferencePageOne) return renderGoldenReferencePageOne(data, config, navy, gold, options);
 
   const motif = !config.background_url ? certificateWatermark(config, false) : "";
   const logo = `<img src="${esc(config.logo_url || DEFAULT_LOGO_URL)}" alt="TERAS Universal" style="width:228px;height:106px;margin-left:52px;object-fit:contain;object-position:left center;display:block;mix-blend-mode:multiply;position:relative;z-index:2;"/>`;
@@ -273,13 +381,19 @@ export function renderCertificateBack(data: CertData, config: TemplateConfig): s
         <span style="flex:1;height:1px;background:#e3e7ee;align-self:center;"></span>
       </div>`;
   const section = (icon: IconKind, title: string, body: string) =>
-    `<div style="margin-bottom:16px;">
+    `<div style="margin-bottom:10px;">
       ${sectionHead(icon, title)}${body}
     </div>`;
-  /** Mirrors BulletList in CertificateDocument.tsx — one gold-square bullet treatment for every list on this page. */
+  /**
+   * Mirrors BulletList in CertificateDocument.tsx — one gold-square bullet
+   * treatment for every list on this page. line-height/margin (not
+   * font-size) tightened for the full-length real programme content — see
+   * that component's matching comment and the Verification/footer
+   * clearance fix this accompanies.
+   */
   const bulletList = (items: string[]) =>
-    `<ul style="margin:0;padding:0;list-style:none;font-size:10.5px;line-height:1.7;color:#374151;">${items
-      .map((it) => `<li style="display:flex;gap:8px;margin-bottom:4px;"><span style="width:6px;height:1px;background:${gold};margin-top:8px;flex-shrink:0;"></span><span>${esc(it)}</span></li>`)
+    `<ul style="margin:0;padding:0;list-style:none;font-size:10.5px;line-height:1.55;color:#374151;">${items
+      .map((it) => `<li style="display:flex;gap:8px;margin-bottom:3px;"><span style="width:6px;height:1px;background:${gold};margin-top:8px;flex-shrink:0;"></span><span>${esc(it)}</span></li>`)
       .join("")}</ul>`;
   const colDivider = `<div style="width:1px;align-self:stretch;background:#edf0f4;"></div>`;
   const thStyle = `text-align:left;font-weight:700;color:#8a94a6;font-family:${SANS};font-size:8px;letter-spacing:1.1px;text-transform:uppercase;border-bottom:1px solid ${gold};`;
@@ -304,7 +418,7 @@ export function renderCertificateBack(data: CertData, config: TemplateConfig): s
     .map((p, i) => `<p style="position:relative;margin:${i === 0 ? 0 : "6px 0 0"};font-size:9.5px;line-height:1.65;color:#6b7280;">${esc(p.replace("{{PROGRAMME_NAME}}", data.course_name || "this programme"))}</p>`)
     .join("");
   const verifyRow = (label: string, value: string) =>
-    `<div style="border-left:1px solid #e3e7ee;padding-left:10px;">
+    `<div style="border-left:1px solid #e3e7ee;padding-left:10px;${label === "Issuing Branch Address" ? "grid-column:1 / -1;" : ""}">
       <div style="font-size:8px;letter-spacing:1.1px;color:#8a94a6;font-family:${SANS};text-transform:uppercase;">${esc(label)}</div>
       <div style="color:${navy};font-weight:700;margin-top:2px;">${esc(value)}</div>
     </div>`;
@@ -319,27 +433,27 @@ export function renderCertificateBack(data: CertData, config: TemplateConfig): s
     ${ribbonBanner(`<span style="font-size:9px;font-weight:700;letter-spacing:2.2px;font-family:${SANS};text-indent:2.2px;">PARTICIPANT SKILLS RECORD</span>`, navy, gold, "align-self:center;display:block;width:fit-content;margin:0 auto;")}
     <div style="text-align:center;font-size:16px;font-weight:700;color:${navy};text-transform:uppercase;margin:13px 0 0;line-height:1.3;letter-spacing:.8px;font-family:'Montserrat','Poppins','Inter',Arial,sans-serif;overflow-wrap:anywhere;">${esc(config.programme_title || data.course_name || "")}</div>
     <div style="display:flex;justify-content:center;gap:18px;flex-wrap:wrap;margin:8px 0 0;color:#667085;font-family:${SANS};font-size:8.5px;"><span>Participant: <strong style="color:${navy}">${esc(data.holder_name)}</strong></span>${data.ic_passport ? `<span style="overflow-wrap:anywhere;">IC / Passport No.: <strong style="color:${navy}">${esc(data.ic_passport)}</strong></span>` : ""}<span>Certificate No.: <strong style="color:${navy}">${esc(data.certificate_number)}</strong></span><span>Training period: <strong style="color:${navy}">${esc(formatDateRange(data.training_date, data.training_end_date) || "—")}</strong></span></div>
-    <div style="display:flex;margin:10px 0 15px;">
+    <div style="display:flex;margin:8px 0 10px;">
       <span style="width:28px;height:1.5px;background:${gold};"></span>
       <span style="flex:1;height:1px;background:#e3e7ee;align-self:center;"></span>
     </div>
-    ${showSkillsRecord ? `<div style="border-top:1px solid ${navy};border-bottom:1px solid #e3e7ee;padding:12px 14px 10px;margin-bottom:18px;">${skillsTable}</div>` : ""}
+    ${showSkillsRecord ? `<div style="border-top:1px solid ${navy};border-bottom:1px solid #e3e7ee;padding:12px 14px 10px;margin-bottom:10px;">${skillsTable}</div>` : ""}
     <div style="display:flex;gap:26px;flex:1;">
-      <div style="flex:1;padding-top:16px;">
-        ${config.objectives_text ? section("target", "PROGRAMME OBJECTIVES", `<p style="margin:0;font-size:10px;line-height:1.7;color:#374151;">${esc(config.objectives_text)}</p>`) : ""}
+      <div style="flex:1;padding-top:8px;">
+        ${config.objectives_text ? section("target", "PROGRAMME OBJECTIVES", `<p style="margin:0;font-size:10px;line-height:1.55;color:#374151;">${esc(config.objectives_text)}</p>`) : ""}
         ${coverage.length ? section("book", "PROGRAMME COVERAGE", bulletList(coverage)) : ""}
       </div>
       ${colDivider}
-      <div style="flex:1;padding-top:16px;">
+      <div style="flex:1;padding-top:8px;">
         ${outcomes.length ? section(
                   "bulb",
                   "LEARNING OUTCOMES",
-                  `<p style="margin:0 0 10px;font-size:10.5px;line-height:1.7;color:#6b7280;">Upon successful completion, participants should be able to:</p>
+                  `<p style="margin:0 0 8px;font-size:10.5px;line-height:1.55;color:#6b7280;">Upon successful completion, participants should be able to:</p>
                    ${bulletList(outcomes)}`
                 ) : ""}
       </div>
       ${colDivider}
-      <div style="flex:1;padding-top:16px;">
+      <div style="flex:1;padding-top:8px;">
         ${assessment.length ? section("clipboard", "ASSESSMENT METHOD", bulletList(assessment)) : ""}
       </div>
     </div>
@@ -347,7 +461,7 @@ export function renderCertificateBack(data: CertData, config: TemplateConfig): s
           ${sectionHead("warning", "IMPORTANT NOTICE")}
           ${noticeHtml}
         </div>` : ""}
-    <div style="margin-top:16px;padding-bottom:8px;">
+    <div style="margin-top:10px;padding-bottom:8px;">
       ${sectionHead("shield", "VERIFICATION")}
       <div style="display:flex;align-items:center;justify-content:space-between;gap:22px;">
         <div style="flex:1;display:grid;grid-template-columns:1fr 1fr;row-gap:11px;column-gap:24px;font-size:10px;color:#374151;">
@@ -355,6 +469,7 @@ export function renderCertificateBack(data: CertData, config: TemplateConfig): s
           ${config.contact_phone ? verifyRow("Contact Number", config.contact_phone) : ""}
           ${config.contact_website ? verifyRow("Website", config.contact_website) : ""}
           ${config.contact_email ? verifyRow("Email", config.contact_email) : ""}
+          ${data.issuer_branch_address ? verifyRow("Issuing Branch Address", data.issuer_branch_address) : ""}
         </div>
         ${qrHtml}
       </div>

@@ -1,8 +1,8 @@
 import type { CSSProperties, ReactNode } from "react";
-import { fitHolderNameSize, formatDateRange, isAffirmativeStatus } from "../../lib/certificate-format";
+import { fitHolderNameSize, formatDateRange, formatHumanDate, isAffirmativeStatus } from "../../lib/certificate-format";
 import type { CertificateSkillRow, CertificateSkillsCompleteness, CertificateSkillsProvenance } from "../../lib/certificate-skills";
 import { resolveCertificateWatermarkAsset, type WatermarkLevel } from "../../lib/certificate-watermark-assets";
-import { CERTIFICATE_DESIGN, certificateFamilyLabel } from "../../lib/certificate-design-system";
+import { CERTIFICATE_DESIGN, certificateFamilyLabel, isGoldenReferenceFamily, type GoldenReferenceFamily } from "../../lib/certificate-design-system";
 import { TERAS_COMPANY_NAME, TERAS_COMPANY_REGISTRATION, TERAS_COMPANY_TAGLINE } from "../../lib/teras-company";
 import { DIRECTOR_SIGNATURE_ASSET, EMBOSS_MEDALLION_LIFT_PX, EMBOSS_MEDALLION_SIZE_PX } from "../../lib/certificate-approval-assets";
 
@@ -56,11 +56,31 @@ export interface CertData {
   effective_skills_record?: CertificateSkillRow[] | null;
   /** Normalized historical skills consumed identically by React and HTML renderers. */
   skills?: CertificateSkillRow[] | null;
+  /**
+   * Issuing branch's registered address, as an authoritative historical fact
+   * resolved once by certData.ts (MODERN_SNAPSHOT: only the frozen snapshot
+   * row's own branch_address, never a live/legacy fallback; LEGACY_FALLBACK:
+   * the certificate's own base row). Null when no authoritative address was
+   * captured -- the renderer must not substitute venue or any other field.
+   */
+  issuer_branch_address?: string | null;
 }
 
 export interface TemplateConfig {
   /** Selects a dedicated renderer component in CertificateRenderer.tsx instead of this generic one. Routed by exact key match, never by course-name/title matching. */
   design_variant?: string;
+  /**
+   * Set by certData.ts from a frozen issuance snapshot's
+   * render_payload.certificate_family -- never recomputed from current
+   * programme/template data. Together with certificate_title, this is what
+   * isGoldenReferenceFamily() checks to decide whether GoldenReferencePageOne
+   * renders instead of the generic layout below.
+   */
+  golden_reference_family?: GoldenReferenceFamily;
+  /** Set by certData.ts, either from a frozen snapshot's render_payload.certificate_title or (legacy/no-snapshot certificates) left unset. */
+  certificate_title?: string;
+  /** A frozen render_payload.watermark_asset_family value -- see WatermarkAssetConfig's own comment in lib/certificate-watermark-assets.ts. */
+  frozen_watermark_asset_family?: string | null;
   logo_url?: string;
   background_url?: string;
   accent_color?: string;
@@ -171,12 +191,14 @@ function CertificateFrame({ navy, gold }: { navy: string; gold: string }) {
 }
 
 /** Shared asset placement for the React and HTML certificate renderers. */
-function CertificateWatermark({ config, corner = false }: { config: TemplateConfig; corner?: boolean }) {
+function CertificateWatermark({ config, corner = false, goldenReferencePageOne = false }: { config: TemplateConfig; corner?: boolean; goldenReferencePageOne?: boolean }) {
   const asset = resolveCertificateWatermarkAsset(config);
   if (!asset) return null;
-  const size = corner
-    ? { width: 900, height: 720, style: { top: 220, right: -190 } }
-    : { width: 700, height: 560, style: { top: 253, right: -95 } };
+  const size = goldenReferencePageOne
+    ? { width: 800, height: 560, style: { top: 270, right: -24 } }
+    : corner
+      ? { width: 900, height: 720, style: { top: 220, right: -190 } }
+      : { width: 700, height: 560, style: { top: 253, right: -95 } };
   return (
     <img
       src={asset.src}
@@ -188,7 +210,7 @@ function CertificateWatermark({ config, corner = false }: { config: TemplateConf
         height: size.height,
         objectFit: "contain",
         pointerEvents: "none",
-        opacity: corner ? asset.page2Opacity : asset.primaryOpacity,
+        opacity: goldenReferencePageOne ? 0.048 : corner ? asset.page2Opacity : asset.primaryOpacity,
         ...size.style,
       }}
     />
@@ -313,6 +335,154 @@ function AuthorisedSignatureLabel() {
   );
 }
 
+// Golden Reference Page 1 body-text budget: the layout has room for a short
+// paragraph only, with no continuation-page mechanism on this master layout
+// (CertificateRenderer.tsx's dispatch does not call one) -- text beyond the
+// limit is bounded at a word boundary rather than mid-word, not continued.
+const GOLDEN_REFERENCE_BODY_TEXT_LIMIT = 360;
+
+function splitCertificateTextChunk(text: string, limit: number): [string, string] {
+  if (text.length <= limit) return [text, ""];
+  let splitAt = -1;
+  for (let index = Math.min(limit, text.length - 1); index > 0; index -= 1) {
+    if (/\s/.test(text[index])) {
+      splitAt = index;
+      break;
+    }
+  }
+  if (splitAt <= 0) splitAt = limit;
+  return [text.slice(0, splitAt), text.slice(splitAt)];
+}
+
+function splitCertificateBodyText(bodyText: string | null = ""): { pageOneText: string } {
+  const safeBodyText = typeof bodyText === "string" ? bodyText : "";
+  const [pageOneText] = splitCertificateTextChunk(safeBodyText, GOLDEN_REFERENCE_BODY_TEXT_LIMIT);
+  return { pageOneText };
+}
+
+/** Avoids repeating the course name verbatim as its own "subtitle" directly beneath it. */
+function resolveDistinctProgrammeSubtitle(primary: string | null | undefined, subtitle: string | null | undefined): string | null {
+  if (typeof subtitle !== "string") return null;
+  const candidate = subtitle.trim();
+  if (!candidate) return null;
+  const normalize = (value: string) => value.trim().toLowerCase().replace(/\s+/g, " ");
+  return normalize(typeof primary === "string" ? primary : "") === normalize(candidate) ? null : candidate;
+}
+
+function isLongCertificateNumber(value: string): boolean {
+  return (value || "").trim().length > 28;
+}
+
+function fitCertificateNumberSize(value: string, regularSize: number): number {
+  const length = (value || "").trim().length;
+  if (length > 40) return Math.min(regularSize, 8);
+  if (length > 28) return Math.min(regularSize, 9);
+  return regularSize;
+}
+
+function longCertificateNumberStyle(value: string, regularSize: number, maxWidth: CSSProperties["maxWidth"], display?: CSSProperties["display"]): CSSProperties {
+  if (!isLongCertificateNumber(value)) return {};
+  return {
+    fontSize: fitCertificateNumberSize(value, regularSize),
+    maxWidth,
+    overflowWrap: "anywhere",
+    wordBreak: "break-word",
+    lineHeight: 1.1,
+    ...(display ? { display } : {}),
+  };
+}
+
+/**
+ * Golden Reference Page 1 — the approved C4 Visual Master Option A layout.
+ * Dispatched by CertificateDocument below only when isGoldenReferenceFamily
+ * (certificate-design-system.ts) confirms the certificate's own frozen
+ * golden_reference_family + certificate_title (set by certData.ts from an
+ * immutable issuance snapshot, or left unset for legacy/non-C4 certificates)
+ * match an approved family's contract. qaPreview is a QA-only opt-in, never
+ * stored in a certificate template or issuance snapshot -- see
+ * STAMP_ASSET_PENDING below. Mirrored in lib/certificate-html.ts's
+ * renderGoldenReferencePageOne.
+ */
+function GoldenReferencePageOne({ data, config, navy, gold, qaPreview }: { data: CertData; config: TemplateConfig; navy: string; gold: string; qaPreview: boolean }) {
+  const dateRange = formatDateRange(data.training_date, data.training_end_date);
+  const duration = data.programme_duration || config.duration_label;
+  const { pageOneText } = splitCertificateBodyText(config.body_text);
+  const signatureUrl = DIRECTOR_SIGNATURE_ASSET;
+  const directorName = "Director";
+  const programmeSubtitle = resolveDistinctProgrammeSubtitle(data.course_name, config.programme_title);
+
+  return (
+    <div style={{ width: PAGE_W, height: PAGE_H, margin: "0 auto", position: "relative", background: CERTIFICATE_DESIGN.colors.white, boxSizing: "border-box", padding: CERTIFICATE_DESIGN.page.safeMarginPx, fontFamily: CERTIFICATE_DESIGN.typography.sans, color: CERTIFICATE_DESIGN.colors.ink, overflow: "hidden", pageBreakAfter: config.show_back_page !== false ? "always" : undefined }}>
+      <CertificateWatermark config={config} goldenReferencePageOne />
+      <CertificateFrame navy={navy} gold={gold} />
+      <div style={{ position: "relative", zIndex: 2, height: "100%", boxSizing: "border-box", padding: "15px 8px 120px", display: "flex", flexDirection: "column", textAlign: "center" }}>
+        <header style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
+          <img src={config.logo_url || DEFAULT_LOGO_URL} alt="TERAS Universal" style={{ width: 124, height: 91, objectFit: "contain", objectPosition: "center", display: "block", mixBlendMode: "multiply" }} />
+          <div style={{ color: navy, fontFamily: CERTIFICATE_DESIGN.typography.heading, fontSize: 13.5, fontWeight: 700, letterSpacing: 2.1, marginTop: 1 }}>{TERAS_COMPANY_NAME}</div>
+          <div style={{ color: "#667085", fontFamily: SANS, fontSize: 6.5, letterSpacing: 0.65, marginTop: 3 }}>{TERAS_COMPANY_TAGLINE}</div>
+          <div style={{ color: "#667085", fontFamily: SANS, fontSize: 7, letterSpacing: 0.65, marginTop: 3 }}>REG. NO. {TERAS_COMPANY_REGISTRATION}</div>
+          <div style={{ width: "100%", height: 1, marginTop: 12, background: `linear-gradient(90deg, ${navy} 0 31%, ${gold} 31% 69%, ${navy} 69% 100%)` }} />
+        </header>
+
+        <h1 style={{ color: navy, fontFamily: CERTIFICATE_DESIGN.typography.heading, fontSize: 22, fontWeight: 700, letterSpacing: 2.3, lineHeight: 1.2, margin: "14px 0 0" }}>{config.certificate_title}</h1>
+        <p style={{ color: "#8a94a6", fontFamily: SANS, fontSize: 9, letterSpacing: 1.55, lineHeight: 1.4, margin: "21px 0 9px", textTransform: "uppercase" }}>This certificate is proudly presented to</p>
+        <div style={{ fontSize: Math.min(fitHolderNameSize(data.holder_name) + 8, CERTIFICATE_DESIGN.typography.participantNamePx), fontWeight: 700, color: navy, padding: "0 8px 12px", wordBreak: "break-word", lineHeight: 1.15, letterSpacing: 0.35, fontFamily: CERTIFICATE_DESIGN.typography.heading }}>{data.holder_name}</div>
+        <div style={{ width: 210, maxWidth: "60%", height: 1, background: "#d3d9e2", margin: "0 auto" }}><span style={{ display: "block", width: 52, height: 2, margin: "0 auto", background: gold }} /></div>
+        {data.ic_passport && <p style={{ fontSize: 9, color: "#667085", margin: "7px 0 0", letterSpacing: 0.35, fontFamily: SANS, overflowWrap: "anywhere" }}>IC / Passport No.: <strong style={{ color: navy, fontWeight: 700 }}>{data.ic_passport}</strong></p>}
+        <p style={{ fontSize: 8.5, margin: "16px 0 6px", color: "#8a94a6", letterSpacing: 1.6, fontFamily: SANS, textTransform: "uppercase" }}>For successfully completing the</p>
+        <div style={{ fontSize: 20, fontWeight: 700, color: navy, textTransform: "uppercase", lineHeight: 1.25, maxWidth: 610, margin: "0 auto", letterSpacing: 0.65, fontFamily: CERTIFICATE_DESIGN.typography.heading, overflowWrap: "anywhere" }}>{data.course_name}</div>
+        {programmeSubtitle && <div style={{ color: "#536174", fontFamily: SANS, fontSize: 8, fontWeight: 600, letterSpacing: 1.05, marginTop: 6 }}>{programmeSubtitle}</div>}
+
+        <div style={{ margin: "30px auto 0", color: navy, fontFamily: SANS, lineHeight: 1.5 }}>
+          {dateRange && <><div style={{ color: "#8a94a6", fontSize: 7.5, letterSpacing: 1.4, textTransform: "uppercase" }}>Conducted from</div><div style={{ fontSize: 10.5, fontWeight: 600, marginTop: 2 }}>{dateRange}</div></>}
+          {/*
+           * C4A-7B: Training Duration directly above Training Venue, both
+           * using the same label/value pattern as "Conducted from" above --
+           * owner-approved layout decision. data.venue is the frozen
+           * training-location text captured at issuance (course_schedules.
+           * venue -> certificates.venue -> certificate_issuance_snapshots.
+           * venue), never the issuing branch address (that's
+           * data.issuer_branch_address, rendered only on Page 2 and
+           * untouched by this change). Omitted entirely when absent -- never
+           * fabricated.
+           */}
+          {duration && <><div style={{ color: "#8a94a6", fontSize: 7.5, letterSpacing: 1.4, textTransform: "uppercase", marginTop: 8 }}>Training Duration</div><div style={{ fontSize: 10.5, fontWeight: 600, marginTop: 2 }}>{duration}</div></>}
+          {data.venue && <><div style={{ color: "#8a94a6", fontSize: 7.5, letterSpacing: 1.4, textTransform: "uppercase", marginTop: 8 }}>Training Venue</div><div style={{ fontSize: 10, marginTop: 1, maxWidth: 520, margin: "1px auto 0", overflowWrap: "anywhere" }}>{data.venue}</div></>}
+        </div>
+        {pageOneText && <p style={{ fontSize: 9, lineHeight: 1.55, maxWidth: 520, margin: "11px auto 0", color: "#596273", overflowWrap: "anywhere" }}>{pageOneText}</p>}
+
+        <div style={{ marginTop: "auto", paddingTop: 18, display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12, textAlign: "center" }}>
+          <div style={{ flex: "0 0 165px", textAlign: "left", fontSize: 9 }}>
+            <div style={{ color: "#8a94a6", fontSize: 7, letterSpacing: 1.1, fontFamily: SANS, textTransform: "uppercase", marginBottom: 4 }}>Certificate No.</div>
+            <strong style={{ color: navy, fontFamily: "Georgia, serif", fontSize: isLongCertificateNumber(data.certificate_number) ? fitCertificateNumberSize(data.certificate_number, 10) : 10, overflowWrap: "anywhere", ...longCertificateNumberStyle(data.certificate_number, 10, 165, "block") }}>{data.certificate_number}</strong>
+            {data.issue_date && <div style={{ color: "#667085", fontSize: 8, marginTop: 5 }}>Issued {formatHumanDate(data.issue_date)}</div>}
+          </div>
+          <div style={{ flex: "1 1 270px", maxWidth: 300, minWidth: 220, display: "flex", flexDirection: "column", alignItems: "center", fontSize: 9 }}>
+            <div style={{ height: 68, display: "flex", alignItems: "flex-end", justifyContent: "center" }}><img src={signatureUrl} alt="" style={{ maxHeight: 62, maxWidth: 180, objectFit: "contain" }} /></div>
+            <div style={{ width: "86%", borderTop: `1px solid ${navy}`, margin: "3px 0 4px" }} />
+            <strong style={{ color: navy, fontFamily: CERTIFICATE_DESIGN.typography.heading, fontSize: 8.5, letterSpacing: 0.3 }}>{directorName}</strong>
+            <div style={{ color: navy, fontFamily: SANS, fontSize: 7.5, fontWeight: 700, letterSpacing: 1.1, marginTop: 2 }}>AUTHORIZED DIRECTOR</div>
+            <div style={{ color: "#667085", fontFamily: SANS, fontSize: 7, letterSpacing: 0.45, marginTop: 2 }}>{TERAS_COMPANY_NAME}</div>
+          </div>
+          <div style={{ flex: "0 0 145px", display: "flex", flexDirection: "column", alignItems: "center" }}>
+            {qaPreview ? (
+              <>
+                <div aria-label="STAMP_ASSET_PENDING — neutral seal placeholder for review only" style={{ width: 108, height: 108, border: "1.5px solid rgba(201,162,39,.72)", borderRadius: "50%", boxSizing: "border-box", display: "flex", alignItems: "center", justifyContent: "center", padding: 9, color: "#8a94a6", fontFamily: SANS, fontSize: 7, letterSpacing: 0.8, lineHeight: 1.4, textAlign: "center" }}>
+                  STAMP_ASSET_PENDING
+                </div>
+                <div style={{ color: "#8a94a6", fontFamily: SANS, fontSize: 6.5, letterSpacing: 0.65, marginTop: 3 }}>FOR REVIEW ONLY</div>
+              </>
+            ) : (
+              <div data-certificate-stamp-area="reserved" aria-hidden="true" style={{ width: 108, height: 108, border: "1.5px solid rgba(201,162,39,.72)", borderRadius: "50%", boxSizing: "border-box" }} />
+            )}
+          </div>
+        </div>
+      </div>
+      <TaglineFooter navy={navy} gold={gold} />
+    </div>
+  );
+}
+
 /**
  * Neutral authentication placeholder — no approved company stamp asset
  * exists (confirmed repo-wide), so this stays deliberately unbranded: no
@@ -321,7 +491,7 @@ function AuthorisedSignatureLabel() {
  * the two read as siblings rather than one finished element beside one
  * placeholder. Mirrored in lib/certificate-html.ts's stampSeal.
  */
-export function CertificateDocument({ data, config }: { data: CertData; config: TemplateConfig }) {
+export function CertificateDocument({ data, config, qaPreview = false }: { data: CertData; config: TemplateConfig; qaPreview?: boolean }) {
   const navy = config.primary_color || "#0B3A63";
   const gold = config.accent_color || "#D4AF37";
   const dateRange = formatDateRange(data.training_date, data.training_end_date);
@@ -342,6 +512,9 @@ export function CertificateDocument({ data, config }: { data: CertData; config: 
   // signature_layout setting.
   const singleSig = config.signature_layout === "single" || config.design_variant === "standard_scaffold_certificate" || config.design_variant === "working_at_height_certificate";
   const signatureUrl = config.signature_url || (singleSig ? DIRECTOR_SIGNATURE_ASSET : undefined);
+
+  const useGoldenReferencePageOne = isGoldenReferenceFamily(config);
+  if (useGoldenReferencePageOne) return <GoldenReferencePageOne data={data} config={config} navy={navy} gold={gold} qaPreview={qaPreview} />;
 
   return (
     <div
@@ -535,7 +708,7 @@ export function CertificateBackPage({ data, config }: { data: CertData; config: 
     </>
   );
   const Section = ({ icon, title, children }: { icon: IconKind; title: string; children: ReactNode }) => (
-    <div style={{ marginBottom: 16 }}>
+    <div style={{ marginBottom: 10 }}>
       <SectionHead icon={icon} title={title} />
       {children}
     </div>
@@ -546,11 +719,17 @@ export function CertificateBackPage({ data, config }: { data: CertData; config: 
    * used browser disc bullets, so three adjacent columns each announced their
    * items differently. A dash sits quieter than a square at this size and
    * matches the rule language used by the section heads.
+   *
+   * line-height/margin (not font-size) were tightened for the full-length
+   * real programme content (7 coverage items + a multi-line objectives
+   * paragraph on every Erector level, not the shorter placeholder text this
+   * was first tuned against) — see the Verification/footer clearance fix
+   * this accompanies. Reclaims vertical budget without shrinking type.
    */
   const BulletList = ({ items }: { items: string[] }) => (
-    <ul style={{ margin: 0, padding: 0, listStyle: "none", fontSize: 10.5, lineHeight: 1.7, color: "#374151" }}>
+    <ul style={{ margin: 0, padding: 0, listStyle: "none", fontSize: 10.5, lineHeight: 1.55, color: "#374151" }}>
       {items.map((it, i) => (
-        <li key={i} style={{ display: "flex", gap: 8, marginBottom: 4 }}>
+        <li key={i} style={{ display: "flex", gap: 8, marginBottom: 3 }}>
           <span style={{ width: 6, height: 1, background: gold, marginTop: 8, flexShrink: 0 }} />
           <span>{it}</span>
         </li>
@@ -579,13 +758,13 @@ export function CertificateBackPage({ data, config }: { data: CertData; config: 
         {/* Masthead close: a full-width layered rule rather than a floating
             44px gold dash, so the title block terminates with the same
             gold-into-hairline device the sections below use. */}
-        <div style={{ display: "flex", margin: "10px 0 15px" }}>
+        <div style={{ display: "flex", margin: "8px 0 10px" }}>
           <span style={{ width: 28, height: 1.5, background: gold }} />
           <span style={{ flex: 1, height: 1, background: "#e3e7ee", alignSelf: "center" }} />
         </div>
 
         {showSkillsRecord && (
-          <div style={{ borderTop: `1px solid ${navy}`, borderBottom: "1px solid #e3e7ee", padding: "12px 14px 10px", marginBottom: 18 }}>
+          <div style={{ borderTop: `1px solid ${navy}`, borderBottom: "1px solid #e3e7ee", padding: "12px 14px 10px", marginBottom: 10 }}>
             <SectionHead icon="doc" title="PARTICIPANT SKILLS RECORD" />
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 9.5 }}>
               <thead><tr>
@@ -604,21 +783,21 @@ export function CertificateBackPage({ data, config }: { data: CertData; config: 
         )}
 
         <div style={{ display: "flex", gap: 26, flex: 1 }}>
-          <div style={{ flex: 1, paddingTop: 16 }}>
+          <div style={{ flex: 1, paddingTop: 8 }}>
             {config.objectives_text && <Section icon="target" title="PROGRAMME OBJECTIVES">
-              <p style={{ margin: 0, fontSize: 10, lineHeight: 1.7, color: "#374151" }}>{config.objectives_text}</p>
+              <p style={{ margin: 0, fontSize: 10, lineHeight: 1.55, color: "#374151" }}>{config.objectives_text}</p>
             </Section>}
             {coverage.length > 0 && <Section icon="book" title="PROGRAMME COVERAGE"><BulletList items={coverage} /></Section>}
           </div>
           <ColumnDivider />
-          <div style={{ flex: 1, paddingTop: 16 }}>
+          <div style={{ flex: 1, paddingTop: 8 }}>
             {outcomes.length > 0 && <Section icon="bulb" title="LEARNING OUTCOMES">
-              <p style={{ margin: "0 0 10px", fontSize: 10.5, lineHeight: 1.7, color: "#6b7280" }}>Upon successful completion, participants should be able to:</p>
+              <p style={{ margin: "0 0 8px", fontSize: 10.5, lineHeight: 1.55, color: "#6b7280" }}>Upon successful completion, participants should be able to:</p>
               <BulletList items={outcomes} />
             </Section>}
           </div>
           <ColumnDivider />
-          <div style={{ flex: 1, paddingTop: 16 }}>
+          <div style={{ flex: 1, paddingTop: 8 }}>
             {assessment.length > 0 && <Section icon="clipboard" title="ASSESSMENT METHOD"><BulletList items={assessment} /></Section>}
 
                       </div>
@@ -633,7 +812,7 @@ export function CertificateBackPage({ data, config }: { data: CertData; config: 
           ))}
         </div>}
 
-        <div style={{ marginTop: 16, paddingBottom: 8 }}>
+        <div style={{ marginTop: 10, paddingBottom: 8 }}>
           <SectionHead icon="shield" title="VERIFICATION" />
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 22 }}>
             <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", rowGap: 11, columnGap: 24, fontSize: 10, color: "#374151" }}>
@@ -642,8 +821,9 @@ export function CertificateBackPage({ data, config }: { data: CertData; config: 
                 { label: "Contact Number", value: config.contact_phone },
                 { label: "Website", value: config.contact_website },
                 { label: "Email", value: config.contact_email },
+                { label: "Issuing Branch Address", value: data.issuer_branch_address },
               ].filter((row): row is { label: string; value: string } => Boolean(row.value)).map((row) => (
-                <div key={row.label} style={{ borderLeft: "1px solid #e3e7ee", paddingLeft: 10 }}>
+                <div key={row.label} style={{ borderLeft: "1px solid #e3e7ee", paddingLeft: 10, ...(row.label === "Issuing Branch Address" ? { gridColumn: "1 / -1" } : {}) }}>
                   <div style={{ fontSize: 8, letterSpacing: 1.1, color: "#8a94a6", fontFamily: SANS, textTransform: "uppercase" }}>{row.label}</div>
                   <div style={{ color: navy, fontWeight: 700, marginTop: 2 }}>{row.value}</div>
                 </div>
