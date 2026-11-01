@@ -63,7 +63,15 @@ const slice = certDataLines
   // strip it; it has no runtime effect.
   .replace(/ as GoldenReferenceFamily/g, "")
   .replace("config: TemplateConfig,", "config: any,");
-writeFileSync(resolve(probeDir, "apply-golden-reference-probe.ts"), `${slice}\n`, "utf8");
+// applyGoldenReferenceSnapshotConfig calls levelOf (imported from
+// lib/certificate-watermark-assets.ts); extract that live definition too
+// rather than hand-copying it.
+const watermarkSource = readFileSync(resolve(repoRoot, "lib/certificate-watermark-assets.ts"), "utf8");
+const levelsDecl = watermarkSource.match(/const LEVELS = [^\r\n]+\r?\n/);
+const levelOfDecl = watermarkSource.match(/export function levelOf\([\s\S]*?\r?\n}\r?\n/);
+assert.ok(levelsDecl && levelOfDecl, "could not locate LEVELS/levelOf in certificate-watermark-assets.ts -- extraction markers are stale");
+const levelHelpers = `${levelsDecl[0]}${levelOfDecl[0]}`.replace(/WatermarkLevel/g, "string");
+writeFileSync(resolve(probeDir, "apply-golden-reference-probe.ts"), `${levelHelpers}\n${slice}\n`, "utf8");
 
 // --- Compile the probe + the real renderer sources we need to require ---
 execFileSync(process.execPath, [
@@ -158,21 +166,42 @@ const erectorPayload = {
 }
 
 // ============================================================
-// 4. Inspector / WAH -- PROPOSED, not-yet-activated contract. These
-//    renderer_version values are NOT written by any live trigger today;
-//    this only proves the app side is ready once one exists.
+// 4. Inspector c4_wave1_inspector_v1 -- the render_payload shape written by
+//    supabase/migrations/20261102090000_production_inspector_c4_snapshot_
+//    dispatch.sql (frozen inspector_watermark_level, no
+//    watermark_asset_family). WAH below is still a PROPOSED contract that
+//    no trigger writes yet.
 // ============================================================
-{
+const { resolveCertificateWatermarkAsset } = require(resolve(compileDir, "repo/lib/certificate-watermark-assets.js"));
+for (const level of ["basic", "intermediate", "advanced"]) {
   const config = { design_variant: "standard_scaffold_certificate" };
   applyGoldenReferenceSnapshotConfig(config, "c4_wave1_inspector_v1", {
     certificate_family: "scaffold_inspector",
     certificate_title: "SCAFFOLDING INSPECTION CERTIFICATE",
-    programme_content: { programme_title: "TERAS BASIC SCAFFOLD INSPECTION PROGRAMME", programme_duration: "2-Day Practical Training" },
-    watermark_asset_family: "inspector",
+    programme_level: level,
+    programme_content: { programme_title: `TERAS ${level.toUpperCase()} SCAFFOLD INSPECTION PROGRAMME`, programme_duration: "2-Day Practical Training" },
+    inspector_watermark_level: level,
   });
   assert.equal(config.golden_reference_family, "scaffold_inspector");
   assert.equal(config.certificate_title, "SCAFFOLDING INSPECTION CERTIFICATE");
-  console.log("PASS Inspector proposed c4_wave1_inspector_v1 synthetic payload dispatches correctly (not yet DB-activated)");
+  assert.equal(config.inspector_watermark_level, level, "Inspector: watermark level must come from the frozen render_payload");
+  assert.equal(config.frozen_watermark_asset_family, null, "Inspector: must not carry Erector's frozen watermark family");
+  assert.equal(config.duration_label, "2-Day Practical Training");
+  assert.equal(resolveCertificateWatermarkAsset(config)?.src, `/certificates/watermarks/inspector-${level}.svg`);
+  console.log(`PASS Inspector ${level} c4_wave1_inspector_v1 snapshot -> Golden Reference with inspector-${level} watermark`);
+}
+{
+  // An Inspector-shaped payload under an unrecognised renderer must stay legacy.
+  const config = { design_variant: "standard_scaffold_certificate" };
+  applyGoldenReferenceSnapshotConfig(config, "certificate_renderer_v1", { certificate_family: "scaffold_inspector", certificate_title: "SCAFFOLDING INSPECTION CERTIFICATE", inspector_watermark_level: "basic" });
+  assert.equal(config.golden_reference_family, undefined);
+  assert.equal(config.inspector_watermark_level, undefined);
+  // Erector snapshots never gain an Inspector watermark level.
+  const erector = { design_variant: "standard_scaffold_certificate" };
+  applyGoldenReferenceSnapshotConfig(erector, "c4_wave1_v1", erectorPayload);
+  assert.equal(erector.inspector_watermark_level, undefined);
+  assert.equal(resolveCertificateWatermarkAsset(erector)?.src, "/certificates/watermarks/scaffolding-technical.svg");
+  console.log("PASS Inspector fields ignored for legacy renderer; Erector keeps scaffolding-technical watermark");
 }
 {
   const config = { design_variant: "working_at_height_certificate" };

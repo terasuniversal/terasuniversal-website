@@ -4,6 +4,7 @@ import { generateQrSvg, formatHumanDate } from "../../../../lib/certificate-form
 import { findStandardScaffoldProgrammeByCourseId } from "../../../../lib/standard-scaffold-programmes";
 import { findWorkingAtHeightProgrammeByCourseId } from "../../../../lib/working-at-height-programme";
 import { resolveCertificateSkills, type CertificateSkillRow } from "../../../../lib/certificate-skills";
+import { levelOf } from "../../../../lib/certificate-watermark-assets";
 import type { GoldenReferenceFamily } from "../../../../lib/certificate-design-system";
 import type { CertData, TemplateConfig } from "../../../../components/admin/CertificateDocument";
 
@@ -41,6 +42,8 @@ interface GoldenReferenceRenderPayload {
   certificate_family?: string;
   certificate_title?: string;
   watermark_asset_family?: string;
+  /** Frozen by the Inspector branch of app.capture_c4_wave1_erector_snapshot() only; never present alongside watermark_asset_family. */
+  inspector_watermark_level?: string;
   programme_content?: {
     programme_title?: string;
     programme_duration?: string;
@@ -85,6 +88,11 @@ export function applyGoldenReferenceSnapshotConfig(
   // data.skills -- never recomputed from mutable programme/participant data.
   config.show_skills_record = true;
   config.frozen_watermark_asset_family = payload.watermark_asset_family ?? null;
+  // The shared standard scaffold template carries no Inspector level, so the
+  // frozen snapshot fact is the only source for an Inspector certificate's
+  // watermark (inspector-<level>.svg).
+  const frozenInspectorLevel = levelOf(payload.inspector_watermark_level);
+  if (frozenInspectorLevel) config.inspector_watermark_level = frozenInspectorLevel;
   const content = payload.programme_content;
   if (content) {
     config.programme_title ??= content.programme_title;

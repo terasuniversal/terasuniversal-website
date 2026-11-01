@@ -50,7 +50,7 @@ const ASSET_ROOT = "/certificates/watermarks";
 
 const LEVELS = new Set<WatermarkLevel>(["basic", "intermediate", "advanced"]);
 
-function levelOf(value: unknown): WatermarkLevel | null {
+export function levelOf(value: unknown): WatermarkLevel | null {
   return typeof value === "string" && LEVELS.has(value as WatermarkLevel)
     ? value as WatermarkLevel
     : null;
