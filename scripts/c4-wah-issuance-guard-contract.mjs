@@ -523,7 +523,7 @@ try {
     insert into public.profiles (id, email, role, is_active) values ('${SUPER}', 'super@synthetic.test', 'super_admin', true), ('${INACTIVE_SUPER}', 'off@synthetic.test', 'super_admin', false), ('${INACTIVE_ADMIN}', 'offadmin@synthetic.test', 'admin', false);`);
   const SUPER_ONLY = /WAH_SUPER_ADMIN_REQUIRED/;
   const asSuper = ({ s, p }, uid = SUPER, role = "authenticated") => asRole(uid, `select id from public.issue_wah_certificate_as_super_admin('${s}', '${p}')`, role);
-  const SA_DRAFT = "supabase/post_baseline_drafts/20261102120000_production_wah_super_admin_issuance.sql";
+  const SA_DRAFT = "supabase/migrations/20261102160312_production_wah_super_admin_issuance.sql";
   const saBody = read(SA_DRAFT).replace(/^begin;$/m, "").replace(/^commit;\s*$/m, "");
 
   rejects(asSuper(completeEnrolment()), /does not exist/, "before the draft, the Super Admin function does not exist");
