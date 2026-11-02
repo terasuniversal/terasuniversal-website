@@ -283,7 +283,7 @@ console.log("PASS the Skills Record form submits the values it was showing");
 // Real generation actions: incomplete WAH rows are held before the issuer.
 const certificateActions = require(compile("app/admin/(protected)/certificates/actions.ts", "certificate-actions.js"));
 const ALL_DONE = { theory_session: "completed", practical_training: "completed", safety_awareness: "completed", practical_assessment: "passed" };
-function issueClient({ eligible = [], skills = [], courseId = WAH, readError = null, rpcError = null } = {}) {
+function issueClient({ eligible = [], skills = [], courseId = WAH, readError = null, rpcError = null, holders = [], holderError = null } = {}) {
   const issued = [];
   const via = [];
   const elig = eligible.map((id) => ({ schedule_id: "s1", participant_id: id, course_id: courseId, certificate_template_id: "t1", eligible: true, holder_name: "SYNTHETIC" }));
@@ -296,6 +296,7 @@ function issueClient({ eligible = [], skills = [], courseId = WAH, readError = n
       return table(skills, {}, readError);
     },
     rpc: async (name, args) => {
+      if (name === "wah_certificate_holders_on_schedule") return holderError ? { data: null, error: holderError } : { data: holders.map((participant_id) => ({ participant_id })), error: null };
       if (rpcError) return { data: null, error: rpcError };
       issued.push(args.p_participant_id);
       via.push(name);
@@ -350,7 +351,16 @@ for (const [message, reason] of [["WAH_SUPER_ADMIN_REQUIRED: x", superAdmin.WAH_
   issuer = issueClient({ eligible: ["p1"], skills: stored(ALL_DONE), rpcError: { message } });
   assert.equal(await generate(issuer), reason, message);
 }
-issuer = issueClient({ eligible: ["p1"], courseId: OTHER_ID });
+issuer = issueClient({ eligible: ["p1"], skills: stored(ALL_DONE), holders: ["p1"] });
+assert.equal(await generate(issuer), superAdmin.WAH_HOLDER_REASON);
+assert.deepEqual(issuer.issued, []);
+issuer = issueClient({ eligible: ["p1"], skills: stored(ALL_DONE), holderError: { message: "x" } });
+assert.equal(await generate(issuer), superAdmin.WAH_HOLDER_CHECK_ERROR);
+assert.deepEqual(issuer.issued, []);
+issuer = issueClient({ eligible: ["p1"], skills: stored(ALL_DONE), rpcError: { message: "WAH_ALREADY_CERTIFIED: x" } });
+assert.equal(await generate(issuer), superAdmin.WAH_HOLDER_REASON);
+console.log("PASS an existing WAH holder is held before the issuer, a failed check issues nothing, and the database refusal reads plainly");
+issuer = issueClient({ eligible: ["p1"], courseId: OTHER_ID, holders: ["p1"] });
 assert.equal(await generate(issuer), "ok");
 assert.deepEqual(issuer.via, ["issue_certificate_with_skill_snapshot"]);
 console.log("PASS individual WAH generation uses the Super Admin issuer, others keep the old one, and database refusals reach staff as plain reasons");
