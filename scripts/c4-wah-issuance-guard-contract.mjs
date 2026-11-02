@@ -696,7 +696,7 @@ try {
   assert.equal(psql("select count(*) from pg_proc where proname='issue_wah_certificate_as_super_admin'"), "2");
 
   // ---- Existing holder block (the third draft) --------------------------------------------------------------
-  const HOLDER_DRAFT = "supabase/post_baseline_drafts/20261103010000_production_wah_existing_holder_block.sql";
+  const HOLDER_DRAFT = "supabase/migrations/20261102165601_production_wah_existing_holder_block.sql";
   const SA_MIGRATION = SA_DRAFT;
   const ALREADY = /WAH_ALREADY_CERTIFIED/;
   // Production's participants table carries both identity columns.
