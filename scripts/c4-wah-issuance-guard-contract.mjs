@@ -695,6 +695,137 @@ try {
   pass("this draft's rollback removes only the new functions: the guard stays enforcing and every authorization row stays");
   assert.equal(psql("select count(*) from pg_proc where proname='issue_wah_certificate_as_super_admin'"), "2");
 
+  // ---- Existing holder block (the third draft) --------------------------------------------------------------
+  const HOLDER_DRAFT = "supabase/migrations/20261102165601_production_wah_existing_holder_block.sql";
+  const SA_MIGRATION = SA_DRAFT;
+  const ALREADY = /WAH_ALREADY_CERTIFIED/;
+  // Production's participants table carries both identity columns.
+  psql("alter table public.participants add column if not exists identity_no text");
+  // The same person enrolled on a further completed WAH schedule, complete in every respect.
+  const laterSchedule = (p) => {
+    seq += 1;
+    const s = `10000000-0000-4000-8000-${String(seq).padStart(12, "0")}`;
+    psql(`insert into public.course_schedules (id, course_id, schedule_code, status, start_date, end_date, venue, trainer_name, branch_id) values ('${s}', '${WAH}', 'SYN-LATER-${seq}', 'completed', '2026-10-01', '2026-10-02', 'Synthetic Venue', 'Synthetic Trainer', (select id from public.certificate_branches where is_active limit 1));
+      insert into public.schedule_participants (schedule_id, participant_id) values ('${s}', '${p}');
+      insert into public.attendance (schedule_id, participant_id, session_date, attendance_status) values ('${s}','${p}','2026-10-01','present'), ('${s}','${p}','2026-10-02','present');`);
+    const e = { s, p };
+    for (const [area, status] of Object.entries(COMPLETE)) setSkill(e, area, status);
+    return e;
+  };
+  const issuedHolder = () => {
+    const e = completeEnrolment();
+    psql(asSuper(e));
+    return e;
+  };
+
+  // Reproduce the defect first: Production's state before this draft.
+  const reproduced = issuedHolder();
+  psql(asSuper(laterSchedule(reproduced.p)));
+  assert.equal(psql(`select count(*) from public.certificates where participant_id='${reproduced.p}' and deleted_at is null`), "2");
+  pass("before the draft, a holder on a later schedule receives a second WAH certificate (the defect)");
+
+  const holderBody = read(HOLDER_DRAFT).replace(/^begin;$/m, "").replace(/^commit;\s*$/m, "");
+  rejects(`begin; drop function public.issue_wah_certificate_as_super_admin(uuid,uuid,text); drop function app.issue_wah_certificate_as_super_admin(uuid,uuid,text); ${holderBody} rollback;`, /requires the applied WAH Super Admin issuance/, "holder draft aborts without the Super Admin function");
+  const holderCertsBefore = psql("select md5(string_agg(c::text, '|' order by id)) from public.certificates c");
+  const holderSnapsBefore = psql("select md5(string_agg(s::text, '|' order by certificate_id)) from public.certificate_issuance_snapshots s");
+  psql(read(HOLDER_DRAFT));
+  psql(read(HOLDER_DRAFT));
+  assert.equal(psql("select md5(string_agg(c::text, '|' order by id)) from public.certificates c"), holderCertsBefore);
+  assert.equal(psql("select md5(string_agg(s::text, '|' order by certificate_id)) from public.certificate_issuance_snapshots s"), holderSnapsBefore);
+  assert.equal(psql("select count(*) from pg_trigger where tgname in ('trg_guard_wah_skills_complete','trg_guard_wah_skill_result','trg_guard_wah_legacy_certificate','trg_guard_wah_schedule_integrity','trg_certificates_a_wah_issuance_guard','trg_guard_wah_issuance_authorization_rows') and tgenabled='O' and not tgisinternal"), "6");
+  pass("holder draft applies and re-applies idempotently, changes no certificate or snapshot, and leaves all six triggers enabled");
+
+  // The refusal, by each way of being the same person.
+  const refusedWithoutTrace = (e, label) => {
+    const t = totals();
+    const q = seqState();
+    rejects(asSuper(e), ALREADY, label);
+    assert.equal(totals(), t, label);
+    assert.equal(seqState(), q, label);
+    assert.equal(openCount(), "0", label);
+    assert.equal(psql(`select count(*) from app.wah_issuance_authorizations where schedule_id='${e.s}'`), "0", label);
+  };
+  const holderA = issuedHolder();
+  refusedWithoutTrace(laterSchedule(holderA.p), "holder is refused on a later schedule, with no certificate, authorization or burned number");
+
+  const holderB = issuedHolder();
+  const holderBIc = psql(`select ic_passport_no from public.participants where id='${holderB.p}'`);
+  const sameIc = completeEnrolment();
+  psql(`update public.participants set ic_passport_no = lower(substr('${holderBIc}', 1, 3)) || '-' || substr('${holderBIc}', 4) where id='${sameIc.p}'`);
+  refusedWithoutTrace(sameIc, "a second participant record with the same IC, written differently, is refused");
+
+  const holderC = issuedHolder();
+  const holderCIc = psql(`select ic_passport_no from public.participants where id='${holderC.p}'`);
+  const sameIdentityNo = completeEnrolment();
+  psql(`update public.participants set identity_no = '${holderCIc}', ic_passport_no = 'SYN-UNRELATED-${seq}' where id='${sameIdentityNo.p}'`);
+  refusedWithoutTrace(sameIdentityNo, "a second participant record matching through identity_no is refused");
+
+  // Blank identity numbers must never match one another.
+  const blankHolder = completeEnrolment();
+  const blankOne = completeEnrolment();
+  psql(`update public.participants set ic_passport_no = null, identity_no = null where id in ('${blankHolder.p}', '${blankOne.p}')`);
+  psql(asSuper(blankHolder));
+  psql(asSuper(blankOne));
+  pass("a participant with no identity number is not matched against blank identity values");
+
+  // What must still work.
+  psql(asSuper(completeEnrolment()));
+  pass("a participant with no WAH certificate still issues normally");
+  const holderRevoked = issuedHolder();
+  psql(`update public.certificates set status='revoked' where id='${certOf(holderRevoked)}'`);
+  psql(asSuper(laterSchedule(holderRevoked.p)));
+  pass("a revoked WAH certificate does not block a new one");
+  const holderOwner = issuedHolder();
+  const ownerRoute = laterSchedule(holderOwner.p);
+  authorize(ownerRoute, 30, "OWNER-APPROVAL-SYN-SECOND");
+  psql(issue(ownerRoute, SUPER));
+  pass("an explicit owner authorization remains the deliberate route for a further certificate");
+
+  // Two schedules for one person, at the same moment: the advisory lock serializes them.
+  const raceHolder = completeEnrolment();
+  const raceSecond = laterSchedule(raceHolder.p);
+  const holderRace = await Promise.all([psqlAsync(asSuper(raceHolder)), psqlAsync(asSuper(raceSecond))]);
+  assert.equal(holderRace.filter((r) => r.code === 0).length, 1, holderRace.map((r) => r.err).join("\n"));
+  assert.match(holderRace.find((r) => r.code !== 0).err, ALREADY);
+  assert.equal(psql(`select count(*) from public.certificates where participant_id='${raceHolder.p}'`), "1");
+  assert.equal(openCount(), "0");
+  pass("two simultaneous requests for one person on different schedules produce exactly one certificate");
+
+  // The page's read function, and the helper behind it.
+  const listed = laterSchedule(holderA.p);
+  const listHolders = (e, uid, role = "authenticated") => asRole(uid, `select participant_id from public.wah_certificate_holders_on_schedule('${e.s}')`, role);
+  for (const uid of [SUPER, ADMIN]) assert.ok(psql(listHolders(listed, uid)).includes(holderA.p), uid);
+  assert.equal(psql(asRole(SUPER, `select count(*) from public.wah_certificate_holders_on_schedule('${completeEnrolment().s}')`)).split("\n").at(-1), "0");
+  pass("the Generate page's read lists holders for Super Admin and Admin, and nobody on a schedule with no holder");
+  for (const [uid, role, pattern, label] of [[EDITOR, "authenticated", /Not authorized to read/, "Editor"], [TRAINER, "authenticated", /Not authorized to read/, "Trainer"], [INACTIVE_ADMIN, "authenticated", /Not authorized to read/, "inactive Admin"], [SUPER, "anon", /permission denied/, "anonymous role"], [SUPER, "service_role", /permission denied/, "service_role"]]) {
+    rejects(listHolders(listed, uid, role), pattern, `holder list denies ${label}`);
+  }
+  rejects(asRole(SUPER, `select app.wah_participant_holds_certificate('${holderA.p}')`), /permission denied/, "the helper stays closed to every API role");
+
+  // Everything else is as it was.
+  rejects(asSuper(saTarget, ADMIN), SUPER_ONLY, "the role check still runs first, for Admin");
+  rejects(issue(completeEnrolment(), SUPER), NOT_AUTHORIZED, "the old issuer is still denied for WAH");
+  const erectorHolder = seedEnrolment(ERECTOR);
+  psql(issue(erectorHolder));
+  const inspectorHolder = seedEnrolment(INSPECTOR);
+  psql(issue(inspectorHolder));
+  assert.equal(payloadOf(certOf(erectorHolder)), erectorPayloadBefore);
+  assert.equal(payloadOf(certOf(inspectorHolder)), inspectorPayloadBefore);
+  assert.equal(certsAt(), certsBeforeGuard);
+  assert.equal(snapsAt(), snapsBeforeGuard);
+  pass("Erector and Inspector issue with identical payloads, and earlier certificates and snapshots are unchanged");
+
+  // Rollback: the previous function back, the helpers gone, the guard still enforcing.
+  const holderRollback = read(HOLDER_DRAFT).split("\n").filter((l) => l.startsWith("-- rollback> ")).map((l) => l.slice("-- rollback> ".length)).join("\n");
+  const rolledHolder = psql(`begin; ${read(SA_MIGRATION).replace(/^begin;$/m, "").replace(/^commit;\s*$/m, "")} ${holderRollback}
+    select count(*) from pg_proc where proname in ('wah_certificate_holders_on_schedule','wah_participant_holds_certificate');
+    select position('WAH_ALREADY_CERTIFIED' in prosrc) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='app' and p.proname='issue_wah_certificate_as_super_admin';
+    select count(*) from pg_trigger where tgname='trg_certificates_a_wah_issuance_guard' and tgenabled='O';
+    rollback;`);
+  assert.deepEqual(rolledHolder.split("\n").slice(-3), ["0", "0", "1"]);
+  assert.equal(psql("select count(*) from pg_proc where proname in ('wah_certificate_holders_on_schedule','wah_participant_holds_certificate')"), "3");
+  pass("this draft's rollback restores the previous function and removes only its helpers");
+
   // ---- Re-apply with state, then rollback ------------------------------------------------------------
   const carried = completeEnrolment();
   const carriedAuth = authorize(carried);

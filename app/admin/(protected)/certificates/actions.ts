@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { requireModuleAccess, requireCertificate } from "../../../../lib/auth/session";
 import { isWahCourse, loadWahFailedHoldParticipantIds, WAH_FAILED_HOLD_CHECK_ERROR, WAH_FAILED_HOLD_REASON } from "../../../../lib/certificates/wah-failed-hold";
-import { WAH_AUTHORIZATION_CODE, WAH_AUTHORIZATION_REASON, WAH_BULK_EXCLUDED_REASON, WAH_NOT_AUTHORIZED_CODE, WAH_NOT_AUTHORIZED_REASON, WAH_SUPER_ADMIN_CODE, WAH_SUPER_ADMIN_REASON } from "../../../../lib/certificates/wah-super-admin";
+import { loadWahCertificateHolderIds, WAH_AUTHORIZATION_CODE, WAH_AUTHORIZATION_REASON, WAH_BULK_EXCLUDED_REASON, WAH_HOLDER_CHECK_ERROR, WAH_HOLDER_CODE, WAH_HOLDER_REASON, WAH_NOT_AUTHORIZED_CODE, WAH_NOT_AUTHORIZED_REASON, WAH_SUPER_ADMIN_CODE, WAH_SUPER_ADMIN_REASON } from "../../../../lib/certificates/wah-super-admin";
 import { loadWahIncompleteSkillsParticipantIds, WAH_SKILLS_CHECK_ERROR, WAH_SKILLS_GATE_CODE, WAH_SKILLS_HOLD_REASON } from "../../../../lib/certificates/wah-skills-gate";
 import { certificateReissueSchema, certificateRevokeSchema } from "../../../../lib/validation/schemas";
 
@@ -106,6 +106,7 @@ async function insertEligibleCertificate(
     if (code === "23505") return "exists";
     if (error.message?.includes("Not eligible")) return "not-eligible";
     if (error.message?.includes(WAH_SKILLS_GATE_CODE)) return WAH_SKILLS_HOLD_REASON;
+    if (error.message?.includes(WAH_HOLDER_CODE)) return WAH_HOLDER_REASON;
     if (error.message?.includes(WAH_SUPER_ADMIN_CODE)) return WAH_SUPER_ADMIN_REASON;
     if (error.message?.includes(WAH_NOT_AUTHORIZED_CODE)) return WAH_NOT_AUTHORIZED_REASON;
     if (error.message?.includes(WAH_AUTHORIZATION_CODE)) return WAH_AUTHORIZATION_REASON;
@@ -156,6 +157,14 @@ export async function generateCertificate(scheduleId: string, participantId: str
     return WAH_SKILLS_CHECK_ERROR;
   }
   if (incomplete.has(participantId)) return WAH_SKILLS_HOLD_REASON;
+
+  let holders: Set<string>;
+  try {
+    holders = await loadWahCertificateHolderIds(supabase, scheduleId, row.course_id);
+  } catch {
+    return WAH_HOLDER_CHECK_ERROR;
+  }
+  if (holders.has(participantId)) return WAH_HOLDER_REASON;
 
   const result = await insertEligibleCertificate(supabase, row);
   if (result === "ok") revalidatePath("/admin/certificates");

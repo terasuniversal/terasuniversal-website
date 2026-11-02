@@ -7,6 +7,7 @@ import { generateCertificate, bulkGenerate } from "../../actions";
 import PendingSubmitButton from "../../../../../../components/admin/PendingSubmitButton";
 import { isWahCourse, loadWahFailedHoldParticipantIds, WAH_FAILED_HOLD_CHECK_ERROR, WAH_FAILED_HOLD_LABEL } from "../../../../../../lib/certificates/wah-failed-hold";
 import { loadWahIncompleteSkillsParticipantIds, WAH_SKILLS_CHECK_ERROR, WAH_SKILLS_HOLD_LABEL } from "../../../../../../lib/certificates/wah-skills-gate";
+import { loadWahCertificateHolderIds, WAH_HOLDER_CHECK_ERROR, WAH_HOLDER_LABEL } from "../../../../../../lib/certificates/wah-super-admin";
 
 export const metadata = { title: "Generate Certificates — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
@@ -63,20 +64,25 @@ await requireModuleAccess("certificates");
   const rows = (eligRaw ?? []) as EligibilityRow[];
   let heldIds = new Set<string>();
   let incompleteIds = new Set<string>();
+  let holderIds = new Set<string>();
   let holdCheckFailed = false;
   let holdCheckError = WAH_FAILED_HOLD_CHECK_ERROR;
   try {
     heldIds = await loadWahFailedHoldParticipantIds(supabase, scheduleId, (scheduleRow as any).course_id);
     holdCheckError = WAH_SKILLS_CHECK_ERROR;
     incompleteIds = await loadWahIncompleteSkillsParticipantIds(supabase, scheduleId, (scheduleRow as any).course_id, rows.filter((r) => r.eligible).map((r) => r.participant_id));
+    holdCheckError = WAH_HOLDER_CHECK_ERROR;
+    holderIds = await loadWahCertificateHolderIds(supabase, scheduleId, (scheduleRow as any).course_id);
   } catch {
     holdCheckFailed = true;
   }
   const isFailedHeld = (r: EligibilityRow) => r.eligible && heldIds.has(r.participant_id);
   const isIncompleteHeld = (r: EligibilityRow) => r.eligible && !heldIds.has(r.participant_id) && incompleteIds.has(r.participant_id);
-  const isHeld = (r: EligibilityRow) => isFailedHeld(r) || isIncompleteHeld(r);
+  const isHolderHeld = (r: EligibilityRow) => r.eligible && holderIds.has(r.participant_id);
+  const isHeld = (r: EligibilityRow) => isFailedHeld(r) || isIncompleteHeld(r) || isHolderHeld(r);
   const heldRows = rows.filter(isFailedHeld);
   const incompleteRows = rows.filter(isIncompleteHeld);
+  const holderRows = rows.filter(isHolderHeld);
   // WAH is issued one participant at a time by the Super Admin, never in bulk.
   const wahSchedule = isWahCourse((scheduleRow as any).course_id);
   const eligibleCount = holdCheckFailed || wahSchedule ? 0 : rows.filter((r) => r.eligible && !isHeld(r)).length;
@@ -148,6 +154,12 @@ await requireModuleAccess("certificates");
         </div>
       ) : null}
 
+      {holderRows.length > 0 ? (
+        <div className="ta-alert" role="status" style={{ background: "rgba(218, 158, 20, .12)", color: "var(--ta-warning)", marginBottom: 16 }}>
+          <strong>{WAH_HOLDER_LABEL}:</strong> {holderRows.length} participant{holderRows.length === 1 ? "" : "s"}. A second Working at Height certificate cannot be issued from this page.
+        </div>
+      ) : null}
+
       <Card>
         {rows.length > 0 ? (
           <div className="ta-table-wrap">
@@ -171,7 +183,7 @@ await requireModuleAccess("certificates");
                       <td>{r.attendance_percentage}%</td>
                       <td>{r.result ? <Badge status={r.result} /> : "—"}</td>
                       <td>{r.competency_status ? <Badge status={r.competency_status} /> : "—"}</td>
-                      <td>{isHeld(r) ? <strong style={{ color: "var(--ta-warning)", fontSize: 12.5 }}>{isFailedHeld(r) ? WAH_FAILED_HOLD_LABEL : WAH_SKILLS_HOLD_LABEL}</strong> : r.eligible ? "✅ Eligible" : <span style={{ color: "var(--ta-muted)", fontSize: 12.5 }}>{reasonText(r)}</span>}</td>
+                      <td>{isHeld(r) ? <strong style={{ color: "var(--ta-warning)", fontSize: 12.5 }}>{isHolderHeld(r) ? WAH_HOLDER_LABEL : isFailedHeld(r) ? WAH_FAILED_HOLD_LABEL : WAH_SKILLS_HOLD_LABEL}</strong> : r.eligible ? "✅ Eligible" : <span style={{ color: "var(--ta-muted)", fontSize: 12.5 }}>{reasonText(r)}</span>}</td>
                       <td style={{ textAlign: "right" }}>
                         {already ? (
                           <span style={{ color: "var(--ta-success)", fontSize: 13 }}>✓ Certified</span>
