@@ -24,7 +24,7 @@ const ERECTOR_MIGRATION = "supabase/migrations/20261101091525_production_erector
 const INSPECTOR_MIGRATION = "supabase/migrations/20261101124601_production_inspector_c4_snapshot_dispatch.sql";
 const WAH_DRAFT = "supabase/migrations/20261102030425_production_wah_c4_snapshot_dispatch.sql";
 const WAH_HARDENING = "supabase/migrations/20261102030656_production_wah_failed_result_hardening.sql";
-const WAH_SKILLS_GATE = "supabase/post_baseline_drafts/20261102060000_production_wah_skills_complete_gate.sql";
+const WAH_SKILLS_GATE = "supabase/migrations/20261102051041_production_wah_skills_complete_gate.sql";
 const GUARD = "supabase/migrations/20261102092155_production_wah_issuance_guard.sql";
 
 const docker = (args, input) => execFileSync("docker", args, { input, encoding: "utf8", stdio: [input === undefined ? "ignore" : "pipe", "pipe", "pipe"] });
