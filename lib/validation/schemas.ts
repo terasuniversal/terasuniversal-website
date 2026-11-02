@@ -157,6 +157,17 @@ export const participantSkillResultSchema = z.object({
 });
 export type ParticipantSkillResultInput = z.infer<typeof participantSkillResultSchema>;
 
+// Admin correction of a recorded WAH Failed Practical Assessment. Limits mirror
+// app.correct_wah_failed_practical_assessment, which re-checks them.
+export const wahFailedCorrectionSchema = z.object({
+  schedule_id: z.string().uuid(),
+  participant_id: z.string().uuid(),
+  new_status: z.enum(["passed", "not_recorded"]),
+  reason: z.string().trim().min(10, "Enter a reason of at least 10 characters.").max(1000),
+  evidence_reference: z.string().trim().min(3, "Enter a reference to the retained training evidence.").max(200),
+});
+export type WahFailedCorrectionInput = z.infer<typeof wahFailedCorrectionSchema>;
+
 // Public contact lead capture (ContactForm.js homepage widget +
 // ContactEnquiryForm.js on /contact). subject/enquiryType option lists
 // differ slightly between the two forms, so subject stays free text rather

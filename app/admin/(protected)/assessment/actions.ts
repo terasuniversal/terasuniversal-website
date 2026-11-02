@@ -4,10 +4,11 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { requireModuleAccess, requireAssessment } from "../../../../lib/auth/session";
+import { requireModuleAccess, requireAssessment, requireRole } from "../../../../lib/auth/session";
 import { getCurrentProfile } from "../../../../lib/auth/session";
 import { isSuperAdmin } from "../../../../lib/auth/rbac";
-import { participantSkillResultSchema } from "../../../../lib/validation/schemas";
+import { participantSkillResultSchema, wahFailedCorrectionSchema } from "../../../../lib/validation/schemas";
+import { isWahCourse } from "../../../../lib/certificates/wah-failed-hold";
 import { UNGROUPED } from "../../../../lib/scheduleGroupContext";
 import type { MutationState } from "../../../../components/admin/MutationForm";
 
@@ -337,11 +338,40 @@ export async function updateParticipantSkillResults(
   if (existingError) return { error: "Unable to validate the assessment lock. Please try again." };
   if (existing?.locked) return { error: "This participant's assessment is locked." };
 
+  // On WAH a recorded Failed row is read-only here: leave it out of the upsert
+  // so saving the other areas does not rewrite who assessed it, and send any
+  // change to the Admin correction instead. The database guard enforces this too.
+  const { data: schedule, error: scheduleError } = await supabase
+    .from("course_schedules")
+    .select("course_id")
+    .eq("id", scheduleId)
+    .maybeSingle();
+  if (scheduleError) return { error: "Unable to validate the schedule. Please try again." };
+  let failedLocked = false;
+  if (isWahCourse((schedule as { course_id: string | null } | null)?.course_id)) {
+    const { data: failedRow, error: failedError } = await supabase
+      .from("participant_skill_results")
+      .select("id")
+      .eq("schedule_id", scheduleId)
+      .eq("participant_id", participantId)
+      .eq("area", "practical_assessment")
+      .eq("status", "failed")
+      .is("deleted_at", null)
+      .maybeSingle();
+    if (failedError) return { error: "Unable to validate the Practical Assessment. Please try again." };
+    failedLocked = Boolean(failedRow);
+    const submitted = formData.get("practical_assessment");
+    if (failedLocked && submitted !== null && String(submitted) !== "failed") {
+      return { error: "A recorded Failed Practical Assessment can only be changed through the Admin correction." };
+    }
+  }
+
   const nowIso = new Date().toISOString();
   const rows: { schedule_id: string; participant_id: string; area: SkillArea; status: string; assessed_by: string; assessed_at: string }[] = [];
   for (const area of SKILL_AREAS) {
     const raw = formData.get(area);
     if (raw === null) continue;
+    if (failedLocked && area === "practical_assessment") continue;
     const status = String(raw);
     if (!ALLOWED_STATUS[area].includes(status)) return { error: `Invalid status for ${area.replace(/_/g, " ")}.` };
     const parsed = participantSkillResultSchema.safeParse({ schedule_id: scheduleId, participant_id: participantId, area, status });
@@ -357,4 +387,41 @@ export async function updateParticipantSkillResults(
 
   revalidatePath(`/admin/assessment/${scheduleId}`);
   return { message: "Skills record saved." };
+}
+
+/**
+ * Admin-only correction of a recorded WAH Failed Practical Assessment. The
+ * reason and evidence reference are written to audit_logs by the database
+ * function, in the same transaction as the change. The evidence itself stays
+ * outside this system; only a reference to it is stored.
+ */
+export async function correctWahFailedPracticalAssessment(
+  scheduleId: string,
+  _prev: SkillsFormState,
+  formData: FormData
+): Promise<SkillsFormState> {
+  await requireRole("admin");
+  await requireModuleAccess("assessment");
+  const parsed = wahFailedCorrectionSchema.safeParse({
+    schedule_id: scheduleId,
+    participant_id: formData.get("participant_id"),
+    new_status: formData.get("new_status"),
+    reason: formData.get("reason"),
+    evidence_reference: formData.get("evidence_reference"),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid correction." };
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("correct_wah_failed_practical_assessment" as never, {
+    p_schedule_id: parsed.data.schedule_id,
+    p_participant_id: parsed.data.participant_id,
+    p_new_status: parsed.data.new_status,
+    p_reason: parsed.data.reason,
+    p_evidence_reference: parsed.data.evidence_reference,
+  } as never);
+  if (error) return { error: "The correction was not saved. No change was made. Please check the assessment is unlocked and try again." };
+
+  revalidatePath(`/admin/assessment/${scheduleId}`);
+  revalidatePath(`/admin/certificates/generate/${scheduleId}`);
+  return { message: "Correction saved and recorded in the audit log." };
 }

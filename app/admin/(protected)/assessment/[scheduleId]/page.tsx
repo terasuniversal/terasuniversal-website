@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { requireModuleAccess, requireAssessment } from "../../../../../lib/auth/session";
-import { canManageAssessment, canManageCertificate, isEditor, isSuperAdmin } from "../../../../../lib/auth/rbac";
+import { canManageAssessment, canManageCertificate, isAdmin, isEditor, isSuperAdmin } from "../../../../../lib/auth/rbac";
+import { isWahCourse } from "../../../../../lib/certificates/wah-failed-hold";
 import { PageHead, Card, Badge, EmptyState, StatCard } from "../../../../../components/admin/ui";
 import { AssessmentTable, type AsmRow } from "../AssessmentTable";
 import { AssessmentScheduleActions } from "./AssessmentScheduleActions";
@@ -37,7 +38,7 @@ export default async function AssessSchedulePage({
 
   const { data: scheduleRow } = await supabase
     .from("course_schedules")
-    .select("id, schedule_code, trainer_name, venue, exam_date, status, capacity, seats_taken, courses(course_name)")
+    .select("id, course_id, schedule_code, trainer_name, venue, exam_date, status, capacity, seats_taken, courses(course_name)")
     .eq("id", scheduleId)
     .single();
   if (!scheduleRow) notFound();
@@ -235,6 +236,8 @@ export default async function AssessSchedulePage({
             isSuperAdmin={superAdmin}
             canViewParticipants={canViewParticipants}
             groupId={selection && selection !== UNGROUPED ? selection.id : selection === UNGROUPED ? UNGROUPED : null}
+            protectFailed={isWahCourse(s.course_id)}
+            canCorrectFailed={isAdmin(profile.role)}
           />
         ) : rosterFiltered.length === 0 && (roster ?? []).length > 0 ? (
           <EmptyState icon="📝" message="No participants assigned to this group yet." />
