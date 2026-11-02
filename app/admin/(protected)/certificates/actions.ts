@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { requireModuleAccess, requireCertificate } from "../../../../lib/auth/session";
 import { loadWahFailedHoldParticipantIds, WAH_FAILED_HOLD_CHECK_ERROR, WAH_FAILED_HOLD_REASON } from "../../../../lib/certificates/wah-failed-hold";
+import { loadWahIncompleteSkillsParticipantIds, WAH_SKILLS_CHECK_ERROR, WAH_SKILLS_GATE_CODE, WAH_SKILLS_HOLD_REASON } from "../../../../lib/certificates/wah-skills-gate";
 import { certificateReissueSchema, certificateRevokeSchema } from "../../../../lib/validation/schemas";
 
 /**
@@ -100,6 +101,7 @@ async function insertEligibleCertificate(
     const code = (error as { code?: string }).code;
     if (code === "23505") return "exists";
     if (error.message?.includes("Not eligible")) return "not-eligible";
+    if (error.message?.includes(WAH_SKILLS_GATE_CODE)) return WAH_SKILLS_HOLD_REASON;
     return error.message;
   }
 
@@ -138,6 +140,14 @@ export async function generateCertificate(scheduleId: string, participantId: str
   }
   if (held.has(participantId)) return WAH_FAILED_HOLD_REASON;
 
+  let incomplete: Set<string>;
+  try {
+    incomplete = await loadWahIncompleteSkillsParticipantIds(supabase, scheduleId, row.course_id, [participantId]);
+  } catch {
+    return WAH_SKILLS_CHECK_ERROR;
+  }
+  if (incomplete.has(participantId)) return WAH_SKILLS_HOLD_REASON;
+
   const result = await insertEligibleCertificate(supabase, row);
   if (result === "ok") revalidatePath("/admin/certificates");
   return result;
@@ -164,6 +174,12 @@ export async function bulkGenerate(scheduleId: string): Promise<{ generated: num
     heldIds = await loadWahFailedHoldParticipantIds(supabase, scheduleId, allEligibleRows[0]?.course_id);
   } catch {
     return { generated: 0, skipped: allEligibleRows.length, held: 0, failureReasons: [WAH_FAILED_HOLD_CHECK_ERROR] };
+  }
+  try {
+    const incomplete = await loadWahIncompleteSkillsParticipantIds(supabase, scheduleId, allEligibleRows[0]?.course_id, allEligibleRows.map((r) => r.participant_id));
+    heldIds = new Set([...heldIds, ...incomplete]);
+  } catch {
+    return { generated: 0, skipped: allEligibleRows.length, held: 0, failureReasons: [WAH_SKILLS_CHECK_ERROR] };
   }
   const eligibleRows = allEligibleRows.filter((r) => !heldIds.has(r.participant_id));
   const held = allEligibleRows.length - eligibleRows.length;

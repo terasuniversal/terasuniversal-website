@@ -13,7 +13,7 @@ const require = createRequire(import.meta.url);
 const ts = require("typescript");
 const dir = mkdtempSync(resolve(tmpdir(), "teras-wah-hold-"));
 mkdirSync(resolve(dir, "certificates"));
-for (const [source, target] of [["lib/working-at-height-programme.ts", "working-at-height-programme.js"], ["lib/certificates/wah-failed-hold.ts", "certificates/wah-failed-hold.js"], ["lib/certificates/wah-legacy-block.ts", "certificates/wah-legacy-block.js"]]) {
+for (const [source, target] of [["lib/working-at-height-programme.ts", "working-at-height-programme.js"], ["lib/certificates/wah-failed-hold.ts", "certificates/wah-failed-hold.js"], ["lib/certificates/wah-legacy-block.ts", "certificates/wah-legacy-block.js"], ["lib/certificates/wah-skills-gate.ts", "certificates/wah-skills-gate.js"]]) {
   const { outputText } = ts.transpileModule(readFileSync(resolve(root, source), "utf8"), { compilerOptions: { module: "commonjs", target: "es2021" } });
   writeFileSync(resolve(dir, target), outputText);
 }
@@ -58,6 +58,7 @@ console.log("PASS Generate page labels held rows, disables them, excludes them f
 
 // C4E-2K: the real route handler and mapping action, with only the boundaries stubbed.
 const block = require(resolve(dir, "certificates/wah-legacy-block.js"));
+const gate = require(resolve(dir, "certificates/wah-skills-gate.js"));
 // Same list as app.is_wah_course_label in c4-wah-db-contract.mjs.
 for (const [label, expected] of [["Working at Height", true], ["WORKING-AT-HEIGHT", true], ["working_at_heights", true], ["Workingatheight", true], ["Work at Height", true], ["WAH", true], ["Refresher (WAH)", true], ["Basic Scaffolding", false], ["OSH Awareness", false], ["Wahana Safety", false], ["Height Safety", false], ["Network at Heights", false], [null, false]]) {
   assert.equal(block.isWahCourseLabel(label), expected, String(label));
@@ -73,10 +74,19 @@ const stubs = { current: {} };
 const realLoad = Module._load;
 Module._load = function load(request, ...rest) {
   if (request.endsWith("lib/certificates/wah-legacy-block")) return block;
+  if (request.endsWith("lib/certificates/wah-failed-hold")) return hold;
+  if (request.endsWith("lib/certificates/wah-skills-gate")) return gate;
+  if (request.endsWith("lib/scheduleGroupContext")) return { UNGROUPED: "__ungrouped__" };
   if (request.endsWith("lib/supabase/server")) return { createSupabaseServerClient: async () => stubs.current.client, createSupabaseServiceClient: () => ({ rpc: async () => ({ error: null }) }) };
-  if (request.endsWith("lib/auth/rbac")) return { hasMinRole: () => true };
-  if (request.endsWith("lib/auth/session")) return { requireRole: async () => ({ id: "admin", email: "a@synthetic.test" }), requireModuleAccess: async () => {} };
-  if (request.endsWith("lib/validation/schemas")) return { legacyCourseMappingSchema: { safeParse: (v) => ({ success: true, data: v }) }, legacyLinkParticipantSchema: {}, legacyRejectRowSchema: {} };
+  if (request.endsWith("lib/auth/rbac")) return { hasMinRole: () => true, isSuperAdmin: () => true };
+  if (request.endsWith("lib/auth/session")) {
+    const profile = async () => ({ id: "staff-now", email: "a@synthetic.test", role: "admin", is_active: true });
+    return { requireRole: profile, requireAssessment: profile, requireCertificate: profile, getCurrentProfile: profile, requireModuleAccess: async () => {} };
+  }
+  if (request.endsWith("lib/validation/schemas")) {
+    const pass = { safeParse: (v) => ({ success: true, data: v }) };
+    return { legacyCourseMappingSchema: pass, legacyLinkParticipantSchema: {}, legacyRejectRowSchema: {}, participantSkillResultSchema: pass, wahFailedCorrectionSchema: pass, certificateReissueSchema: pass, certificateRevokeSchema: pass };
+  }
   if (request === "next/cache") return { revalidatePath: () => {} };
   if (request === "next/navigation") return { redirect: (url) => { throw Object.assign(new Error("redirect"), { url }); } };
   return realLoad.call(this, request, ...rest);
@@ -155,4 +165,182 @@ const mapClient = fakeClient({ course: { title: "Basic Scaffolding" } });
 assert.doesNotMatch(await redirected(mapClient, OTHER_ID), /error=/);
 assert.deepEqual(mapClient.writes.map(([kind, name]) => `${kind}:${name}`), ["rpc:legacy_course_map_approve"]);
 console.log("PASS mapping to another course still calls the existing RPC");
+
+// Real Skills Record save action: only changed areas are written.
+const assessmentActions = require(compile("app/admin/(protected)/assessment/actions.ts", "assessment-actions.js"));
+const AREAS = ["theory_session", "practical_training", "safety_awareness", "practical_assessment"];
+const stored = (values, extra = {}) => Object.entries(values).map(([area, status]) => ({ participant_id: "p1", area, status, deleted_at: null, ...extra }));
+function table(rows, filters = {}, error = null) {
+  const matching = () => rows.filter((r) => Object.entries(filters).every(([k, v]) => k === "schedule_id" || r[k] === undefined || r[k] === v));
+  const q = {
+    select: () => q,
+    neq: () => q,
+    eq: (k, v) => { filters[k] = v; return q; },
+    is: (k, v) => { filters[k] = v; return q; },
+    then: (resolve) => resolve({ data: error ? null : matching(), error }),
+    maybeSingle: async () => ({ data: matching()[0] ?? null, error: null }),
+  };
+  return q;
+}
+function saveClient({ rows = [], courseId = WAH, locked = false, readError = null } = {}) {
+  const upserts = [];
+  return {
+    upserts,
+    from: (name) => {
+      if (name === "schedule_participants") return table([{ participant_id: "p1" }]);
+      if (name === "assessments") return table([{ locked }]);
+      if (name === "course_schedules") return table([{ course_id: courseId }]);
+      const q = table(rows, {}, readError);
+      q.upsert = async (written, options) => { upserts.push({ written, options }); return { error: null }; };
+      return q;
+    },
+  };
+}
+const saveForm = (values, originals = values) => {
+  const form = new FormData();
+  form.set("participant_id", "p1");
+  for (const [area, status] of Object.entries(values)) form.set(area, status);
+  if (originals) for (const [area, status] of Object.entries(originals)) form.set(`original_${area}`, status);
+  return form;
+};
+const save = async (target, form) => {
+  stubs.current.client = target;
+  return assessmentActions.updateParticipantSkillResults("s1", {}, form);
+};
+const ALL_NOT_RECORDED = Object.fromEntries(AREAS.map((a) => [a, "not_recorded"]));
+const THREE_DONE = { theory_session: "completed", practical_training: "completed", safety_awareness: "not_recorded", practical_assessment: "passed" };
+
+let saver = saveClient({ rows: stored(THREE_DONE) });
+let saved = await save(saver, saveForm({ ...THREE_DONE, safety_awareness: "completed" }, THREE_DONE));
+assert.equal(saved.message, "Skills record saved.");
+assert.equal(saver.upserts.length, 1);
+assert.deepEqual(saver.upserts[0].written.map((r) => [r.area, r.status, r.assessed_by]), [["safety_awareness", "completed", "staff-now"]]);
+console.log("PASS changing one area writes only that area, leaving the others' assessor and time alone");
+
+saver = saveClient({ rows: stored(THREE_DONE) });
+saved = await save(saver, saveForm(THREE_DONE));
+assert.equal(saved.message, "No changes to save.");
+assert.equal(saver.upserts.length, 0);
+console.log("PASS an unchanged save writes nothing");
+
+saver = saveClient();
+saved = await save(saver, saveForm(ALL_NOT_RECORDED));
+assert.equal(saved.message, "No changes to save.");
+assert.equal(saver.upserts.length, 0);
+console.log("PASS Not Recorded with no stored row creates nothing");
+
+saver = saveClient();
+await save(saver, saveForm({ ...ALL_NOT_RECORDED, theory_session: "completed", practical_assessment: "passed" }, ALL_NOT_RECORDED));
+assert.deepEqual(saver.upserts[0].written.map((r) => r.area), ["theory_session", "practical_assessment"]);
+console.log("PASS a first entry writes only the areas that have a result");
+
+saver = saveClient({ rows: stored({ ...ALL_NOT_RECORDED, safety_awareness: "completed" }) });
+saved = await save(saver, saveForm({ ...ALL_NOT_RECORDED, theory_session: "completed" }, ALL_NOT_RECORDED));
+assert.match(saved.error, /changed by someone else/);
+assert.equal(saver.upserts.length, 0);
+console.log("PASS a stale form is refused without writing any area");
+
+saver = saveClient({ rows: stored(THREE_DONE) });
+await save(saver, saveForm({ ...THREE_DONE, theory_session: "not_recorded" }, THREE_DONE));
+assert.deepEqual(saver.upserts[0].written.map((r) => [r.area, r.status]), [["theory_session", "not_recorded"]]);
+console.log("PASS a deliberate change back to Not Recorded is still a recorded change");
+
+saver = saveClient({ rows: stored({ theory_session: "completed" }, { deleted_at: "2026-01-01" }) });
+await save(saver, saveForm({ ...ALL_NOT_RECORDED, theory_session: "completed" }, ALL_NOT_RECORDED));
+assert.deepEqual(saver.upserts[0].written.map((r) => [r.area, r.deleted_at]), [["theory_session", null]]);
+console.log("PASS re-recording over a soft-deleted row makes it active rather than leaving it hidden");
+
+saver = saveClient({ rows: stored({ ...THREE_DONE, practical_assessment: "failed" }) });
+await save(saver, saveForm({ theory_session: "completed", practical_training: "completed", safety_awareness: "completed" }, { theory_session: "completed", practical_training: "completed", safety_awareness: "not_recorded" }));
+assert.deepEqual(saver.upserts[0].written.map((r) => r.area), ["safety_awareness"]);
+saver = saveClient({ rows: stored({ ...THREE_DONE, practical_assessment: "failed" }) });
+saved = await save(saver, saveForm({ ...THREE_DONE, practical_assessment: "passed" }, null));
+assert.match(saved.error, /Admin correction/);
+assert.equal(saver.upserts.length, 0);
+console.log("PASS a recorded Failed stays out of the save and can't be changed here");
+
+saver = saveClient({ locked: true });
+saved = await save(saver, saveForm({ ...ALL_NOT_RECORDED, theory_session: "completed" }, ALL_NOT_RECORDED));
+assert.match(saved.error, /locked/);
+assert.equal(saver.upserts.length, 0);
+saver = saveClient({ readError: { message: "x" }, courseId: OTHER_ID });
+saved = await save(saver, saveForm(THREE_DONE));
+assert.match(saved.error, /Unable to read/);
+assert.equal(saver.upserts.length, 0);
+console.log("PASS a lock or read failure writes nothing");
+
+saver = saveClient({ rows: stored(THREE_DONE), courseId: OTHER_ID });
+await save(saver, saveForm({ ...THREE_DONE, safety_awareness: "completed" }, null));
+assert.deepEqual(saver.upserts[0].written.map((r) => r.area), ["safety_awareness"]);
+console.log("PASS other courses and an already-open form without original values also save only changes");
+
+const tableSource = readFileSync(resolve(root, "app/admin/(protected)/assessment/AssessmentTable.tsx"), "utf8");
+assert.match(tableSource, /name=\{`original_\$\{area\}`\}/);
+console.log("PASS the Skills Record form submits the values it was showing");
+
+// Real generation actions: incomplete WAH rows are held before the issuer.
+const certificateActions = require(compile("app/admin/(protected)/certificates/actions.ts", "certificate-actions.js"));
+const ALL_DONE = { theory_session: "completed", practical_training: "completed", safety_awareness: "completed", practical_assessment: "passed" };
+function issueClient({ eligible = [], skills = [], courseId = WAH, readError = null, rpcError = null } = {}) {
+  const issued = [];
+  const elig = eligible.map((id) => ({ schedule_id: "s1", participant_id: id, course_id: courseId, certificate_template_id: "t1", eligible: true, holder_name: "SYNTHETIC" }));
+  return {
+    issued,
+    from: (name) => {
+      if (name === "v_certificate_eligibility") return table(elig);
+      if (name === "certificate_templates") return table([{ config: {} }]);
+      return table(skills, {}, readError);
+    },
+    rpc: async (_name, args) => {
+      if (rpcError) return { data: null, error: rpcError };
+      issued.push(args.p_participant_id);
+      return { data: [{ id: "c1", verification_token: "t" }], error: null };
+    },
+  };
+}
+const generate = async (target) => { stubs.current.client = target; return certificateActions.generateCertificate("s1", "p1"); };
+const bulkRun = async (target) => { stubs.current.client = target; return certificateActions.bulkGenerate("s1"); };
+
+let issuer = issueClient({ eligible: ["p1"], skills: stored(ALL_DONE) });
+assert.equal(await generate(issuer), "ok");
+assert.deepEqual(issuer.issued, ["p1"]);
+for (const area of AREAS) {
+  issuer = issueClient({ eligible: ["p1"], skills: stored({ ...ALL_DONE, [area]: "not_recorded" }) });
+  assert.equal(await generate(issuer), gate.WAH_SKILLS_HOLD_REASON, area);
+  assert.deepEqual(issuer.issued, []);
+}
+issuer = issueClient({ eligible: ["p1"] });
+assert.equal(await generate(issuer), gate.WAH_SKILLS_HOLD_REASON);
+console.log("PASS single generation issues complete WAH and holds any incomplete record before the issuer");
+
+issuer = issueClient({ eligible: ["p1"], skills: stored({ ...ALL_DONE, practical_assessment: "failed" }) });
+assert.equal(await generate(issuer), hold.WAH_FAILED_HOLD_REASON);
+assert.deepEqual(issuer.issued, []);
+console.log("PASS Failed keeps its own reason");
+
+issuer = issueClient({ eligible: ["p1", "p2", "p3"], skills: [...stored(ALL_DONE), ...stored({ ...ALL_DONE, practical_assessment: "failed" }, { participant_id: "p2" })] });
+const bulkResult = await bulkRun(issuer);
+assert.deepEqual([bulkResult.generated, bulkResult.held, bulkResult.skipped], [1, 2, 0]);
+assert.deepEqual(issuer.issued, ["p1"]);
+console.log("PASS bulk generation issues only complete participants and counts the rest as held");
+
+issuer = issueClient({ eligible: ["p1"], readError: { message: "x" } });
+assert.match(await generate(issuer), /could not be completed/);
+assert.deepEqual(issuer.issued, []);
+console.log("PASS a failed check issues nothing");
+
+issuer = issueClient({ eligible: ["p1"], skills: stored(ALL_DONE), rpcError: { message: "WAH_SKILLS_RECORD_INCOMPLETE: certificate not issued because the Skills Record is incomplete." } });
+assert.equal(await generate(issuer), gate.WAH_SKILLS_HOLD_REASON);
+console.log("PASS the database gate's error reaches staff as the plain reason");
+
+issuer = issueClient({ eligible: ["p1"], courseId: OTHER_ID });
+assert.equal(await generate(issuer), "ok");
+assert.deepEqual(issuer.issued, ["p1"]);
+console.log("PASS other courses with no skill rows still issue as before");
+
+assert.match(page, /WAH_SKILLS_HOLD_LABEL/);
+assert.match(page, /isFailedHeld\(r\) \? WAH_FAILED_HOLD_LABEL : WAH_SKILLS_HOLD_LABEL/);
+assert.match(page, /incompleteRows\.length/);
+assert.doesNotMatch(page, /incompleteRows\.map/);
+console.log("PASS Generate page labels incomplete rows, disables them through isHeld, and lists no names in the new notice");
 Module._load = realLoad;

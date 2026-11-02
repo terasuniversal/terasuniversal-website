@@ -292,8 +292,10 @@ const ALLOWED_STATUS: Record<SkillArea, readonly string[]> = {
 };
 
 /**
- * Saves all four Participant Skills Record areas for one participant on one
- * schedule in a single upsert. Reuses the existing assessment row's `locked`
+ * Saves the changed Participant Skills Record areas for one participant on one
+ * schedule in a single upsert. An unchanged area is left alone, so it keeps the
+ * assessor and time of whoever actually recorded it, and Not Recorded with no
+ * stored row creates nothing. Reuses the existing assessment row's `locked`
  * flag as the sole edit gate for this phase, rather than introducing a
  * second, independent lock workflow on participant_skill_results.locked
  * (see Phase 2B report §H) -- that column stays in the table, unused by the
@@ -366,19 +368,42 @@ export async function updateParticipantSkillResults(
     }
   }
 
+  const { data: storedRows, error: storedError } = await supabase
+    .from("participant_skill_results")
+    .select("area, status, deleted_at")
+    .eq("schedule_id", scheduleId)
+    .eq("participant_id", participantId);
+  if (storedError) return { error: "Unable to read the current Skills Record. Please try again." };
+  const stored = new Map(
+    ((storedRows ?? []) as { area: string; status: string; deleted_at: string | null }[])
+      .filter((row) => row.deleted_at === null)
+      .map((row) => [row.area, row.status]),
+  );
+
   const nowIso = new Date().toISOString();
-  const rows: { schedule_id: string; participant_id: string; area: SkillArea; status: string; assessed_by: string; assessed_at: string }[] = [];
+  const rows: { schedule_id: string; participant_id: string; area: SkillArea; status: string; assessed_by: string; assessed_at: string; deleted_at: null }[] = [];
+  let submittedCount = 0;
   for (const area of SKILL_AREAS) {
     const raw = formData.get(area);
     if (raw === null) continue;
     if (failedLocked && area === "practical_assessment") continue;
+    submittedCount += 1;
     const status = String(raw);
     if (!ALLOWED_STATUS[area].includes(status)) return { error: `Invalid status for ${area.replace(/_/g, " ")}.` };
     const parsed = participantSkillResultSchema.safeParse({ schedule_id: scheduleId, participant_id: participantId, area, status });
     if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid skills record." };
-    rows.push({ schedule_id: scheduleId, participant_id: participantId, area, status, assessed_by: profile.id, assessed_at: nowIso });
+    const current = stored.get(area) ?? "not_recorded";
+    if (status === current) continue;
+    // A form opened before someone else saved must not put an old value back.
+    const original = formData.get(`original_${area}`);
+    if (original !== null && String(original) !== current) {
+      return { error: "This Skills Record was changed by someone else. Reload the page and check it. Nothing was saved." };
+    }
+    // deleted_at: an upsert over a soft-deleted row would otherwise stay hidden.
+    rows.push({ schedule_id: scheduleId, participant_id: participantId, area, status, assessed_by: profile.id, assessed_at: nowIso, deleted_at: null });
   }
-  if (rows.length === 0) return { error: "Nothing to save." };
+  if (submittedCount === 0) return { error: "Nothing to save." };
+  if (rows.length === 0) return { message: "No changes to save." };
 
   const { error } = await supabase
     .from("participant_skill_results")
