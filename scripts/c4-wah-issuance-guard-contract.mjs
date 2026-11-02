@@ -514,6 +514,187 @@ try {
   psql("alter trigger trg_guard_zz_wah_issuance_control on public.certificates rename to trg_certificates_a_wah_issuance_guard");
   pass("control: sequences do not roll back, so a guard sorted after allocation burns a number and this one does not");
 
+  // ---- Super Admin issuance path (the second draft) -------------------------------------------------------
+  const SUPER = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+  const INACTIVE_SUPER = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+  const INACTIVE_ADMIN = "ffffffff-ffff-4fff-8fff-ffffffffffff";
+  const NO_PROFILE = "99999999-9999-4999-8999-999999999999";
+  psql(`insert into auth.users values ('${SUPER}'), ('${INACTIVE_SUPER}'), ('${INACTIVE_ADMIN}'), ('${NO_PROFILE}');
+    insert into public.profiles (id, email, role, is_active) values ('${SUPER}', 'super@synthetic.test', 'super_admin', true), ('${INACTIVE_SUPER}', 'off@synthetic.test', 'super_admin', false), ('${INACTIVE_ADMIN}', 'offadmin@synthetic.test', 'admin', false);`);
+  const SUPER_ONLY = /WAH_SUPER_ADMIN_REQUIRED/;
+  const asSuper = ({ s, p }, uid = SUPER, role = "authenticated") => asRole(uid, `select id from public.issue_wah_certificate_as_super_admin('${s}', '${p}')`, role);
+  const SA_DRAFT = "supabase/migrations/20261102160312_production_wah_super_admin_issuance.sql";
+  const saBody = read(SA_DRAFT).replace(/^begin;$/m, "").replace(/^commit;\s*$/m, "");
+
+  rejects(asSuper(completeEnrolment()), /does not exist/, "before the draft, the Super Admin function does not exist");
+  rejects(`begin; drop trigger trg_certificates_a_wah_issuance_guard on public.certificates; ${saBody} rollback;`, /requires the applied WAH issuance guard/, "draft aborts without the issuance guard");
+  rejects(`begin; drop function app.authorize_wah_first_issuance(uuid,uuid,integer,text); ${saBody} rollback;`, /requires the applied WAH issuance guard/, "draft aborts without the owner authorization function");
+  psql(read(SA_DRAFT));
+  psql(read(SA_DRAFT));
+  pass("Super Admin draft applies and re-applies idempotently");
+  assert.equal(psql("select pg_get_function_arguments('public.issue_wah_certificate_as_super_admin(uuid,uuid,text)'::regprocedure)"), "p_schedule_id uuid, p_participant_id uuid, p_certificate_number text DEFAULT NULL::text");
+  pass("the function takes no role or privilege argument, so the caller cannot choose their own role");
+  assert.equal(psql("select count(*) from pg_trigger where tgname in ('trg_guard_wah_skills_complete','trg_guard_wah_skill_result','trg_guard_wah_legacy_certificate','trg_guard_wah_schedule_integrity','trg_certificates_a_wah_issuance_guard','trg_guard_wah_issuance_authorization_rows') and tgenabled='O' and not tgisinternal"), "6");
+  pass("the draft leaves all six WAH safety triggers enabled");
+
+  // Success: one atomic authorize-and-issue, with the full evidence trail.
+  const saOk = completeEnrolment();
+  const saAuthsBefore = Number(psql("select count(*) from app.wah_issuance_authorizations"));
+  const saCreated = Number(auditCount("created"));
+  const saConsumed = Number(auditCount("consumed"));
+  const saCertsBefore = Number(psql("select count(*) from public.certificates"));
+  psql(asSuper(saOk));
+  const saCert = certOf(saOk);
+  assert.equal(psql(`select status || '|' || coalesce(issued_by::text, '') || '|' || (certificate_number is not null)::text from public.certificates where id='${saCert}'`), `valid|${SUPER}|true`);
+  assert.equal(psql(`select renderer_version from public.certificate_issuance_snapshots where certificate_id='${saCert}'`), psql(`select renderer_version from public.certificate_issuance_snapshots where certificate_id='${certOf(wahBefore)}'`));
+  assert.equal(psql(`select count(*) from public.certificate_skill_results where certificate_id='${saCert}'`), "5");
+  assert.equal(psql("select count(*) from public.certificates"), String(saCertsBefore + 1));
+  assert.equal(psql("select count(*) from app.wah_issuance_authorizations"), String(saAuthsBefore + 1));
+  assert.equal(psql(`select (consumed_at is not null)::text || '|' || (consumed_certificate_id = '${saCert}')::text || '|' || approval_ref from app.wah_issuance_authorizations where schedule_id='${saOk.s}' and participant_id='${saOk.p}'`), `true|true|SUPER_ADMIN_CRM:${SUPER}`);
+  assert.equal(openCount(), "0");
+  assert.equal(Number(auditCount("created")), saCreated + 1);
+  assert.equal(Number(auditCount("consumed")), saConsumed + 1);
+  pass("Super Admin issues one WAH certificate: snapshot, Skills results, number, issuer, and a created-and-consumed authorization, with nothing left open");
+
+  // Roles: only an active super_admin gets through, whichever door is used.
+  const saTarget = completeEnrolment();
+  const saTotals = totals();
+  const saSeq = seqState();
+  const saDenied = [
+    [ADMIN, "authenticated", SUPER_ONLY, "Admin"],
+    [EDITOR, "authenticated", SUPER_ONLY, "Editor"],
+    [TRAINER, "authenticated", SUPER_ONLY, "Trainer"],
+    [INACTIVE_SUPER, "authenticated", SUPER_ONLY, "inactive Super Admin"],
+    [INACTIVE_ADMIN, "authenticated", SUPER_ONLY, "inactive Admin"],
+    [NO_PROFILE, "authenticated", SUPER_ONLY, "user with no profile"],
+    ["", "authenticated", SUPER_ONLY, "signed-out session"],
+    [SUPER, "anon", /permission denied/, "anonymous role, even with a Super Admin id"],
+    [SUPER, "service_role", /permission denied/, "service_role, even with a Super Admin id"],
+  ];
+  for (const [uid, role, pattern, label] of saDenied) rejects(asSuper(saTarget, uid, role), pattern, `Super Admin path denies ${label}`);
+  rejects(asRole(ADMIN, `select id from app.issue_wah_certificate_as_super_admin('${saTarget.s}', '${saTarget.p}')`), SUPER_ONLY, "Super Admin path denies Admin on the app function directly");
+  rejects(asRole(SUPER, `select app.authorize_wah_first_issuance('${saTarget.s}', '${saTarget.p}', 30, 'X')`), /permission denied/, "the owner authorization function stays closed to every API role, Super Admin included");
+  assert.equal(totals(), saTotals);
+  assert.equal(seqState(), saSeq);
+  assert.equal(openCount(), "0");
+  pass("every role denial leaves no certificate, snapshot, authorization or burned number");
+
+  // Preconditions are the existing checks, reached through the new door.
+  psql("insert into public.certificate_branches (branch_code, branch_name, display_address, is_active) values ('SYN-SA-OFF', 'Inactive', 'Nowhere', false)");
+  const saBlocked = [
+    ["Skills Record incomplete", () => withSkills({ theory_session: "completed", practical_training: "completed", safety_awareness: "completed" })],
+    ["Practical Assessment failed", () => withSkills({ ...COMPLETE, practical_assessment: "failed" })],
+    ["Skills Records not recorded", () => seedEnrolment(WAH)],
+    ["attendance below 100%", () => completeEnrolment({ attended: 1 })],
+    ["no attendance", () => completeEnrolment({ attended: 0 })],
+    ["no issuing branch", () => completeEnrolment({ branch: "null" })],
+    ["inactive issuing branch", () => completeEnrolment({ branch: "(select id from public.certificate_branches where branch_code='SYN-SA-OFF')" })],
+    ["schedule not completed", () => completeEnrolment({ status: "scheduled" })],
+    ["Erector schedule", () => seedEnrolment(ERECTOR)],
+    ["Inspector schedule", () => seedEnrolment(INSPECTOR)],
+  ];
+  for (const [label, make] of saBlocked) {
+    const e = make();
+    const t = totals();
+    const q = seqState();
+    rejects(asSuper(e), INVALID, `Super Admin path refuses: ${label}`);
+    assert.equal(totals(), t, label);
+    assert.equal(seqState(), q, label);
+    assert.equal(openCount(), "0", label);
+  }
+  pass("every refused precondition leaves nothing behind");
+
+  // Duplicates, sequential and concurrent.
+  const saDup = completeEnrolment();
+  psql(asSuper(saDup));
+  const saDupTotals = totals();
+  rejects(asSuper(saDup), INVALID, "Super Admin path refuses a second certificate for the same participant");
+  assert.equal(totals(), saDupTotals);
+  pass("a repeat after success is refused and changes nothing");
+
+  const saRace = completeEnrolment();
+  const raceCerts = Number(psql("select count(*) from public.certificates"));
+  const raceAuths = Number(psql("select count(*) from app.wah_issuance_authorizations"));
+  const racers = await Promise.all(Array.from({ length: 6 }, () => psqlAsync(asSuper(saRace))));
+  assert.equal(racers.filter((r) => r.code === 0).length, 1, racers.map((r) => r.err).join("\n"));
+  assert.ok(racers.filter((r) => r.code !== 0).every((r) => /WAH_AUTHORIZATION_INVALID|certificates_active_schedule_participant_uniq/.test(r.err)), racers.map((r) => r.err).join("\n"));
+  assert.equal(psql("select count(*) from public.certificates"), String(raceCerts + 1));
+  assert.equal(psql("select count(*) from app.wah_issuance_authorizations"), String(raceAuths + 1));
+  assert.equal(openCount(), "0");
+  pass("six simultaneous submissions for one participant produce exactly one certificate and one consumed authorization");
+
+  const saGroup = seedGroup(3);
+  for (const p of saGroup.ps) for (const [area, status] of Object.entries(COMPLETE)) setSkill({ s: saGroup.s, p }, area, status);
+  const groupRace = await Promise.all(saGroup.ps.map((p) => psqlAsync(asSuper({ s: saGroup.s, p }))));
+  assert.ok(groupRace.every((r) => r.code === 0), groupRace.map((r) => r.err).join("\n"));
+  assert.equal(psql(`select count(*) from public.certificates where schedule_id='${saGroup.s}'`), "3");
+  assert.equal(openCount(), "0");
+  pass("simultaneous requests for different participants each consume only their own authorization and leave none open");
+
+  // Failure after authorization: the whole transaction, authorization included, rolls back.
+  const saFail = completeEnrolment();
+  psql(`update public.course_schedules set trainer_name = null where id='${saFail.s}'`);
+  const failTotals = totals();
+  const failSeq = seqState();
+  const failAudit = [auditCount("created"), auditCount("consumed")];
+  rejects(asSuper(saFail), /Effective trainer is not configured/, "issuer failure after a valid authorization is reported");
+  assert.equal(totals(), failTotals);
+  assert.deepEqual([auditCount("created"), auditCount("consumed")], failAudit);
+  assert.equal(openCount(), "0");
+  assert.equal(psql(`select count(*) from app.wah_issuance_authorizations where schedule_id='${saFail.s}'`), "0");
+  pass("a failed issuance rolls back the authorization, its audit row and the certificate");
+  psql(`update public.course_schedules set trainer_name = 'Synthetic Trainer' where id='${saFail.s}'`);
+  psql(asSuper(saFail));
+  pass("after the cause is fixed, the same participant issues normally: nothing usable or blocking was left");
+
+  // An authorization opened by the owner is not borrowed or disturbed.
+  const saOwner = completeEnrolment();
+  const ownerAuth = authorize(saOwner);
+  const saOther = completeEnrolment();
+  rejects(asSuper(saOther), /WAH_AUTHORIZATION_ALREADY_OPEN/, "Super Admin path does not run beside an open owner authorization");
+  assert.equal(authRow(ownerAuth), "f|f||");
+  psql(`select app.revoke_wah_issuance_authorization('${ownerAuth}', 'Test cleanup')`);
+  psql(asSuper(saOther));
+  pass("an open owner authorization is left untouched, and the Super Admin path works once it is closed");
+
+  // Default deny everywhere else, bulk included, even for the Super Admin.
+  const saBulk = seedGroup(3);
+  for (const p of saBulk.ps) for (const [area, status] of Object.entries(COMPLETE)) setSkill({ s: saBulk.s, p }, area, status);
+  const bulkTotals = totals();
+  for (const p of saBulk.ps) rejects(issue({ s: saBulk.s, p }, SUPER), NOT_AUTHORIZED, "old public issuer, as Super Admin, is still denied for WAH (the bulk path)");
+  assert.equal(totals(), bulkTotals);
+  rejects(asUser(SUPER, `select id from app.issue_certificate_with_skill_snapshot('${saBulk.s}', '${saBulk.ps[0]}')`), NOT_AUTHORIZED, "old app issuer, as Super Admin, is still denied for WAH");
+  pass("bulk-style WAH issuance through the old issuer is denied for everyone, Super Admin included");
+  const actionsSource = read("app/admin/(protected)/certificates/actions.ts");
+  const bulkSource = actionsSource.slice(actionsSource.indexOf("export async function bulkGenerate"), actionsSource.indexOf("export async function revokeCertificate"));
+  assert.match(bulkSource, /isWahCourse\(/, "bulkGenerate must exclude WAH");
+  assert.match(actionsSource, /issue_wah_certificate_as_super_admin/);
+  pass("the CRM's bulk action excludes WAH, and individual WAH requests use the Super Admin function");
+
+  // Erector, Inspector and history are untouched by the new path.
+  rejects(asSuper(seedEnrolment(ERECTOR)), INVALID, "Super Admin function cannot be used to issue Erector");
+  const erectorLater = seedEnrolment(ERECTOR);
+  psql(issue(erectorLater));
+  const inspectorLater = seedEnrolment(INSPECTOR);
+  psql(issue(inspectorLater));
+  assert.equal(payloadOf(certOf(erectorLater)), erectorPayloadBefore);
+  assert.equal(payloadOf(certOf(inspectorLater)), inspectorPayloadBefore);
+  assert.equal(certsAt(), certsBeforeGuard);
+  assert.equal(snapsAt(), snapsBeforeGuard);
+  pass("Erector and Inspector issue as before with identical payloads, and every earlier certificate and snapshot is byte-for-byte unchanged");
+
+  // Rollback of this draft alone.
+  const saRollback = read(SA_DRAFT).split("\n").filter((l) => l.startsWith("-- rollback> ")).map((l) => l.slice("-- rollback> ".length)).join("\n");
+  const saKept = psql("select count(*) from app.wah_issuance_authorizations");
+  const rolledOut = psql(`begin; ${saRollback}
+    select count(*) from pg_proc where proname='issue_wah_certificate_as_super_admin';
+    select count(*) from app.wah_issuance_authorizations;
+    select count(*) from pg_trigger where tgname='trg_certificates_a_wah_issuance_guard' and tgenabled='O';
+    rollback;`);
+  assert.deepEqual(rolledOut.split("\n").slice(-3), ["0", saKept, "1"]);
+  pass("this draft's rollback removes only the new functions: the guard stays enforcing and every authorization row stays");
+  assert.equal(psql("select count(*) from pg_proc where proname='issue_wah_certificate_as_super_admin'"), "2");
+
   // ---- Re-apply with state, then rollback ------------------------------------------------------------
   const carried = completeEnrolment();
   const carriedAuth = authorize(carried);
