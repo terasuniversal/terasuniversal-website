@@ -22,8 +22,8 @@ const TRAINER = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 const EDITOR = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const ERECTOR_MIGRATION = "supabase/migrations/20261101091525_production_erector_c4_snapshot_dispatch.sql";
 const INSPECTOR_MIGRATION = "supabase/migrations/20261101124601_production_inspector_c4_snapshot_dispatch.sql";
-const WAH_DRAFT = "supabase/post_baseline_drafts/20261102000000_production_wah_c4_snapshot_dispatch.sql";
-const WAH_HARDENING = "supabase/post_baseline_drafts/20261102010000_production_wah_failed_result_hardening.sql";
+const WAH_DRAFT = "supabase/migrations/20261102030425_production_wah_c4_snapshot_dispatch.sql";
+const WAH_HARDENING = "supabase/migrations/20261102030656_production_wah_failed_result_hardening.sql";
 
 const docker = (args, input) => execFileSync("docker", args, { input, encoding: "utf8", stdio: [input === undefined ? "ignore" : "pipe", "pipe", "pipe"] });
 function psql(sql) {
