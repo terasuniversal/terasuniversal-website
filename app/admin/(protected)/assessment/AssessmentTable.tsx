@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Fragment, useActionState, useState } from "react";
 import { Badge } from "../../../../components/admin/ui";
-import { updateAssessment, bulkUpdateResult, lockAssessments, unlockAssessments, updateParticipantSkillResults, type SkillsFormState } from "./actions";
+import { updateAssessment, bulkUpdateResult, lockAssessments, unlockAssessments, updateParticipantSkillResults, correctWahFailedPracticalAssessment, type SkillsFormState } from "./actions";
 import { participantSkillResultSchema } from "../../../../lib/validation/schemas";
 import { UNGROUPED } from "../../../../lib/scheduleGroupContext";
 import { MutationForm, MutationSubmitButton } from "../../../../components/admin/MutationForm";
@@ -61,11 +61,12 @@ const SKILL_STATUS_OPTIONS: Record<string, string[]> = {
  * doc comment) -- no separate lock UI for participant_skill_results.locked
  * in this phase.
  */
-function SkillsRow({ scheduleId, row, editable, colSpan }: { scheduleId: string; row: AsmRow; editable: boolean; colSpan: number }) {
+function SkillsRow({ scheduleId, row, editable, colSpan, protectFailed, canCorrectFailed }: { scheduleId: string; row: AsmRow; editable: boolean; colSpan: number; protectFailed: boolean; canCorrectFailed: boolean }) {
   const [state, formAction, pending] = useActionState<SkillsFormState, FormData>(
     updateParticipantSkillResults.bind(null, scheduleId),
     {}
   );
+  const failedProtected = protectFailed && row.skills.practical_assessment === "failed";
 
   return (
     <tr>
@@ -77,7 +78,7 @@ function SkillsRow({ scheduleId, row, editable, colSpan }: { scheduleId: string;
             {SKILL_AREAS.map((area) => (
               <label key={area} style={{ display: "flex", gap: 5, alignItems: "center" }}>
                 {SKILL_LABELS[area]}
-                <select name={area} defaultValue={row.skills[area] ?? "not_recorded"} style={inp} aria-label={SKILL_LABELS[area]}>
+                <select name={area} defaultValue={row.skills[area] ?? "not_recorded"} style={inp} aria-label={SKILL_LABELS[area]} disabled={failedProtected && area === "practical_assessment"}>
                   {SKILL_STATUS_OPTIONS[area].map((s) => (
                     <option key={s} value={s}>{STATUS_LABELS[s]}</option>
                   ))}
@@ -101,8 +102,43 @@ function SkillsRow({ scheduleId, row, editable, colSpan }: { scheduleId: string;
             ))}
           </div>
         )}
+        {failedProtected && editable && !canCorrectFailed && (
+          <div style={{ marginTop: 6, fontSize: 11, color: "var(--ta-muted)" }}>Recorded Failed. Only an Admin can correct this result.</div>
+        )}
+        {failedProtected && editable && canCorrectFailed && <FailedCorrectionForm scheduleId={scheduleId} participantId={row.participant_id} />}
       </td>
     </tr>
+  );
+}
+
+function FailedCorrectionForm({ scheduleId, participantId }: { scheduleId: string; participantId: string }) {
+  const [state, formAction, pending] = useActionState<SkillsFormState, FormData>(
+    correctWahFailedPracticalAssessment.bind(null, scheduleId),
+    {}
+  );
+  return (
+    <form action={formAction} style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", fontSize: 11, marginTop: 8 }}>
+      <input type="hidden" name="participant_id" value={participantId} />
+      <span style={{ color: "var(--ta-muted)", fontWeight: 600 }}>Correct Failed result</span>
+      <label style={{ display: "flex", gap: 5, alignItems: "center" }}>
+        Corrected status
+        <select name="new_status" defaultValue="not_recorded" style={inp}>
+          <option value="not_recorded">{STATUS_LABELS.not_recorded}</option>
+          <option value="passed">{STATUS_LABELS.passed}</option>
+        </select>
+      </label>
+      <label style={{ display: "flex", gap: 5, alignItems: "center" }}>
+        Reason
+        <input name="reason" required minLength={10} maxLength={1000} style={{ ...inp, minWidth: 220 }} />
+      </label>
+      <label style={{ display: "flex", gap: 5, alignItems: "center" }}>
+        Evidence reference
+        <input name="evidence_reference" required minLength={3} maxLength={200} placeholder="Retained record reference" style={{ ...inp, minWidth: 170 }} />
+      </label>
+      <button type="submit" className="ta-btn ta-btn-outline ta-btn-sm" disabled={pending}>{pending ? "Saving…" : "Save correction"}</button>
+      {state.message && <span style={{ color: "var(--ta-success)" }}>{state.message}</span>}
+      {state.error && <span role="alert" style={{ color: "var(--ta-danger)" }}>{state.error}</span>}
+    </form>
   );
 }
 
@@ -124,11 +160,16 @@ export function AssessmentTable({
   isSuperAdmin,
   canViewParticipants,
   groupId,
+  protectFailed = false,
+  canCorrectFailed = false,
 }: {
   scheduleId: string;
   rows: AsmRow[];
   canManage: boolean;
   isSuperAdmin: boolean;
+  /** WAH schedules only: a recorded Failed Practical Assessment is read-only in the Skills form. */
+  protectFailed?: boolean;
+  canCorrectFailed?: boolean;
   /** Gates the per-row link to /admin/participants/[id] -- that route itself
    * requires requireRole("editor"), so the link is hidden below that rather
    * than leading a lower-privilege viewer to /admin/no-access. */
@@ -281,7 +322,7 @@ export function AssessmentTable({
                     </>
                   )}
                 </tr>
-                <SkillsRow scheduleId={scheduleId} row={r} editable={editable} colSpan={totalCols} />
+                <SkillsRow scheduleId={scheduleId} row={r} editable={editable} colSpan={totalCols} protectFailed={protectFailed} canCorrectFailed={canCorrectFailed} />
                 </Fragment>
               );
             })}

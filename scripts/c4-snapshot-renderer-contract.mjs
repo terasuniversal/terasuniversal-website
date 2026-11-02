@@ -213,7 +213,7 @@ for (const level of ["basic", "intermediate", "advanced"]) {
   });
   assert.equal(config.golden_reference_family, "working_at_height");
   assert.equal(config.certificate_title, "WORKING AT HEIGHT TRAINING CERTIFICATE");
-  console.log("PASS WAH proposed c4_wave1_wah_v1 synthetic payload dispatches correctly (not yet DB-activated)");
+  console.log("PASS WAH c4_wave1_wah_v1 synthetic payload dispatches correctly (draft migration, not applied)");
 }
 
 {

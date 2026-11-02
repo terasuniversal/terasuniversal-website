@@ -10,6 +10,7 @@ import {
   legacyRejectRowSchema,
   legacyCourseMappingSchema,
 } from "../../../../../lib/validation/schemas";
+import { isWahLegacyTarget } from "../../../../../lib/certificates/wah-legacy-block";
 
 /** Row states that are final for Phase 2 purposes -- no participant-match
  *  or approve/reject action may touch a row in any of these. `merged` is
@@ -322,7 +323,13 @@ export async function approveCourseMapping(batchId: string, formData: FormData) 
     .select("normalized_course_name")
     .eq("id", course_map_id)
     .maybeSingle();
-  const { data: course } = await supabase.from("courses").select("title").eq("id", course_id).maybeSingle();
+  const { data: course } = await supabase.from("courses").select("title, course_name, course_code").eq("id", course_id).maybeSingle();
+
+  // Existing mappings are left as they are; the merge's database trigger rejects
+  // their WAH rows.
+  if (isWahLegacyTarget(course_id, course?.title, course?.course_name, course?.course_code)) {
+    backTo(batchId, "Working at Height cannot be mapped in a legacy import. Issue these certificates through the normal certificate flow, or ask the owner about any genuine historical records.");
+  }
 
   const { data: updatedCount, error } = await supabase.rpc("legacy_course_map_approve", {
     p_batch_id: batchId,

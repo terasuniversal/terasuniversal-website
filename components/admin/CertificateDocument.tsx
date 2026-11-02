@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import { fitHolderNameSize, formatAddressLines, formatDateRange, formatHumanDate, isAffirmativeStatus } from "../../lib/certificate-format";
 import type { CertificateSkillRow, CertificateSkillsCompleteness, CertificateSkillsProvenance } from "../../lib/certificate-skills";
-import { inspectorGoldenWatermarkBox, resolveCertificateWatermarkAsset, type WatermarkLevel } from "../../lib/certificate-watermark-assets";
+import { inspectorGoldenWatermarkBox, wahGoldenWatermarkBox, resolveCertificateWatermarkAsset, type WatermarkLevel } from "../../lib/certificate-watermark-assets";
 import { CERTIFICATE_DESIGN, certificateFamilyLabel, isGoldenReferenceFamily, type GoldenReferenceFamily } from "../../lib/certificate-design-system";
 import { TERAS_COMPANY_NAME, TERAS_COMPANY_REGISTRATION, TERAS_COMPANY_TAGLINE } from "../../lib/teras-company";
 import { DIRECTOR_SIGNATURE_ASSET, EMBOSS_MEDALLION_LIFT_PX, EMBOSS_MEDALLION_SIZE_PX } from "../../lib/certificate-approval-assets";
@@ -194,11 +194,15 @@ function CertificateFrame({ navy, gold }: { navy: string; gold: string }) {
 function CertificateWatermark({ config, corner = false, goldenReferencePageOne = false }: { config: TemplateConfig; corner?: boolean; goldenReferencePageOne?: boolean }) {
   const asset = resolveCertificateWatermarkAsset(config);
   if (!asset) return null;
-  const inspectorPlacement = asset.family === "inspector" && isGoldenReferenceFamily(config)
-    ? inspectorGoldenWatermarkBox(asset.level, goldenReferencePageOne ? "pageOne" : "pageTwo")
-    : null;
-  if (inspectorPlacement) {
-    const { opacity, src, ...box } = inspectorPlacement;
+  const goldenPlacement = !isGoldenReferenceFamily(config)
+    ? null
+    : asset.family === "inspector"
+      ? inspectorGoldenWatermarkBox(asset.level, goldenReferencePageOne ? "pageOne" : "pageTwo")
+      : asset.family === "working-at-height"
+        ? wahGoldenWatermarkBox(goldenReferencePageOne ? "pageOne" : "pageTwo")
+        : null;
+  if (goldenPlacement) {
+    const { opacity, src, ...box } = goldenPlacement;
     return <img src={src} alt="" aria-hidden="true" style={{ position: "absolute", ...box, objectFit: "contain", pointerEvents: "none", opacity }} />;
   }
   const size = goldenReferencePageOne

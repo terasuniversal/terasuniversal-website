@@ -4,6 +4,7 @@ import { createSupabaseServerClient } from "../../../../../../lib/supabase/serve
 import { requireModuleAccess, requireCertificate } from "../../../../../../lib/auth/session";
 import { PageHead, Card, Badge, EmptyState } from "../../../../../../components/admin/ui";
 import { generateCertificate, bulkGenerate } from "../../actions";
+import { loadWahFailedHoldParticipantIds, WAH_FAILED_HOLD_CHECK_ERROR, WAH_FAILED_HOLD_LABEL } from "../../../../../../lib/certificates/wah-failed-hold";
 
 export const metadata = { title: "Generate Certificates — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
@@ -44,7 +45,7 @@ export default async function GenerateForSchedulePage({
   searchParams,
 }: {
   params: Promise<{ scheduleId: string }>;
-  searchParams: Promise<{ generated?: string; skipped?: string; reason?: string }>;
+  searchParams: Promise<{ generated?: string; skipped?: string; held?: string; reason?: string }>;
 }) {
 await requireModuleAccess("certificates");
   await requireCertificate(true);
@@ -52,24 +53,34 @@ await requireModuleAccess("certificates");
   const query = await searchParams;
   const supabase = await createSupabaseServerClient();
 
-  const { data: scheduleRow } = await supabase.from("course_schedules").select("id, schedule_code, trainer_name, start_date, courses(course_name)").eq("id", scheduleId).single();
+  const { data: scheduleRow } = await supabase.from("course_schedules").select("id, course_id, schedule_code, trainer_name, start_date, courses(course_name)").eq("id", scheduleId).single();
   if (!scheduleRow) notFound();
   const s = { ...scheduleRow, course_name: (scheduleRow as any).courses?.course_name ?? "—", trainer: (scheduleRow as any).trainer_name, schedule_id: (scheduleRow as any).schedule_code };
 
   const { data: eligRaw } = await supabase.from("v_certificate_eligibility").select("*").eq("schedule_id", scheduleId);
   const rows = (eligRaw ?? []) as EligibilityRow[];
-  const eligibleCount = rows.filter((r) => r.eligible).length;
+  let heldIds = new Set<string>();
+  let holdCheckFailed = false;
+  try {
+    heldIds = await loadWahFailedHoldParticipantIds(supabase, scheduleId, (scheduleRow as any).course_id);
+  } catch {
+    holdCheckFailed = true;
+  }
+  const isHeld = (r: EligibilityRow) => r.eligible && heldIds.has(r.participant_id);
+  const heldRows = rows.filter(isHeld);
+  const eligibleCount = holdCheckFailed ? 0 : rows.filter((r) => r.eligible && !isHeld(r)).length;
 
   const boundBulk = async () => {
     "use server";
     const result = await bulkGenerate(scheduleId);
     const reason = result.failureReasons[0] ? `&reason=${encodeURIComponent(result.failureReasons[0])}` : "";
-    redirect(`/admin/certificates/generate/${scheduleId}?generated=${result.generated}&skipped=${result.skipped}${reason}`);
+    redirect(`/admin/certificates/generate/${scheduleId}?generated=${result.generated}&skipped=${result.skipped}&held=${result.held}${reason}`);
   };
 
   const generated = Number.parseInt(query.generated ?? "", 10);
   const skipped = Number.parseInt(query.skipped ?? "", 10);
   const hasGenerationResult = Number.isFinite(generated) && Number.isFinite(skipped);
+  const heldInRun = Number.parseInt(query.held ?? "", 10);
 
   return (
     <>
@@ -101,7 +112,16 @@ await requireModuleAccess("certificates");
         >
           {generated > 0 ? <><strong>{generated} certificate{generated === 1 ? "" : "s"} generated successfully.</strong> </> : <strong>No certificates were generated. </strong>}
           {skipped > 0 ? `${skipped} participant${skipped === 1 ? " was" : "s were"} skipped because their eligibility changed, a certificate already exists, or the system rejected the request.` : "All eligible participants have been processed."}
+          {heldInRun > 0 ? <><br />{heldInRun} held participant{heldInRun === 1 ? " was" : "s were"} excluded from this run.</> : null}
           {query.reason ? <><br />System reason: <strong>{query.reason}</strong></> : null}
+        </div>
+      ) : null}
+
+      {holdCheckFailed ? <div className="ta-alert ta-alert-error" role="alert">{WAH_FAILED_HOLD_CHECK_ERROR} Generation is disabled until this page loads the check.</div> : null}
+
+      {heldRows.length > 0 ? (
+        <div className="ta-alert" role="status" style={{ background: "rgba(218, 158, 20, .12)", color: "var(--ta-warning)", marginBottom: 16 }}>
+          <strong>{WAH_FAILED_HOLD_LABEL}:</strong> {heldRows.map((r) => r.holder_name).join(", ")}. An authorized Admin may correct a result on the Assessment page, using genuine evidence.
         </div>
       ) : null}
 
@@ -113,7 +133,7 @@ await requireModuleAccess("certificates");
               <tbody>
                 {rows.map((r) => {
                   const already = !!r.existing_certificate_id;
-                  const canGen = r.eligible;
+                  const canGen = r.eligible && !holdCheckFailed && !isHeld(r);
                   const boundGen = async () => {
                     "use server";
                     const result = await generateCertificate(scheduleId, r.participant_id);
@@ -128,7 +148,7 @@ await requireModuleAccess("certificates");
                       <td>{r.attendance_percentage}%</td>
                       <td>{r.result ? <Badge status={r.result} /> : "—"}</td>
                       <td>{r.competency_status ? <Badge status={r.competency_status} /> : "—"}</td>
-                      <td>{r.eligible ? "✅ Eligible" : <span style={{ color: "var(--ta-muted)", fontSize: 12.5 }}>{reasonText(r)}</span>}</td>
+                      <td>{isHeld(r) ? <strong style={{ color: "var(--ta-warning)", fontSize: 12.5 }}>{WAH_FAILED_HOLD_LABEL}</strong> : r.eligible ? "✅ Eligible" : <span style={{ color: "var(--ta-muted)", fontSize: 12.5 }}>{reasonText(r)}</span>}</td>
                       <td style={{ textAlign: "right" }}>
                         {already ? (
                           <span style={{ color: "var(--ta-success)", fontSize: 13 }}>✓ Certified</span>

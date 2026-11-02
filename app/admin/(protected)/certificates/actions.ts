@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { requireModuleAccess, requireCertificate } from "../../../../lib/auth/session";
+import { loadWahFailedHoldParticipantIds, WAH_FAILED_HOLD_CHECK_ERROR, WAH_FAILED_HOLD_REASON } from "../../../../lib/certificates/wah-failed-hold";
 import { certificateReissueSchema, certificateRevokeSchema } from "../../../../lib/validation/schemas";
 
 /**
@@ -129,6 +130,14 @@ export async function generateCertificate(scheduleId: string, participantId: str
   const row = elig as EligibilityRow;
   if (!row.eligible) return row.ineligibility_reason ?? "not-eligible";
 
+  let held: Set<string>;
+  try {
+    held = await loadWahFailedHoldParticipantIds(supabase, scheduleId, row.course_id);
+  } catch {
+    return WAH_FAILED_HOLD_CHECK_ERROR;
+  }
+  if (held.has(participantId)) return WAH_FAILED_HOLD_REASON;
+
   const result = await insertEligibleCertificate(supabase, row);
   if (result === "ok") revalidatePath("/admin/certificates");
   return result;
@@ -143,13 +152,21 @@ export async function generateCertificate(scheduleId: string, participantId: str
  * so correctness requires one insert per row here rather than a batched
  * multi-row insert.
  */
-export async function bulkGenerate(scheduleId: string): Promise<{ generated: number; skipped: number; failureReasons: string[] }> {
+export async function bulkGenerate(scheduleId: string): Promise<{ generated: number; skipped: number; held: number; failureReasons: string[] }> {
   await requireCertificate(true);
   await requireModuleAccess("certificates");
   const supabase = await createSupabaseServerClient();
 
   const { data: rows } = await supabase.from("v_certificate_eligibility").select("*").eq("schedule_id", scheduleId);
-  const eligibleRows = ((rows ?? []) as EligibilityRow[]).filter((r) => r.eligible);
+  const allEligibleRows = ((rows ?? []) as EligibilityRow[]).filter((r) => r.eligible);
+  let heldIds: Set<string>;
+  try {
+    heldIds = await loadWahFailedHoldParticipantIds(supabase, scheduleId, allEligibleRows[0]?.course_id);
+  } catch {
+    return { generated: 0, skipped: allEligibleRows.length, held: 0, failureReasons: [WAH_FAILED_HOLD_CHECK_ERROR] };
+  }
+  const eligibleRows = allEligibleRows.filter((r) => !heldIds.has(r.participant_id));
+  const held = allEligibleRows.length - eligibleRows.length;
 
   let generated = 0, skipped = 0;
   const failureReasons = new Set<string>();
@@ -165,7 +182,7 @@ export async function bulkGenerate(scheduleId: string): Promise<{ generated: num
   }
 
   revalidatePath("/admin/certificates");
-  return { generated, skipped, failureReasons: [...failureReasons].slice(0, 3) };
+  return { generated, skipped, held, failureReasons: [...failureReasons].slice(0, 3) };
 }
 
 export async function revokeCertificate(id: string, formData?: FormData) {

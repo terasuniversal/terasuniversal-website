@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { hasMinRole } from "../../../../lib/auth/rbac";
+import { isWahLegacyTarget } from "../../../../lib/certificates/wah-legacy-block";
 
 export const runtime = "nodejs";
 
@@ -34,8 +35,6 @@ async function createLegacyRecord(client, form) {
   if (required.some((field) => !String(form?.[field] || "").trim())) return "Medan wajib tidak lengkap.";
   const dateError = validateCourseDates(form);
   if (dateError) return dateError;
-  const { data: participant, error: participantError } = await client.from("participants").insert({ full_name: String(form.participant_name).trim(), identity_no: String(form.identity_no).trim().toUpperCase(), identity_last4: String(form.identity_no).trim().slice(-4), status: "active" }).select("id").single();
-  if (participantError) return participantError.message;
 
   // Reuse an existing course by name instead of always inserting a new row —
   // the previous unconditional insert here was silently minting a duplicate
@@ -44,6 +43,13 @@ async function createLegacyRecord(client, form) {
   const courseName = String(form.course_name).trim();
   const { data: existingCourse, error: existingCourseError } = await client.from("courses").select("id").ilike("course_name", courseName).is("deleted_at", null).limit(1).maybeSingle();
   if (existingCourseError) return existingCourseError.message;
+  // Before the participant insert: this route is not transactional, so a later
+  // rejection would leave a participant behind.
+  if (isWahLegacyTarget(existingCourse?.id, courseName)) return "Import legacy untuk Working at Height tidak dibenarkan.";
+
+  const { data: participant, error: participantError } = await client.from("participants").insert({ full_name: String(form.participant_name).trim(), identity_no: String(form.identity_no).trim().toUpperCase(), identity_last4: String(form.identity_no).trim().slice(-4), status: "active" }).select("id").single();
+  if (participantError) return participantError.message;
+
   let courseId = existingCourse?.id;
   if (!courseId) {
     const { data: course, error: courseError } = await client.from("courses").insert({ course_name: courseName, active: true }).select("id").single();

@@ -107,6 +107,32 @@ export function inspectorGoldenWatermarkBox(level: WatermarkLevel | undefined, p
 }
 
 /**
+ * Working at Height Golden Reference placement, fitted into the same open
+ * areas as Inspector. Owner visually approved 2026-11-02; independent safety verification is not established.
+ * Issued certificates load these files at render time, so never replace them in place. working-at-height.svg stays with
+ * legacy WAH certificates and is never used here.
+ */
+const WAH_GOLDEN_AREAS = {
+  pageOne: { src: "wah-scene.png", aspect: 970 / 850, centerX: 397, top: 640, maxW: 420, maxH: 190, opacity: 0.14 },
+  pageTwo: { src: "wah-detail.png", aspect: 505 / 610, centerX: 632, top: 625, maxW: 195, maxH: 200, opacity: 0.14 },
+} as const;
+
+export function wahGoldenWatermarkBox(page: keyof typeof WAH_GOLDEN_AREAS) {
+  const a = WAH_GOLDEN_AREAS[page];
+  const width = Math.min(a.maxW, a.maxH * a.aspect);
+  const height = width / a.aspect;
+  const round = (n: number) => Math.round(n * 10) / 10;
+  return {
+    src: `${ASSET_ROOT}/${a.src}`,
+    left: round(a.centerX - width / 2),
+    top: round(a.top + (a.maxH - height) / 2),
+    width: round(width),
+    height: round(height),
+    opacity: a.opacity,
+  };
+}
+
+/**
  * Legacy frozen watermark families already baked into real, immutable
  * issuance snapshots before this resolver's current per-level naming
  * existed. Only 'scaffolding-technical' is confirmed real today (the live
