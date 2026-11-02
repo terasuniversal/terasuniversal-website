@@ -78,6 +78,7 @@ function SkillsRow({ scheduleId, row, editable, colSpan, protectFailed, canCorre
             {SKILL_AREAS.map((area) => (
               <label key={area} style={{ display: "flex", gap: 5, alignItems: "center" }}>
                 {SKILL_LABELS[area]}
+                <input type="hidden" name={`original_${area}`} value={row.skills[area] ?? "not_recorded"} />
                 <select name={area} defaultValue={row.skills[area] ?? "not_recorded"} style={inp} aria-label={SKILL_LABELS[area]} disabled={failedProtected && area === "practical_assessment"}>
                   {SKILL_STATUS_OPTIONS[area].map((s) => (
                     <option key={s} value={s}>{STATUS_LABELS[s]}</option>

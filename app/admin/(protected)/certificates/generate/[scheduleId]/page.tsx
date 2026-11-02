@@ -5,6 +5,7 @@ import { requireModuleAccess, requireCertificate } from "../../../../../../lib/a
 import { PageHead, Card, Badge, EmptyState } from "../../../../../../components/admin/ui";
 import { generateCertificate, bulkGenerate } from "../../actions";
 import { loadWahFailedHoldParticipantIds, WAH_FAILED_HOLD_CHECK_ERROR, WAH_FAILED_HOLD_LABEL } from "../../../../../../lib/certificates/wah-failed-hold";
+import { loadWahIncompleteSkillsParticipantIds, WAH_SKILLS_CHECK_ERROR, WAH_SKILLS_HOLD_LABEL } from "../../../../../../lib/certificates/wah-skills-gate";
 
 export const metadata = { title: "Generate Certificates — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
@@ -60,14 +61,21 @@ await requireModuleAccess("certificates");
   const { data: eligRaw } = await supabase.from("v_certificate_eligibility").select("*").eq("schedule_id", scheduleId);
   const rows = (eligRaw ?? []) as EligibilityRow[];
   let heldIds = new Set<string>();
+  let incompleteIds = new Set<string>();
   let holdCheckFailed = false;
+  let holdCheckError = WAH_FAILED_HOLD_CHECK_ERROR;
   try {
     heldIds = await loadWahFailedHoldParticipantIds(supabase, scheduleId, (scheduleRow as any).course_id);
+    holdCheckError = WAH_SKILLS_CHECK_ERROR;
+    incompleteIds = await loadWahIncompleteSkillsParticipantIds(supabase, scheduleId, (scheduleRow as any).course_id, rows.filter((r) => r.eligible).map((r) => r.participant_id));
   } catch {
     holdCheckFailed = true;
   }
-  const isHeld = (r: EligibilityRow) => r.eligible && heldIds.has(r.participant_id);
-  const heldRows = rows.filter(isHeld);
+  const isFailedHeld = (r: EligibilityRow) => r.eligible && heldIds.has(r.participant_id);
+  const isIncompleteHeld = (r: EligibilityRow) => r.eligible && !heldIds.has(r.participant_id) && incompleteIds.has(r.participant_id);
+  const isHeld = (r: EligibilityRow) => isFailedHeld(r) || isIncompleteHeld(r);
+  const heldRows = rows.filter(isFailedHeld);
+  const incompleteRows = rows.filter(isIncompleteHeld);
   const eligibleCount = holdCheckFailed ? 0 : rows.filter((r) => r.eligible && !isHeld(r)).length;
 
   const boundBulk = async () => {
@@ -117,11 +125,17 @@ await requireModuleAccess("certificates");
         </div>
       ) : null}
 
-      {holdCheckFailed ? <div className="ta-alert ta-alert-error" role="alert">{WAH_FAILED_HOLD_CHECK_ERROR} Generation is disabled until this page loads the check.</div> : null}
+      {holdCheckFailed ? <div className="ta-alert ta-alert-error" role="alert">{holdCheckError} Generation is disabled until this page loads the check.</div> : null}
 
       {heldRows.length > 0 ? (
         <div className="ta-alert" role="status" style={{ background: "rgba(218, 158, 20, .12)", color: "var(--ta-warning)", marginBottom: 16 }}>
           <strong>{WAH_FAILED_HOLD_LABEL}:</strong> {heldRows.map((r) => r.holder_name).join(", ")}. An authorized Admin may correct a result on the Assessment page, using genuine evidence.
+        </div>
+      ) : null}
+
+      {incompleteRows.length > 0 ? (
+        <div className="ta-alert" role="status" style={{ background: "rgba(218, 158, 20, .12)", color: "var(--ta-warning)", marginBottom: 16 }}>
+          <strong>{WAH_SKILLS_HOLD_LABEL}:</strong> {incompleteRows.length} participant{incompleteRows.length === 1 ? "" : "s"}. A Working at Height certificate needs Theory Session, Practical Training and Safety Awareness Completed, and Practical Assessment Passed. Record genuine results on the Assessment page.
         </div>
       ) : null}
 
@@ -148,7 +162,7 @@ await requireModuleAccess("certificates");
                       <td>{r.attendance_percentage}%</td>
                       <td>{r.result ? <Badge status={r.result} /> : "—"}</td>
                       <td>{r.competency_status ? <Badge status={r.competency_status} /> : "—"}</td>
-                      <td>{isHeld(r) ? <strong style={{ color: "var(--ta-warning)", fontSize: 12.5 }}>{WAH_FAILED_HOLD_LABEL}</strong> : r.eligible ? "✅ Eligible" : <span style={{ color: "var(--ta-muted)", fontSize: 12.5 }}>{reasonText(r)}</span>}</td>
+                      <td>{isHeld(r) ? <strong style={{ color: "var(--ta-warning)", fontSize: 12.5 }}>{isFailedHeld(r) ? WAH_FAILED_HOLD_LABEL : WAH_SKILLS_HOLD_LABEL}</strong> : r.eligible ? "✅ Eligible" : <span style={{ color: "var(--ta-muted)", fontSize: 12.5 }}>{reasonText(r)}</span>}</td>
                       <td style={{ textAlign: "right" }}>
                         {already ? (
                           <span style={{ color: "var(--ta-success)", fontSize: 13 }}>✓ Certified</span>

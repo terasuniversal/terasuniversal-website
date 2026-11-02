@@ -24,6 +24,7 @@ const ERECTOR_MIGRATION = "supabase/migrations/20261101091525_production_erector
 const INSPECTOR_MIGRATION = "supabase/migrations/20261101124601_production_inspector_c4_snapshot_dispatch.sql";
 const WAH_DRAFT = "supabase/migrations/20261102030425_production_wah_c4_snapshot_dispatch.sql";
 const WAH_HARDENING = "supabase/migrations/20261102030656_production_wah_failed_result_hardening.sql";
+const WAH_SKILLS_GATE = "supabase/post_baseline_drafts/20261102060000_production_wah_skills_complete_gate.sql";
 
 const docker = (args, input) => execFileSync("docker", args, { input, encoding: "utf8", stdio: [input === undefined ? "ignore" : "pipe", "pipe", "pipe"] });
 function psql(sql) {
@@ -603,6 +604,105 @@ try {
   assert.equal(psql(`select render_contract_version from public.certificates where id='${certOf(legacySnapshot)}'`), "certificate_renderer_v1");
   assert.equal(psql(`select coalesce(render_contract_version,'NULL') from public.certificates where id='${legacyNoSnapshot}'`), "NULL");
   pass("legacy WAH certificates did not switch to C4");
+
+  // Owner rule, applied last: a new WAH certificate needs all four Skills Record areas
+  // complete. Tests above that issue with Not Recorded or missing rows describe the
+  // two applied migrations alone, which is Production's state until this gate applies.
+  const gateBody = read(WAH_SKILLS_GATE).replace(/^begin;$/m, "").replace(/^commit;\s*$/m, "");
+  rejects(`begin; drop trigger trg_guard_wah_skill_result on public.participant_skill_results; ${gateBody} rollback;`, /requires both applied WAH migrations/, "Gate: aborts without the applied WAH migrations");
+  const gateIds = psql("select string_agg(id::text, ',' order by id) from public.certificates");
+  const certsAt = () => psql(`select md5(string_agg(c::text, '|' order by id)) from public.certificates c where id = any(string_to_array('${gateIds}', ',')::uuid[])`);
+  const snapsAt = () => psql(`select md5(string_agg(s::text, '|' order by certificate_id)) from public.certificate_issuance_snapshots s where certificate_id = any(string_to_array('${gateIds}', ',')::uuid[])`);
+  const certsBeforeGate = certsAt();
+  const snapsBeforeGate = snapsAt();
+  psql(read(WAH_SKILLS_GATE));
+  psql(read(WAH_SKILLS_GATE));
+  assert.equal(certsAt(), certsBeforeGate);
+  assert.equal(snapsAt(), snapsBeforeGate);
+  pass("Gate: applies and re-applies idempotently, changing no certificate or snapshot");
+
+  const INCOMPLETE = /WAH_SKILLS_RECORD_INCOMPLETE/;
+  const COMPLETE = { theory_session: "completed", practical_training: "completed", safety_awareness: "completed", practical_assessment: "passed" };
+  const withSkills = (values) => {
+    const e = seedEnrolment(WAH);
+    for (const [area, status] of Object.entries(values)) setSkill(e, area, status);
+    return e;
+  };
+  const noCertificate = (e) => assert.equal(psql(`select count(*) from public.certificates where schedule_id = '${e.s}'`), "0");
+
+  const complete = withSkills(COMPLETE);
+  psql(issue(complete));
+  assert.equal(psql(`select render_contract_version from public.certificates where id = '${certOf(complete)}'`), "c4_wave1_wah_v1");
+  for (const [area, status] of Object.entries(COMPLETE)) assert.equal(frozen(complete, area), status);
+  assert.equal(frozen(complete, "attendance_requirement"), "met");
+  pass("Gate: all four complete issues a WAH C4 certificate and freezes those results");
+
+  for (const area of Object.keys(COMPLETE)) {
+    const notRecordedOne = withSkills({ ...COMPLETE, [area]: "not_recorded" });
+    const before = totals();
+    rejects(issue(notRecordedOne), INCOMPLETE, `Gate: ${area} Not Recorded rejected`);
+    assert.equal(totals(), before);
+    noCertificate(notRecordedOne);
+    const { [area]: omitted, ...others } = COMPLETE;
+    const missingOne = withSkills(others);
+    rejects(issue(missingOne), INCOMPLETE, `Gate: ${area} missing rejected`);
+    noCertificate(missingOne);
+  }
+  pass("Gate: every rejection rolls back with no certificate, snapshot, frozen skills or audit row");
+  const noRows = seedEnrolment(WAH);
+  rejects(issue(noRows), INCOMPLETE, "Gate: no skill rows at all rejected");
+  const softDeleted2 = withSkills(COMPLETE);
+  psql(`update public.participant_skill_results set deleted_at = now() where schedule_id = '${softDeleted2.s}' and area = 'theory_session'`);
+  rejects(issue(softDeleted2), INCOMPLETE, "Gate: a soft-deleted result counts as missing");
+  const assessmentPassOnly = seedEnrolment(WAH);
+  psql(`insert into public.assessments (schedule_id, participant_id, result, competency_status) values ('${assessmentPassOnly.s}', '${assessmentPassOnly.p}', 'pass', 'competent')`);
+  rejects(issue(assessmentPassOnly), INCOMPLETE, "Gate: an assessments row does not substitute for the Skills Record");
+
+  const failedComplete = withSkills({ ...COMPLETE, practical_assessment: "failed" });
+  rejects(issue(failedComplete), HOLD, "Gate: Failed still reports the Failed hold when the rest is complete");
+  const failedOnly = withSkills({ practical_assessment: "failed" });
+  rejects(issue(failedOnly), HOLD, "Gate: Failed still reports the Failed hold when the rest is missing");
+  psql(asUser(ADMIN, `select app.correct_wah_failed_practical_assessment('${failedComplete.s}', '${failedComplete.p}', 'not_recorded', ${GOOD_REASON}, 'SYN-EV-3')`));
+  rejects(issue(failedComplete), INCOMPLETE, "Gate: correcting Failed to Not Recorded still does not issue");
+  const correctedPass = withSkills({ ...COMPLETE, practical_assessment: "failed" });
+  psql(asUser(ADMIN, `select app.correct_wah_failed_practical_assessment('${correctedPass.s}', '${correctedPass.p}', 'passed', ${GOOD_REASON}, 'SYN-EV-4')`));
+  psql(issue(correctedPass));
+  assert.equal(frozen(correctedPass, "practical_assessment"), "passed");
+  pass("Gate: correcting Failed to Passed with genuine evidence issues");
+
+  const bypass = seedEnrolment(WAH);
+  rejects(asUser(ADMIN, `select id from app.issue_certificate_with_skill_snapshot('${bypass.s}', '${bypass.p}')`), INCOMPLETE, "Gate: the app issuer RPC cannot bypass it");
+  rejects(asRole(ADMIN, `select id from public.issue_certificate_with_skill_snapshot('${bypass.s}', '${bypass.p}')`), INCOMPLETE, "Gate: an Admin session cannot bypass it");
+  rejects(asRole(ADMIN, `select id from app.issue_certificate_with_skill_snapshot('${bypass.s}', '${bypass.p}')`, "service_role"), INCOMPLETE, "Gate: service_role cannot bypass it");
+  rejects(asRole(ADMIN, `insert into public.certificate_issuance_snapshots (certificate_id, holder_name, course_name) values ('${certOf(complete)}', 'SYNTHETIC', 'Working at Height')`), /permission denied/, "Gate: direct snapshot insert denied to API roles");
+  noCertificate(bypass);
+
+  const sourceBefore = psql(`select md5(s::text) from public.certificate_issuance_snapshots s where certificate_id = '${c}'`);
+  psql(asUser(ADMIN, `select id from app.duplicate_certificate_with_skill_snapshot('${c}')`));
+  assert.equal(psql(`select md5(s::text) from public.certificate_issuance_snapshots s where certificate_id = '${c}'`), sourceBefore);
+  psql(asUser(ADMIN, `select id from app.duplicate_certificate_with_skill_snapshot('${certOf(legacySnapshot)}')`));
+  psql(asUser(ADMIN, `select id from app.duplicate_certificate_with_skill_snapshot('${certOf(complete)}')`));
+  pass("Gate: duplicates of C4, historical and complete WAH certificates are unaffected");
+
+  for (const [course, version, label] of [[ERECTOR, "c4_wave1_v1", "Erector"], [INSPECTOR, "c4_wave1_inspector_v1", "Inspector"], [OTHER, "certificate_renderer_v1", "unlisted course"]]) {
+    const e = seedEnrolment(course);
+    psql(issue(e));
+    assert.equal(psql(`select renderer_version from public.certificate_issuance_snapshots where certificate_id = '${certOf(e)}'`), version);
+    assert.equal(frozen(e, "practical_assessment"), "not_recorded");
+    pass(`Gate: ${label} still issues as before, with no skill rows`);
+  }
+  const erectorAfterGate = seedEnrolment(ERECTOR);
+  psql(issue(erectorAfterGate));
+  const inspectorAfterGate = seedEnrolment(INSPECTOR);
+  psql(issue(inspectorAfterGate));
+  assert.equal(payloadOf(certOf(erectorAfterGate)), erectorPayloadBefore);
+  assert.equal(payloadOf(certOf(inspectorAfterGate)), inspectorPayloadBefore);
+  pass("Gate: Erector and Inspector payloads identical before and after");
+
+  assert.equal(certsAt(), certsBeforeGate);
+  assert.equal(snapsAt(), snapsBeforeGate);
+  assert.equal(psql(`select coalesce(render_contract_version,'NULL') from public.certificates where id='${legacyNoSnapshot}'`), "NULL");
+  pass("Gate: every certificate and snapshot from before the gate is byte-for-byte unchanged");
 } finally {
   docker(["rm", "-f", container]);
 }
