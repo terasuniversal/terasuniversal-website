@@ -693,6 +693,15 @@ export function CertificateBackPage({ data, config }: { data: CertData; config: 
   const skillsRecord = data.skills?.length ? data.skills : DEFAULT_SKILLS_RECORD;
   const noticeParagraphs = config.important_notice?.split(/\n{2,}/).filter(Boolean) || [];
   const goldenReference = isGoldenReferenceFamily(config);
+  /**
+   * C4 Working at Height only. Its frozen programme (9 coverage items, a 9-line
+   * objectives paragraph) with the real Poppins runs ~46px past the 57px safe
+   * margin, which pushed the Issuing Branch Address into the footer tagline and
+   * under the corner sweep. The Skills table, list and paragraph leading are
+   * tightened to win that back; type sizes, wording and every other family are
+   * untouched. Mirrored in certificate-html.ts.
+   */
+  const wahBack = config.golden_reference_family === "working_at_height";
 
   /**
    * Editorial section head: gold glyph, tracked navy label, and a two-tone rule
@@ -740,10 +749,10 @@ export function CertificateBackPage({ data, config }: { data: CertData; config: 
    * this accompanies. Reclaims vertical budget without shrinking type.
    */
   const BulletList = ({ items }: { items: string[] }) => (
-    <ul style={{ margin: 0, padding: 0, listStyle: "none", fontSize: 10.5, lineHeight: 1.55, color: "#374151" }}>
+    <ul style={{ margin: 0, padding: 0, listStyle: "none", fontSize: 10.5, lineHeight: wahBack ? 1.42 : 1.55, color: "#374151" }}>
       {items.map((it, i) => (
-        <li key={i} style={{ display: "flex", gap: 8, marginBottom: 3 }}>
-          <span style={{ width: 6, height: 1, background: gold, marginTop: 8, flexShrink: 0 }} />
+        <li key={i} style={{ display: "flex", gap: 8, marginBottom: wahBack ? 2 : 3 }}>
+          <span style={{ width: 6, height: 1, background: gold, marginTop: wahBack ? 7.5 : 8, flexShrink: 0 }} />
           <span>{it}</span>
         </li>
       ))}
@@ -771,24 +780,24 @@ export function CertificateBackPage({ data, config }: { data: CertData; config: 
         {/* Masthead close: a full-width layered rule rather than a floating
             44px gold dash, so the title block terminates with the same
             gold-into-hairline device the sections below use. */}
-        <div style={{ display: "flex", margin: "8px 0 10px" }}>
+        <div style={{ display: "flex", margin: wahBack ? "6px 0 8px" : "8px 0 10px" }}>
           <span style={{ width: 28, height: 1.5, background: gold }} />
           <span style={{ flex: 1, height: 1, background: "#e3e7ee", alignSelf: "center" }} />
         </div>
 
         {showSkillsRecord && (
-          <div style={{ borderTop: `1px solid ${navy}`, borderBottom: "1px solid #e3e7ee", padding: "12px 14px 10px", marginBottom: 10 }}>
+          <div style={{ borderTop: `1px solid ${navy}`, borderBottom: "1px solid #e3e7ee", padding: wahBack ? "10px 14px 8px" : "12px 14px 10px", marginBottom: wahBack ? 8 : 10 }}>
             <SectionHead icon="doc" title="PARTICIPANT SKILLS RECORD" />
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 9.5 }}>
               <thead><tr>
-                <th style={{ textAlign: "left", padding: "0 6px 7px 0", fontWeight: 700, color: "#8a94a6", fontFamily: SANS, fontSize: 8.2, letterSpacing: 1.1, textTransform: "uppercase", borderBottom: `1px solid ${gold}` }}>Assessment Area</th>
-                <th style={{ textAlign: "left", padding: "0 0 7px 6px", fontWeight: 700, color: "#8a94a6", fontFamily: SANS, fontSize: 8.2, letterSpacing: 1.1, textTransform: "uppercase", borderBottom: `1px solid ${gold}` }}>Status</th>
+                <th style={{ textAlign: "left", padding: wahBack ? "0 6px 5px 0" : "0 6px 7px 0", fontWeight: 700, color: "#8a94a6", fontFamily: SANS, fontSize: 8.2, letterSpacing: 1.1, textTransform: "uppercase", borderBottom: `1px solid ${gold}` }}>Assessment Area</th>
+                <th style={{ textAlign: "left", padding: wahBack ? "0 0 5px 6px" : "0 0 7px 6px", fontWeight: 700, color: "#8a94a6", fontFamily: SANS, fontSize: 8.2, letterSpacing: 1.1, textTransform: "uppercase", borderBottom: `1px solid ${gold}` }}>Status</th>
               </tr></thead>
               <tbody>{skillsRecord.map((r, i) => {
                 const affirmative = isAffirmativeStatus(r.status);
                 return <tr key={i} style={{ borderBottom: "1px solid #eef1f5" }}>
-                  <td style={{ padding: "7px 6px 7px 0", color: "#374151" }}>{r.area}</td>
-                  <td style={{ padding: "7px 0 7px 6px", color: affirmative ? navy : "#8a94a6", fontWeight: affirmative ? 700 : 400 }}>{r.status}</td>
+                  <td style={{ padding: wahBack ? "5.5px 6px 5.5px 0" : "7px 6px 7px 0", color: "#374151" }}>{r.area}</td>
+                  <td style={{ padding: wahBack ? "5.5px 0 5.5px 6px" : "7px 0 7px 6px", color: affirmative ? navy : "#8a94a6", fontWeight: affirmative ? 700 : 400 }}>{r.status}</td>
                 </tr>;
               })}</tbody>
             </table>
@@ -796,21 +805,21 @@ export function CertificateBackPage({ data, config }: { data: CertData; config: 
         )}
 
         <div style={{ display: "flex", gap: 26, flex: 1 }}>
-          <div style={{ flex: 1, paddingTop: 8 }}>
+          <div style={{ flex: 1, paddingTop: wahBack ? 4 : 8 }}>
             {config.objectives_text && <Section icon="target" title="PROGRAMME OBJECTIVES">
-              <p style={{ margin: 0, fontSize: 10, lineHeight: 1.55, color: "#374151" }}>{config.objectives_text}</p>
+              <p style={{ margin: 0, fontSize: 10, lineHeight: wahBack ? 1.45 : 1.55, color: "#374151" }}>{config.objectives_text}</p>
             </Section>}
             {coverage.length > 0 && <Section icon="book" title="PROGRAMME COVERAGE"><BulletList items={coverage} /></Section>}
           </div>
           <ColumnDivider />
-          <div style={{ flex: 1, paddingTop: 8 }}>
+          <div style={{ flex: 1, paddingTop: wahBack ? 4 : 8 }}>
             {outcomes.length > 0 && <Section icon="bulb" title="LEARNING OUTCOMES">
-              <p style={{ margin: "0 0 8px", fontSize: 10.5, lineHeight: 1.55, color: "#6b7280" }}>Upon successful completion, participants should be able to:</p>
+              <p style={{ margin: "0 0 8px", fontSize: 10.5, lineHeight: wahBack ? 1.45 : 1.55, color: "#6b7280" }}>Upon successful completion, participants should be able to:</p>
               <BulletList items={outcomes} />
             </Section>}
           </div>
           <ColumnDivider />
-          <div style={{ flex: 1, paddingTop: 8 }}>
+          <div style={{ flex: 1, paddingTop: wahBack ? 4 : 8 }}>
             {assessment.length > 0 && <Section icon="clipboard" title="ASSESSMENT METHOD"><BulletList items={assessment} /></Section>}
 
                       </div>
@@ -825,10 +834,10 @@ export function CertificateBackPage({ data, config }: { data: CertData; config: 
           ))}
         </div>}
 
-        <div style={{ marginTop: 10, paddingBottom: 8 }}>
+        <div style={{ marginTop: wahBack ? 6 : 10, paddingBottom: wahBack ? 4 : 8 }}>
           <SectionHead icon="shield" title="VERIFICATION" />
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 22 }}>
-            <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", rowGap: 11, columnGap: 24, fontSize: 10, color: "#374151" }}>
+            <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", rowGap: wahBack ? 8 : 11, columnGap: 24, fontSize: 10, color: "#374151" }}>
               {[
                 { label: "Certificate No.", value: data.certificate_number },
                 { label: "Contact Number", value: config.contact_phone },

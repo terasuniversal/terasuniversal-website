@@ -1,6 +1,7 @@
 // Synthetic WAH Golden Reference render QA through both real renderers, plus an
 // Erector/Inspector pixel comparison against a baseline checkout when
-// C4_BASELINE_ROOT is set. Needs PLAYWRIGHT_NODE_PATH and C4_CHROME_EXECUTABLE;
+// C4_BASELINE_ROOT is set. C4_WEBFONT_CSS (optional) loads the real Poppins/Montserrat.
+// Needs PLAYWRIGHT_NODE_PATH and C4_CHROME_EXECUTABLE;
 // no repo dependency is added and no database is contacted.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
@@ -90,7 +91,10 @@ const liveTemplate = (design_variant, signature_url) => ({ design_variant, signa
 const frozenFrom = (p) => ({ programme_title: p.programme_title, programme_duration: p.duration_label, objectives: p.objectives_text, coverage: p.coverage_items, outcomes: p.learning_outcomes, assessment: p.assessment_methods });
 const inOrder = (text, items) => { let at = -1; for (const item of items) { const next = text.indexOf(item, at + 1); if (next < 0) return false; at = next; } return true; };
 
-const styles = "@page{size:A4 portrait;margin:0}html,body{margin:0!important;padding:0!important;background:#fff!important}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}.cert-page{width:794px;height:1123px;margin:0;padding:0;position:relative;overflow:hidden;break-after:page;page-break-after:always}.cert-page:last-child{break-after:auto;page-break-after:auto}";
+// Optional: a CSS file of @font-face rules for the web fonts the app loads (Poppins, Montserrat).
+// Without it the page falls back to a narrower system font and hides overflow that real printing shows.
+const webFonts = process.env.C4_WEBFONT_CSS ? readFileSync(process.env.C4_WEBFONT_CSS, "utf8") : "";
+const styles = webFonts + "@page{size:A4 portrait;margin:0}html,body{margin:0!important;padding:0!important;background:#fff!important}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}.cert-page{width:794px;height:1123px;margin:0;padding:0;position:relative;overflow:hidden;break-after:page;page-break-after:always}.cert-page:last-child{break-after:auto;page-break-after:auto}";
 const documentOf = (front, back, publicUrl) => {
   const fix = (m) => m.replaceAll('"/certificates/', `"${publicUrl}certificates/`).replaceAll('"/signatures/', `"${publicUrl}signatures/`).replaceAll('"/teras-', `"${publicUrl}teras-`);
   return `<!doctype html><html><head><meta charset="utf-8"><style>${styles}</style></head><body><section class="cert-page">${fix(front)}</section><section class="cert-page">${fix(back)}</section></body></html>`;
@@ -140,6 +144,7 @@ async function capture(html, key) {
   writeFileSync(path, html);
   const page = await context.newPage();
   await page.goto(pathToFileURL(path).href, { waitUntil: "networkidle" });
+  await page.evaluate(() => document.fonts.ready);
   await page.emulateMedia({ media: "print" });
   const layout = await page.evaluate(inspectLayout);
   const shot = await page.screenshot({ fullPage: true, path: resolve(output, `${key}.png`) });
