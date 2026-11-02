@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { requireModuleAccess, requireCertificate } from "../../../../lib/auth/session";
-import { loadWahFailedHoldParticipantIds, WAH_FAILED_HOLD_CHECK_ERROR, WAH_FAILED_HOLD_REASON } from "../../../../lib/certificates/wah-failed-hold";
+import { isWahCourse, loadWahFailedHoldParticipantIds, WAH_FAILED_HOLD_CHECK_ERROR, WAH_FAILED_HOLD_REASON } from "../../../../lib/certificates/wah-failed-hold";
+import { WAH_AUTHORIZATION_CODE, WAH_AUTHORIZATION_REASON, WAH_BULK_EXCLUDED_REASON, WAH_NOT_AUTHORIZED_CODE, WAH_NOT_AUTHORIZED_REASON, WAH_SUPER_ADMIN_CODE, WAH_SUPER_ADMIN_REASON } from "../../../../lib/certificates/wah-super-admin";
 import { loadWahIncompleteSkillsParticipantIds, WAH_SKILLS_CHECK_ERROR, WAH_SKILLS_GATE_CODE, WAH_SKILLS_HOLD_REASON } from "../../../../lib/certificates/wah-skills-gate";
 import { certificateReissueSchema, certificateRevokeSchema } from "../../../../lib/validation/schemas";
 
@@ -86,7 +87,10 @@ async function insertEligibleCertificate(
   const prefix = (tmpl?.config as { certificate_number_prefix?: string } | null)?.certificate_number_prefix;
   const certificateNumber = prefix ? await nextPrefixedCertificateNumber(supabase, prefix) : null;
 
-  const { data, error } = await supabase.rpc("issue_certificate_with_skill_snapshot" as never, {
+  // WAH has its own protected issuer: it requires the active Super Admin and creates and
+  // consumes a single-use authorization in the same transaction as the insert.
+  const issuer = isWahCourse(elig.course_id) ? "issue_wah_certificate_as_super_admin" : "issue_certificate_with_skill_snapshot";
+  const { data, error } = await supabase.rpc(issuer as never, {
     p_schedule_id: elig.schedule_id,
     p_participant_id: elig.participant_id,
     p_certificate_number: certificateNumber,
@@ -102,6 +106,9 @@ async function insertEligibleCertificate(
     if (code === "23505") return "exists";
     if (error.message?.includes("Not eligible")) return "not-eligible";
     if (error.message?.includes(WAH_SKILLS_GATE_CODE)) return WAH_SKILLS_HOLD_REASON;
+    if (error.message?.includes(WAH_SUPER_ADMIN_CODE)) return WAH_SUPER_ADMIN_REASON;
+    if (error.message?.includes(WAH_NOT_AUTHORIZED_CODE)) return WAH_NOT_AUTHORIZED_REASON;
+    if (error.message?.includes(WAH_AUTHORIZATION_CODE)) return WAH_AUTHORIZATION_REASON;
     return error.message;
   }
 
@@ -118,7 +125,7 @@ async function insertEligibleCertificate(
  * active certificate). Returns a short status string.
  */
 export async function generateCertificate(scheduleId: string, participantId: string): Promise<string> {
-  await requireCertificate(true); // admin+
+  const profile = await requireCertificate(true); // admin+
   await requireModuleAccess("certificates");
   const supabase = await createSupabaseServerClient();
 
@@ -131,6 +138,8 @@ export async function generateCertificate(scheduleId: string, participantId: str
   if (!elig) return "not-found";
   const row = elig as EligibilityRow;
   if (!row.eligible) return row.ineligibility_reason ?? "not-eligible";
+  // UI-side mirror only: the database function is the enforcement and re-checks the role itself.
+  if (isWahCourse(row.course_id) && profile.role !== "super_admin") return WAH_SUPER_ADMIN_REASON;
 
   let held: Set<string>;
   try {
@@ -168,21 +177,13 @@ export async function bulkGenerate(scheduleId: string): Promise<{ generated: num
   const supabase = await createSupabaseServerClient();
 
   const { data: rows } = await supabase.from("v_certificate_eligibility").select("*").eq("schedule_id", scheduleId);
-  const allEligibleRows = ((rows ?? []) as EligibilityRow[]).filter((r) => r.eligible);
-  let heldIds: Set<string>;
-  try {
-    heldIds = await loadWahFailedHoldParticipantIds(supabase, scheduleId, allEligibleRows[0]?.course_id);
-  } catch {
-    return { generated: 0, skipped: allEligibleRows.length, held: 0, failureReasons: [WAH_FAILED_HOLD_CHECK_ERROR] };
+  const eligibleRows = ((rows ?? []) as EligibilityRow[]).filter((r) => r.eligible);
+  // WAH is never bulk-issued: it is issued one participant at a time by the Super Admin,
+  // whose single-participant path runs the Failed and Skills holds before the issuer.
+  if (eligibleRows.some((r) => isWahCourse(r.course_id))) {
+    return { generated: 0, skipped: eligibleRows.length, held: 0, failureReasons: [WAH_BULK_EXCLUDED_REASON] };
   }
-  try {
-    const incomplete = await loadWahIncompleteSkillsParticipantIds(supabase, scheduleId, allEligibleRows[0]?.course_id, allEligibleRows.map((r) => r.participant_id));
-    heldIds = new Set([...heldIds, ...incomplete]);
-  } catch {
-    return { generated: 0, skipped: allEligibleRows.length, held: 0, failureReasons: [WAH_SKILLS_CHECK_ERROR] };
-  }
-  const eligibleRows = allEligibleRows.filter((r) => !heldIds.has(r.participant_id));
-  const held = allEligibleRows.length - eligibleRows.length;
+  const held = 0;
 
   let generated = 0, skipped = 0;
   const failureReasons = new Set<string>();

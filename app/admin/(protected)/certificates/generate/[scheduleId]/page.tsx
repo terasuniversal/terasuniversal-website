@@ -4,7 +4,8 @@ import { createSupabaseServerClient } from "../../../../../../lib/supabase/serve
 import { requireModuleAccess, requireCertificate } from "../../../../../../lib/auth/session";
 import { PageHead, Card, Badge, EmptyState } from "../../../../../../components/admin/ui";
 import { generateCertificate, bulkGenerate } from "../../actions";
-import { loadWahFailedHoldParticipantIds, WAH_FAILED_HOLD_CHECK_ERROR, WAH_FAILED_HOLD_LABEL } from "../../../../../../lib/certificates/wah-failed-hold";
+import PendingSubmitButton from "../../../../../../components/admin/PendingSubmitButton";
+import { isWahCourse, loadWahFailedHoldParticipantIds, WAH_FAILED_HOLD_CHECK_ERROR, WAH_FAILED_HOLD_LABEL } from "../../../../../../lib/certificates/wah-failed-hold";
 import { loadWahIncompleteSkillsParticipantIds, WAH_SKILLS_CHECK_ERROR, WAH_SKILLS_HOLD_LABEL } from "../../../../../../lib/certificates/wah-skills-gate";
 
 export const metadata = { title: "Generate Certificates — TERAS UNIVERSAL Admin" };
@@ -76,7 +77,9 @@ await requireModuleAccess("certificates");
   const isHeld = (r: EligibilityRow) => isFailedHeld(r) || isIncompleteHeld(r);
   const heldRows = rows.filter(isFailedHeld);
   const incompleteRows = rows.filter(isIncompleteHeld);
-  const eligibleCount = holdCheckFailed ? 0 : rows.filter((r) => r.eligible && !isHeld(r)).length;
+  // WAH is issued one participant at a time by the Super Admin, never in bulk.
+  const wahSchedule = isWahCourse((scheduleRow as any).course_id);
+  const eligibleCount = holdCheckFailed || wahSchedule ? 0 : rows.filter((r) => r.eligible && !isHeld(r)).length;
 
   const boundBulk = async () => {
     "use server";
@@ -99,7 +102,7 @@ await requireModuleAccess("certificates");
           <div style={{ display: "flex", gap: 8 }}>
             <Link href="/admin/certificates/generate" className="ta-btn ta-btn-outline">← Back</Link>
             <a href={`/admin/certificates/download-zip?scheduleId=${scheduleId}`} className="ta-btn ta-btn-outline">🗜 Download all (ZIP)</a>
-            <form action={boundBulk}><button className="ta-btn ta-btn-gold" disabled={eligibleCount === 0}>⚡ Generate all eligible ({eligibleCount})</button></form>
+            {wahSchedule ? null : <form action={boundBulk}><PendingSubmitButton className="ta-btn ta-btn-gold" disabled={eligibleCount === 0} pendingLabel="Generating…">⚡ Generate all eligible ({eligibleCount})</PendingSubmitButton></form>}
           </div>
         }
       />
@@ -107,6 +110,12 @@ await requireModuleAccess("certificates");
       <div className="ta-alert" style={{ background: "rgba(47,111,237,.08)", color: "var(--ta-info)", marginBottom: 16 }}>
         A certificate can only be generated once the schedule is <strong>Completed</strong> and the participant meets the course&apos;s configured attendance minimum and assessment/competency requirements.
       </div>
+
+      {wahSchedule ? (
+        <div className="ta-alert" role="status" style={{ background: "rgba(47,111,237,.08)", color: "var(--ta-info)", marginBottom: 16 }}>
+          Working at Height certificates are issued <strong>one participant at a time</strong> by the TERAS Super Admin. There is no bulk generation for this course.
+        </div>
+      ) : null}
 
       {hasGenerationResult ? (
         <div
@@ -168,7 +177,7 @@ await requireModuleAccess("certificates");
                           <span style={{ color: "var(--ta-success)", fontSize: 13 }}>✓ Certified</span>
                         ) : (
                           <form action={boundGen} style={{ display: "inline" }}>
-                            <button className="ta-btn ta-btn-primary ta-btn-sm" disabled={!canGen}>Generate</button>
+                            <PendingSubmitButton className="ta-btn ta-btn-primary ta-btn-sm" disabled={!canGen} pendingLabel="Generating…">Generate</PendingSubmitButton>
                           </form>
                         )}
                       </td>

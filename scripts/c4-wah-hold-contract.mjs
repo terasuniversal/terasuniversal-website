@@ -13,7 +13,7 @@ const require = createRequire(import.meta.url);
 const ts = require("typescript");
 const dir = mkdtempSync(resolve(tmpdir(), "teras-wah-hold-"));
 mkdirSync(resolve(dir, "certificates"));
-for (const [source, target] of [["lib/working-at-height-programme.ts", "working-at-height-programme.js"], ["lib/certificates/wah-failed-hold.ts", "certificates/wah-failed-hold.js"], ["lib/certificates/wah-legacy-block.ts", "certificates/wah-legacy-block.js"], ["lib/certificates/wah-skills-gate.ts", "certificates/wah-skills-gate.js"]]) {
+for (const [source, target] of [["lib/working-at-height-programme.ts", "working-at-height-programme.js"], ["lib/certificates/wah-failed-hold.ts", "certificates/wah-failed-hold.js"], ["lib/certificates/wah-legacy-block.ts", "certificates/wah-legacy-block.js"], ["lib/certificates/wah-skills-gate.ts", "certificates/wah-skills-gate.js"], ["lib/certificates/wah-super-admin.ts", "certificates/wah-super-admin.js"]]) {
   const { outputText } = ts.transpileModule(readFileSync(resolve(root, source), "utf8"), { compilerOptions: { module: "commonjs", target: "es2021" } });
   writeFileSync(resolve(dir, target), outputText);
 }
@@ -59,6 +59,7 @@ console.log("PASS Generate page labels held rows, disables them, excludes them f
 // C4E-2K: the real route handler and mapping action, with only the boundaries stubbed.
 const block = require(resolve(dir, "certificates/wah-legacy-block.js"));
 const gate = require(resolve(dir, "certificates/wah-skills-gate.js"));
+const superAdmin = require(resolve(dir, "certificates/wah-super-admin.js"));
 // Same list as app.is_wah_course_label in c4-wah-db-contract.mjs.
 for (const [label, expected] of [["Working at Height", true], ["WORKING-AT-HEIGHT", true], ["working_at_heights", true], ["Workingatheight", true], ["Work at Height", true], ["WAH", true], ["Refresher (WAH)", true], ["Basic Scaffolding", false], ["OSH Awareness", false], ["Wahana Safety", false], ["Height Safety", false], ["Network at Heights", false], [null, false]]) {
   assert.equal(block.isWahCourseLabel(label), expected, String(label));
@@ -76,11 +77,12 @@ Module._load = function load(request, ...rest) {
   if (request.endsWith("lib/certificates/wah-legacy-block")) return block;
   if (request.endsWith("lib/certificates/wah-failed-hold")) return hold;
   if (request.endsWith("lib/certificates/wah-skills-gate")) return gate;
+  if (request.endsWith("lib/certificates/wah-super-admin")) return superAdmin;
   if (request.endsWith("lib/scheduleGroupContext")) return { UNGROUPED: "__ungrouped__" };
   if (request.endsWith("lib/supabase/server")) return { createSupabaseServerClient: async () => stubs.current.client, createSupabaseServiceClient: () => ({ rpc: async () => ({ error: null }) }) };
   if (request.endsWith("lib/auth/rbac")) return { hasMinRole: () => true, isSuperAdmin: () => true };
   if (request.endsWith("lib/auth/session")) {
-    const profile = async () => ({ id: "staff-now", email: "a@synthetic.test", role: "admin", is_active: true });
+    const profile = async () => ({ id: "staff-now", email: "a@synthetic.test", role: stubs.current.role ?? "super_admin", is_active: true });
     return { requireRole: profile, requireAssessment: profile, requireCertificate: profile, getCurrentProfile: profile, requireModuleAccess: async () => {} };
   }
   if (request.endsWith("lib/validation/schemas")) {
@@ -283,17 +285,20 @@ const certificateActions = require(compile("app/admin/(protected)/certificates/a
 const ALL_DONE = { theory_session: "completed", practical_training: "completed", safety_awareness: "completed", practical_assessment: "passed" };
 function issueClient({ eligible = [], skills = [], courseId = WAH, readError = null, rpcError = null } = {}) {
   const issued = [];
+  const via = [];
   const elig = eligible.map((id) => ({ schedule_id: "s1", participant_id: id, course_id: courseId, certificate_template_id: "t1", eligible: true, holder_name: "SYNTHETIC" }));
   return {
     issued,
+    via,
     from: (name) => {
       if (name === "v_certificate_eligibility") return table(elig);
       if (name === "certificate_templates") return table([{ config: {} }]);
       return table(skills, {}, readError);
     },
-    rpc: async (_name, args) => {
+    rpc: async (name, args) => {
       if (rpcError) return { data: null, error: rpcError };
       issued.push(args.p_participant_id);
+      via.push(name);
       return { data: [{ id: "c1", verification_token: "t" }], error: null };
     },
   };
@@ -318,11 +323,37 @@ assert.equal(await generate(issuer), hold.WAH_FAILED_HOLD_REASON);
 assert.deepEqual(issuer.issued, []);
 console.log("PASS Failed keeps its own reason");
 
-issuer = issueClient({ eligible: ["p1", "p2", "p3"], skills: [...stored(ALL_DONE), ...stored({ ...ALL_DONE, practical_assessment: "failed" }, { participant_id: "p2" })] });
+issuer = issueClient({ eligible: ["p1", "p2", "p3"], skills: [...stored(ALL_DONE), ...stored(ALL_DONE, { participant_id: "p2" }), ...stored(ALL_DONE, { participant_id: "p3" })] });
 const bulkResult = await bulkRun(issuer);
-assert.deepEqual([bulkResult.generated, bulkResult.held, bulkResult.skipped], [1, 2, 0]);
-assert.deepEqual(issuer.issued, ["p1"]);
-console.log("PASS bulk generation issues only complete participants and counts the rest as held");
+assert.deepEqual([bulkResult.generated, bulkResult.held, bulkResult.skipped], [0, 0, 3]);
+assert.deepEqual(bulkResult.failureReasons, [superAdmin.WAH_BULK_EXCLUDED_REASON]);
+assert.deepEqual(issuer.issued, []);
+console.log("PASS bulk generation never issues Working at Height, even when every participant is complete");
+
+issuer = issueClient({ eligible: ["p1", "p2"], courseId: OTHER_ID });
+const otherBulk = await bulkRun(issuer);
+assert.deepEqual([otherBulk.generated, otherBulk.skipped], [2, 0]);
+assert.deepEqual(issuer.via, ["issue_certificate_with_skill_snapshot", "issue_certificate_with_skill_snapshot"]);
+console.log("PASS bulk generation still works for other courses through the unchanged issuer");
+
+issuer = issueClient({ eligible: ["p1"], skills: stored(ALL_DONE) });
+assert.equal(await generate(issuer), "ok");
+assert.deepEqual(issuer.via, ["issue_wah_certificate_as_super_admin"]);
+for (const role of ["admin", "editor", "trainer"]) {
+  stubs.current.role = role;
+  issuer = issueClient({ eligible: ["p1"], skills: stored(ALL_DONE) });
+  assert.equal(await generate(issuer), superAdmin.WAH_SUPER_ADMIN_REASON, role);
+  assert.deepEqual(issuer.issued, [], role);
+}
+stubs.current.role = undefined;
+for (const [message, reason] of [["WAH_SUPER_ADMIN_REQUIRED: x", superAdmin.WAH_SUPER_ADMIN_REASON], ["WAH_ISSUANCE_NOT_AUTHORIZED: x", superAdmin.WAH_NOT_AUTHORIZED_REASON], ["WAH_AUTHORIZATION_INVALID: not eligible (x).", superAdmin.WAH_AUTHORIZATION_REASON]]) {
+  issuer = issueClient({ eligible: ["p1"], skills: stored(ALL_DONE), rpcError: { message } });
+  assert.equal(await generate(issuer), reason, message);
+}
+issuer = issueClient({ eligible: ["p1"], courseId: OTHER_ID });
+assert.equal(await generate(issuer), "ok");
+assert.deepEqual(issuer.via, ["issue_certificate_with_skill_snapshot"]);
+console.log("PASS individual WAH generation uses the Super Admin issuer, others keep the old one, and database refusals reach staff as plain reasons");
 
 issuer = issueClient({ eligible: ["p1"], readError: { message: "x" } });
 assert.match(await generate(issuer), /could not be completed/);
