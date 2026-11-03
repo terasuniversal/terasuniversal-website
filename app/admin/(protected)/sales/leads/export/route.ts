@@ -4,6 +4,7 @@ import { getCurrentProfile, hasModuleAccess } from "../../../../../../lib/auth/s
 import { isEditor } from "../../../../../../lib/auth/rbac";
 import { SOURCE_LABELS, sanitizeSearchTerm, type SalesLeadInboxRow } from "../../../../../../lib/sales/crm";
 import { formatMalaysiaDateTime } from "../../../../../../lib/date-time";
+import { csvCell } from "../../../../../../lib/csv";
 
 /**
  * Exports the current filtered Lead Inbox as CSV. Read access = editor and
@@ -58,13 +59,9 @@ export async function GET(request: NextRequest) {
     p_summary: `Exported ${rows.length} sales leads (CSV)`,
   } as never);
 
-  const esc = (v: unknown) => {
-    const s = v == null ? "" : String(v);
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
   const csv = [
     COLUMNS.map(([label]) => label).join(","),
-    ...rows.map((r) => COLUMNS.map(([, get]) => esc(get(r, staffNames))).join(",")),
+    ...rows.map((r) => COLUMNS.map(([label, get]) => csvCell(get(r, staffNames), { phone: label === "Phone" })).join(",")),
   ].join("\n");
 
   const stamp = new Date().toISOString().slice(0, 10);

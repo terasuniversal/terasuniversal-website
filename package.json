@@ -29,6 +29,7 @@
     "test:sales-wave3": "node --experimental-strip-types scripts/sales-wave3-task-contract.mts && node --experimental-strip-types scripts/sales-wave3-followup-contract.mts",
     "test:admin-shadcn-foundation": "node --experimental-strip-types scripts/admin-shadcn-foundation-contract.mts",
     "test:sales-lead-won-guard": "node --experimental-strip-types scripts/sales-lead-won-guard-contract.mts",
+    "test:sales-csv-export-safety": "node --experimental-strip-types scripts/sales-csv-export-safety-contract.mts",
     "test:admin-navigation": "node --experimental-strip-types scripts/admin-navigation-contract.mts",
     "build": "next build",
     "start": "next start"
