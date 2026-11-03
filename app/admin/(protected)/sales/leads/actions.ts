@@ -21,6 +21,7 @@ import {
 import { LOST_REASON_LABELS, type SalesCrmLostReason } from "../../../../../lib/sales/crm";
 import { DISQUALIFICATION_REASONS, DISQUALIFICATION_REASON_LABELS, QUALIFICATION_REASONS, QUALIFICATION_REASON_LABELS } from "../../../../../lib/sales/qualification";
 import { parseFollowUpDateTimeLocal } from "../../../../../lib/sales/follow-up-date";
+import { leadStatusChangeBlock } from "../../../../../lib/sales/lead-status";
 
 export type SalesActionState = { message?: string; errors?: Record<string, string>; status?: "success" | "error" };
 
@@ -99,7 +100,7 @@ async function logActivity(
   await supabase.from("sales_activity").insert({ lead_metadata_id: leadMetadataId, type, note, actor_id: actorId, ...(metadata ? { metadata } : {}) });
 }
 
-/** Status transitions (incl. Mark Won / Mark Lost) — admin+ only, per sales_lead_metadata's RLS. */
+/** Status transitions (incl. Mark Lost) — admin+ only, per sales_lead_metadata's RLS. Won is refused here: it is set only by accept_quotation(). */
 export async function updateLeadStatus(
   leadMetadataId: string,
   _prev: SalesActionState,
@@ -115,14 +116,25 @@ export async function updateLeadStatus(
   const { status, lost_reason } = parsed.data;
 
   const supabase = await createSupabaseServerClient();
+  const { data: currentLead, error: currentError } = await supabase.from("sales_lead_metadata").select("status").eq("id", leadMetadataId).maybeSingle();
+  if (currentError) return { message: "Unable to load the lead. Try again." };
+  if (!currentLead) return { message: "Lead not found." };
+  const blocked = leadStatusChangeBlock(currentLead.status, status);
+  if (blocked) return { message: blocked };
+  // An already-won lead keeps its original won_at; re-submitting Won changes nothing.
+  if (currentLead.status === "won" && status === "won") return {};
+
   const patch: Record<string, unknown> = {
     status,
     updated_at: new Date().toISOString(),
     lost_reason: status === "lost" ? lost_reason : null,
     won_at: status === "won" ? new Date().toISOString() : null,
   };
-  const { error } = await supabase.from("sales_lead_metadata").update(patch).eq("id", leadMetadataId);
+  // Conditional on the status just read, so a change made in between (for
+  // example a quotation being accepted) is not overwritten.
+  const { data: updated, error } = await supabase.from("sales_lead_metadata").update(patch).eq("id", leadMetadataId).eq("status", currentLead.status).select("id").maybeSingle();
   if (error) return { message: error.message };
+  if (!updated) return { message: "This lead changed while you were working. Refresh and try again." };
 
   const activityType = status === "won" ? "won" : status === "lost" ? "lost" : "status_changed";
   const note =
