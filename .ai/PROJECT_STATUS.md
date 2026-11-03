@@ -237,6 +237,13 @@ No migration was applied, no push, no merge, no deploy. Validation not re-run in
 - Certificates render live from code, so a renderer fix applies to already issued certificates on their next PDF open; saved PDFs keep the old output.
 - Reports and logs must not carry participant names or identity numbers; TU IDs and `TRS-P-*` codes are sufficient.
 
+### Final QA on `main` after PR #196 (2026-11-03, 10:10 MYT)
+- `npx tsc --noEmit`: PASS.
+- Contracts (local Docker, synthetic data only): `c4-wah-issuance-guard-contract` 190 PASS; `c4-wah-db-contract` 153 PASS; `c4-wah-hold-contract` 36 PASS (failed assessment, incomplete Skills Record and existing holder all Held); `c4-snapshot-renderer-contract` 19 PASS.
+- `c4-wah-render-qa`: 170 PASS (two A4 pages, no clipping or overlap, React and bulk-ZIP identical, Erector and Inspector live-shape renders included).
+- Production read-only: 143 migrations (latest `20261103010953`), both issuance functions on `Asia/Kuala_Lumpur`, six WAH triggers enabled, 192 certificates with all certificates other than CERT-2026-000104 byte-identical to the pre-pilot baseline, 9 snapshots, 5 authorizations none open, no duplicate WAH certificate.
+
 ### Not done
-- The 24 remaining SCH-000034 certificates (owner-operated; release granted in conversation on 2026-11-03, issuance deferred by the owner).
-- Final closure acceptance; Scaffolding Erector watermark work (Phase B of the owner directive) not started.
+- The 24 remaining SCH-000034 certificates: owner-operated through Super Admin Generate as normal operations, at the owner's chosen time.
+- Final closure acceptance by the owner.
+- Scaffolding Erector watermark: a placement-only attempt was rejected by the owner on 2026-11-03 because it does not match the Inspector/WAH illustration style. Erector needs owner-approved artwork (scene for page 1, detail for page 2) like Inspector and WAH. Changing it will also restyle the already issued Erector C4 certificate CERT-2026-000098, which renders live; that needs an owner decision. No Erector code was committed.
