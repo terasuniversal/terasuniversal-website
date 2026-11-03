@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-Last updated: 2026-08-28
+Last updated: 2026-11-03 (WAH Certificate C4 entry at the end)
 Repository: `D:\Projects\terasuniversal-website`
 Branch: `chore/ai-shared-project-state`
 
