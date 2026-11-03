@@ -853,7 +853,8 @@ export function CertificateBackPage({ data, config }: { data: CertData; config: 
               ))}
             </div>
             {config.show_qr !== false && data.qr_svg && (
-              <div style={{ borderLeft: "1px solid #e3e7ee", paddingLeft: 20 }}>
+              // WAH only: the safe-zone shift moves the QR caption over this divider, so the rule is hidden while its 1px width stays to keep every position unchanged.
+              <div style={{ borderLeft: wahBack ? "1px solid transparent" : "1px solid #e3e7ee", paddingLeft: 20 }}>
                 <QrBlock svg={data.qr_svg} navy={navy} gold={gold} size={CERTIFICATE_DESIGN.qr.sizePx - 34} caption safeZone />
               </div>
             )}
