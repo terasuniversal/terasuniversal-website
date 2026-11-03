@@ -2,7 +2,7 @@ import type { CertData, TemplateConfig } from "../components/admin/CertificateDo
 import { fitHolderNameSize, formatAddressLines, formatDateRange, formatHumanDate, isAffirmativeStatus } from "./certificate-format";
 import { CERTIFICATE_DESIGN, certificateFamilyLabel, isGoldenReferenceFamily } from "./certificate-design-system";
 import { TERAS_COMPANY_NAME, TERAS_COMPANY_REGISTRATION, TERAS_COMPANY_TAGLINE } from "./teras-company";
-import { inspectorGoldenWatermarkBox, wahGoldenWatermarkBox, resolveCertificateWatermarkAsset } from "./certificate-watermark-assets";
+import { erectorGoldenWatermarkBox, inspectorGoldenWatermarkBox, wahGoldenWatermarkBox, resolveCertificateWatermarkAsset } from "./certificate-watermark-assets";
 import { DIRECTOR_SIGNATURE_ASSET, EMBOSS_MEDALLION_LIFT_PX, EMBOSS_MEDALLION_SIZE_PX } from "./certificate-approval-assets";
 import { renderProfessionalScaffoldCertificateDocument } from "./professional-scaffold-certificate-html";
 
@@ -140,7 +140,9 @@ function certificateWatermark(config: TemplateConfig, corner: boolean, goldenRef
       ? inspectorGoldenWatermarkBox(asset.level, goldenReferencePageOne ? "pageOne" : "pageTwo")
       : asset.family === "working-at-height"
         ? wahGoldenWatermarkBox(goldenReferencePageOne ? "pageOne" : "pageTwo")
-        : null;
+        : config.golden_reference_family === "scaffold_erector"
+          ? erectorGoldenWatermarkBox(goldenReferencePageOne ? "pageOne" : "pageTwo")
+          : null;
   if (goldenPlacement) {
     const p = goldenPlacement;
     return `<img src="${esc(p.src)}" alt="" aria-hidden="true" style="position:absolute;top:${p.top}px;left:${p.left}px;width:${p.width}px;height:${p.height}px;object-fit:contain;pointer-events:none;opacity:${p.opacity};"/>`;
