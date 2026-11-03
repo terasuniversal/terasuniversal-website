@@ -1,0 +1,87 @@
+/* =====================================================================
+   Admin-only Tailwind v4 + shadcn/ui entry point.
+
+   Isolation from the public site:
+   - Imported only by app/admin/layout.tsx, so the public bundle never
+     loads it.
+   - Preflight is deliberately not imported: .teras-admin in admin.css
+     already sets box-sizing and base typography, and a global element
+     reset would restyle legacy admin markup.
+   - source(none) turns off project-wide scanning; utilities are generated
+     only for the files listed by @source below.
+   - Theme and utilities sit in cascade layers, so the unlayered rules in
+     admin.css and globals.css still win on any overlap.
+   ===================================================================== */
+
+@layer theme, base, utilities;
+
+@import "tailwindcss/theme" layer(theme);
+@import "tailwindcss/utilities" layer(utilities) source(none);
+
+/* Primitives only. Widen per file as admin screens adopt these classes,
+   rather than scanning all legacy admin markup up front. */
+@source "../../components/ui/**/*.{ts,tsx}";
+
+/* TERAS Design System tokens under shadcn's semantic names. `inline`
+   makes utilities read the --ta-* variables defined on .teras-admin, so
+   admin.css stays the single source of truth for every color. */
+@theme inline {
+  --color-background: var(--ta-bg);
+  --color-foreground: var(--ta-ink);
+  --color-card: var(--ta-white);
+  --color-card-foreground: var(--ta-ink);
+  --color-primary: var(--ta-navy);
+  --color-primary-hover: var(--ta-navy-700);
+  --color-primary-foreground: var(--ta-white);
+  --color-secondary: var(--ta-soft);
+  --color-secondary-foreground: var(--ta-navy);
+  /* Gold is an accent, never a default fill; ink on gold is 6.0:1. */
+  --color-accent: var(--ta-gold);
+  --color-accent-foreground: var(--ta-ink);
+  --color-muted: var(--ta-soft);
+  --color-muted-foreground: var(--ta-muted);
+  --color-destructive: var(--ta-danger);
+  --color-destructive-foreground: var(--ta-white);
+  --color-success: var(--ta-success);
+  /* --ta-success on white is about 3.4:1, below AA for small text.
+     Badges use this darker shade on a tinted fill instead (5.9:1). */
+  --color-success-strong: #1b6b3e;
+  --color-border: var(--ta-line);
+  --color-input: var(--ta-line);
+  --color-ring: var(--ta-navy);
+
+  --font-sans: var(--font-poppins), system-ui, sans-serif;
+  --font-heading: var(--font-montserrat), var(--font-poppins), sans-serif;
+
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: var(--ta-radius);
+  --shadow-card: var(--ta-shadow);
+}
+
+/* No preflight means no border reset; shadcn primitives expect a zero
+   width, solid style and theme color, so a border utility only sets the
+   width. Layered below utilities so classes still win. */
+@layer base {
+  .teras-admin [data-slot] {
+    border: 0 solid var(--ta-line);
+  }
+}
+
+/* Overrides admin.css's 60%-gold focus outline (about 1.8:1 on white)
+   with a navy outline (11.7:1 on white) plus gold halo. Limited to
+   focusable elements so static slots such as cards are never targeted;
+   asChild links and buttons carry data-slot onto the real element. */
+.teras-admin :is(a, button, input, select, textarea, summary, [tabindex])[data-slot]:focus-visible {
+  outline: 2px solid var(--ta-navy);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 5px rgba(212, 175, 55, 0.45);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .teras-admin [data-slot] {
+    transition: none;
+    animation: none;
+  }
+}
