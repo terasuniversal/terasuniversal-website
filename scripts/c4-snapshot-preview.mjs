@@ -16,6 +16,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { delimiter, resolve } from "node:path";
 import Module, { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
+import { SYNTHETIC_RENDER_ASSETS } from "./synthetic-render-assets.mjs";
 
 const root = resolve(import.meta.dirname, "..");
 const output = resolve(process.env.PREVIEW_OUTPUT_DIR || resolve(root, "certificate-previews"));
@@ -79,6 +80,7 @@ const baseConfig = {
 };
 
 const baseData = {
+  render_assets: SYNTHETIC_RENDER_ASSETS,
   holder_name: "SYNTHETIC QA PARTICIPANT",
   training_date: "2026-09-01",
   training_end_date: "2026-09-10",

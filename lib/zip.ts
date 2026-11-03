@@ -114,3 +114,23 @@ export function createZip(entries: ZipEntry[]): Buffer {
 export function safeFileName(s: string): string {
   return (s || "file").replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 120) || "file";
 }
+
+/**
+ * Vercel Functions reject a non-streamed response body over 4.5 MB, and the
+ * bulk download is returned in one piece. 4,000,000 bytes leaves room for
+ * headers and for either reading of "MB".
+ */
+export const MAX_ZIP_RESPONSE_BYTES = 4_000_000;
+
+/**
+ * A batch size likely to fit, from this attempt's bytes per certificate with a
+ * 5% margin. sharedBytes (the signature/seal images, stored once per archive)
+ * do not shrink with a smaller batch, so they come off the budget first.
+ */
+export function suggestedZipBatchSize(zipBytes: number, certificateCount: number, sharedBytes = 0): number {
+  if (![zipBytes, certificateCount, sharedBytes].every(Number.isFinite) || sharedBytes < 0 || certificateCount < 2 || zipBytes <= sharedBytes) return 0;
+  const perCertificate = (zipBytes - sharedBytes) / certificateCount;
+  const fits = Math.floor(((MAX_ZIP_RESPONSE_BYTES - sharedBytes) / perCertificate) * 0.95);
+  // Always smaller than the batch that was just too large.
+  return Math.max(1, Math.min(certificateCount - 1, fits));
+}

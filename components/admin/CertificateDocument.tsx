@@ -4,7 +4,7 @@ import type { CertificateSkillRow, CertificateSkillsCompleteness, CertificateSki
 import { erectorGoldenWatermarkBox, inspectorGoldenWatermarkBox, wahGoldenWatermarkBox, resolveCertificateWatermarkAsset, type WatermarkLevel } from "../../lib/certificate-watermark-assets";
 import { CERTIFICATE_DESIGN, certificateFamilyLabel, isGoldenReferenceFamily, type GoldenReferenceFamily } from "../../lib/certificate-design-system";
 import { TERAS_COMPANY_NAME, TERAS_COMPANY_REGISTRATION, TERAS_COMPANY_TAGLINE } from "../../lib/teras-company";
-import { DIRECTOR_SIGNATURE_ASSET, EMBOSS_MEDALLION_LIFT_PX, EMBOSS_MEDALLION_SIZE_PX } from "../../lib/certificate-approval-assets";
+import { C4_SIGNATURE_MAX_HEIGHT_PX, COMMON_SEAL_IMAGE_PX, EMBOSS_MEDALLION_LIFT_PX, EMBOSS_MEDALLION_SIZE_PX, RENDER_ASSET_PREVIEW_LABEL, renderAssetSources, type CertificateRenderAssets } from "../../lib/certificate-approval-assets";
 
 /**
  * Template-driven certificate renderer (server component, no client JS).
@@ -56,6 +56,8 @@ export interface CertData {
   effective_skills_record?: CertificateSkillRow[] | null;
   /** Normalized historical skills consumed identically by React and HTML renderers. */
   skills?: CertificateSkillRow[] | null;
+  /** Signature and Common Seal image sources; required by every front page. See lib/certificate-approval-assets.ts. */
+  render_assets?: CertificateRenderAssets;
   /**
    * Issuing branch's registered address, as an authoritative historical fact
    * resolved once by certData.ts (MODERN_SNAPSHOT: only the frozen snapshot
@@ -348,6 +350,15 @@ function AuthorisedSignatureLabel() {
   );
 }
 
+/** Template-editor preview only: stands in for the signature, which never reaches the browser there. Mirrored in certificate-html.ts. */
+function SignaturePreviewNote() {
+  return (
+    <div data-certificate-signature="preview" style={{ color: "#9aa3b2", fontSize: 6.5, letterSpacing: 1.1, fontFamily: SANS, textTransform: "uppercase", textAlign: "center", paddingBottom: 4 }}>
+      {RENDER_ASSET_PREVIEW_LABEL}
+    </div>
+  );
+}
+
 // Golden Reference Page 1 body-text budget: the layout has room for a short
 // paragraph only, with no continuation-page mechanism on this master layout
 // (CertificateRenderer.tsx's dispatch does not call one) -- text beyond the
@@ -420,7 +431,7 @@ function GoldenReferencePageOne({ data, config, navy, gold, qaPreview }: { data:
   const dateRange = formatDateRange(data.training_date, data.training_end_date);
   const duration = data.programme_duration || config.duration_label;
   const { pageOneText } = splitCertificateBodyText(config.body_text);
-  const signatureUrl = DIRECTOR_SIGNATURE_ASSET;
+  const assets = renderAssetSources(data.render_assets, { signature: true, seal: true });
   const directorName = "Director";
   const programmeSubtitle = resolveDistinctProgrammeSubtitle(data.course_name, config.programme_title);
   const venue = formatAddressLines(data.venue);
@@ -472,7 +483,7 @@ function GoldenReferencePageOne({ data, config, navy, gold, qaPreview }: { data:
             {data.issue_date && <div style={{ color: "#667085", fontSize: 8, marginTop: 5 }}>Issued {formatHumanDate(data.issue_date)}</div>}
           </div>
           <div style={{ flex: "1 1 270px", maxWidth: 300, minWidth: 220, display: "flex", flexDirection: "column", alignItems: "center", fontSize: 9 }}>
-            <div style={{ height: 68, display: "flex", alignItems: "flex-end", justifyContent: "center" }}><img src={signatureUrl} alt="" style={{ maxHeight: 62, maxWidth: 180, objectFit: "contain" }} /></div>
+            <div style={{ height: 68, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>{assets.preview ? <SignaturePreviewNote /> : <img src={assets.signature!} alt="" data-certificate-signature="director" style={{ maxHeight: C4_SIGNATURE_MAX_HEIGHT_PX, maxWidth: 180, objectFit: "contain" }} />}</div>
             <div style={{ width: "86%", borderTop: `1px solid ${navy}`, margin: "3px 0 4px" }} />
             <strong style={{ color: navy, fontFamily: CERTIFICATE_DESIGN.typography.heading, fontSize: 8.5, letterSpacing: 0.3 }}>{directorName}</strong>
             <div style={{ color: navy, fontFamily: SANS, fontSize: 7.5, fontWeight: 700, letterSpacing: 1.1, marginTop: 2 }}>AUTHORIZED DIRECTOR</div>
@@ -486,8 +497,13 @@ function GoldenReferencePageOne({ data, config, navy, gold, qaPreview }: { data:
                 </div>
                 <div style={{ color: "#8a94a6", fontFamily: SANS, fontSize: 6.5, letterSpacing: 0.65, marginTop: 3 }}>FOR REVIEW ONLY</div>
               </>
-            ) : (
+            ) : assets.preview ? (
               <div data-certificate-stamp-area="reserved" aria-hidden="true" style={{ width: 108, height: 108, border: "1.5px solid rgba(201,162,39,.72)", borderRadius: "50%", boxSizing: "border-box" }} />
+            ) : (
+              // The 34mm seal overflows the 108px box symmetrically; the box keeps its size so the row layout is unchanged.
+              <div data-certificate-stamp-area="seal" style={{ width: 108, height: 108, position: "relative" }}>
+                <img src={assets.seal!} alt="" data-certificate-seal="common-seal-3d" style={{ position: "absolute", left: "50%", top: "50%", width: COMMON_SEAL_IMAGE_PX, height: COMMON_SEAL_IMAGE_PX, maxWidth: "none", transform: "translate(-50%, -50%)" }} />
+              </div>
             )}
           </div>
         </div>
@@ -525,10 +541,14 @@ export function CertificateDocument({ data, config, qaPreview = false }: { data:
   // Keep that single-signatory rule even for legacy rows that predate the
   // signature_layout setting.
   const singleSig = config.signature_layout === "single" || config.design_variant === "standard_scaffold_certificate" || config.design_variant === "working_at_height_certificate";
-  const signatureUrl = config.signature_url || (singleSig ? DIRECTOR_SIGNATURE_ASSET : undefined);
 
   const useGoldenReferencePageOne = isGoldenReferenceFamily(config);
   if (useGoldenReferencePageOne) return <GoldenReferencePageOne data={data} config={config} navy={navy} gold={gold} qaPreview={qaPreview} />;
+
+  // Same rule as requiredRenderAssets() in lib/certificate-render-asset-policy.ts.
+  const needsSignature = singleSig || !!config.signature_url?.trim();
+  const assets = renderAssetSources(data.render_assets, { signature: needsSignature, seal: false });
+  const signatureUrl = needsSignature ? assets.signature : null;
 
   return (
     <div
@@ -638,7 +658,7 @@ export function CertificateDocument({ data, config, qaPreview = false }: { data:
           </div>
           <div style={{ width: 1, alignSelf: "stretch", background: "#e3e7ee" }} />
           <div style={{ textAlign: "center", fontSize: 11, width: "auto", maxWidth: 160 }}>
-            {!signatureUrl && <AuthorisedSignatureLabel />}
+            {!needsSignature && <AuthorisedSignatureLabel />}
             {/* Fixed-height signature well: the image sits ON the rule rather than
                 floating above it at whatever height the asset happens to be.
                 The extra headroom over the rule keeps a tall signature from
@@ -646,7 +666,8 @@ export function CertificateDocument({ data, config, qaPreview = false }: { data:
                 fabricated mark) when there's no signature_url -- the label
                 above is guidance, not a substitute signature. */}
             <div style={{ height: 92, display: "flex", alignItems: "flex-end", justifyContent: "center", paddingBottom: 2 }}>
-              {signatureUrl && <img src={signatureUrl} alt="" style={{ maxHeight: 92, maxWidth: 145, objectFit: "contain" }} />}
+              {needsSignature && assets.preview && <SignaturePreviewNote />}
+              {signatureUrl && <img src={signatureUrl} alt="" data-certificate-signature="director" style={{ maxHeight: 92, maxWidth: 145, objectFit: "contain" }} />}
             </div>
             <div style={{ borderTop: `1px solid ${navy}`, margin: "4px 0 5px" }} />
             {singleSig ? (

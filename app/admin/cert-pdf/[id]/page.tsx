@@ -3,6 +3,8 @@ import { requireCertificate } from "../../../../lib/auth/session";
 import { loadCertificateRender } from "../../(protected)/certificates/certData";
 import { CertificateFront, CertificateBack } from "../../../../components/admin/CertificateRenderer";
 import { PRINT_WHEN_READY_SCRIPT } from "../../../../lib/print-when-ready";
+import { CertificateRenderAssetError, inlineCertificateRenderAssets } from "../../../../lib/certificate-render-assets";
+import { CertificateAssetsUnavailable } from "../../../../components/admin/CertificateAssetsUnavailable";
 
 export const metadata = { title: "Certificate PDF — TERAS UNIVERSAL", robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
@@ -19,6 +21,15 @@ export default async function CertPdfPage({ params }: { params: Promise<{ id: st
   const { id } = await params;
   const r = await loadCertificateRender(id);
   if (!r) notFound();
+  let renderAssets;
+  try {
+    renderAssets = await inlineCertificateRenderAssets(r.config);
+  } catch (error) {
+    // Fail closed: no certificate and no auto-print without a verified signature/seal.
+    if (error instanceof CertificateRenderAssetError) return <CertificateAssetsUnavailable message={error.message} />;
+    throw error;
+  }
+  const data = { ...r.data, render_assets: renderAssets };
   const hasBack = r.config.show_back_page !== false;
 
   return (
@@ -47,7 +58,7 @@ export default async function CertPdfPage({ params }: { params: Promise<{ id: st
         }
       `}</style>
       <div className="cert-pdf-wrap" style={{ display: "grid", gap: 20 }}>
-        <div className="cert-pdf-page"><CertificateFront data={r.data} config={r.config} /></div>
+        <div className="cert-pdf-page"><CertificateFront data={data} config={r.config} /></div>
         {hasBack && <div className="cert-pdf-page"><CertificateBack data={r.data} config={r.config} /></div>}
       </div>
       <script dangerouslySetInnerHTML={{ __html: PRINT_WHEN_READY_SCRIPT }} />

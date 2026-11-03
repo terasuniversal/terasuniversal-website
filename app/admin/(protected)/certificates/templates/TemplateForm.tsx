@@ -86,7 +86,8 @@ export function TemplateForm({
   const previewBase = preview.design_variant === "standard_scaffold_certificate"
     ? STANDARD_SCAFFOLD_PREVIEW_DATA
     : PREVIEW_DATA_BASE;
-  const previewData: CertData = { ...previewBase, qr_svg: qrSvg };
+  // Client-side preview: the private signature and seal never reach the browser here.
+  const previewData: CertData = { ...previewBase, qr_svg: qrSvg, render_assets: { mode: "preview" } };
   const previewConfig = preview.design_variant === "standard_scaffold_certificate"
     ? { ...preview, watermark_level: "basic" as const, signature_layout: "single" as const }
     : preview;

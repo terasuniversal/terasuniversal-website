@@ -4,7 +4,7 @@ import { fitHolderNameSize, formatDateRange, formatHumanDate, isAffirmativeStatu
 import { TEMPLATE_A_CREST_SRC } from "../../lib/template-a-crest";
 import { TEMPLATE_A_LOGO_SRC } from "../../lib/template-a-logo";
 import { TERAS_COMPANY_REGISTRATION } from "../../lib/teras-company";
-import { EMBOSS_MEDALLION_LIFT_PX, EMBOSS_MEDALLION_SIZE_PX } from "../../lib/certificate-approval-assets";
+import { EMBOSS_MEDALLION_LIFT_PX, EMBOSS_MEDALLION_SIZE_PX, RENDER_ASSET_PREVIEW_LABEL, renderAssetSources } from "../../lib/certificate-approval-assets";
 
 /**
  * Dedicated 2-page renderer for the TERAS Professional Scaffold Erection
@@ -26,11 +26,6 @@ const PAGE_W = "210mm";
 const PAGE_H = "297mm";
 
 const PAD = 34; // ~9mm safe print margin, matches the generic renderer's own convention
-// Approved handwritten Director signature (Muhammad Azri Bin Mohd Latifi Amir)
-// cropped from the approved reference photo — used whenever the template's
-// config.signature_url is unset, so the signature renders without any
-// database/template binding change.
-const DEFAULT_SIGNATURE_URL = "/signatures/director-signature.png";
 
 
 
@@ -446,6 +441,7 @@ export function ProfessionalScaffoldCertificateDocument({ data, config }: { data
   const gold = config.accent_color || "#D4AF37";
   const dateRange = formatDateRange(data.training_date, data.training_end_date);
   const duration = data.programme_duration || config.duration_label || "10-Day Intensive Practical Training";
+  const signature = renderAssetSources(data.render_assets, { signature: true, seal: false });
   // Dedicated template's own scale over the generic renderer's formula so
   // the holder name reads as one of the page's dominant elements without
   // competing with the CERTIFICATE headline above it — still shrinks for
@@ -554,9 +550,9 @@ export function ProfessionalScaffoldCertificateDocument({ data, config }: { data
           </div>
 
           {/* Signature — Director only, per approved design. No Trainer / Training Manager block.
-              Renders the approved handwritten Director signature asset by default
-              (DEFAULT_SIGNATURE_URL) whenever config.signature_url is unset, so no
-              database/template binding change is needed for the signature to appear. */}
+              The image comes from data.render_assets (private, server-resolved);
+              an unset config.signature_url maps to the approved Director signature in
+              lib/certificate-render-asset-policy.ts. */}
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", paddingTop: 2 }}>
             {/* Fixed to ~250px: the signature block sits at the left edge of a
                 space-between row while PremiumSeal is centered on the full
@@ -564,7 +560,7 @@ export function ProfessionalScaffoldCertificateDocument({ data, config }: { data
                 the seal's horizontal footprint (a real bug caught here: the
                 two were colliding at 320px/148px). */}
             <div style={{ textAlign: "center", fontSize: 11.5, width: 248 }}>
-              {/* Source asset measured, not assumed: public/signatures/director-signature.png
+              {/* Source asset measured, not assumed: the approved Director signature (legacy v1)
                   is 418x285 RGBA, 80.8% fully transparent, with the ink's
                   bounding box at 406x273 — i.e. ~6px of transparent padding
                   per side. That is not "excessive padding", so the asset is
@@ -589,9 +585,12 @@ export function ProfessionalScaffoldCertificateDocument({ data, config }: { data
                   No filter, no blend mode, no shadow: blend modes are the one
                   thing print/PDF engines are least consistent about, and this
                   file exists because the PDF output has to be trustworthy. */}
-              <img
-                src={config.signature_url || DEFAULT_SIGNATURE_URL}
+              {signature.preview ? (
+                <div data-certificate-signature="preview" style={{ width: 154, height: 105, margin: "3px auto -16px", display: "flex", alignItems: "flex-end", justifyContent: "center", color: "#9aa3b2", fontSize: 7, letterSpacing: 1.1, textTransform: "uppercase" }}>{RENDER_ASSET_PREVIEW_LABEL}</div>
+              ) : <img
+                src={signature.signature!}
                 alt=""
+                data-certificate-signature="director"
                 style={{
                   display: "block",
                   position: "relative",
@@ -604,7 +603,7 @@ export function ProfessionalScaffoldCertificateDocument({ data, config }: { data
                   border: 0,
                   boxShadow: "none",
                 }}
-              />
+              />}
               <div style={{ borderTop: `1.5px solid ${gold}`, margin: "6px 0 6px" }} />
               <strong style={{ color: navy, fontSize: 12.5, whiteSpace: "nowrap", display: "block" }}>Muhammad Azri Bin Mohd Latifi Amir</strong>
               <div style={{ color: "#6b7280", marginTop: 3 }}>AUTHORISED DIRECTOR</div>

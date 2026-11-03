@@ -27,6 +27,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { tmpdir } from "node:os";
 import Module, { createRequire } from "node:module";
 import { delimiter, resolve } from "node:path";
+import { SYNTHETIC_RENDER_ASSETS } from "./synthetic-render-assets.mjs";
 
 const repoRoot = resolve(import.meta.dirname, "..");
 const scratch = process.env.TMPDIR || tmpdir();
@@ -309,6 +310,7 @@ for (const level of ["basic", "intermediate", "advanced"]) {
     venue: "Synthetic QA Venue",
     ic_passport: "SYNTHETIC-NOT-REAL",
     qr_svg: '<svg viewBox="0 0 10 10"><rect width="10" height="10"/></svg>',
+    render_assets: SYNTHETIC_RENDER_ASSETS,
   };
   const reactFront = renderToStaticMarkup(React.createElement(CertificateFront, { data, config }));
   const htmlFront = renderCertificateFront(data, config);

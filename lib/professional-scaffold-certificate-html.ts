@@ -4,7 +4,7 @@ import { TEMPLATE_A_CREST_SRC } from "./template-a-crest";
 import { TEMPLATE_A_LOGO_SRC } from "./template-a-logo";
 import { PRINT_WHEN_READY_SCRIPT } from "./print-when-ready";
 import { TERAS_COMPANY_REGISTRATION } from "./teras-company";
-import { EMBOSS_MEDALLION_LIFT_PX, EMBOSS_MEDALLION_SIZE_PX } from "./certificate-approval-assets";
+import { EMBOSS_MEDALLION_LIFT_PX, EMBOSS_MEDALLION_SIZE_PX, RENDER_ASSET_PREVIEW_LABEL, renderAssetSources } from "./certificate-approval-assets";
 
 /**
  * Standalone HTML string mirror of
@@ -21,9 +21,6 @@ const PAGE_W = "210mm";
 const PAGE_H = "297mm";
 
 const PAD = 34;
-// Approved handwritten Director signature asset — used whenever
-// config.signature_url is unset. Mirrors the React renderer's fallback.
-const DEFAULT_SIGNATURE_URL = "/signatures/director-signature.png";
 
 
 
@@ -275,7 +272,10 @@ export function renderProfessionalScaffoldCertificateFront(data: CertData, confi
   // comment there for why 154x105 (exact 418:285 ratio, no letterboxing), why
   // the asset is used uncropped, and why the negative bottom margin plus
   // z-index is what makes the ink sit over the rule instead of above it.
-  const signatureImg = `<img src="${esc(config.signature_url || DEFAULT_SIGNATURE_URL)}" alt="" style="display:block;position:relative;z-index:1;width:154px;height:105px;margin:3px auto -16px;object-fit:contain;background:transparent;border:0;box-shadow:none;"/>`;
+  const signature = renderAssetSources(data.render_assets, { signature: true, seal: false });
+  const signatureImg = signature.preview
+    ? `<div data-certificate-signature="preview" style="width:154px;height:105px;margin:3px auto -16px;display:flex;align-items:flex-end;justify-content:center;color:#9aa3b2;font-size:7px;letter-spacing:1.1px;text-transform:uppercase;">${RENDER_ASSET_PREVIEW_LABEL}</div>`
+    : `<img src="${esc(signature.signature!)}" alt="" data-certificate-signature="director" style="display:block;position:relative;z-index:1;width:154px;height:105px;margin:3px auto -16px;object-fit:contain;background:transparent;border:0;box-shadow:none;"/>`;
 
   return `<div style="width:${PAGE_W};height:${PAGE_H};margin:0 auto;position:relative;background:#FDFCF8;box-sizing:border-box;font-family:Georgia,'Times New Roman',serif;line-height:1.3;color:#1F2937;overflow:hidden;">
   ${pageVignette(navy)}

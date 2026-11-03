@@ -10,6 +10,9 @@ import { revokeCertificate, reissueCertificate, duplicateCertificate, updateCert
 import { EmptyState } from "../../../../../components/admin/ui";
 import { formatMalaysiaDateTime } from "../../../../../lib/date-time";
 import { CERTIFICATE_PROVENANCE_META } from "../../../../../lib/certificate-skills";
+import { CertificateRenderAssetError, inlineCertificateRenderAssets } from "../../../../../lib/certificate-render-assets";
+import { CertificateAssetsUnavailable } from "../../../../../components/admin/CertificateAssetsUnavailable";
+import type { CertificateRenderAssets } from "../../../../../lib/certificate-approval-assets";
 import { CertificateActionDialog } from "../../../../../components/admin/CertificateActionDialog";
 
 interface ReissueHistoryRow {
@@ -31,6 +34,15 @@ await requireModuleAccess("certificates");
   const r = await loadCertificateRender(id);
   if (!r) notFound();
   const cert = r.cert;
+  // The record and actions stay usable; only the preview is withheld when the signature/seal cannot be verified.
+  let renderAssets: CertificateRenderAssets | null = null;
+  let renderAssetsError: string | null = null;
+  try {
+    renderAssets = await inlineCertificateRenderAssets(r.config);
+  } catch (error) {
+    if (!(error instanceof CertificateRenderAssetError)) throw error;
+    renderAssetsError = error.message;
+  }
 
   // Verification history (audit of public verification attempts).
   const supabase = await createSupabaseServerClient();
@@ -77,7 +89,7 @@ await requireModuleAccess("certificates");
           <div className="ta-card-pad" style={{ background: "#eef1f6", overflow: "hidden", display: "grid", gap: 12 }}>
             <div style={{ overflow: "hidden", height: 500 }}>
               <div style={{ transform: "scale(0.44)", transformOrigin: "top left" }}>
-                <CertificateFront data={r.data} config={r.config} />
+                {renderAssets ? <CertificateFront data={{ ...r.data, render_assets: renderAssets }} config={r.config} /> : <CertificateAssetsUnavailable message={renderAssetsError ?? "Certificate signature or seal could not be loaded"} />}
               </div>
             </div>
             <div style={{ overflow: "hidden", height: 500 }}>
