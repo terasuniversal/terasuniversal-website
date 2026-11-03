@@ -24,7 +24,6 @@ section{padding:86px 0}.section-heading{max-width:760px;margin-bottom:38px}.sect
 .contact-section{background:#f8fafc}.contact-layout{display:grid;grid-template-columns:1.06fr .94fr;gap:28px}.contact-form,.detail-card,.map-card{background:#fff;border:1px solid var(--line);border-radius:24px;box-shadow:0 14px 38px rgba(8,26,58,.06)}
 .contact-form{padding:30px}.field-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.contact-form label{display:grid;gap:7px;font-size:13px;font-weight:800;color:var(--navy);margin-bottom:16px}.contact-form input,.contact-form select,.contact-form textarea{width:100%;padding:13px 14px;border:1px solid #ccd4df;border-radius:10px;background:#fff;color:var(--ink);font:inherit;outline:none}.contact-form input:focus,.contact-form select:focus,.contact-form textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(10,61,145,.1)}.form-submit{border:0;cursor:pointer}.form-status{color:var(--blue);font-weight:700}.form-note{font-size:11px;color:var(--muted);margin-bottom:0}
 .contact-details{display:grid;gap:20px}.detail-card{padding:28px}.detail-card h3{margin-top:0;color:var(--navy)}.detail-card>p{color:var(--muted)}dl{margin:20px 0 0}dl div{padding:12px 0;border-bottom:1px solid var(--line)}dt{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:900}dd{margin:3px 0 0}.map-card{overflow:hidden;min-height:310px}.map-card iframe{width:100%;height:100%;min-height:310px;border:0;display:block}
-.floating-whatsapp{position:fixed;right:22px;bottom:22px;z-index:60;width:58px;height:58px;border-radius:50%;display:grid;place-items:center;background:#25d366;color:#fff;font-size:14px;font-weight:900;box-shadow:0 14px 32px rgba(0,0,0,.2)}
 footer{background:var(--navy);color:#dce6f7;padding:56px 0 22px}.footer-grid{display:grid;grid-template-columns:1.1fr .9fr .85fr 1fr;gap:45px}.footer-brand img{background:#fff;border-radius:16px;padding:10px;max-width:190px}.footer-brand p{color:#f4c75d;font-weight:800}footer h3{color:#fff;margin-top:0}footer p{color:#b8c4d8;font-size:14px}footer a:hover{color:#fff}.footer-bottom{display:flex;justify-content:space-between;gap:20px;border-top:1px solid rgba(255,255,255,.12);padding-top:20px;margin-top:36px;color:#8fa0bb;font-size:12px}
 .loading-screen{position:fixed;inset:0;display:grid;place-content:center;justify-items:center;background:#fff;z-index:9999}.loading-screen img{width:230px}.loading-bar{width:220px;height:4px;background:#e5eaf2;border-radius:999px;overflow:hidden;margin-top:18px}.loading-bar span{display:block;height:100%;width:42%;background:linear-gradient(90deg,var(--blue),var(--gold));animation:load 1.1s infinite ease-in-out}.loading-screen p{color:var(--muted);font-size:12px;font-weight:700}@keyframes load{0%{transform:translateX(-110%)}100%{transform:translateX(270%)}}
 @media(max-width:920px){nav{display:none}.hero-grid,.why-grid,.contact-layout{grid-template-columns:1fr}.service-grid,.course-grid{grid-template-columns:repeat(2,1fr)}.hero{padding-top:64px}.footer-grid{grid-template-columns:1fr 1fr}.footer-brand{grid-column:1/-1}}
@@ -228,13 +227,6 @@ video {
   .map-card,
   .map-card iframe {
     min-height: 260px;
-  }
-
-  .floating-whatsapp {
-    right: 16px;
-    bottom: 18px;
-    width: 54px;
-    height: 54px;
   }
 
   .footer-grid {
@@ -528,13 +520,6 @@ video {
   max-width:720px;
   margin:0;
   color:#dce6f7;
-}
-
-.floating-whatsapp{
-  width:50px;
-  height:50px;
-  right:18px;
-  bottom:20px;
 }
 
 @media(max-width:920px){
@@ -2710,13 +2695,6 @@ button:active {
   transform: translateY(-2px);
   box-shadow: 0 8px 18px rgba(8, 26, 58, .12);
 }
-.floating-whatsapp {
-  transition: transform .22s ease, box-shadow .22s ease, background-color .22s ease;
-}
-.floating-whatsapp:hover {
-  transform: translateY(-4px) scale(1.03);
-  box-shadow: 0 18px 36px rgba(0, 0, 0, .24);
-}
 
 /* Keep iframe and form content contained at narrow widths */
 .contact-form,
@@ -2796,10 +2774,6 @@ button:active {
   }
   .btn {
     min-height: 48px;
-  }
-  .floating-whatsapp {
-    right: 16px;
-    bottom: 16px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -4289,8 +4263,7 @@ footer a:hover {
 }
 
 .btn,
-.nav-cta,
-.floating-whatsapp {
+.nav-cta {
   transform-origin: center;
 }
 .btn:hover,
@@ -4799,7 +4772,7 @@ img {
     flex: 1 1 160px;
   }
 }
-@media print { .verify-page { background: #fff; } .verify-page .site-header, .verify-page footer, .verify-page .floating-whatsapp, .verify-page .verify-actions, .verify-page .course-breadcrumb { display: none !important; } .verify-result { padding: 0; } .verify-result-card { max-width: none; border: 1px solid #bbb; box-shadow: none; } .verify-status h1 { font-size: 24px; } .verify-details { grid-template-columns: repeat(2, minmax(0, 1fr)); } .verify-result-page { min-height: 0; } }
+@media print { .verify-page { background: #fff; } .verify-page .site-header, .verify-page footer, .verify-page .verify-actions, .verify-page .course-breadcrumb { display: none !important; } .verify-result { padding: 0; } .verify-result-card { max-width: none; border: 1px solid #bbb; box-shadow: none; } .verify-status h1 { font-size: 24px; } .verify-details { grid-template-columns: repeat(2, minmax(0, 1fr)); } .verify-result-page { min-height: 0; } }
 
 /* Enterprise UX foundations: search, finder, resources and conversion CTA */
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
@@ -6699,13 +6672,8 @@ footer h3::after {
 .sticky-cta {
   padding-bottom: calc(7px + env(safe-area-inset-bottom, 0px));
 }
-.floating-whatsapp {
-  bottom: calc(22px + env(safe-area-inset-bottom, 0px));
-}
-
 @media (max-width: 590px) {
   .sticky-cta { padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px)); }
-  .floating-whatsapp { bottom: calc(18px + env(safe-area-inset-bottom, 0px)); }
 }
 
 /* ===== Mobile menu active state (parity with desktop mega-nav) ===== */
@@ -6714,11 +6682,6 @@ footer h3::after {
   color: var(--blue2);
   font-weight: 850;
   box-shadow: inset 3px 0 0 var(--gold);
-}
-
-/* ===== Mobile: avoid redundant fixed-action overlap ===== */
-@media (max-width: 590px) {
-  .floating-whatsapp { display: none; }
 }
 
 /* ================================================================
@@ -6825,11 +6788,6 @@ footer h3::after {
 /* ---- P4 Mobile header + fixed action bar ---- */
 .menu-button { flex-shrink: 0; }
 .sticky-cta-mobile a { padding: 10px 8px; }
-@media (min-width: 591px) {
-  /* Stack the WhatsApp circle above the bottom-right proposal pill so the
-     two fixed actions never share the same anchor and overlap. */
-  .floating-whatsapp { bottom: calc(88px + env(safe-area-inset-bottom, 0px)); }
-}
 
 /* ---- P5 Calendar polish ---- */
 .calendar-toolbar { margin-bottom: 24px; }
@@ -7209,4 +7167,165 @@ textarea.feedback-input { resize: vertical; min-height: 88px; }
 @media (min-width: 560px) {
   .feedback-page { padding: 48px 20px 80px; }
   .feedback-shell { padding: 40px 44px 48px; }
+}
+
+/* ================================================================
+   Public accessibility floor (W2)
+   Measured against WCAG AA on the public pages at 1440, 768 and 390px.
+   Brand colours are unchanged: gold stays a fill and accent, and text
+   that sat in gold on a light surface moves to navy, because #E1A925
+   on white is 2.1:1. Selectors are scoped to "#main-content > main",
+   the root that public pages render and the admin shell does not, so
+   they outrank the page-level rules above without !important.
+   ================================================================ */
+
+/* #687386 measured 4.46:1 on white, just under AA. */
+:root { --muted: #5f6b7d; }
+
+#main-content > main :is(
+  .catalog-module-grid article > span,
+  .programme-grid article > span,
+  .about-reasons-grid article > span,
+  .about-approach-grid article > span,
+  .about-card-number,
+  .about-values-grid small,
+  .about-leader-role,
+  .about-accred-grid .accred-label,
+  .proposal-process-grid article > span,
+  .proposal-benefits-grid article > span,
+  .proposal-wizard-header strong,
+  .contact-reasons-grid article > span,
+  .contact-info-number,
+  .delivery-grid .delivery-number,
+  .facility-number,
+  .pillar-code,
+  .services-pillar-top small,
+  .training-compare-more,
+  .faq-centre-list small,
+  .capability-grid strong,
+  .value-grid .value-letter,
+  .services-process-grid article > span,
+  .course-overview-grid span,
+  .course-delivery-grid span,
+  .course-module-grid span,
+  .course-method-grid article > span,
+  .ypm-check-grid article > span,
+  .industries-hub-card span:first-child,
+  .search-result-card > span,
+  .resource-number,
+  .faq-centre article > button > b,
+  .faq-question .faq-indicator,
+  summary > span[aria-hidden="true"],
+  .contact-page-form label > span[aria-hidden="true"],
+  .contact-form-required-note > span,
+  .reason-grid .reason-icon,
+  .mobile-menu-heading span
+) { color: var(--navy); }
+
+#main-content > main :is(.proposal-stepper li:not(.is-current) > span, .proposal-stepper li:not(.is-current) > em, .calendar-view-tabs button:not(.active)) { color: var(--muted); }
+
+/* Nothing meant to be read sits below 13px. */
+#main-content > main :is(
+  .eyebrow,
+  .form-note,
+  .course-breadcrumb a,
+  .course-breadcrumb span,
+  .mobile-menu-heading span,
+  .hero-panel-services strong,
+  .hero-panel-services span,
+  .hero-image-caption span,
+  .hero-image-caption strong,
+  .hero-corner-mark,
+  .success-metrics-grid small,
+  .capability-grid small,
+  .upcoming-date small,
+  .calendar-day small,
+  .calendar-session-date small,
+  .pillar-code,
+  .pillar-services span,
+  .pillar-outcome small,
+  .services-pillar-top small,
+  .services-tags span,
+  .services-outcome small,
+  .service-detail-copy li,
+  .service-detail-outcome small,
+  .delivery-card small,
+  .facility-features span,
+  .facility-features strong,
+  .method-step-content small,
+  .method-outcome span,
+  .reason-grid .reason-icon,
+  .training-card-category,
+  .training-card-audience strong,
+  .training-hero-features span,
+  .training-finder-form label,
+  .training-compare-chip,
+  .training-compare-viewlink,
+  .training-compare-note,
+  .gallery-filter-bar button,
+  .faq-centre-filters button,
+  .faq-centre-list small,
+  .about-values-grid small,
+  .about-leader-role,
+  .about-leader-focus span,
+  .about-leader-credential,
+  .about-accred-grid .accred-label,
+  .proposal-stepper li > span,
+  .proposal-stepper li > em,
+  .contact-form-required-note,
+  .newsletter-consent span,
+  .search-result-card > span,
+  .resource-number,
+  .footer-actions a,
+  footer .container > span,
+  dl dt
+) { font-size: 13px; }
+
+/* Touch targets: at least 44 x 44 CSS px for controls and standalone links. */
+#main-content > main :is(
+  .footer-actions a,
+  footer p > a,
+  dd > a,
+  .programme-grid article > a,
+  .upcoming-footer-link a,
+  .faq-view-all a,
+  .training-compare-viewlink,
+  .course-breadcrumb a
+) { display: inline-flex; align-items: center; min-height: 44px; min-width: 44px; }
+
+#main-content > main :is(
+  .gallery-filter-bar button,
+  .training-filters button,
+  .training-compare-chip,
+  .calendar-view-tabs button,
+  .calendar-controls select,
+  .faq-centre-filters button,
+  form input:not([type="checkbox"]):not([type="radio"]):not([tabindex="-1"]),
+  form select,
+  form button
+) { min-height: 44px; min-width: 44px; }
+
+/* The corporate credentials strip inherited the module's navy text inside
+   the navy capability section (1.19:1, effectively invisible). */
+#main-content > main .services-standard-section [class*="trustStrip"] { color: #fff; }
+
+#main-content > main .newsletter-consent input[type="checkbox"] { width: 22px; height: 22px; flex: 0 0 22px; }
+
+/* The single floating contact control: one bar, 44px targets, and it slides
+   out of the way (StickyCta.js) instead of covering what is being read. */
+.sticky-cta { transition: transform .25s ease, opacity .2s ease, box-shadow .2s ease; }
+.sticky-cta a { font-size: 13px; }
+.sticky-cta-proposal,
+.sticky-cta-mobile a { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; min-width: 44px; }
+.sticky-cta.is-hidden,
+.sticky-cta.is-hidden:hover { transform: translateY(calc(100% + 40px)); opacity: 0; pointer-events: none; box-shadow: none; }
+@media (prefers-reduced-motion: reduce) {
+  .sticky-cta { transition: none; }
+}
+
+/* Long section titles wrapped to four or five lines on a phone. Same words,
+   a size that fits the measure. */
+@media (max-width: 590px) {
+  #main-content > main h1 { font-size: clamp(30px, 8.4vw, 36px); text-wrap: balance; }
+  #main-content > main h2 { font-size: clamp(24px, 6.8vw, 28px); line-height: 1.15; text-wrap: balance; }
 }
