@@ -188,7 +188,7 @@ const pinned = new Set([RENDER_ASSETS["director-signature-refined-v1"].sha256, R
 for (const file of walk(root).filter((f) => /\.(png|jpe?g|webp|gif|svg)$/i.test(f))) {
   assert.ok(!pinned.has(createHash("sha256").update(readFileSync(file)).digest("hex")), `${relative(root, file)}: approved private artwork must not be in the repository`);
 }
-assert.equal(createHash("sha256").update(readFileSync(resolve(root, "supabase/migrations/20261103073927_production_certificate_render_assets_bucket.sql"))).digest("hex"), "375efef3520c8400a10b8d0bcc3f053bb0cebbb38beb8c905c005646e154488c", "approved Phase A migration unchanged");
+assert.equal(createHash("sha256").update(readFileSync(resolve(root, "supabase/migrations/20261103085009_production_certificate_render_assets_bucket.sql"))).digest("hex"), "375efef3520c8400a10b8d0bcc3f053bb0cebbb38beb8c905c005646e154488c", "approved Phase A migration unchanged");
 pass("approved refined signature and 3D seal absent from the repository; Phase A migration SHA-256 unchanged");
 
 // 6. ZIP response-size guard: small and exactly-at-limit archives are valid and allowed; one byte over is refused.

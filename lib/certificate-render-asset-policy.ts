@@ -9,7 +9,7 @@ import { createHash } from "node:crypto";
  */
 
 export const CERTIFICATE_RENDER_ASSETS_BUCKET = "certificate-render-assets";
-// Matches the bucket's file_size_limit (migration 20261103073927).
+// Matches the bucket's file_size_limit (migration 20261103085009).
 export const MAX_RENDER_ASSET_BYTES = 1048576;
 
 export type RenderAssetKey =
