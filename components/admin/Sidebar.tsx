@@ -1,76 +1,105 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { NAV } from "../../lib/admin-nav";
-import { canAccessModule } from "../../lib/auth/rbac";
+import { useId, type ReactNode } from "react";
+import { activeNavKey, visibleNavGroups } from "../../lib/admin-nav";
 import type { UserRole } from "../../lib/supabase/database.types";
 import { NavIcon } from "./icons";
 
+// Spoken after a nav count so "Certificates 4" is not ambiguous.
+const BADGE_DESCRIPTIONS: Record<string, string> = {
+  certificates: "draft certificates",
+  participants: "registered participants",
+};
+
 /**
- * Left navigation. Renders only the items the current role may access, grouped
- * by department. Counts (e.g. new enquiries) are passed in so the sidebar stays
- * a pure, cache-friendly client component.
+ * Sidebar contents: brand, navigation and status footer. Renders only the
+ * items the current role may access, grouped by department. AdminShell
+ * places it in the fixed desktop column and in the mobile drawer; counts
+ * and the current path come in as props so this stays a pure component.
  */
 export function Sidebar({
   role,
   moduleKeys = [],
   accessControlEnabled = false,
   badges = {},
+  pathname,
+  onNavigate,
+  brandAction,
 }: {
   role: UserRole;
   moduleKeys?: readonly string[];
   accessControlEnabled?: boolean;
   badges?: Record<string, number>;
+  pathname: string;
+  /** Called when a nav link is chosen (the drawer closes itself). */
+  onNavigate?: () => void;
+  /** Extra control in the brand row, such as the drawer's close button. */
+  brandAction?: ReactNode;
 }) {
-  const pathname = usePathname();
+  const idPrefix = useId();
+  const groups = visibleNavGroups(role, moduleKeys, accessControlEnabled);
+  const activeKey = activeNavKey(pathname, groups.flatMap((group) => group.items));
 
   return (
-    <aside className="ta-sidebar" aria-label="Admin navigation">
+    <>
       <div className="ta-sidebar-brand">
         <img src="/teras-universal-logo.png" alt="" />
         <span>
           <strong>TERAS UNIVERSAL</strong>
           <small>Admin CMS</small>
         </span>
+        {brandAction}
       </div>
-      <nav className="ta-nav">
-        {NAV.map((group) => {
-          const items = group.items.filter((i) => canAccessModule(role, i.moduleKey ?? i.key, moduleKeys, accessControlEnabled));
-          if (items.length === 0) return null;
+      <nav className="ta-nav" aria-label="Admin navigation">
+        {groups.length === 0 && (
+          <p className="m-0 px-3 py-4 text-[13px] leading-normal text-[#c7d6ea]">
+            No modules are assigned to your account yet. Ask a system administrator for access.
+          </p>
+        )}
+        {groups.map((group, index) => {
+          const labelId = `${idPrefix}-group-${index}`;
           return (
-            <div key={group.label}>
-              <div className="ta-nav-group-label">{group.label}</div>
-              {items.map((item) => {
-                const active =
-                  pathname === item.href || pathname.startsWith(item.href + "/");
-                const count = badges[item.key];
-                return (
-                  <Link
-                    key={item.key}
-                    href={item.href}
-                    className={`ta-nav-item${active ? " active" : ""}`}
-                    aria-current={active ? "page" : undefined}
-                  >
-                    <span className="ta-ico" aria-hidden="true">
-                      <NavIcon name={item.icon} />
-                    </span>
-                    <span className="ta-nav-label">{item.label}</span>
-                    {count ? <span className="ta-badge">{count}</span> : null}
-                  </Link>
-                );
-              })}
+            <div key={group.label} role="group" aria-labelledby={labelId}>
+              <div id={labelId} className="ta-nav-group-label">{group.label}</div>
+              <ul role="list" className="m-0 list-none p-0">
+                {group.items.map((item) => {
+                  const active = item.key === activeKey;
+                  const count = badges[item.key];
+                  return (
+                    <li key={item.key}>
+                      <Link
+                        href={item.href}
+                        className={`ta-nav-item${active ? " active" : ""}`}
+                        aria-current={active ? "page" : undefined}
+                        onClick={onNavigate}
+                      >
+                        <span className="ta-ico" aria-hidden="true">
+                          <NavIcon name={item.icon} />
+                        </span>
+                        <span className="ta-nav-label">{item.label}</span>
+                        {count ? (
+                          <span className="ta-badge">
+                            {count}
+                            {BADGE_DESCRIPTIONS[item.key] && <span className="sr-only"> {BADGE_DESCRIPTIONS[item.key]}</span>}
+                          </span>
+                        ) : null}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
             </div>
           );
         })}
       </nav>
-      <div className="ta-sidebar-footer" aria-label="Workspace status">
+      <div className="ta-sidebar-footer">
         <span className="ta-status-dot" aria-hidden="true" />
         <div>
           <strong>Secure workspace</strong>
           <small>Admin system online</small>
         </div>
       </div>
-    </aside>
+    </>
   );
 }

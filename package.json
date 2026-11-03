@@ -28,6 +28,7 @@
     "test:sales-wave2": "node --experimental-strip-types scripts/sales-wave2-pagination-contract.mts && node --experimental-strip-types scripts/sales-wave2-ui-contract.mts && node --experimental-strip-types scripts/sales-wave2-detail-contract.mts && node --experimental-strip-types scripts/sales-wave2a-review-fix-contract.mts && node --experimental-strip-types scripts/sales-stalled-semantics-contract.mts",
     "test:sales-wave3": "node --experimental-strip-types scripts/sales-wave3-task-contract.mts && node --experimental-strip-types scripts/sales-wave3-followup-contract.mts",
     "test:admin-shadcn-foundation": "node --experimental-strip-types scripts/admin-shadcn-foundation-contract.mts",
+    "test:admin-navigation": "node --experimental-strip-types scripts/admin-navigation-contract.mts",
     "build": "next build",
     "start": "next start"
   },

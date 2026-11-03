@@ -22,6 +22,9 @@
    file rather than scanning all legacy admin markup. */
 @source "../../components/ui/**/*.{ts,tsx}";
 @source "../../components/admin/sales/SalesMetricCard.tsx";
+@source "../../components/admin/AdminShell.tsx";
+@source "../../components/admin/Sidebar.tsx";
+@source "../../components/admin/Topbar.tsx";
 @source "./(protected)/sales/page.tsx";
 @source "./(protected)/sales/loading.tsx";
 @source "./(protected)/sales/error.tsx";
@@ -82,6 +85,30 @@
   outline-offset: 2px;
   box-shadow: 0 0 0 5px rgba(212, 175, 55, 0.45);
 }
+
+/* On the navy sidebar a navy outline would vanish, and admin.css's 60%
+   gold is about 2.9:1 there; solid gold is 5.5:1. Inset, because the nav
+   column clips horizontal overflow. The [data-slot] form outranks the
+   primitive focus rule above for the drawer's close button. */
+.teras-admin .ta-sidebar :is(a, button):focus-visible,
+.teras-admin .ta-sidebar :is(a, button)[data-slot]:focus-visible {
+  outline: 2px solid var(--ta-gold);
+  outline-offset: -2px;
+  box-shadow: none;
+}
+
+/* Sheet (mobile nav drawer) motion; skipped entirely for reduced motion,
+   so Radix unmounts on close without waiting for an animation. */
+@media (prefers-reduced-motion: no-preference) {
+  .teras-admin [data-slot="sheet-content"][data-state="open"] { animation: ta-sheet-in 0.22s ease-out; }
+  .teras-admin [data-slot="sheet-content"][data-state="closed"] { animation: ta-sheet-out 0.18s ease-in; }
+  .teras-admin [data-slot="sheet-overlay"][data-state="open"] { animation: ta-fade-in 0.22s ease-out; }
+  .teras-admin [data-slot="sheet-overlay"][data-state="closed"] { animation: ta-fade-out 0.18s ease-in; }
+}
+@keyframes ta-sheet-in { from { transform: translateX(-100%); } }
+@keyframes ta-sheet-out { to { transform: translateX(-100%); } }
+@keyframes ta-fade-in { from { opacity: 0; } }
+@keyframes ta-fade-out { to { opacity: 0; } }
 
 /* globals.css sizes bare h1/h2 (e.g. h1 at clamp(44px, 6vw, 72px)) with
    unlayered rules that utilities cannot beat. Inside a CardTitle the

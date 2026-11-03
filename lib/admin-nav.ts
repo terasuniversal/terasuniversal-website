@@ -1,4 +1,5 @@
 import type { UserRole } from "./supabase/database.types";
+import { canAccessModule } from "./auth/rbac";
 
 export interface NavItem {
   key: string;
@@ -114,3 +115,32 @@ export const NAV: NavGroup[] = [
     ],
   },
 ];
+
+/**
+ * NAV narrowed to the items this user may open, dropping empty groups.
+ * Display only: every route still enforces access server-side.
+ */
+export function visibleNavGroups(
+  role: UserRole,
+  moduleKeys: readonly string[],
+  accessControlEnabled: boolean,
+): NavGroup[] {
+  return NAV.map((group) => ({
+    ...group,
+    items: group.items.filter((i) => canAccessModule(role, i.moduleKey ?? i.key, moduleKeys, accessControlEnabled)),
+  })).filter((group) => group.items.length > 0);
+}
+
+/**
+ * Key of the single nav item to mark current: the longest href that equals
+ * the path or is a parent segment of it. A plain prefix test would light up
+ * both "Sales Dashboard" (/admin/sales) and "Leads" on /admin/sales/leads.
+ */
+export function activeNavKey(pathname: string, items: readonly Pick<NavItem, "key" | "href">[]): string | undefined {
+  let best: Pick<NavItem, "key" | "href"> | undefined;
+  for (const item of items) {
+    const matches = pathname === item.href || pathname.startsWith(item.href + "/");
+    if (matches && (!best || item.href.length > best.href.length)) best = item;
+  }
+  return best?.key;
+}
