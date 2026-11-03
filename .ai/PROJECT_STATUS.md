@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-Last updated: 2026-08-28
+Last updated: 2026-11-03 (WAH Certificate C4 entry at the end)
 Repository: `D:\Projects\terasuniversal-website`
 Branch: `chore/ai-shared-project-state`
 
@@ -208,3 +208,41 @@ No migration was applied, no push, no merge, no deploy. Validation not re-run in
 No other SQL changed: the view's column list/order, the RPC body, and `20260828110000_reconcile_sales_is_test_classification.sql` are unchanged from the previous two entries.
 
 No migration was applied, no push, no merge, no deploy. Validation not re-run in this pass (only `.sql` migration files and this status file were touched).
+
+## Claude Code — 2026-11-03 (Working at Height Certificate C4: Production release and pilot issuance)
+
+**Status: WAH C4 COMPLETE — PRODUCTION OPERATIONAL** (owner closure approved 2026-11-03). The issuance path, safety controls and certificate output are live and verified on Production (`iagzkrzeuawaxvacqprk`). WAH C4 development is closed; the 24 remaining SCH-000034 certificates are ordinary Super Admin issuance, not a development task.
+
+### What is live
+- Production migrations applied through the Supabase MCP workflow and recorded under their actual versions: `20261102051041` (Skills Record gate), `20261102160312` (Super Admin issuance with automatic single-use authorization), `20261102165601` (existing-holder block), `20261103010953` (function-level `TimeZone=Asia/Kuala_Lumpur` on `app.issue_certificate_with_skill_snapshot` and `app.duplicate_certificate_with_skill_snapshot`). Production is at 143 migrations.
+- Merged to `main` and deployed: PR #191, #192, #194, #195 (issue-date fix, merge `2b13cd5`), #196 (transparent divider behind the WAH QR caption, merge `17c5a51`, deployment `dpl_Di7ZBQxPYzugUaXBbN8L32213oys`).
+- Six WAH safety triggers enabled: `trg_guard_wah_skills_complete`, `trg_guard_wah_skill_result`, `trg_guard_wah_legacy_certificate`, `trg_guard_wah_schedule_integrity`, `trg_certificates_a_wah_issuance_guard`, `trg_guard_wah_issuance_authorization_rows`.
+- Issuance: Admin → Certificates → Generate → schedule, one participant at a time by an active `super_admin`. `app.issue_wah_certificate_as_super_admin` creates a 5-minute authorization, checks the participant holds no WAH certificate, then issues; the authorization is consumed in the same transaction. Bulk generation is disabled for WAH. Generate buttons show Held for failed or incomplete Skills Records and for existing holders.
+
+### Pilot evidence (SCH-000034, branch TERAS-HQ)
+- `CERT-2026-000103` (TU-000216): issued 01:18 MYT on 3 Nov through the CRM; carries issue date 2 Nov because of the UTC `current_date` defect fixed by `20261103010953`. Record preserved unchanged.
+- `CERT-2026-000104` (TU-000217): issued 09:30 MYT on 3 Nov after the fix; issue date 3 Nov on the row, snapshot and render payload. One `c4_wave1_wah_v1` snapshot, four Skills Records plus attendance captured, exactly one authorization created and consumed (0.11 s) by `super_admin`, audit rows present, no duplicate. Saved PDF: two A4 pages, no text outside the page, signature and branch address present. QR decoded from the PDF equals `https://www.terasuniversal.com.my/verify/<token>`; that page shows Valid Certificate with a masked identity number.
+- Date fix validation: contract tests (guard 190 PASS incl. a 26-hour two-zone proof, DB 153 PASS). The live daytime issuance confirms the normal path only; it does not independently prove the midnight boundary.
+- Existing holders TU-000202 / TU-000203 (`CERT-2026-000096` / `000097`, SCH-000026) remain valid and unchanged; on SCH-000030 the Generate page shows Held with the button disabled.
+- Counts at 09:49 MYT: 192 certificates, 9 snapshots, 5 authorizations (none open), SCH-000034 2 certified / 24 eligible, no duplicate WAH certificate by participant or identity number.
+
+### Owner decisions open (non-blocking)
+- `CERT-2026-000103` date: no approved correction mechanism exists. `issue_date` is blocked by `app.certificate_historical_update_guard` once a snapshot exists; reissue/reprint only logs an event; duplicate creates a new number. Recommended: keep the record and add a Remarks note; alternative is revoke and replace, which changes the certificate identity.
+- Public verification page shows the verified-at time in UTC (`app/verify/VerificationResult.tsx:70`); it is the lookup time, not the issue date.
+- The stamp area is an empty gold circle by design (no approved stamp asset); confirm a physical stamp is intended.
+
+### Super Admin operating notes
+- Generate one participant per click and wait for the green confirmation before the next; do not open a second tab.
+- A yellow "No certificates were generated" message means the database refused the issuance; read the system reason and do not retry blindly.
+- Certificates render live from code, so a renderer fix applies to already issued certificates on their next PDF open; saved PDFs keep the old output.
+- Reports and logs must not carry participant names or identity numbers; TU IDs and `TRS-P-*` codes are sufficient.
+
+### Final QA on `main` after PR #196 (2026-11-03, 10:10 MYT)
+- `npx tsc --noEmit`: PASS.
+- Contracts (local Docker, synthetic data only): `c4-wah-issuance-guard-contract` 190 PASS; `c4-wah-db-contract` 153 PASS; `c4-wah-hold-contract` 36 PASS (failed assessment, incomplete Skills Record and existing holder all Held); `c4-snapshot-renderer-contract` 19 PASS.
+- `c4-wah-render-qa`: 170 PASS (two A4 pages, no clipping or overlap, React and bulk-ZIP identical, Erector and Inspector live-shape renders included).
+- Production read-only: 143 migrations (latest `20261103010953`), both issuance functions on `Asia/Kuala_Lumpur`, six WAH triggers enabled, 192 certificates with all certificates other than CERT-2026-000104 byte-identical to the pre-pilot baseline, 9 snapshots, 5 authorizations none open, no duplicate WAH certificate.
+
+### Not done
+- The 24 remaining SCH-000034 certificates: owner-operated through Super Admin Generate as normal operations, at the owner's chosen time.
+- Scaffolding Erector watermark: a placement-only attempt was rejected by the owner on 2026-11-03 because it does not match the Inspector/WAH illustration style. Erector needs owner-approved artwork (scene for page 1, detail for page 2) like Inspector and WAH. Changing it will also restyle the already issued Erector C4 certificate CERT-2026-000098, which renders live; that needs an owner decision. No Erector code was committed.
