@@ -444,7 +444,8 @@ export function renderCertificateBack(data: CertData, config: TemplateConfig): s
       <div style="color:${navy};font-weight:700;margin-top:2px;${goldenReference ? "overflow-wrap:anywhere;line-height:1.4;" : ""}">${esc(value)}</div>
     </div>`;
   const qrHtml = config.show_qr !== false && data.qr_svg
-    ? `<div style="border-left:1px solid #e3e7ee;padding-left:20px;">${qrBlock(data.qr_svg, navy, gold, CERTIFICATE_DESIGN.qr.sizePx - 34, true, true)}</div>`
+    // WAH only; mirrors the transparent divider in CertificateDocument.tsx, which explains why.
+    ? `<div style="border-left:1px solid ${wahBack ? "transparent" : "#e3e7ee"};padding-left:20px;">${qrBlock(data.qr_svg, navy, gold, CERTIFICATE_DESIGN.qr.sizePx - 34, true, true)}</div>`
     : "";
 
   return `<div style="width:${PAGE_W}px;height:${PAGE_H}px;margin:0 auto;position:relative;background:#fff;box-sizing:border-box;padding:${CERTIFICATE_DESIGN.page.safeMarginPx}px;font-family:${CERTIFICATE_DESIGN.typography.sans};color:${CERTIFICATE_DESIGN.colors.ink};overflow:hidden;">
