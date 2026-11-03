@@ -133,6 +133,38 @@ export function wahGoldenWatermarkBox(page: keyof typeof WAH_GOLDEN_AREAS) {
 }
 
 /**
+ * Scaffolding Erector Golden Reference placement, fitted into the same open
+ * areas as Inspector so the three C4 certificates read as one set: page 1 an
+ * erector assembling tube-and-coupler scaffold, page 2 the coupler and base
+ * detail. Owner-supplied ImageGen artwork, cleaned to navy line-art on
+ * transparency with its outlines strengthened; it carries less dark fill than
+ * the Inspector art, so 0.16 gives it the same printed clarity as Inspector's
+ * 0.14. Selected by golden_reference_family because issued Erector
+ * snapshots freeze watermark_asset_family 'scaffolding-technical', which
+ * resolves to the legacy family; legacy Erector layouts keep that SVG.
+ * Issued certificates load these files at render time, so never replace them in place.
+ */
+const ERECTOR_GOLDEN_AREAS = {
+  pageOne: { src: "erector-scene.png", aspect: 768 / 800, centerX: 397, top: 600, maxW: 420, maxH: 225, opacity: 0.16 },
+  pageTwo: { src: "erector-detail.png", aspect: 768 / 1024, centerX: 632, top: 600, maxW: 195, maxH: 200, opacity: 0.16 },
+} as const;
+
+export function erectorGoldenWatermarkBox(page: keyof typeof ERECTOR_GOLDEN_AREAS) {
+  const a = ERECTOR_GOLDEN_AREAS[page];
+  const width = Math.min(a.maxW, a.maxH * a.aspect);
+  const height = width / a.aspect;
+  const round = (n: number) => Math.round(n * 10) / 10;
+  return {
+    src: `${ASSET_ROOT}/${a.src}`,
+    left: round(a.centerX - width / 2),
+    top: round(a.top + (a.maxH - height) / 2),
+    width: round(width),
+    height: round(height),
+    opacity: a.opacity,
+  };
+}
+
+/**
  * Legacy frozen watermark families already baked into real, immutable
  * issuance snapshots before this resolver's current per-level naming
  * existed. Only 'scaffolding-technical' is confirmed real today (the live

@@ -72,7 +72,7 @@ const scaffold = (family, title, level, programmeTitle) => ({
   programme_title: programmeTitle, duration_label: "2-Day Practical Training", objectives_text: "Synthetic objective text.", coverage_items: ["A", "B", "C", "D", "E", "F", "G"], learning_outcomes: ["A", "B", "C", "D", "E"], assessment_methods: ["A", "B", "C"], ...contact,
 });
 const regressionCases = [
-  { key: "erector-basic", config: scaffold("scaffold_erector", "SCAFFOLDING TRAINING CERTIFICATE", "basic", "TERAS BASIC SCAFFOLD ERECTION PROGRAMME"), data: { course_name: "Basic Scaffolding Erector" } },
+  { key: "erector-basic", watermarkChanged: true, config: scaffold("scaffold_erector", "SCAFFOLDING TRAINING CERTIFICATE", "basic", "TERAS BASIC SCAFFOLD ERECTION PROGRAMME"), data: { course_name: "Basic Scaffolding Erector" } },
   { key: "inspector-basic", config: scaffold("scaffold_inspector", "SCAFFOLDING INSPECTION CERTIFICATE", "basic", "TERAS BASIC SCAFFOLD INSPECTION PROGRAMME"), data: { course_name: "Basic Scaffolding Inspector" } },
   { key: "professional", config: { design_variant: "professional_scaffold_erection_skills", show_back_page: true, show_qr: true, primary_color: "#0b3a63", accent_color: "#d4af37", programme_title: "TERAS Professional", objectives_text: "Synthetic objective text.", coverage_items: ["A", "B"], learning_outcomes: ["A"], assessment_methods: ["A"], ...contact }, data: {}, reactOnly: true },
   { key: "legacy-wah", config: { design_variant: "working_at_height_certificate", wah_watermark: true, show_back_page: true, show_qr: true, primary_color: "#0b3a63", accent_color: "#d4af37", logo_url: "/teras-universal-logo.png", signature_url: "/signatures/director-signature.png", ...contact, programme_title: "Working at Height", coverage_items: [], learning_outcomes: [], assessment_methods: [] }, data: {} },
@@ -206,7 +206,7 @@ try {
       check(res.issues.length === 0, `${c.key} ${kind}: no clipping/overlap${res.issues.length ? `\n    ${res.issues.slice(0, 12).join("\n    ")}` : ""}`);
       check(["PROGRAMME COVERAGE", "LEARNING OUTCOMES", "ASSESSMENT METHOD", "PARTICIPANT SKILLS RECORD", "QR VERIFICATION"].every((t) => res.text.toUpperCase().includes(t)) && res.text.includes("JITRA"), `${c.key} ${kind}: sections, Skills Record, QR and branch address present`);
       check(inOrder(res.text, content.coverage) && inOrder(res.text, content.outcomes) && inOrder(res.text, content.assessment), `${c.key} ${kind}: every item shown in frozen order`);
-      check(!res.issues.length, `${c.key} ${kind}: textUnderWatermark ${JSON.stringify(res.report.map((p) => p.textUnderWatermark))} lowest ${JSON.stringify(res.report.map((p) => p.lowestText))} wm ${JSON.stringify(res.report.map((p) => p.watermark))}`);
+      check(!res.issues.length && (c.payload.certificate_family !== "scaffold_erector" || res.report.every((p) => p.textUnderWatermark === 0)), `${c.key} ${kind}: textUnderWatermark ${JSON.stringify(res.report.map((p) => p.textUnderWatermark))} lowest ${JSON.stringify(res.report.map((p) => p.lowestText))} wm ${JSON.stringify(res.report.map((p) => p.watermark))}`);
     }
     const drift = results.react.tops.length === results.html.tops.length ? Math.max(...results.react.tops.map((t, i) => Math.abs(t - results.html.tops[i]))) : Infinity;
     check(results.react.text.replace(/\s+/g, " ") === results.html.text.replace(/\s+/g, " ") && drift <= 12, `${c.key}: React and bulk-ZIP same text, drift ${drift.toFixed(1)}px`);
@@ -220,6 +220,17 @@ try {
       for (const kind of c.reactOnly ? ["react"] : ["react", "html"]) {
         const a = await capture(now[kind], `${c.key}-${kind}-current`);
         const b = await capture(was[kind], `${c.key}-${kind}-baseline`);
+        if (c.watermarkChanged) {
+          // With only the watermark images removed from both sides, any remaining pixel difference is a layout shift.
+          const strip = (html) => html.replace(/<img[^>]*certificates\/watermarks\/[^>]*>/g, "");
+          const x = await capture(strip(now[kind]), `${c.key}-${kind}-current-nowm`);
+          const y = await capture(strip(was[kind]), `${c.key}-${kind}-baseline-nowm`);
+          check(a.shot !== b.shot, `${c.key} ${kind}: watermark differs from baseline`);
+          check(x.shot === y.shot, `${c.key} ${kind}: pixel-identical to baseline once the watermark is removed`);
+          check(a.report.map((p) => p.watermark.join()).join("|") === "erector-scene.png|erector-detail.png" && a.report.every((p) => p.textUnderWatermark === 0), `${c.key} ${kind}: page-specific Erector watermarks, no text under them ${JSON.stringify(a.report.map((p) => p.textUnderWatermark))}`);
+          check(a.pdfPages === 2, `${c.key} ${kind}: exactly two A4 pages (${a.pdfPages})`);
+          continue;
+        }
         check(a.shot === b.shot, `${c.key} ${kind}: pixel-identical to baseline ${b.shot.slice(0, 12)}`);
       }
     }
