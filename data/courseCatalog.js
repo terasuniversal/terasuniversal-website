@@ -1,5 +1,28 @@
+import { workingAtHeightProgrammes } from "../lib/working-at-height-programme";
+
+// Working at Height public copy is read from the business-approved programme
+// (approved 2026-08-21) that live WAH certificates are issued against, so the
+// website and the certificate can never describe the course differently.
+// Delivery mode and completion wording are not part of that approval and are
+// deliberately left out rather than invented.
+const wah = workingAtHeightProgrammes.working_at_height;
+
 export const courseCatalog = [
-  { slug: "working-at-height", title: "Working at Height", category: "Industrial Safety", summary: "Develop awareness of fall hazards, safe access, equipment use and workplace controls for elevated work.", image: "/images/temp-ai-training-yard.webp", audience: ["Workers", "Supervisors", "Site personnel"], duration: "Course duration to be confirmed based on scope", modules: ["Working at height hazards", "Access and fall prevention principles", "Equipment and PPE awareness", "Safe work planning", "Practical scenario review"], related: ["Scaffolding Competency", "Safety Passport"] },
+  {
+    slug: "working-at-height",
+    title: "Working at Height",
+    category: "Industrial Safety",
+    summary: wah.objectives_text,
+    image: "/images/temp-ai-training-yard.webp",
+    audience: ["Workers", "Supervisors", "Site personnel"],
+    // The approved label is "2-Day Practical Training"; the catalogue states
+    // duration as "N Days" so the course schema.org courseWorkload resolves.
+    duration: "2 Days",
+    assessment: wah.assessment_methods.join(", "),
+    objectives: wah.learning_outcomes,
+    modules: wah.coverage_items,
+    related: ["Scaffolding Competency", "Safety Passport"],
+  },
   { slug: "confined-space-safety", title: "Confined Space Safety", category: "Industrial Safety", summary: "Understand confined-space hazards, entry principles, control measures and emergency readiness.", image: "/images/temp-ai-corporate-scene-05.webp", audience: ["Entry teams", "Standby personnel", "Supervisors"], duration: "Course duration to be confirmed based on scope", modules: ["Confined-space hazards", "Roles and responsibilities", "Entry controls and permits", "Atmospheric awareness", "Emergency preparedness"], related: ["Working at Height", "Safety Passport"] },
   { slug: "safety-passport", title: "Safety Passport", category: "Industrial Safety", summary: "Strengthen essential safety responsibilities, hazard recognition and workplace control awareness.", image: "/images/temp-ai-industrial-safety-briefing.webp", audience: ["New starters", "Contractors", "Industry personnel"], duration: "Course duration to be confirmed based on scope", modules: ["Safety responsibilities", "Hazard recognition", "Workplace controls", "Incident prevention", "Knowledge review"], related: ["Working at Height", "Confined Space Safety"] },
   { slug: "lifting-awareness", title: "Lifting Awareness", category: "Industrial Safety", summary: "Build practical awareness of lifting operations, communication, signalling and risk controls.", image: "/images/temp-ai-corporate-scene-06.webp", audience: ["Lifting teams", "Banksmen", "Supervisors"], duration: "Course duration to be confirmed based on scope", modules: ["Lifting-operation hazards", "Roles and communication", "Signalling awareness", "Exclusion zones", "Risk-control review"], related: ["Working at Height", "Safety Passport"] },
@@ -117,4 +140,4 @@ export const findCourse = (slug) => courseCatalog.find((course) => course.slug =
 // delivery mode, completion all confirmed) — these are the ones eligible for
 // the Training Comparison tool. Courses only carrying a placeholder duration
 // are excluded until their own spec sheet is verified.
-export const comparableCourses = () => courseCatalog.filter((course) => Boolean(course.assessment));
+export const comparableCourses = () => courseCatalog.filter((course) => Boolean(course.assessment) && Boolean(course.deliveryMode) && Boolean(course.completion));
