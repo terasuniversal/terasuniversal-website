@@ -826,6 +826,98 @@ try {
   assert.equal(psql("select count(*) from pg_proc where proname in ('wah_certificate_holders_on_schedule','wah_participant_holds_certificate')"), "3");
   pass("this draft's rollback restores the previous function and removes only its helpers");
 
+  // ---- Malaysian issue date (the fourth draft) ---------------------------------------------------------------
+  const DATE_DRAFT = "supabase/migrations/20261103010953_production_certificate_issue_date_malaysia.sql";
+  const ISSUER_SIG = "app.issue_certificate_with_skill_snapshot(uuid, uuid, text)";
+  const DUPLICATE_SIG = "app.duplicate_certificate_with_skill_snapshot(uuid)";
+  const issueDateOf = (id) => psql(`select issue_date from public.certificates where id='${id}'`);
+  const dateIn = (zone) => psql(`select (now() at time zone '${zone}')::date`);
+  const configOf = (sig) => psql(`select proconfig::text from pg_proc where oid='${sig}'::regprocedure`);
+  const dateBody = read(DATE_DRAFT).replace(/^begin;$/m, "").replace(/^commit;\s*$/m, "");
+
+  rejects(`begin; drop function public.issue_certificate_with_skill_snapshot(uuid,uuid,text); drop function public.issue_wah_certificate_as_super_admin(uuid,uuid,text); drop function app.issue_wah_certificate_as_super_admin(uuid,uuid,text); drop function app.issue_certificate_with_skill_snapshot(uuid,uuid,text); ${dateBody} rollback;`, /requires the certificate issuance functions/, "date draft aborts without the issuance functions");
+  const dateCertsBefore = psql("select md5(string_agg(c::text, '|' order by id)) from public.certificates c");
+  const dateSnapsBefore = psql("select md5(string_agg(s::text, '|' order by certificate_id)) from public.certificate_issuance_snapshots s");
+  const issuerConfigBefore = configOf(ISSUER_SIG);
+  psql(read(DATE_DRAFT));
+  psql(read(DATE_DRAFT));
+  assert.equal(psql("select md5(string_agg(c::text, '|' order by id)) from public.certificates c"), dateCertsBefore);
+  assert.equal(psql("select md5(string_agg(s::text, '|' order by certificate_id)) from public.certificate_issuance_snapshots s"), dateSnapsBefore);
+  pass("date draft applies and re-applies idempotently and changes no certificate or snapshot");
+  for (const sig of [ISSUER_SIG, DUPLICATE_SIG]) {
+    assert.match(configOf(sig), /TimeZone=Asia\/Kuala_Lumpur/, sig);
+    assert.match(configOf(sig), /search_path=/, sig);
+  }
+  assert.notEqual(configOf(ISSUER_SIG), issuerConfigBefore);
+  pass("both functions carry the Malaysian time zone and keep their search_path");
+
+  // Malaysia and UTC share a date for part of each day, so prove the mechanism with two
+  // zones 26 hours apart, which never share one, whatever time this test runs.
+  const issueInZone = (zone) => {
+    const e = seedEnrolment(ERECTOR);
+    const out = psql(`begin; alter function ${ISSUER_SIG} set timezone to '${zone}';
+      select set_config('test.uid', '${ADMIN}', true);
+      select id from public.issue_certificate_with_skill_snapshot('${e.s}', '${e.p}');
+      select issue_date from public.certificates where schedule_id='${e.s}' and participant_id='${e.p}';
+      rollback;`);
+    return out.split("\n").at(-1);
+  };
+  const ahead = issueInZone("Pacific/Kiritimati");
+  const behind = issueInZone("Etc/GMT+12");
+  assert.equal(ahead, dateIn("Pacific/Kiritimati"));
+  assert.equal(behind, dateIn("Etc/GMT+12"));
+  assert.notEqual(ahead, behind);
+  pass(`the function's own time zone sets issue_date (${ahead} and ${behind} at the same moment)`);
+
+  // The caller's session zone must not matter.
+  const myt = dateIn("Asia/Kuala_Lumpur");
+  const dateErector = seedEnrolment(ERECTOR);
+  psql(`set timezone to 'Etc/GMT+12'; ${issue(dateErector)}`);
+  assert.equal(issueDateOf(certOf(dateErector)), myt);
+  const dateInspector = seedEnrolment(INSPECTOR);
+  psql(`set timezone to 'Pacific/Kiritimati'; ${issue(dateInspector)}`);
+  assert.equal(issueDateOf(certOf(dateInspector)), myt);
+  const dateWah = completeEnrolment();
+  psql(`set timezone to 'Etc/GMT+12'; ${asSuper(dateWah)}`);
+  const dateWahCert = certOf(dateWah);
+  assert.equal(issueDateOf(dateWahCert), myt);
+  assert.equal(psql(`select issue_date from public.certificate_issuance_snapshots where certificate_id='${dateWahCert}'`), myt);
+  assert.equal(psql(`select render_payload->>'issue_date' from public.certificate_issuance_snapshots where certificate_id='${dateWahCert}'`), myt);
+  pass("Erector, Inspector and Super Admin WAH all take the Malaysian date, in the certificate and its snapshot, whatever the session zone");
+  const dupOut = psql(`set timezone to 'Etc/GMT+12'; ${asUser(ADMIN, `select id from app.duplicate_certificate_with_skill_snapshot('${dateWahCert}')`)}`);
+  const dupId = dupOut.split("\n").find((l) => /^[0-9a-f-]{36}$/.test(l.trim()) && l.trim() !== ADMIN);
+  assert.equal(issueDateOf(dupId), myt);
+  pass("a duplicate takes the Malaysian date too");
+
+  // The setting ends with the call.
+  const sessionAfter = psql(`set timezone to 'Etc/GMT+12'; ${issue(seedEnrolment(ERECTOR))} select current_setting('TimeZone');`).split("\n").at(-1);
+  assert.equal(sessionAfter, "Etc/GMT+12");
+  pass("the setting does not leak into the caller's session");
+
+  // Guards and history are as they were.
+  rejects(asSuper(saTarget, ADMIN), SUPER_ONLY, "the Super Admin check still runs first");
+  rejects(issue(completeEnrolment(), SUPER), NOT_AUTHORIZED, "the old issuer is still denied for WAH");
+  const dateHolder = laterSchedule(dateWah.p);
+  rejects(asSuper(dateHolder), ALREADY, "the holder block still applies");
+  const erectorDated = seedEnrolment(ERECTOR);
+  psql(issue(erectorDated));
+  const inspectorDated = seedEnrolment(INSPECTOR);
+  psql(issue(inspectorDated));
+  assert.equal(payloadOf(certOf(erectorDated)), erectorPayloadBefore);
+  assert.equal(payloadOf(certOf(inspectorDated)), inspectorPayloadBefore);
+  assert.equal(certsAt(), certsBeforeGuard);
+  assert.equal(snapsAt(), snapsBeforeGuard);
+  pass("guards still hold, Erector and Inspector payloads are identical apart from the date, and earlier certificates are unchanged");
+
+  const dateRollback = read(DATE_DRAFT).split("\n").filter((l) => l.startsWith("-- rollback> ")).map((l) => l.slice("-- rollback> ".length)).join("\n");
+  const rolledDate = psql(`begin; ${dateRollback}
+    select count(*) from pg_proc where oid in ('${ISSUER_SIG}'::regprocedure, '${DUPLICATE_SIG}'::regprocedure) and proconfig::text like '%TimeZone%';
+    select count(*) from pg_proc where oid in ('${ISSUER_SIG}'::regprocedure, '${DUPLICATE_SIG}'::regprocedure) and proconfig::text like '%search_path%';
+    rollback;`);
+  assert.deepEqual(rolledDate.split("\n").slice(-2), ["0", "2"]);
+  assert.match(configOf(ISSUER_SIG), /TimeZone=Asia\/Kuala_Lumpur/);
+  pass("this draft's rollback removes only the time zone and keeps the search_path");
+
   // ---- Re-apply with state, then rollback ------------------------------------------------------------
   const carried = completeEnrolment();
   const carriedAuth = authorize(carried);
