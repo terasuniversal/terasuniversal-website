@@ -10,6 +10,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import Module, { createRequire } from "node:module";
 import { delimiter, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { SYNTHETIC_RENDER_ASSETS } from "./synthetic-render-assets.mjs";
 
 const root = resolve(import.meta.dirname, "..");
 const read = (p) => readFileSync(resolve(root, p), "utf8");
@@ -55,7 +56,7 @@ const wahConfig = {
   frozen_watermark_asset_family: "working-at-height", show_back_page: true, show_qr: true, show_skills_record: true, logo_url: "/teras-universal-logo.png", primary_color: "#0b3a63", accent_color: "#d4af37",
   programme_title: "Working at Height", duration_label: "2-Day Practical Training", objectives_text: objectives, coverage_items: listOf("coverage_items"), learning_outcomes: listOf("learning_outcomes"), assessment_methods: listOf("assessment_methods"), ...contact,
 };
-const baseData = { holder_name: "SYNTHETIC QA PARTICIPANT", course_name: "Working at Height", training_date: "2026-10-16", training_end_date: "2026-10-17", issue_date: "2026-10-20", venue: "Synthetic QA Venue, Kedah", ic_passport: "SYNTHETIC-NOT-REAL", certificate_number: "CERT-2026-000999", issuer_branch_address: "LOT 1961, JALAN TANAH MERAH, KG TANAH MERAH DALAM, 06000 JITRA, KEDAH.", qr_svg: qr, skills: SKILLS };
+const baseData = { render_assets: SYNTHETIC_RENDER_ASSETS, holder_name: "SYNTHETIC QA PARTICIPANT", course_name: "Working at Height", training_date: "2026-10-16", training_end_date: "2026-10-17", issue_date: "2026-10-20", venue: "Synthetic QA Venue, Kedah", ic_passport: "SYNTHETIC-NOT-REAL", certificate_number: "CERT-2026-000999", issuer_branch_address: "LOT 1961, JALAN TANAH MERAH, KG TANAH MERAH DALAM, 06000 JITRA, KEDAH.", qr_svg: qr, skills: SKILLS };
 const LONG_NAME = "MUHAMMAD SYNTHETIC QA PARTICIPANT BIN ABDUL RAHMAN AL-HAFIZ BIN MOHAMAD ZULKARNAIN SHAH";
 const LONG_VENUE = "SYNTHETIC INTERNATIONAL TRAINING AND CONVENTION CENTRE, BLOCK C LEVEL 12, LOT 1234 JALAN PERINDUSTRIAN KAWASAN PERUSAHAAN MUKIM SYNTHETIC, 06000 JITRA, KEDAH DARUL AMAN, MALAYSIA";
 const LONG_ADDRESS = "SYNTHETIC BRANCH OFFICE, LOT 1961 AND LOT 1962, JALAN TANAH MERAH, KAMPUNG TANAH MERAH DALAM, MUKIM SYNTHETIC, 06000 JITRA, KEDAH DARUL AMAN, MALAYSIA.";
@@ -72,9 +73,9 @@ const scaffold = (family, title, level, programmeTitle) => ({
   programme_title: programmeTitle, duration_label: "2-Day Practical Training", objectives_text: "Synthetic objective text.", coverage_items: ["A", "B", "C", "D", "E", "F", "G"], learning_outcomes: ["A", "B", "C", "D", "E"], assessment_methods: ["A", "B", "C"], ...contact,
 });
 const regressionCases = [
-  { key: "wah-golden", watermarkChanged: "wah-scene-v2.png|wah-detail-v2.png", config: wahConfig, data: {} },
-  { key: "erector-basic", config: scaffold("scaffold_erector", "SCAFFOLDING TRAINING CERTIFICATE", "basic", "TERAS BASIC SCAFFOLD ERECTION PROGRAMME"), data: { course_name: "Basic Scaffolding Erector" } },
-  { key: "inspector-basic", config: scaffold("scaffold_inspector", "SCAFFOLDING INSPECTION CERTIFICATE", "basic", "TERAS BASIC SCAFFOLD INSPECTION PROGRAMME"), data: { course_name: "Basic Scaffolding Inspector" } },
+  { key: "wah-golden", sealAdded: true, watermarkChanged: "wah-scene-v2.png|wah-detail-v2.png", config: wahConfig, data: {} },
+  { key: "erector-basic", sealAdded: true, config: scaffold("scaffold_erector", "SCAFFOLDING TRAINING CERTIFICATE", "basic", "TERAS BASIC SCAFFOLD ERECTION PROGRAMME"), data: { course_name: "Basic Scaffolding Erector" } },
+  { key: "inspector-basic", sealAdded: true, config: scaffold("scaffold_inspector", "SCAFFOLDING INSPECTION CERTIFICATE", "basic", "TERAS BASIC SCAFFOLD INSPECTION PROGRAMME"), data: { course_name: "Basic Scaffolding Inspector" } },
   { key: "professional", config: { design_variant: "professional_scaffold_erection_skills", show_back_page: true, show_qr: true, primary_color: "#0b3a63", accent_color: "#d4af37", programme_title: "TERAS Professional", objectives_text: "Synthetic objective text.", coverage_items: ["A", "B"], learning_outcomes: ["A"], assessment_methods: ["A"], ...contact }, data: {}, reactOnly: true },
   { key: "legacy-wah", config: { design_variant: "working_at_height_certificate", wah_watermark: true, show_back_page: true, show_qr: true, primary_color: "#0b3a63", accent_color: "#d4af37", logo_url: "/teras-universal-logo.png", signature_url: "/signatures/director-signature.png", ...contact, programme_title: "Working at Height", coverage_items: [], learning_outcomes: [], assessment_methods: [] }, data: {} },
 ];
@@ -130,11 +131,36 @@ const inspectLayout = () => {
     if (footer) for (const a of lines) if (a !== footer && a.t < footer.t && a.b > footer.t - 4) issues.push(`p${pageIndex + 1} footer clearance: "${a.text}"`);
     const lowest = Math.max(...lines.filter((l) => l !== footer).map((l) => l.b));
     const wm = [...page.querySelectorAll('img[aria-hidden="true"]')].map((im) => { const r = im.getBoundingClientRect(); return { src: im.getAttribute("src").split("/").pop(), natural: im.naturalWidth, t: r.top - pageBox.top, b: r.bottom - pageBox.top, l: r.left - pageBox.left, r: r.right - pageBox.left }; });
+    // Private signature/seal: inside the frame, never over text, seal centred on the reserved stamp box.
+    for (const im of page.querySelectorAll("img[data-certificate-seal], img[data-certificate-signature]")) {
+      const r = im.getBoundingClientRect();
+      const box = { l: r.left - pageBox.left, r: r.right - pageBox.left, t: r.top - pageBox.top, b: r.bottom - pageBox.top };
+      const label = im.hasAttribute("data-certificate-seal") ? "seal" : "signature";
+      if (box.l < 13 || box.r > 781 || box.t < 13 || box.b > 1110) issues.push(`p${pageIndex + 1} ${label} outside frame`);
+      for (const a of lines) if (Math.min(a.r, box.r) - Math.max(a.l, box.l) > 1 && Math.min(a.b, box.b) - Math.max(a.t, box.t) > 1) issues.push(`p${pageIndex + 1} ${label} overlaps text "${a.text}"`);
+      if (label === "signature" && page.querySelector("img[data-certificate-seal]")) {
+        // C4 Golden signature (the page carries the seal): fills the 68px well, sits on (not over) its rule, clear of the seal.
+        const ruleEl = im.parentElement.nextElementSibling;
+        if (!ruleEl || parseFloat(getComputedStyle(ruleEl).borderTopWidth) <= 0) { issues.push(`p${pageIndex + 1} C4 signature rule not found after the well`); continue; }
+        const rule = ruleEl.getBoundingClientRect();
+        if (Math.abs(r.height - 68) > 0.6 || r.width > 180.5) issues.push(`p${pageIndex + 1} C4 signature ${r.width.toFixed(2)}x${r.height.toFixed(2)}px, expected 68px high`);
+        if (r.bottom > rule.top + 0.5) issues.push(`p${pageIndex + 1} C4 signature crosses its rule by ${(r.bottom - rule.top).toFixed(2)}px`);
+        const seal = page.querySelector("img[data-certificate-seal]");
+        if (seal) { const q = seal.getBoundingClientRect(); if (Math.min(q.right, r.right) - Math.max(q.left, r.left) > 0 && Math.min(q.bottom, r.bottom) - Math.max(q.top, r.top) > 0) issues.push(`p${pageIndex + 1} C4 signature overlaps the seal`); }
+      }
+      if (label === "seal") {
+        const holder = im.parentElement.getBoundingClientRect();
+        const off = Math.hypot((r.left + r.right - holder.left - holder.right) / 2, (r.top + r.bottom - holder.top - holder.bottom) / 2);
+        if (Math.abs(r.width - 136.82) > 0.5 || off > 0.5) issues.push(`p${pageIndex + 1} seal size ${r.width.toFixed(2)}px / centre offset ${off.toFixed(2)}px`);
+      }
+    }
     const broken = [...page.querySelectorAll("img")].filter((im) => !im.naturalWidth).map((im) => im.getAttribute("src"));
     for (const src of broken) issues.push(`p${pageIndex + 1} broken image: ${src}`);
     const hits = wm.flatMap((w) => lines.filter((a) => Math.min(a.r, w.r) - Math.max(a.l, w.l) > 1 && Math.min(a.b, w.b) - Math.max(a.t, w.t) > 1).map((a) => a.text));
     window.__report = window.__report || [];
-    window.__report.push({ page: pageIndex + 1, lowestText: Math.round(lowest), footerTop: footer ? Math.round(footer.t) : null, watermark: wm.map((w) => w.src), textUnderWatermark: [...new Set(hits)].length });
+    const sigEl = page.querySelector('img[data-certificate-signature="director"], img[src*="signatures/director-signature"]');
+    const sigBox = sigEl ? (({ left, right, top, bottom }) => ({ l: left - pageBox.left, r: right - pageBox.left, t: top - pageBox.top, b: bottom - pageBox.top }))(sigEl.getBoundingClientRect()) : null;
+    window.__report.push({ sigBox, page: pageIndex + 1, lowestText: Math.round(lowest), footerTop: footer ? Math.round(footer.t) : null, watermark: wm.map((w) => w.src), textUnderWatermark: [...new Set(hits)].length });
   });
   return { issues, report: window.__report, text: document.body.innerText, tops: [...document.querySelectorAll("li, td, h1, p")].map((e) => e.getBoundingClientRect().top) };
 };
@@ -215,20 +241,29 @@ try {
   if (process.env.C4_BASELINE_ROOT) {
     const baseline = compile(resolve(process.env.C4_BASELINE_ROOT), "baseline");
     for (const c of regressionCases) {
-      const data = { ...baseData, ...c.data };
+      // The baseline draws public files; the current build draws whatever render_assets supplies. Supplying the
+      // same legacy file (rewritten to a local file URL, QA only) proves the signature path changed nothing else.
+      const legacySignature = c.config.signature_url || "/signatures/director-signature.png";
+      const data = { ...baseData, ...c.data, render_assets: { mode: "resolved", signature: legacySignature, seal: SYNTHETIC_RENDER_ASSETS.seal } };
       const now = renderBoth(current, data, c.config);
       const was = renderBoth(baseline, data, c.config);
+      // C4 pages gain the seal inside the unchanged 108px stamp box; blank that box on both sides to compare the rest.
+      const blankStamp = (html) => html.replace(/<div data-certificate-stamp-area="(?:seal|reserved)"[^>]*>(?:<img[^>]*>)?<\/div>/g, '<div style="width:108px;height:108px"></div>');
+      // ...and drop the signature image itself (it is drawn 68px high instead of 62px); its 68px well stays.
+      const blankSignature = (html) => html.replace(/<img[^>]*signatures\/director-signature[^>]*>/g, "");
       for (const kind of c.reactOnly ? ["react"] : ["react", "html"]) {
         const a = await capture(now[kind], `${c.key}-${kind}-current`);
         const b = await capture(was[kind], `${c.key}-${kind}-baseline`);
-        if (c.watermarkChanged) {
-          // With only the watermark images removed from both sides, any remaining pixel difference is a layout shift.
-          const strip = (html) => html.replace(/<img[^>]*certificates\/watermarks\/[^>]*>/g, "");
-          const x = await capture(strip(now[kind]), `${c.key}-${kind}-current-nowm`);
-          const y = await capture(strip(was[kind]), `${c.key}-${kind}-baseline-nowm`);
-          check(a.shot !== b.shot, `${c.key} ${kind}: watermark differs from baseline`);
-          check(x.shot === y.shot, `${c.key} ${kind}: pixel-identical to baseline once the watermark is removed`);
-          check(a.report.map((p) => p.watermark.join()).join("|") === c.watermarkChanged && a.report.every((p) => p.textUnderWatermark === 0), `${c.key} ${kind}: page-specific ${c.watermarkChanged} watermarks, no text under them ${JSON.stringify(a.report.map((p) => p.textUnderWatermark))}`);
+        if (c.sealAdded) {
+          const stripWatermark = c.watermarkChanged ? (html) => html.replace(/<img[^>]*certificates\/watermarks\/[^>]*>/g, "") : (html) => html;
+          const x = await capture(blankSignature(blankStamp(stripWatermark(now[kind]))), `${c.key}-${kind}-current-nostamp`);
+          const y = await capture(blankSignature(blankStamp(stripWatermark(was[kind]))), `${c.key}-${kind}-baseline-nostamp`);
+          check(now[kind].includes('data-certificate-seal="common-seal-3d"') && !was[kind].includes("data-certificate-seal"), `${c.key} ${kind}: 34 mm seal added where the baseline had an empty ring`);
+          // The blanked signature image is checked by geometry instead: same bottom edge and centre as the baseline, 68/62 of its height.
+          const sa = a.report[0].sigBox, sb = b.report[0].sigBox;
+          check(!!sa && !!sb && Math.abs(sa.b - sb.b) < 0.5 && Math.abs((sa.l + sa.r) / 2 - (sb.l + sb.r) / 2) < 0.5 && Math.abs((sa.b - sa.t) - (sb.b - sb.t) * 68 / 62) < 0.6, `${c.key} ${kind}: signature enlarged 62->68px in place (baseline ${sb ? (sb.b - sb.t).toFixed(2) : "?"}px, now ${sa ? (sa.b - sa.t).toFixed(2) : "?"}px, same baseline and centre)`);
+          check(x.shot === y.shot, `${c.key} ${kind}: pixel-identical to baseline outside the stamp box and signature image${c.watermarkChanged ? " (watermark images removed)" : ""}`);
+          if (c.watermarkChanged) check(a.report.map((p) => p.watermark.join()).join("|") === c.watermarkChanged && a.report.every((p) => p.textUnderWatermark === 0), `${c.key} ${kind}: page-specific ${c.watermarkChanged} watermarks, no text under them ${JSON.stringify(a.report.map((p) => p.textUnderWatermark))}`);
           check(a.pdfPages === 2, `${c.key} ${kind}: exactly two A4 pages (${a.pdfPages})`);
           continue;
         }

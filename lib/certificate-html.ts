@@ -3,7 +3,7 @@ import { fitHolderNameSize, formatAddressLines, formatDateRange, formatHumanDate
 import { CERTIFICATE_DESIGN, certificateFamilyLabel, isGoldenReferenceFamily } from "./certificate-design-system";
 import { TERAS_COMPANY_NAME, TERAS_COMPANY_REGISTRATION, TERAS_COMPANY_TAGLINE } from "./teras-company";
 import { erectorGoldenWatermarkBox, inspectorGoldenWatermarkBox, wahGoldenWatermarkBox, resolveCertificateWatermarkAsset } from "./certificate-watermark-assets";
-import { DIRECTOR_SIGNATURE_ASSET, EMBOSS_MEDALLION_LIFT_PX, EMBOSS_MEDALLION_SIZE_PX } from "./certificate-approval-assets";
+import { C4_SIGNATURE_MAX_HEIGHT_PX, COMMON_SEAL_IMAGE_PX, EMBOSS_MEDALLION_LIFT_PX, EMBOSS_MEDALLION_SIZE_PX, RENDER_ASSET_PREVIEW_LABEL, renderAssetSources } from "./certificate-approval-assets";
 import { renderProfessionalScaffoldCertificateDocument } from "./professional-scaffold-certificate-html";
 
 /**
@@ -207,6 +207,11 @@ function authorisedSignatureLabel(): string {
   return `<div style="color:#9aa3b2;font-size:6.5px;letter-spacing:1.3px;font-family:${SANS};text-transform:uppercase;margin-bottom:3px;">Authorised Signature</div>`;
 }
 
+/** Mirrors SignaturePreviewNote in CertificateDocument.tsx. */
+function signaturePreviewNote(): string {
+  return `<div data-certificate-signature="preview" style="color:#9aa3b2;font-size:6.5px;letter-spacing:1.1px;font-family:${SANS};text-transform:uppercase;text-align:center;padding-bottom:4px;">${RENDER_ASSET_PREVIEW_LABEL}</div>`;
+}
+
 
 /** Mirrors RibbonBanner in CertificateDocument.tsx — flat navy label plate ruled top and bottom in gold; see that component's comment for why the offset ring was dropped. */
 function ribbonBanner(inner: string, navy: string, gold: string, wrapStyle = ""): string {
@@ -221,7 +226,7 @@ function renderGoldenReferencePageOne(data: CertData, config: TemplateConfig, na
   const dateRange = formatDateRange(data.training_date, data.training_end_date);
   const duration = data.programme_duration || config.duration_label;
   const { pageOneText } = splitCertificateBodyText(config.body_text);
-  const signatureUrl = DIRECTOR_SIGNATURE_ASSET;
+  const assets = renderAssetSources(data.render_assets, { signature: true, seal: true });
   const directorName = "Director";
   const programmeSubtitle = resolveDistinctProgrammeSubtitle(data.course_name, config.programme_title);
   const venue = formatAddressLines(data.venue);
@@ -232,7 +237,11 @@ function renderGoldenReferencePageOne(data: CertData, config: TemplateConfig, na
   // the frozen training-location text (never the issuing branch address,
   // which stays on Page 2 only); omitted entirely when absent.
   const dateInfo = `${dateRange ? `<div style="color:#8a94a6;font-size:7.5px;letter-spacing:1.4px;text-transform:uppercase;">Conducted from</div><div style="font-size:10.5px;font-weight:600;margin-top:2px;">${esc(dateRange)}</div>` : ""}${duration ? `<div style="color:#8a94a6;font-size:7.5px;letter-spacing:1.4px;text-transform:uppercase;margin-top:8px;">Training Duration</div><div style="font-size:10.5px;font-weight:600;margin-top:2px;">${esc(duration)}</div>` : ""}${venue.lines.length > 0 ? `<div style="color:#8a94a6;font-size:7.5px;letter-spacing:1.4px;text-transform:uppercase;margin-top:8px;">Training Venue</div><div style="font-size:10px;line-height:1.45;margin-top:1px;max-width:520px;margin-left:auto;margin-right:auto;overflow-wrap:anywhere;">${venue.lead ? `<span style="display:block;font-weight:700;letter-spacing:.4px;">${esc(venue.lead)}</span>` : ""}${venue.lines.map((line) => `<span style="display:block;">${esc(line)}</span>`).join("")}</div>` : ""}`;
-  const signature = `<div style="height:68px;display:flex;align-items:flex-end;justify-content:center;"><img src="${esc(signatureUrl)}" alt="" style="max-height:62px;max-width:180px;object-fit:contain;"/></div>`;
+  const signature = `<div style="height:68px;display:flex;align-items:flex-end;justify-content:center;">${assets.preview ? signaturePreviewNote() : `<img src="${esc(assets.signature!)}" alt="" data-certificate-signature="director" style="max-height:${C4_SIGNATURE_MAX_HEIGHT_PX}px;max-width:180px;object-fit:contain;"/>`}</div>`;
+  // The 34mm seal overflows the 108px box symmetrically; the box keeps its size so the row layout is unchanged.
+  const stamp = assets.preview
+    ? `<div data-certificate-stamp-area="reserved" aria-hidden="true" style="width:108px;height:108px;border:1.5px solid rgba(201,162,39,.72);border-radius:50%;box-sizing:border-box;"></div>`
+    : `<div data-certificate-stamp-area="seal" style="width:108px;height:108px;position:relative;"><img src="${esc(assets.seal!)}" alt="" data-certificate-seal="common-seal-3d" style="position:absolute;left:50%;top:50%;width:${COMMON_SEAL_IMAGE_PX}px;height:${COMMON_SEAL_IMAGE_PX}px;max-width:none;transform:translate(-50%, -50%);"/></div>`;
   const bodyText = pageOneText ? `<p style="font-size:9px;line-height:1.55;max-width:520px;margin:11px auto 0;color:#596273;overflow-wrap:anywhere;">${esc(pageOneText)}</p>` : "";
 
   return `<div style="width:${PAGE_W}px;height:${PAGE_H}px;margin:0 auto;position:relative;background:${CERTIFICATE_DESIGN.colors.white};box-sizing:border-box;padding:${CERTIFICATE_DESIGN.page.safeMarginPx}px;font-family:${CERTIFICATE_DESIGN.typography.sans};color:${CERTIFICATE_DESIGN.colors.ink};overflow:hidden;">
@@ -259,7 +268,7 @@ function renderGoldenReferencePageOne(data: CertData, config: TemplateConfig, na
       <div style="margin-top:auto;padding-top:18px;display:flex;align-items:flex-end;justify-content:space-between;gap:12px;text-align:center;">
         <div style="flex:0 0 165px;text-align:left;font-size:9px;"><div style="color:#8a94a6;font-size:7px;letter-spacing:1.1px;font-family:${SANS};text-transform:uppercase;margin-bottom:4px;">Certificate No.</div><strong style="color:${navy};font-family:Georgia,serif;font-size:${isLongCertificateNumber(data.certificate_number) ? fitCertificateNumberSize(data.certificate_number, 10) : 10}px;overflow-wrap:anywhere;${longCertificateNumberWrapCss(data.certificate_number, "165px", "block")}">${esc(data.certificate_number)}</strong>${data.issue_date ? `<div style="color:#667085;font-size:8px;margin-top:5px;">Issued ${esc(formatHumanDate(data.issue_date))}</div>` : ""}</div>
         <div style="flex:1 1 270px;max-width:300px;min-width:220px;display:flex;flex-direction:column;align-items:center;font-size:9px;">${signature}<div style="width:86%;border-top:1px solid ${navy};margin:3px 0 4px;"></div><strong style="color:${navy};font-family:${CERTIFICATE_DESIGN.typography.heading};font-size:8.5px;letter-spacing:.3px;">${esc(directorName)}</strong><div style="color:${navy};font-family:${SANS};font-size:7.5px;font-weight:700;letter-spacing:1.1px;margin-top:2px;">AUTHORIZED DIRECTOR</div><div style="color:#667085;font-family:${SANS};font-size:7px;letter-spacing:.45px;margin-top:2px;">${TERAS_COMPANY_NAME}</div></div>
-        <div style="flex:0 0 145px;display:flex;flex-direction:column;align-items:center;">${options.qaPreview ? `<div aria-label="STAMP_ASSET_PENDING — neutral seal placeholder for review only" style="width:108px;height:108px;border:1.5px solid rgba(201,162,39,.72);border-radius:50%;box-sizing:border-box;display:flex;align-items:center;justify-content:center;padding:9px;color:#8a94a6;font-family:${SANS};font-size:7px;letter-spacing:.8px;line-height:1.4;text-align:center;">STAMP_ASSET_PENDING</div><div style="color:#8a94a6;font-family:${SANS};font-size:6.5px;letter-spacing:.65px;margin-top:3px;">FOR REVIEW ONLY</div>` : `<div data-certificate-stamp-area="reserved" aria-hidden="true" style="width:108px;height:108px;border:1.5px solid rgba(201,162,39,.72);border-radius:50%;box-sizing:border-box;"></div>`}</div>
+        <div style="flex:0 0 145px;display:flex;flex-direction:column;align-items:center;">${options.qaPreview ? `<div aria-label="STAMP_ASSET_PENDING — neutral seal placeholder for review only" style="width:108px;height:108px;border:1.5px solid rgba(201,162,39,.72);border-radius:50%;box-sizing:border-box;display:flex;align-items:center;justify-content:center;padding:9px;color:#8a94a6;font-family:${SANS};font-size:7px;letter-spacing:.8px;line-height:1.4;text-align:center;">STAMP_ASSET_PENDING</div><div style="color:#8a94a6;font-family:${SANS};font-size:6.5px;letter-spacing:.65px;margin-top:3px;">FOR REVIEW ONLY</div>` : stamp}</div>
       </div>
     </div>
     ${taglineFooter(navy, gold)}</div>`;
@@ -292,13 +301,18 @@ export function renderCertificateFront(data: CertData, config: TemplateConfig, o
   // Mirrors CertificateDocument: Standard Scaffold is issued by the Director
   // only, including legacy configs without an explicit signature_layout.
   const isSingleSignature = config.signature_layout === "single" || config.design_variant === "standard_scaffold_certificate" || config.design_variant === "working_at_height_certificate";
-  const signatureUrl = config.signature_url || (isSingleSignature ? DIRECTOR_SIGNATURE_ASSET : undefined);
-  const signatureImg = signatureUrl ? `<img src="${esc(signatureUrl)}" alt="" style="max-height:92px;max-width:145px;object-fit:contain;"/>` : "";
+  // Same rule as requiredRenderAssets() in lib/certificate-render-asset-policy.ts.
+  const needsSignature = isSingleSignature || !!config.signature_url?.trim();
+  const assets = renderAssetSources(data.render_assets, { signature: needsSignature, seal: false });
+  const signatureUrl = needsSignature ? assets.signature : null;
+  const signatureImg = signatureUrl
+    ? `<img src="${esc(signatureUrl)}" alt="" data-certificate-signature="director" style="max-height:92px;max-width:145px;object-fit:contain;"/>`
+    : needsSignature && assets.preview ? signaturePreviewNote() : "";
   const signatureWell = `<div style="height:92px;display:flex;align-items:flex-end;justify-content:center;padding-bottom:2px;">${signatureImg}</div>`;
   const roleLine = (text: string) => `<div style="color:#8a94a6;font-size:8.5px;letter-spacing:1.3px;font-family:${SANS};text-transform:uppercase;margin-top:3px;">${esc(text)}</div>`;
   // Structural guidance only when there's no signature URL -- the well stays
   // visibly empty either way; see authorisedSignatureLabel's own comment.
-  const primarySigLabel = signatureUrl ? "" : authorisedSignatureLabel();
+  const primarySigLabel = needsSignature ? "" : authorisedSignatureLabel();
   const primarySignatureBlock = isSingleSignature
     ? `<div style="text-align:center;font-size:11px;width:auto;max-width:160px;">
         ${primarySigLabel}
