@@ -72,7 +72,8 @@ const scaffold = (family, title, level, programmeTitle) => ({
   programme_title: programmeTitle, duration_label: "2-Day Practical Training", objectives_text: "Synthetic objective text.", coverage_items: ["A", "B", "C", "D", "E", "F", "G"], learning_outcomes: ["A", "B", "C", "D", "E"], assessment_methods: ["A", "B", "C"], ...contact,
 });
 const regressionCases = [
-  { key: "erector-basic", watermarkChanged: true, config: scaffold("scaffold_erector", "SCAFFOLDING TRAINING CERTIFICATE", "basic", "TERAS BASIC SCAFFOLD ERECTION PROGRAMME"), data: { course_name: "Basic Scaffolding Erector" } },
+  { key: "wah-golden", watermarkChanged: "wah-scene-v2.png|wah-detail-v2.png", config: wahConfig, data: {} },
+  { key: "erector-basic", config: scaffold("scaffold_erector", "SCAFFOLDING TRAINING CERTIFICATE", "basic", "TERAS BASIC SCAFFOLD ERECTION PROGRAMME"), data: { course_name: "Basic Scaffolding Erector" } },
   { key: "inspector-basic", config: scaffold("scaffold_inspector", "SCAFFOLDING INSPECTION CERTIFICATE", "basic", "TERAS BASIC SCAFFOLD INSPECTION PROGRAMME"), data: { course_name: "Basic Scaffolding Inspector" } },
   { key: "professional", config: { design_variant: "professional_scaffold_erection_skills", show_back_page: true, show_qr: true, primary_color: "#0b3a63", accent_color: "#d4af37", programme_title: "TERAS Professional", objectives_text: "Synthetic objective text.", coverage_items: ["A", "B"], learning_outcomes: ["A"], assessment_methods: ["A"], ...contact }, data: {}, reactOnly: true },
   { key: "legacy-wah", config: { design_variant: "working_at_height_certificate", wah_watermark: true, show_back_page: true, show_qr: true, primary_color: "#0b3a63", accent_color: "#d4af37", logo_url: "/teras-universal-logo.png", signature_url: "/signatures/director-signature.png", ...contact, programme_title: "Working at Height", coverage_items: [], learning_outcomes: [], assessment_methods: [] }, data: {} },
@@ -171,7 +172,7 @@ try {
         if (!res.text.includes(item)) check(false, `${c.key} ${name}: missing "${item}"`);
       }
       check(res.text.includes("WORKING AT HEIGHT TRAINING CERTIFICATE") && res.text.includes("2-Day Practical Training"), `${c.key} ${name}: title and 2-day duration present`);
-      check(res.report.some((p) => p.watermark.includes("wah-scene.png")) && res.report.some((p) => p.watermark.includes("wah-detail.png")), `${c.key} ${name}: page-specific WAH watermarks`);
+      check(res.report.some((p) => p.watermark.includes("wah-scene-v2.png")) && res.report.some((p) => p.watermark.includes("wah-detail-v2.png")), `${c.key} ${name}: page-specific WAH watermarks`);
     }
     check(r.text.replace(/\s+/g, " ") === h.text.replace(/\s+/g, " "), `${c.key}: React and bulk-ZIP text identical`);
     const drift = r.tops.length === h.tops.length ? Math.max(...r.tops.map((t, i) => Math.abs(t - h.tops[i]))) : Infinity;
@@ -227,7 +228,7 @@ try {
           const y = await capture(strip(was[kind]), `${c.key}-${kind}-baseline-nowm`);
           check(a.shot !== b.shot, `${c.key} ${kind}: watermark differs from baseline`);
           check(x.shot === y.shot, `${c.key} ${kind}: pixel-identical to baseline once the watermark is removed`);
-          check(a.report.map((p) => p.watermark.join()).join("|") === "erector-scene.png|erector-detail.png" && a.report.every((p) => p.textUnderWatermark === 0), `${c.key} ${kind}: page-specific Erector watermarks, no text under them ${JSON.stringify(a.report.map((p) => p.textUnderWatermark))}`);
+          check(a.report.map((p) => p.watermark.join()).join("|") === c.watermarkChanged && a.report.every((p) => p.textUnderWatermark === 0), `${c.key} ${kind}: page-specific ${c.watermarkChanged} watermarks, no text under them ${JSON.stringify(a.report.map((p) => p.textUnderWatermark))}`);
           check(a.pdfPages === 2, `${c.key} ${kind}: exactly two A4 pages (${a.pdfPages})`);
           continue;
         }

@@ -109,12 +109,14 @@ export function inspectorGoldenWatermarkBox(level: WatermarkLevel | undefined, p
 /**
  * Working at Height Golden Reference placement, fitted into the same open
  * areas as Inspector. Owner visually approved 2026-11-02; independent safety verification is not established.
+ * The -v2 files are the same approved artwork with the flat grey fill thinned and the outlines strengthened, so WAH
+ * prints as sharply as Inspector and Erector; the originals stay on disk so a rollback is a one-line change.
  * Issued certificates load these files at render time, so never replace them in place. working-at-height.svg stays with
  * legacy WAH certificates and is never used here.
  */
 const WAH_GOLDEN_AREAS = {
-  pageOne: { src: "wah-scene.png", aspect: 970 / 850, centerX: 397, top: 640, maxW: 420, maxH: 190, opacity: 0.14 },
-  pageTwo: { src: "wah-detail.png", aspect: 505 / 610, centerX: 632, top: 625, maxW: 195, maxH: 200, opacity: 0.14 },
+  pageOne: { src: "wah-scene-v2.png", aspect: 970 / 850, centerX: 397, top: 640, maxW: 420, maxH: 190, opacity: 0.14 },
+  pageTwo: { src: "wah-detail-v2.png", aspect: 505 / 610, centerX: 632, top: 625, maxW: 195, maxH: 200, opacity: 0.14 },
 } as const;
 
 export function wahGoldenWatermarkBox(page: keyof typeof WAH_GOLDEN_AREAS) {
