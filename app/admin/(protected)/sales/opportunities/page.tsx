@@ -10,6 +10,7 @@ import {
   type SalesOpportunityRow,
   type SalesTaskRow,
 } from "../../../../../lib/sales/crm";
+import { mytDateFilterBounds } from "../../../../../lib/sales/reports";
 import {
   expectedCloseState,
   isStalledOpportunity,
@@ -141,8 +142,9 @@ export default async function OpportunitiesPage({
     query = query.not("id", "in", `(${archivedLeadOpenOpportunityIds.join(",")})`);
   }
   if (sp.assigned) query = sp.assigned === "unassigned" ? query.is("assigned_to", null) : query.eq("assigned_to", sp.assigned);
-  if (sp.from) query = query.gte("created_at", sp.from);
-  if (sp.to) query = query.lte("created_at", `${sp.to}T23:59:59`);
+  const createdBounds = mytDateFilterBounds(sp.from, sp.to);
+  if (createdBounds.gte) query = query.gte("created_at", createdBounds.gte);
+  if (createdBounds.lt) query = query.lt("created_at", createdBounds.lt);
   if (sp.state === "open") query = query.in("stage", OPEN_OPPORTUNITY_STAGES);
   if (sp.state === "resolved") query = query.in("stage", RESOLVED_STAGES);
   const today = mytTodayKey(now);

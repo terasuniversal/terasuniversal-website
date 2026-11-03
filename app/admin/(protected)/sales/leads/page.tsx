@@ -7,6 +7,7 @@ import { ageLabel, daysSinceActivityLabel, qualificationLabel, temperatureLabel 
 import { LeadInboxTable } from "./LeadInboxTable";
 import { clampPage, normalizePage, pageCountFor, pageRange } from "../../../../../lib/sales/pagination";
 import { buildAssigneeFilterState } from "../../../../../lib/sales/assignee-filter";
+import { mytDateFilterBounds } from "../../../../../lib/sales/reports";
 
 export const metadata = { title: "Sales Leads — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
@@ -86,8 +87,9 @@ export default async function SalesLeadsPage({
   else if (sp.followup === "today") query = query.not("status", "in", "(won,lost,archived)").not("follow_up_at", "is", null).gte("follow_up_at", nowIso).lt("follow_up_at", endOfTodayMyt);
   else if (sp.followup === "upcoming") query = query.not("status", "in", "(won,lost,archived)").not("follow_up_at", "is", null).gte("follow_up_at", endOfTodayMyt);
   else if (sp.followup === "none") query = query.or("follow_up_at.is.null,status.in.(won,lost,archived)");
-  if (sp.from) query = query.gte("created_at", sp.from);
-  if (sp.to) query = query.lte("created_at", `${sp.to}T23:59:59`);
+  const createdBounds = mytDateFilterBounds(sp.from, sp.to);
+  if (createdBounds.gte) query = query.gte("created_at", createdBounds.gte);
+  if (createdBounds.lt) query = query.lt("created_at", createdBounds.lt);
 
   const requestedRange = pageRange(page, PAGE_SIZE);
   let { data: rows, count, error: leadReadError } = qualificationIds?.length === 0

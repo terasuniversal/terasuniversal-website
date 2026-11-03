@@ -154,7 +154,9 @@ assert.match(route, /\.limit\(5000\)/, "row cap is unchanged");
 assert.match(route, /!isEditor\(profile\.role\)\) return new NextResponse\("Forbidden", \{ status: 403 \}\)/, "editor guard is intact");
 assert.match(route, /hasModuleAccess\("sales_leads"\)/, "module guard is intact");
 assert.match(route, /p_action: "export"/, "the export is still audit-logged");
-assert.ok(!/\.gte\("created_at"[^)]*\)[\s\S]*Malaysia/.test(route), "date bounds are out of scope and untouched");
-assert.match(route, /query\.lte\("created_at", `\$\{p\.get\("to"\)\}T23:59:59`\)/, "date filter is unchanged (separate slice)");
+// The date filter belongs to the Malaysia-time slice (sales-date-filter-contract.mts), not to this CSV contract;
+// here it only has to stay a shared helper rather than an inline UTC string.
+assert.match(route, /mytDateFilterBounds\(p\.get\("from"\), p\.get\("to"\)\)/, "the export's date filter uses the shared Malaysia-time helper");
+assert.ok(!route.includes("T23:59:59"), "no inline UTC day-end string in the export");
 
 console.log(`Sales CSV export safety contract passed (${checked} generated cases).`);
