@@ -827,7 +827,7 @@ try {
   pass("this draft's rollback restores the previous function and removes only its helpers");
 
   // ---- Malaysian issue date (the fourth draft) ---------------------------------------------------------------
-  const DATE_DRAFT = "supabase/post_baseline_drafts/20261103020000_production_certificate_issue_date_malaysia.sql";
+  const DATE_DRAFT = "supabase/migrations/20261103010953_production_certificate_issue_date_malaysia.sql";
   const ISSUER_SIG = "app.issue_certificate_with_skill_snapshot(uuid, uuid, text)";
   const DUPLICATE_SIG = "app.duplicate_certificate_with_skill_snapshot(uuid)";
   const issueDateOf = (id) => psql(`select issue_date from public.certificates where id='${id}'`);
