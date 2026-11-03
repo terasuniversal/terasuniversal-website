@@ -18,9 +18,13 @@
 @import "tailwindcss/theme" layer(theme);
 @import "tailwindcss/utilities" layer(utilities) source(none);
 
-/* Primitives only. Widen per file as admin screens adopt these classes,
-   rather than scanning all legacy admin markup up front. */
+/* Primitives plus the admin screens that have adopted them, listed per
+   file rather than scanning all legacy admin markup. */
 @source "../../components/ui/**/*.{ts,tsx}";
+@source "../../components/admin/sales/SalesMetricCard.tsx";
+@source "./(protected)/sales/page.tsx";
+@source "./(protected)/sales/loading.tsx";
+@source "./(protected)/sales/error.tsx";
 
 /* TERAS Design System tokens under shadcn's semantic names. `inline`
    makes utilities read the --ta-* variables defined on .teras-admin, so
@@ -77,6 +81,16 @@
   outline: 2px solid var(--ta-navy);
   outline-offset: 2px;
   box-shadow: 0 0 0 5px rgba(212, 175, 55, 0.45);
+}
+
+/* globals.css sizes bare h1/h2 (e.g. h1 at clamp(44px, 6vw, 72px)) with
+   unlayered rules that utilities cannot beat. Inside a CardTitle the
+   heading inherits the title's size, so native headings stay usable. */
+.teras-admin [data-slot="card-title"] > :is(h1, h2, h3) {
+  margin: 0;
+  font-size: inherit;
+  line-height: inherit;
+  letter-spacing: inherit;
 }
 
 @media (prefers-reduced-motion: reduce) {

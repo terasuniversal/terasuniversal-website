@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { requireRole, requireModuleAccess } from "../../../../lib/auth/session";
-import { PageHead, Card, StatCard, EmptyState } from "../../../../components/admin/ui";
+import { PageHead } from "../../../../components/admin/ui";
 import { FollowUpBadge } from "../../../../components/admin/sales/FollowUpBadge";
+import { SalesMetricCard } from "../../../../components/admin/sales/SalesMetricCard";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../../../components/ui/card";
 import { OPEN_OPPORTUNITY_STAGES, SOURCE_LABELS, followUpState, mytEndOfTodayUtc, type SalesLeadInboxRow, type SalesOpportunityStage, type SalesTaskRow } from "../../../../lib/sales/crm";
 import { resolveReportDateRange } from "../../../../lib/sales/reports";
 import { formatMalaysiaDateTime } from "../../../../lib/date-time";
@@ -163,59 +165,74 @@ export default async function SalesDashboardPage() {
         action={<Link className="ta-btn ta-btn-primary" href="/admin/sales/leads">View All Leads</Link>}
       />
 
-      <div className="ta-sales-dashboard-kpis">
-        <StatCard label="New Leads" value={countValue(newLeadsResult)} icon="🧲" href="/admin/sales/leads?status=new" />
-        <StatCard label="Open Opportunities" value={countValue(openOpportunitiesMetric)} icon="📊" href="/admin/sales/opportunities?state=open" />
-        <StatCard label="Follow-ups Due" value={countValue(followUpsDueResult)} icon="📞" context={followUpsDueContext} href="/admin/sales/follow-ups" />
-        <StatCard label="Won This Month" value={countValue(wonThisMonthResult)} icon="🏆" href="/admin/sales/reports?range=this_month" />
+      {/* div, not <section>: the public globals.css pads every bare section. */}
+      <div role="region" aria-labelledby="sales-kpi-heading" className="mb-6">
+        <h2 id="sales-kpi-heading" className="sr-only">Key sales figures</h2>
+        <ul role="list" className="m-0 grid list-none grid-cols-2 gap-3 p-0 sm:gap-4 xl:grid-cols-4">
+          <li><SalesMetricCard label="New Leads" value={countValue(newLeadsResult)} href="/admin/sales/leads?status=new" /></li>
+          <li><SalesMetricCard label="Open Opportunities" value={countValue(openOpportunitiesMetric)} href="/admin/sales/opportunities?state=open" /></li>
+          <li><SalesMetricCard label="Follow-ups Due" value={countValue(followUpsDueResult)} context={followUpsDueContext} href="/admin/sales/follow-ups" /></li>
+          <li><SalesMetricCard label="Won This Month" value={countValue(wonThisMonthResult)} href="/admin/sales/reports?range=this_month" /></li>
+        </ul>
       </div>
 
-      <Card title="Work Requiring Attention">
-        <div className="ta-sales-attention-grid">
-          <StatCard label="Overdue Follow-ups" value={countValue(overdueFollowUpsResult)} icon="📞" href="/admin/sales/follow-ups?view=overdue" />
-          <StatCard label="Follow-ups Due Today" value={countValue(followUpsDueTodayResult)} icon="🗓" href="/admin/sales/follow-ups?view=today" />
-          <StatCard label="Overdue Tasks" value={countValue(overdueTasksMetric)} icon="☑" href="/admin/sales/tasks?view=overdue" />
-          <StatCard label="Tasks Due Today" value={countValue(tasksDueTodayMetric)} icon="☑" href="/admin/sales/tasks?view=today" />
-        </div>
-        {overdueRowsResult.error ? (
-          <div className="ta-card-pad ta-alert ta-alert-error" role="alert">Overdue follow-ups are unavailable. Please try again.</div>
-        ) : overdueRowsResult.data && overdueRowsResult.data.length > 0 ? (
-          <div className="ta-table-wrap">
-            <table className="ta-table">
-              <thead>
-                <tr>
-                  <th>Source</th>
-                  <th>Contact / Company</th>
-                  <th>Follow-up Was Due</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {(overdueRowsResult.data as SalesLeadInboxRow[]).map((r) => (
-                  <tr key={r.lead_metadata_id}>
-                    <td><span className={`ta-badge-pill ta-source ta-source-${r.lead_source}`}>{SOURCE_LABELS[r.lead_source]}</span></td>
-                    <td>
-                      <strong>{r.contact_name ?? "—"}</strong>
-                      {r.company && <div className="ta-lead-sub">{r.company}</div>}
-                    </td>
-                    <td>
-                      <FollowUpBadge state={followUpState(r.follow_up_at, r.status)} />{" "}
-                      <span className="ta-lead-sub">
-                        {r.follow_up_at && formatMalaysiaDateTime(r.follow_up_at)}
-                      </span>
-                    </td>
-                    <td style={{ textAlign: "right" }}>
-                      <Link href={`/admin/sales/leads/${r.lead_metadata_id}`} className="ta-btn ta-btn-outline ta-btn-sm">View</Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <EmptyState icon="✅" message="No overdue follow-ups." />
-        )}
-      </Card>
+      <div role="region" aria-labelledby="sales-attention-heading">
+        <Card className="gap-5">
+          <CardHeader>
+            <CardTitle><h2 id="sales-attention-heading">Work Requiring Attention</h2></CardTitle>
+            <CardDescription>Overdue and due-today follow-ups and tasks, using the same boundaries as their queues.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ul role="list" className="m-0 grid list-none grid-cols-1 gap-4 p-0 sm:grid-cols-2 xl:grid-cols-4">
+              <li><SalesMetricCard label="Overdue Follow-ups" value={countValue(overdueFollowUpsResult)} attention href="/admin/sales/follow-ups?view=overdue" /></li>
+              <li><SalesMetricCard label="Follow-ups Due Today" value={countValue(followUpsDueTodayResult)} attention href="/admin/sales/follow-ups?view=today" /></li>
+              <li><SalesMetricCard label="Overdue Tasks" value={countValue(overdueTasksMetric)} attention href="/admin/sales/tasks?view=overdue" /></li>
+              <li><SalesMetricCard label="Tasks Due Today" value={countValue(tasksDueTodayMetric)} attention href="/admin/sales/tasks?view=today" /></li>
+            </ul>
+          </CardContent>
+          <CardContent className="px-0">
+            <h3 className="mb-2 px-5 font-heading text-sm font-bold text-primary">Oldest overdue follow-ups</h3>
+            {overdueRowsResult.error ? (
+              <div className="mx-5 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-[#a32f2f]" role="alert">Overdue follow-ups are unavailable. Please try again.</div>
+            ) : overdueRowsResult.data && overdueRowsResult.data.length > 0 ? (
+              <div className="ta-table-wrap" tabIndex={0} role="region" aria-label="Oldest overdue follow-ups">
+                <table className="ta-table">
+                  <thead>
+                    <tr>
+                      <th>Source</th>
+                      <th>Contact / Company</th>
+                      <th>Follow-up Was Due</th>
+                      <th><span className="sr-only">Actions</span></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(overdueRowsResult.data as SalesLeadInboxRow[]).map((r) => (
+                      <tr key={r.lead_metadata_id}>
+                        <td><span className={`ta-badge-pill ta-source ta-source-${r.lead_source}`}>{SOURCE_LABELS[r.lead_source]}</span></td>
+                        <td>
+                          <strong>{r.contact_name ?? "—"}</strong>
+                          {r.company && <div className="ta-lead-sub">{r.company}</div>}
+                        </td>
+                        <td>
+                          <FollowUpBadge state={followUpState(r.follow_up_at, r.status)} />{" "}
+                          <span className="ta-lead-sub">
+                            {r.follow_up_at && formatMalaysiaDateTime(r.follow_up_at)}
+                          </span>
+                        </td>
+                        <td style={{ textAlign: "right" }}>
+                          <Link href={`/admin/sales/leads/${r.lead_metadata_id}`} className="ta-btn ta-btn-outline ta-btn-sm" aria-label={`View lead ${r.contact_name ?? r.company ?? ""}`.trim()}>View</Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="mx-5 my-0 rounded-md bg-secondary px-4 py-6 text-center text-sm text-muted-foreground">No overdue follow-ups.</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
