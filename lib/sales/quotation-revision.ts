@@ -61,7 +61,7 @@ type Progress = { stage: QuotationRevisionStage; revisionCreated: boolean };
 const EXCEPTION_MESSAGES: Record<QuotationRevisionStage, string> = {
   load: "Unable to load the quotation. Try again.",
   revision: "Could not confirm that the revision was created. The original quotation was not changed. Check the quotation list before trying again.",
-  items: "The revision draft was created, but its line items could not be confirmed as copied. The original quotation was not changed. Open the new draft to check the items, or try again.",
+  items: "The revision draft was created, but its line items could not be confirmed as copied. The original quotation was not changed. Open the new draft to check and complete the items; do not create another revision.",
   supersede: "The revision draft was created, but it could not be confirmed that the original quotation was marked as superseded. Review both before sending either.",
 };
 
@@ -173,7 +173,7 @@ async function revise(supabase: SupabaseClient, input: { quotationId: string; ac
       logFailure("copy-items", copyError);
       return failure(
         "items",
-        "The revision draft was created but its line items could not be copied. The original quotation was not changed. Open the new draft to add the items, or try again.",
+        "The revision draft was created but its line items could not be copied. The original quotation was not changed. Open the new draft to add the items; do not create another revision.",
         true,
       );
     }

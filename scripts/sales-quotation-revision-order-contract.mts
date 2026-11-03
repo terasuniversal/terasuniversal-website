@@ -323,4 +323,22 @@ assert.match(helper, /create_quotation_revision\(\)/, "the file names the atomic
 assert.match(helper, /const REVISABLE_STATUSES = \["sent", "rejected", "expired"\];/, "which quotations can be revised is unchanged");
 assert.match(helper, /\.eq\("status", source\.status\)/, "superseding is conditional on the state that was read");
 
+// 12. Once a draft exists a retry would create a second one, so no message after that point may suggest retrying.
+{
+  const draftMessages = [
+    ...(await Promise.all([
+      scenario({ itemsInsert: { error: { code: "23503", message: "x" } } }),
+      scenario({ throwOn: (op: Op) => op.table === "sales_quotation_items" && op.kind === "insert" }),
+      scenario({ supersede: { error: { code: "XX000", message: "x" } } }),
+      scenario({ supersede: { data: null } }),
+      scenario({ throwOn: (op: Op) => op.table === "sales_quotations" && op.kind === "update" }),
+    ].map(async ({ client }) => run(client)))),
+  ];
+  for (const result of draftMessages) {
+    assert.ok(!result.ok && result.revisionCreated, "the draft exists in every one of these cases");
+    assert.doesNotMatch(result.message, /try again|retry/i, "no retry advice once a draft exists: " + result.message);
+  }
+  assert.ok(draftMessages.some((r) => !r.ok && /do not create another revision/.test(r.message)), "item-copy failures tell the user to complete the existing draft");
+}
+
 console.log("Quotation revision order contract passed.");
