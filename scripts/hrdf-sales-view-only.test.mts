@@ -12,8 +12,11 @@ const nav = await readFile("lib/admin-nav.ts", "utf8");
 
 assert.match(rbac, /\["hrdf_claims", "HRDF Claims", "Sales", "admin"\]/);
 assert.match(rbac, /moduleKey === "hrdf_claims" && accessControlEnabled/);
-const salesPreset = rbac.match(/export const SALES_MODULE_KEYS[\s\S]*?export const DEPARTMENTS/)?.[0] ?? "";
-assert.doesNotMatch(salesPreset, /hrdf_claims/);
+// Only the SALES_MODULE_KEYS array: the Sales Staff preset that follows it lists HRDF as view-only on purpose
+// (see staff-sales-preset.test.mts), so a span that ran on to DEPARTMENTS flagged that intended entry.
+const salesModuleKeys = rbac.match(/export const SALES_MODULE_KEYS = \[[\s\S]*?\] as const;/)?.[0] ?? "";
+assert.match(salesModuleKeys, /"sales_leads"/, "the SALES_MODULE_KEYS array was found, so the HRDF check below is not vacuous");
+assert.doesNotMatch(salesModuleKeys, /hrdf_claims/);
 assert.match(staffActions, /module_key === "hrdf_claims" && targetIsNonAdmin/);
 assert.match(staffActions, /access_level: requestedLevelByKey\.get\(module_key\)/);
 assert.match(staffForm, /module\.key === "hrdf_claims"/);
