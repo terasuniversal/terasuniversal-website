@@ -25,15 +25,14 @@ function fmtDate(d?: string | null): string | null {
  * Erector issuances to this renderer_version and bakes certificate_family/
  * certificate_title/programme_content/watermark_asset_family into
  * render_payload at that moment, re-verified read-only against the canonical
- * staging project (eokiaehnvzbggmacifcf) 2026-10-31. The other two entries
- * are this app's own PROPOSED, not-yet-written-by-any-trigger contract for
- * an eventual Inspector/WAH equivalent -- listing them here costs nothing
- * (no real snapshot will ever carry one until that trigger exists) but
- * means zero app-code changes are needed once it does.
+ * staging project (eokiaehnvzbggmacifcf) 2026-10-31. The same trigger now
+ * also writes the other two for Inspector and WAH issuances (Production
+ * migrations 20261101124601 and 20261102030425; first live snapshots
+ * 2026-11-01 and 2026-11-02, re-verified read-only 2026-11-03), so all three
+ * are live renderer versions.
  */
 const GOLDEN_REFERENCE_RENDERER_VERSIONS = new Set([
   "c4_wave1_v1",
-  // PROPOSED -- not yet written by any trigger:
   "c4_wave1_inspector_v1",
   "c4_wave1_wah_v1",
 ]);

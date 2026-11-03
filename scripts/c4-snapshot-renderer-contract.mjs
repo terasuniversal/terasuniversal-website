@@ -5,7 +5,7 @@
 //  1. Erector c4_wave1_v1 snapshot -> Golden Reference, frozen facts used
 //  2. Legacy certificate without any snapshot -> generic layout
 //  3. certificate_renderer_v1 snapshot (pre-Wave1) -> generic layout
-//  4. Inspector / WAH proposed synthetic C4 payloads -> Golden Reference
+//  4. Inspector / WAH synthetic C4 payloads (the live shapes) -> Golden Reference
 //  5. Frozen snapshot facts stay stable even when "current" programme/
 //     template data would disagree with them
 //  6. Historical watermark compatibility (frozen 'scaffolding-technical')
@@ -167,10 +167,10 @@ const erectorPayload = {
 
 // ============================================================
 // 4. Inspector c4_wave1_inspector_v1 -- the render_payload shape written by
-//    supabase/migrations/20261102090000_production_inspector_c4_snapshot_
+//    supabase/migrations/20261101124601_production_inspector_c4_snapshot_
 //    dispatch.sql (frozen inspector_watermark_level, no
-//    watermark_asset_family). WAH below is still a PROPOSED contract that
-//    no trigger writes yet.
+//    watermark_asset_family). WAH below is written live by
+//    20261102030425_production_wah_c4_snapshot_dispatch.sql.
 // ============================================================
 const { resolveCertificateWatermarkAsset } = require(resolve(compileDir, "repo/lib/certificate-watermark-assets.js"));
 for (const level of ["basic", "intermediate", "advanced"]) {
@@ -213,7 +213,7 @@ for (const level of ["basic", "intermediate", "advanced"]) {
   });
   assert.equal(config.golden_reference_family, "working_at_height");
   assert.equal(config.certificate_title, "WORKING AT HEIGHT TRAINING CERTIFICATE");
-  console.log("PASS WAH c4_wave1_wah_v1 synthetic payload dispatches correctly (draft migration, not applied)");
+  console.log("PASS WAH c4_wave1_wah_v1 synthetic payload dispatches correctly (live shape, migration 20261102030425)");
 }
 
 {
