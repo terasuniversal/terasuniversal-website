@@ -211,7 +211,7 @@ No migration was applied, no push, no merge, no deploy. Validation not re-run in
 
 ## Claude Code — 2026-11-03 (Working at Height Certificate C4: Production release and pilot issuance)
 
-**Status: WAH C4 TECHNICALLY READY — OWNER ACTION PENDING.** The issuance path, safety controls and certificate output are live and verified on Production (`iagzkrzeuawaxvacqprk`). Closure waits on the owner generating the 24 remaining SCH-000034 certificates and accepting final closure.
+**Status: WAH C4 COMPLETE — PRODUCTION OPERATIONAL** (owner closure approved 2026-11-03). The issuance path, safety controls and certificate output are live and verified on Production (`iagzkrzeuawaxvacqprk`). WAH C4 development is closed; the 24 remaining SCH-000034 certificates are ordinary Super Admin issuance, not a development task.
 
 ### What is live
 - Production migrations applied through the Supabase MCP workflow and recorded under their actual versions: `20261102051041` (Skills Record gate), `20261102160312` (Super Admin issuance with automatic single-use authorization), `20261102165601` (existing-holder block), `20261103010953` (function-level `TimeZone=Asia/Kuala_Lumpur` on `app.issue_certificate_with_skill_snapshot` and `app.duplicate_certificate_with_skill_snapshot`). Production is at 143 migrations.
@@ -245,5 +245,4 @@ No migration was applied, no push, no merge, no deploy. Validation not re-run in
 
 ### Not done
 - The 24 remaining SCH-000034 certificates: owner-operated through Super Admin Generate as normal operations, at the owner's chosen time.
-- Final closure acceptance by the owner.
 - Scaffolding Erector watermark: a placement-only attempt was rejected by the owner on 2026-11-03 because it does not match the Inspector/WAH illustration style. Erector needs owner-approved artwork (scene for page 1, detail for page 2) like Inspector and WAH. Changing it will also restyle the already issued Erector C4 certificate CERT-2026-000098, which renders live; that needs an owner decision. No Erector code was committed.
