@@ -1,4 +1,5 @@
 import { formatPublicVerificationDate, resolveTrainingPeriod } from "../../lib/public-verification-training";
+import { formatMalaysiaDateTime } from "../../lib/date-time";
 
 /**
  * Public verification result card (server component, no client JS).
@@ -67,7 +68,7 @@ export function VerificationResult({ result, failure }: { result: VerifyRow | nu
         {trainingPeriod && (<><dt style={{ color: "#667085" }}>Training Period</dt><dd style={{ margin: 0 }}>{trainingPeriod.display}</dd></>)}
         <dt style={{ color: "#667085" }}>Issue Date</dt><dd style={{ margin: 0 }}>{formatDate(result.issue_date)}</dd>
         {result.expiry_date && (<><dt style={{ color: "#667085" }}>Expiry Date</dt><dd style={{ margin: 0 }}>{formatDate(result.expiry_date)}</dd></>)}
-        <dt style={{ color: "#667085" }}>Verified</dt><dd style={{ margin: 0 }}>{new Date(result.verified_at).toLocaleString("en-MY")}</dd>
+        <dt style={{ color: "#667085" }}>Verified</dt><dd style={{ margin: 0 }}>{formatMalaysiaDateTime(result.verified_at)}</dd>
       </dl>
 
       {!valid && (
