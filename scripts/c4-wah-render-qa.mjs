@@ -89,7 +89,7 @@ function loadResolver(levelOf) {
   return new Function("levelOf", `${ts.transpile(versions + fn, { target: "es2021" })};return applyGoldenReferenceSnapshotConfig;`)(levelOf);
 }
 // Same shape as the live snapshots: empty lists in template_config.
-const liveTemplate = (design_variant, signature_url) => ({ design_variant, signature_url, show_qr: true, show_back_page: true, show_skills_record: false, logo_url: "/teras-universal-logo.png", primary_color: "#0b3a63", accent_color: "#d4af37", skills_record: [], coverage_items: [], learning_outcomes: [], assessment_methods: [], ...contact });
+const liveTemplate = (design_variant, signature_url) => ({ design_variant, signature_url, signature_name: "Synthetic Director Name Bin Synthetic Long", signature_title: "Director", show_qr: true, show_back_page: true, show_skills_record: false, logo_url: "/teras-universal-logo.png", primary_color: "#0b3a63", accent_color: "#d4af37", skills_record: [], coverage_items: [], learning_outcomes: [], assessment_methods: [], ...contact });
 const frozenFrom = (p) => ({ programme_title: p.programme_title, programme_duration: p.duration_label, objectives: p.objectives_text, coverage: p.coverage_items, outcomes: p.learning_outcomes, assessment: p.assessment_methods });
 const inOrder = (text, items) => { let at = -1; for (const item of items) { const next = text.indexOf(item, at + 1); if (next < 0) return false; at = next; } return true; };
 
