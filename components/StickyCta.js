@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 
 // The bar steps aside while the visitor reads down the page, fills a form or
 // reaches the footer, so it never sits over headings, fields or footer links.
 // It also stays out of the first screen, where every hero already carries its
-// own calls to action, and appears on an upward scroll once past it.
+// own calls to action, and appears on an upward scroll once past it. On phones
+// the contact actions live in the header (MobileNav), so the bar is not shown.
 const SCROLL_DELTA = 8;
 const FIRST_SCREEN = 0.75;
 
@@ -15,6 +16,8 @@ export default function StickyCta() {
   const [scrollHidden, setScrollHidden] = useState(true);
   const [blockingInView, setBlockingInView] = useState(false);
   const [fieldFocused, setFieldFocused] = useState(false);
+  const [barFocused, setBarFocused] = useState(false);
+  const barRef = useRef(null);
 
   useEffect(() => {
     let lastY = window.scrollY;
@@ -51,8 +54,14 @@ export default function StickyCta() {
   }, [pathname]);
 
   useEffect(() => {
-    const onFocusIn = (event) => setFieldFocused(event.target instanceof HTMLElement && event.target.matches("input, textarea, select"));
-    const onFocusOut = () => setFieldFocused(false);
+    const onFocusIn = (event) => {
+      setFieldFocused(event.target instanceof HTMLElement && event.target.matches("input, textarea, select"));
+      setBarFocused(Boolean(barRef.current?.contains(event.target)));
+    };
+    const onFocusOut = () => {
+      setFieldFocused(false);
+      setBarFocused(false);
+    };
     document.addEventListener("focusin", onFocusIn);
     document.addEventListener("focusout", onFocusOut);
     return () => {
@@ -65,16 +74,13 @@ export default function StickyCta() {
     return null;
   }
 
-  const hidden = scrollHidden || blockingInView || fieldFocused;
+  // Never hide (and make inert) the bar while it holds keyboard focus, or the
+  // focus would be dropped to the page body.
+  const hidden = (scrollHidden || blockingInView || fieldFocused) && !barFocused;
 
   return (
-    <aside className={hidden ? "sticky-cta is-hidden" : "sticky-cta"} aria-label="Quick contact options" inert={hidden || undefined}>
+    <aside ref={barRef} className={hidden ? "sticky-cta is-hidden" : "sticky-cta"} aria-label="Quick contact options" inert={hidden || undefined}>
       <a className="sticky-cta-proposal" href="/request-proposal">Request Proposal</a>
-      <div className="sticky-cta-mobile">
-        <a href="https://wa.me/60195193834" target="_blank" rel="noreferrer" aria-label="WhatsApp TERAS UNIVERSAL">WhatsApp</a>
-        <a href="tel:+60195193834" aria-label="Call TERAS UNIVERSAL">Call</a>
-        <a href="mailto:training@terasuniversal.com.my" aria-label="Email TERAS UNIVERSAL">Email</a>
-      </div>
     </aside>
   );
 }
