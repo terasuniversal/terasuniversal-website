@@ -62,6 +62,9 @@ export default function StickyCta() {
     // never clears barFocused (and makes the bar inert) in between.
     const onFocusOut = (event) => {
       const next = event.relatedTarget;
+      // Focus leaving the window also reports no related target, but the
+      // control still owns focus; keep the bar as it is.
+      if (!next && !document.hasFocus()) return;
       setFieldFocused(next instanceof HTMLElement && next.matches("input, textarea, select"));
       setBarFocused(Boolean(next && barRef.current?.contains(next)));
     };

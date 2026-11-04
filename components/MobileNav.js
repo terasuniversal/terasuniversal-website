@@ -28,10 +28,11 @@ export default function MobileNav({ basePath = "" }) {
   }, [contactOpen]);
 
   function handleKeyDown(event) {
-    if (event.key === "Escape") {
-      closeMenu();
-      menuButtonRef.current?.focus();
-    }
+    if (event.key !== "Escape" || panel === null) return;
+    // Close whichever panel is open and hand focus to that panel's own trigger.
+    const trigger = contactOpen ? contactButtonRef.current : menuButtonRef.current;
+    closeMenu();
+    trigger?.focus();
   }
 
   function handleContactKeyDown(event) {
