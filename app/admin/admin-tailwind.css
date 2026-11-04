@@ -57,8 +57,8 @@
   --color-input: var(--ta-line);
   --color-ring: var(--ta-navy);
 
-  --font-sans: var(--font-poppins), system-ui, sans-serif;
-  --font-heading: var(--font-montserrat), var(--font-poppins), sans-serif;
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+  --font-heading: var(--font-montserrat), var(--font-inter), sans-serif;
 
   --radius-sm: 6px;
   --radius-md: 8px;
@@ -86,13 +86,12 @@
   box-shadow: 0 0 0 5px rgba(212, 175, 55, 0.45);
 }
 
-/* On the navy sidebar a navy outline would vanish, and admin.css's 60%
-   gold is about 2.9:1 there; solid gold is 5.5:1. Inset, because the nav
-   column clips horizontal overflow. The [data-slot] form outranks the
-   primitive focus rule above for the drawer's close button. */
+/* Inset navy ring inside the sidebar: the nav column clips horizontal
+   overflow, so an outside ring would be cut. The [data-slot] form outranks
+   the primitive focus rule above for the drawer's close button. */
 .teras-admin .ta-sidebar :is(a, button):focus-visible,
 .teras-admin .ta-sidebar :is(a, button)[data-slot]:focus-visible {
-  outline: 2px solid var(--ta-gold);
+  outline: 2px solid var(--ta-navy);
   outline-offset: -2px;
   box-shadow: none;
 }
