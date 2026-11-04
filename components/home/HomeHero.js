@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { heroFact } from "./recognitionStatus";
 import styles from "./home.module.css";
 
 // Illustrative photography: temporary AI-generated images approved for this design slice.
@@ -18,7 +19,7 @@ export default function HomeHero() {
         </div>
         <div className={styles.split}>
           <div className={styles.dark}>
-            <p>Industrial safety and technical competency since 2012. Approved by JKKP, registered with HRD Corp and CIDB.</p>
+            <p>{heroFact()}</p>
             <a className={styles.heroButton} href="/request-proposal?source=homepage-hero">Request a proposal</a>
           </div>
           <div className={styles.accent}>
