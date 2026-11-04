@@ -7464,16 +7464,21 @@ textarea.feedback-input { resize: vertical; min-height: 88px; }
 
 /* ================================================================
    Focus visibility and last targets (W4-B)
-   Scoped to marketing pages: the verification, feedback and registration
-   pages keep their own focus styling.
+   The focus ring covers every public route; the admin shell (div.teras-admin,
+   a direct child of #main-content) keeps its own. The size and text rules
+   below stay scoped to marketing pages: the verification, feedback and
+   registration pages keep their own layout.
    ================================================================ */
 
 /* The old focus ring was semi-transparent gold, 1.0-2.9:1 on most controls.
    A navy ring with a white halo reads on light surfaces (navy) and on the navy
-   sections (the white halo), so no surface needs its own rule. */
-#main-content > main:not(.verify-page, .verification-route, .feedback-page, .registration-page, .registration-status-page)
+   sections (the white halo), so no surface needs its own rule. The skip link
+   sits outside #main-content and slides over the navy top strip, where the
+   halo gives it an edge. */
+#main-content > :not(.teras-admin)
   :is(a[href], button, summary, input, select, textarea, [tabindex]:not([tabindex="-1"])):focus-visible,
-.sticky-cta a:focus-visible {
+.sticky-cta a:focus-visible,
+.skip-link:focus-visible {
   outline: 3px solid var(--navy);
   outline-offset: 2px;
   box-shadow: 0 0 0 2px #fff;
