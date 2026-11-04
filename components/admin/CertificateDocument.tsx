@@ -432,7 +432,9 @@ function GoldenReferencePageOne({ data, config, navy, gold, qaPreview }: { data:
   const duration = data.programme_duration || config.duration_label;
   const { pageOneText } = splitCertificateBodyText(config.body_text);
   const assets = renderAssetSources(data.render_assets, { signature: true, seal: true });
-  const directorName = "Director";
+  // The signatory frozen into this certificate's own snapshot (template_config.signature_name);
+  // "Director" only when none was recorded.
+  const directorName = (typeof config.signature_name === "string" && config.signature_name.trim()) || "Director";
   const programmeSubtitle = resolveDistinctProgrammeSubtitle(data.course_name, config.programme_title);
   const venue = formatAddressLines(data.venue);
 
@@ -485,7 +487,7 @@ function GoldenReferencePageOne({ data, config, navy, gold, qaPreview }: { data:
           <div style={{ flex: "1 1 270px", maxWidth: 300, minWidth: 220, display: "flex", flexDirection: "column", alignItems: "center", fontSize: 9 }}>
             <div style={{ height: 68, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>{assets.preview ? <SignaturePreviewNote /> : <img src={assets.signature!} alt="" data-certificate-signature="director" style={{ maxHeight: C4_SIGNATURE_MAX_HEIGHT_PX, maxWidth: 180, objectFit: "contain" }} />}</div>
             <div style={{ width: "86%", borderTop: `1px solid ${navy}`, margin: "3px 0 4px" }} />
-            <strong style={{ color: navy, fontFamily: CERTIFICATE_DESIGN.typography.heading, fontSize: 8.5, letterSpacing: 0.3 }}>{directorName}</strong>
+            <strong style={{ color: navy, fontFamily: CERTIFICATE_DESIGN.typography.heading, fontSize: 8.5, letterSpacing: 0.3, overflowWrap: "anywhere" }}>{directorName}</strong>
             <div style={{ color: navy, fontFamily: SANS, fontSize: 7.5, fontWeight: 700, letterSpacing: 1.1, marginTop: 2 }}>AUTHORIZED DIRECTOR</div>
             <div style={{ color: "#667085", fontFamily: SANS, fontSize: 7, letterSpacing: 0.45, marginTop: 2 }}>{TERAS_COMPANY_NAME}</div>
           </div>

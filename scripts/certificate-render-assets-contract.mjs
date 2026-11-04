@@ -159,6 +159,19 @@ for (const [name, render] of [["React", react], ["HTML", html], ["HTML document"
   }
 }
 pass("React and HTML/ZIP renderers: assets required, C4 seal at 34 mm, preview shows no images, no public path emitted");
+// C4 Director line: the signatory frozen in the snapshot's template_config, "Director" only as a fallback.
+const directorLine = (markup) => (markup.match(/AUTHORI[SZ]ED DIRECTOR/) ? markup.slice(0, markup.indexOf("AUTHORIZED DIRECTOR")).split("<strong").pop() : "");
+for (const [name, render] of [["React", react], ["HTML", html]]) {
+  const named = render({ ...base, render_assets: SYNTHETIC_RENDER_ASSETS }, { ...golden, signature_name: "Synthetic Director Name Bin Synthetic" });
+  assert.ok(directorLine(named).includes("Synthetic Director Name Bin Synthetic"), `${name}: C4 shows the frozen Director name`);
+  for (const value of [undefined, null, "", "   ", 42, {}]) {
+    assert.ok(/>Director<\/strong>/.test(render({ ...base, render_assets: SYNTHETIC_RENDER_ASSETS }, { ...golden, signature_name: value })), `${name}: C4 falls back to "Director" for ${JSON.stringify(value)}`);
+  }
+  const hostile = render({ ...base, render_assets: SYNTHETIC_RENDER_ASSETS }, { ...golden, signature_name: '<img src=x onerror="alert(1)">' });
+  assert.ok(!hostile.includes('<img src=x') && hostile.includes("&lt;img"), `${name}: Director name is escaped`);
+}
+pass("C4 Director line: frozen signature_name shown, \"Director\" fallback for missing/blank/non-string, HTML escaped");
+
 
 // 4. Source invariants.
 const walk = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? (["node_modules", ".git", ".next", "work"].includes(e.name) ? [] : walk(join(dir, e.name))) : [join(dir, e.name)]));
