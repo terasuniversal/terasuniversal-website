@@ -7,9 +7,17 @@
 --     -> P1 20260911115407_invoice_phase5_quotation_snapshots
 --     -> P2 20260911133000_invoice_phase5_snapshot_column_alignment (rename; once)
 --     -> P3 20260912005428_sst_readiness_invoice_corporate (constraints; once)
+--     -> P4 20260917160558_quotation_training_snapshot_v1 (adds sales_quotations.training_details;
+--        NOT in this branch's supabase/migrations: it lives on the sales V1 release branches and is
+--        already applied on the canonical staging project)
 --     -> M4 this file.
--- M4 reads columns and constraints that only exist after P3 and refuses to run
--- before it. It does not touch invoices, invoice_items or certificates.
+-- M4 reads columns and constraints that only exist after P4 and P3 and refuses to run before them.
+-- It does not touch invoices, invoice_items or certificates.
+--
+-- training_details (jsonb NOT NULL DEFAULT '{}') is a LEGACY quotation snapshot read by the quotation and invoice
+-- PDFs. The application no longer writes it (scripts/quotation-training-details-contract.mts forbids it), so create
+-- leaves the default and replace leaves the stored value untouched. A revision COPIES it, so a revision does not
+-- silently lose a legacy snapshot the PDFs still render.
 --
 -- What it adds: one ledger table (public.sales_quotation_requests), seven
 -- internal helpers in schema app (not callable by clients) and four SECURITY
@@ -95,6 +103,15 @@ begin
     select 1 from pg_trigger where tgrelid = 'public.sales_quotations'::regclass and tgname = 'trg_guard_quotation_sst_snapshot' and not tgisinternal
   ) then
     raise exception 'm4_precondition_failed: P3 20260912005428 guard trigger is missing' using errcode = 'P0001';
+  end if;
+
+  -- P4: the legacy training snapshot column that a revision must carry over.
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'sales_quotations' and column_name = 'training_details'
+      and data_type = 'jsonb' and is_nullable = 'NO' and column_default like '''{}''%'
+  ) then
+    raise exception 'm4_precondition_failed: sales_quotations.training_details (jsonb not null default {}) is missing; apply 20260917160558_quotation_training_snapshot_v1 first' using errcode = 'P0001';
   end if;
 
   -- Commercial snapshot columns the RPCs read and write.
@@ -884,13 +901,13 @@ begin
     opportunity_id, quotation_no, revision_no, parent_quotation_id, valid_until, currency, subtotal, discount,
     sst_applicable, sst_rate, sst_amount, tax_label_snapshot, tax_basis_snapshot, sst_registration_number_snapshot,
     sst_effective_date_snapshot, tax, total, terms, notes, customer_company_name, customer_contact_name,
-    customer_registration_no, customer_email, customer_phone, billing_address, training_service_address, created_by
+    customer_registration_no, customer_email, customer_phone, billing_address, training_service_address, training_details, created_by
   )
   select s.opportunity_id, s.quotation_no, v_next, s.id, s.valid_until, s.currency, s.subtotal, s.discount,
          s.sst_applicable, s.sst_rate, s.sst_amount, s.tax_label_snapshot, s.tax_basis_snapshot,
          s.sst_registration_number_snapshot, s.sst_effective_date_snapshot, s.tax, s.total, s.terms, s.notes,
          s.customer_company_name, s.customer_contact_name, s.customer_registration_no, s.customer_email,
-         s.customer_phone, s.billing_address, s.training_service_address, v_actor
+         s.customer_phone, s.billing_address, s.training_service_address, s.training_details, v_actor
   from public.sales_quotations s
   where s.id = p_source_quotation_id
   returning id, quotation_no into v_id, v_new_no;

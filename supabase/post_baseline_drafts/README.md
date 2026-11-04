@@ -39,7 +39,9 @@ Status: **DRAFT — NOT APPLIED — OWNER APPROVAL REQUIRED (P0 quotation integr
 
 Adds the idempotency ledger `public.sales_quotation_requests`, seven internal helpers in schema `app`, and four SECURITY DEFINER RPCs (`create_quotation_with_items`, `replace_quotation_draft`, `create_quotation_revision`, `mark_quotation_sent`). The application does not call them yet.
 
-Dependency chain (staging only, each step with its own gates): S0 → P1 `20260911115407` → P2 `20260911133000` (rename, once) → P3 `20260912005428` (constraints, once) → this file. The file refuses to run before P3 and refuses to run as any role other than `postgres`.
+Dependency chain (staging only, each step with its own gates): S0 → P1 `20260911115407` → P2 `20260911133000` (rename, once) → P3 `20260912005428` (constraints, once) → P4 `20260917160558_quotation_training_snapshot_v1` → this file. P4 is a 4-line additive `alter table public.sales_quotations add column training_details jsonb not null default '{}'`; it is already applied on the canonical staging project but is NOT in this branch's `supabase/migrations` (it lives on the sales V1 release branches, e.g. `release/sales-v1-candidate-20260918`), so how it enters the chain is an owner decision. The file refuses to run before P3 or P4 and refuses to run as any role other than `postgres`.
+
+`training_details` is a legacy snapshot that the quotation and invoice PDFs still render. The application no longer writes it, so create leaves the default and replace leaves the stored value; a revision copies it.
 
 Rules while a draft:
 - Do not apply it to Staging or Production, and do not move it into `supabase/migrations/`, without explicit owner approval and the staging checklist.

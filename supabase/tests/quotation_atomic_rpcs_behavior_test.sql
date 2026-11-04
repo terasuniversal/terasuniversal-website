@@ -1,6 +1,6 @@
 -- Behaviour suite for the DRAFT quotation atomic RPCs (supabase/post_baseline_drafts/20260913090000_quotation_atomic_rpcs.sql).
 -- DISPOSABLE DATABASE ONLY: it inserts auth.users fixtures. Never run it against Staging or Production.
--- Run after Baseline V2 + P1 + P2 + P3 + the M4 draft, as role postgres:
+-- Run after Baseline V2 + P1 + P2 + P3 + P4 (20260917160558_quotation_training_snapshot_v1) + the M4 draft, as role postgres:
 --   psql -U postgres -v ON_ERROR_STOP=1 -q -f quotation_atomic_rpcs_behavior_test.sql
 -- Every row is created inside one transaction that ends in ROLLBACK. An assertion failure raises
 -- 'assertion_failed: ...' and stops the script (non-zero exit).
@@ -158,6 +158,7 @@ begin
   perform pg_temp.qa_assert(q.subtotal = 30.02 and q.discount = 0.02 and q.tax = 2.40 and q.sst_amount = 2.40 and q.total = 32.40, format('exact totals, got %s/%s/%s/%s', q.subtotal, q.discount, q.tax, q.total));
   perform pg_temp.qa_assert(q.sst_applicable and q.sst_rate = 8 and q.tax_label_snapshot is null and q.tax_basis_snapshot is null and q.sst_registration_number_snapshot is null and q.sst_effective_date_snapshot is null, 'SST snapshots stay NULL as today');
   perform pg_temp.qa_assert(q.created_by = 'aaaaaaaa-0000-0000-0000-000000000001' and q.customer_company_name = 'QA Sdn Bhd' and q.valid_until = date '2030-01-31', 'actor and header stored');
+  perform pg_temp.qa_assert(q.training_details = '{}'::jsonb, 'create leaves the legacy training_details at its default');
   perform pg_temp.qa_assert((select count(*) from public.sales_quotation_items where quotation_id = v_id) = 2, 'two items');
   perform pg_temp.qa_assert((select sum(line_total) from public.sales_quotation_items where quotation_id = v_id) = q.subtotal, 'sum of generated line totals equals subtotal');
   perform pg_temp.qa_assert((select description from public.sales_quotation_items where quotation_id = v_id and sort_order = 0) = 'Line A'
@@ -417,12 +418,14 @@ declare
   v_state text;
 begin
   v_id := public.create_quotation_with_items('20000000-0000-0000-0000-000000000014', pg_temp.qa_header(), pg_temp.qa_items(), gen_random_uuid());
+  update public.sales_quotations set training_details = '{"schema_version":1,"programme":{"course_name_snapshot":"Legacy replace"}}'::jsonb where id = v_id;
   select updated_at, quotation_no into v_token, v_no from public.sales_quotations where id = v_id;
 
   perform public.replace_quotation_draft(v_id, pg_temp.qa_header('{"notes":"edited","discount":0,"sst_applicable":false}'),
     '[{"description":"Only line","quantity":2,"unit":"day","unit_price":50.5,"discount":1}]', v_token);
   perform pg_temp.qa_assert((select subtotal = 100.00 and total = 100.00 and tax = 0 and notes = 'edited' and status = 'draft' and revision_no = 0 and quotation_no = v_no and opportunity_id = '20000000-0000-0000-0000-000000000014' from public.sales_quotations where id = v_id), 'header replaced, identity fields untouched');
   perform pg_temp.qa_assert((select count(*) from public.sales_quotation_items where quotation_id = v_id) = 1 and (select description from public.sales_quotation_items where quotation_id = v_id) = 'Only line', 'items replaced');
+  perform pg_temp.qa_assert((select training_details from public.sales_quotations where id = v_id) = '{"schema_version":1,"programme":{"course_name_snapshot":"Legacy replace"}}'::jsonb, 'replace leaves the stored training_details untouched');
   select updated_at into v_new_token from public.sales_quotations where id = v_id;
   perform pg_temp.qa_assert(v_new_token > v_token, 'version token advances');
 
@@ -481,7 +484,8 @@ declare
 begin
   v_src := public.create_quotation_with_items('20000000-0000-0000-0000-000000000001', pg_temp.qa_header('{"notes":"to be revised"}'), pg_temp.qa_items(), gen_random_uuid());
   -- Give the draft SST snapshots (as a future activation would) so the copy is observable, then send it.
-  update public.sales_quotations set tax_label_snapshot = 'SST 8%', tax_basis_snapshot = 'services', sst_registration_number_snapshot = 'W10-0000-00000000', sst_effective_date_snapshot = date '2026-01-01' where id = v_src;
+  update public.sales_quotations set tax_label_snapshot = 'SST 8%', tax_basis_snapshot = 'services', sst_registration_number_snapshot = 'W10-0000-00000000', sst_effective_date_snapshot = date '2026-01-01',
+    training_details = '{"schema_version":1,"programme":{"course_name_snapshot":"Legacy revise","duration_label":"2 days"},"participants":{"count":2,"names":["Ali Ahmad"],"tbc":false}}'::jsonb where id = v_src;
   perform pg_temp.qa_assert(pg_temp.qa_err(format('select public.create_quotation_revision(%L, gen_random_uuid())', v_src)) like 'P0001|invalid_transition%', 'a draft cannot be revised');
   perform public.mark_quotation_sent(v_src);
 
@@ -492,6 +496,7 @@ begin
   perform pg_temp.qa_assert(r.status = 'draft' and r.quotation_no = s.quotation_no and r.revision_no = s.revision_no + 1 and r.parent_quotation_id = v_src and r.opportunity_id = s.opportunity_id, 'revision is a draft child with the next number');
   perform pg_temp.qa_assert(r.subtotal = s.subtotal and r.discount = s.discount and r.tax = s.tax and r.total = s.total and r.sst_amount = s.sst_amount and r.sst_applicable = s.sst_applicable and r.sst_rate = s.sst_rate, 'money copied, not recomputed');
   perform pg_temp.qa_assert(r.tax_label_snapshot = 'SST 8%' and r.tax_basis_snapshot = 'services' and r.sst_registration_number_snapshot = 'W10-0000-00000000' and r.sst_effective_date_snapshot = date '2026-01-01', 'all four SST snapshots copied');
+  perform pg_temp.qa_assert(r.training_details = s.training_details and r.training_details <> '{}'::jsonb, 'the legacy training_details snapshot is copied to the revision, not reset');
   perform pg_temp.qa_assert(r.customer_company_name = s.customer_company_name and r.billing_address = s.billing_address and r.terms = s.terms and r.notes = s.notes and r.valid_until = s.valid_until and r.currency = s.currency and r.created_by = 'aaaaaaaa-0000-0000-0000-000000000001', 'header copied, actor recorded');
   perform pg_temp.qa_assert((select count(*) from public.sales_quotation_items where quotation_id = v_rev) = 2
     and not exists (
