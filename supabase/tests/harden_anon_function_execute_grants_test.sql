@@ -89,6 +89,11 @@ end $$;
 select pg_temp.qa_assert(has_function_privilege('anon', 'public.issue_invoice(uuid)', 'execute') and has_function_privilege('authenticated', 'public.issue_invoice(uuid)', 'execute')
   and has_function_privilege('service_role', 'public.issue_invoice(uuid)', 'execute'), 'issue_invoice is reachable only through PUBLIC in the simulation');
 
+-- Supabase's default privileges: every function postgres creates in public later is granted to anon too.
+alter default privileges for role postgres in schema public grant execute on functions to anon, authenticated, service_role;
+-- ... and a GLOBAL explicit anon default too, which a schema-level revoke alone could not remove.
+alter default privileges for role postgres grant execute on functions to anon;
+
 -- 2. Run the migration.
 \i :migration
 
@@ -128,7 +133,22 @@ begin
     select 1 from _pristine p where p.nspname = 'app' and p.proname in ('audit_trigger', 'create_sales_lead_metadata', 'next_opportunity_number', 'hrdf_claim_touch_updated_at')
       and (has_function_privilege('anon', p.fn_oid, 'execute') or has_function_privilege('authenticated', p.fn_oid, 'execute') or has_function_privilege('public', p.fn_oid, 'execute'))),
     'app trigger/sequence helpers: owner only');
-  perform pg_temp.qa_assert(not exists (select 1 from _pristine p where p.nspname = 'app' and p.proname = 'is_admin_or_trainer' and not has_function_privilege('authenticated', p.fn_oid, 'execute')), 'is_admin_or_trainer keeps authenticated');
+  -- is_admin_or_trainer: authenticated access is kept exactly when it existed before (Baseline V3: it did); never gained.
+  perform pg_temp.qa_assert(not exists (select 1 from _pristine p where p.nspname = 'app' and p.proname = 'is_admin_or_trainer'
+    and has_function_privilege('authenticated', p.fn_oid, 'execute') is distinct from p.auth_exec), 'is_admin_or_trainer: authenticated access equals what it had before');
+
+  -- Future functions. The built-in PUBLIC default is global and untouched, so a function that skips the repo's standard
+  -- `revoke all ... from public` is still reachable by anon through PUBLIC; what the migration fixes is that, WITH the
+  -- standard revoke, anon no longer keeps its own default grant.
+  create function public.qa_new_public_fn() returns integer language sql as 'select 1';
+  perform pg_temp.qa_assert(has_function_privilege('authenticated', 'public.qa_new_public_fn()', 'execute') and has_function_privilege('service_role', 'public.qa_new_public_fn()', 'execute'), 'a NEW public function keeps the authenticated/service_role defaults');
+  revoke all on function public.qa_new_public_fn() from public;
+  perform pg_temp.qa_assert(not has_function_privilege('anon', 'public.qa_new_public_fn()', 'execute'), 'a NEW public function is NOT anon-executable after the standard revoke from public');
+  perform pg_temp.qa_assert(has_function_privilege('authenticated', 'public.qa_new_public_fn()', 'execute') and has_function_privilege('service_role', 'public.qa_new_public_fn()', 'execute'), 'authenticated/service_role still hold their defaults after the standard revoke');
+  perform pg_temp.qa_assert(not exists (select 1 from pg_default_acl d join pg_namespace n on n.oid = d.defaclnamespace, aclexplode(d.defaclacl) a
+    where d.defaclrole = 'postgres'::regrole and n.nspname = 'public' and d.defaclobjtype = 'f' and a.grantee = 'anon'::regrole), 'default ACL no longer grants anon');
+  perform pg_temp.qa_assert(not exists (select 1 from pg_default_acl d, aclexplode(d.defaclacl) a
+    where d.defaclrole = 'postgres'::regrole and d.defaclnamespace = 0 and d.defaclobjtype = 'f' and a.grantee = 'anon'::regrole), 'the GLOBAL default ACL no longer grants anon either');
 end $$;
 
 -- 4. Idempotent: a second run changes nothing.
