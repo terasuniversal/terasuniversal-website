@@ -7461,3 +7461,65 @@ textarea.feedback-input { resize: vertical; min-height: 88px; }
   .mobile-contact a:hover { background: #f4f7fa; }
   .mobile-contact a:focus-visible { background: #f4f7fa; outline: 2px solid var(--navy); outline-offset: -2px; }
 }
+
+/* ================================================================
+   Focus visibility and last targets (W4-B)
+   Scoped to marketing pages: the verification, feedback and registration
+   pages keep their own focus styling.
+   ================================================================ */
+
+/* The old focus ring was semi-transparent gold, 1.0-2.9:1 on most controls.
+   A navy ring with a white halo reads on light surfaces (navy) and on the navy
+   sections (the white halo), so no surface needs its own rule. */
+#main-content > main:not(.verify-page, .verification-route, .feedback-page, .registration-page, .registration-status-page)
+  :is(a[href], button, summary, input, select, textarea, [tabindex]:not([tabindex="-1"])):focus-visible,
+.sticky-cta a:focus-visible {
+  outline: 3px solid var(--navy);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 2px #fff;
+}
+/* The FAQ question sits inside a clipped accordion, so its ring stays inset. */
+#main-content > main:not(.verify-page, .verification-route, .feedback-page, .registration-page, .registration-status-page)
+  .faq-question:focus-visible {
+  outline-offset: -3px;
+  box-shadow: none;
+}
+
+/* Top contact strip: the phone and email links were 19px tall. */
+#main-content > main:not(.verify-page, .verification-route, .feedback-page, .registration-page, .registration-status-page) .brand-topbar-inner {
+  min-height: 44px;
+}
+#main-content > main:not(.verify-page, .verification-route, .feedback-page, .registration-page, .registration-status-page) .brand-topbar-inner > div {
+  display: flex;
+  align-items: center;
+}
+#main-content > main:not(.verify-page, .verification-route, .feedback-page, .registration-page, .registration-status-page) .brand-topbar a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+
+/* Homepage jump links: 37px tall. */
+#main-content > main:not(.verify-page, .verification-route, .feedback-page, .registration-page, .registration-status-page) .jump-nav-inner a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding-block: 0;
+}
+
+/* Newsletter consent: a 22px checkbox in a 39px label. */
+#main-content > main:not(.verify-page, .verification-route, .feedback-page, .registration-page, .registration-status-page) .newsletter-consent {
+  align-items: center;
+  min-height: 44px;
+}
+#main-content > main:not(.verify-page, .verification-route, .feedback-page, .registration-page, .registration-status-page) .newsletter-consent input[type="checkbox"] {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  margin-top: 0;
+}
+
+/* Last homepage text under 15px: empty-state copy, gallery count, form note. */
+#main-content > main:not(.verify-page, .verification-route, .feedback-page, .registration-page, .registration-status-page) :is(.upcoming-empty p, .gallery-results, .form-note) {
+  font-size: 15px;
+}
