@@ -7,7 +7,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 // test can say exactly what was and was not written when a step fails.
 // It is NOT proof of atomicity: the helper is deliberately not atomic.
 
-const { runQuotationRevision, isMissingColumnError } = await import("../lib/sales/quotation-revision.ts");
+const { runQuotationRevision, isMissingColumnError, revisionRedirectPath } = await import("../lib/sales/quotation-revision.ts");
 
 type FakeError = { code?: string; message: string };
 type Op = { table: string; kind: "select" | "insert" | "update"; payload?: unknown; filters: [string, unknown][]; terminal: string | null };
@@ -339,6 +339,21 @@ assert.match(helper, /\.eq\("status", source\.status\)/, "superseding is conditi
     assert.doesNotMatch(result.message, /try again|retry/i, "no retry advice once a draft exists: " + result.message);
   }
   assert.ok(draftMessages.some((r) => !r.ok && /do not create another revision/.test(r.message)), "item-copy failures tell the user to complete the existing draft");
+}
+
+// 13. A failed audit entry is reported to the user, without implying the revision was rolled back.
+{
+  assert.equal(revisionRedirectPath({ revisionId: "rev-1", auditSaved: true }), "/admin/sales/quotations/rev-1");
+  assert.equal(revisionRedirectPath({ revisionId: "rev-1", auditSaved: false }), "/admin/sales/quotations/rev-1?notice=revision-audit-unsaved");
+  const { client } = scenario({ audit: { error: { code: "23503", message: "x" } } });
+  const result = await run(client);
+  assert.ok(result.ok && !result.auditSaved, "the revision succeeds while the audit entry is reported missing");
+  assert.match(revisionRedirectPath(result as { revisionId: string; auditSaved: boolean }), /notice=revision-audit-unsaved$/);
+  assert.match(actions, /redirect\(revisionRedirectPath\(result\)\)/, "createRevision redirects through the audit-aware path");
+  const page = (await readFile("app/admin/(protected)/sales/quotations/[id]/page.tsx", "utf8")).replace(/\r\n/g, "\n");
+  assert.match(page, /notice === REVISION_AUDIT_NOTICE/, "the detail page shows the notice");
+  assert.match(page, /was created and saved\. Its entry in the activity log could not be recorded/, "the notice says the revision was kept");
+  assert.doesNotMatch(page, /rolled back|undone/i, "the notice never claims a rollback");
 }
 
 console.log("Quotation revision order contract passed.");

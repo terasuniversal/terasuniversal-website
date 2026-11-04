@@ -7,7 +7,7 @@ import { requireRole, requireModuleAccess } from "../../../../../lib/auth/sessio
 import { quotationHeaderSchema, quotationRejectSchema, fieldErrors, type QuotationHeaderInput } from "../../../../../lib/validation/schemas";
 import { computeQuotationTotals } from "../../../../../lib/sales/crm";
 import { canonicalizePackageSnapshot, commercialName, type CourseCommercialProfileData, type PackageIncludeSnapshot } from "../../../../../lib/sales/course-commercial";
-import { runQuotationRevision } from "../../../../../lib/sales/quotation-revision";
+import { runQuotationRevision, revisionRedirectPath } from "../../../../../lib/sales/quotation-revision";
 
 export type SalesActionState = { message?: string; errors?: Record<string, string> };
 
@@ -354,5 +354,5 @@ export async function createRevision(quotationId: string, _prev: SalesActionStat
   if (!result.ok) return { message: result.message };
 
   revalidateQuotation(result.revisionId, result.opportunityId);
-  redirect(`/admin/sales/quotations/${result.revisionId}`);
+  redirect(revisionRedirectPath(result));
 }

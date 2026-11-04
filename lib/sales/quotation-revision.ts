@@ -41,6 +41,17 @@ export function isMissingColumnError(error: { code?: string | null; message?: st
   return /could not find the '[^']+' column/i.test(text) || /column "?[\w.]+"? .*does not exist/i.test(text);
 }
 
+export const REVISION_AUDIT_NOTICE = "revision-audit-unsaved";
+
+/**
+ * Where to send the user after a successful revision. When only the audit entry failed the revision itself is complete and kept,
+ * so the page is opened with a notice saying the activity log is missing one entry. It never claims anything was rolled back.
+ */
+export function revisionRedirectPath(result: { revisionId: string; auditSaved: boolean }): string {
+  const base = `/admin/sales/quotations/${result.revisionId}`;
+  return result.auditSaved ? base : `${base}?notice=${REVISION_AUDIT_NOTICE}`;
+}
+
 function failure(stage: QuotationRevisionStage, message: string, revisionCreated = false): QuotationRevisionResult {
   return { ok: false, stage, message, revisionCreated };
 }
