@@ -45,4 +45,7 @@ Rules while a draft:
 - Do not apply it to Staging or Production, and do not move it into `supabase/migrations/`, without explicit owner approval and the staging checklist.
 - Owner decisions embedded in the SQL: D4 (inputs limited to 2 decimals), D5 (negative line totals rejected), D6 (no extra send validation), D8 (a created quotation moves any unresolved opportunity to `quotation`).
 - Validated only on throwaway local databases (Docker `postgres:17.6`): Baseline V2 + P1 + P2 + P3 + this file, and Baseline V3 + this file. Run the behaviour suite `supabase/tests/quotation_atomic_rpcs_behavior_test.sql` against such a database; it ends in ROLLBACK and inserts `auth.users` fixtures, so it must never be pointed at a shared database.
+- Course snapshots (D9): the RPCs VALIDATE name/HRDF/package keys against `course_commercial_profiles` exactly as the application resolves them, and reject mismatches; they do not resolve (compute) the snapshots themselves.
+- Customer fields omitted from the header fall back to the company, then the opportunity (as `createQuotation` does for unsubmitted fields); fields supplied, even empty, are used as sent.
+- Also validated locally: `supabase/tests/quotation_atomic_rpcs_isolation_test.sql` (every RPC refuses REPEATABLE READ). Both test files are for disposable databases only.
 - Forward-only: stop using the RPCs by revoking EXECUTE and reverting the application; keep the ledger table.

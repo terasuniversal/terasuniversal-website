@@ -75,6 +75,28 @@ begin
     raise exception 'm4_precondition_failed: P3 20260912005428 is not applied (total arithmetic constraint missing)' using errcode = 'P0001';
   end if;
 
+  -- P1 and P2 are part of the chain even though M4 never writes invoices: the invoice snapshot columns must carry their
+  -- final (P2-renamed) names and the old names must be gone, and P3's guard trigger must exist. A database that has P3's
+  -- quotation columns but not this invoice shape is in an unexpected state; stop rather than layer M4 on it.
+  if (
+    select count(*) from information_schema.columns
+    where table_schema = 'public' and (
+      (table_name = 'invoices' and column_name in ('quotation_number_snapshot', 'training_service_address_snapshot'))
+      or (table_name = 'invoice_items' and column_name in ('course_id_snapshot', 'course_name_snapshot', 'hrdf_claim', 'package_includes_snapshot')))
+  ) <> 6 or exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and (
+      (table_name = 'invoices' and column_name in ('quotation_no', 'training_service_address'))
+      or (table_name = 'invoice_items' and column_name = 'course_id'))
+  ) then
+    raise exception 'm4_precondition_failed: invoice snapshot columns are not in the post-P1/P2 shape' using errcode = 'P0001';
+  end if;
+  if not exists (
+    select 1 from pg_trigger where tgrelid = 'public.sales_quotations'::regclass and tgname = 'trg_guard_quotation_sst_snapshot' and not tgisinternal
+  ) then
+    raise exception 'm4_precondition_failed: P3 20260912005428 guard trigger is missing' using errcode = 'P0001';
+  end if;
+
   -- Commercial snapshot columns the RPCs read and write.
   if (
     select count(*) from information_schema.columns
@@ -196,7 +218,7 @@ begin
   if jsonb_typeof(p_value) <> 'string' then
     raise exception 'invalid_input:%', p_field using errcode = 'P0001';
   end if;
-  v_text := regexp_replace(p_value #>> '{}', '^\s+|\s+$', '', 'g');
+  v_text := regexp_replace(p_value #>> '{}', '^[\t\n\v\f\r \u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]+|[\t\n\v\f\r \u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]+$', '', 'g');
   if v_text = '' then
     if p_required then raise exception 'invalid_input:%', p_field using errcode = 'P0001'; end if;
     return null;
@@ -268,6 +290,88 @@ begin
     'terms', app.quotation_input_text(p_header -> 'terms', 'terms', 3000),
     'notes', app.quotation_input_text(p_header -> 'notes', 'notes', 3000)
   );
+end;
+$$;
+
+-- Checks one item's course snapshots against its course_commercial_profiles row, mirroring the application
+-- (prepareQuotationItems, canonicalizePackageSnapshot, commercialName in lib/sales/course-commercial.ts). It only
+-- REJECTS or de-duplicates; it never rewrites a value. Returns the package array with duplicate keys dropped (first wins).
+create or replace function app.quotation_check_course_commercial(
+  p_course uuid, p_hrdf boolean, p_name text, p_package jsonb, p_prefix text
+) returns jsonb
+language plpgsql
+set search_path = pg_catalog, public, app
+as $$
+declare
+  v_profile public.course_commercial_profiles%rowtype;
+  v_hrdf_name text;
+  v_expected text;
+  v_allowed text[] := '{}';
+  v_elem jsonb;
+  v_label text;
+  v_key text;
+  v_acc text;
+  v_meals text;
+  v_out jsonb := '[]'::jsonb;
+  v_seen text[] := '{}';
+  v_item jsonb;
+  v_trim constant text := '^[\t\n\v\f\r \u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]+|[\t\n\v\f\r \u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]+$';
+begin
+  select * into v_profile from public.course_commercial_profiles p where p.course_id = p_course;
+  if not found then
+    raise exception 'invalid_input:%course_profile', p_prefix using errcode = 'P0001';
+  end if;
+
+  v_hrdf_name := regexp_replace(coalesce(v_profile.hrdf_display_name, ''), v_trim, '', 'g');
+  if p_hrdf and not (v_profile.hrdf_claimable and v_hrdf_name <> '') then
+    raise exception 'invalid_input:%hrdf_claim', p_prefix using errcode = 'P0001';
+  end if;
+  v_expected := case when p_hrdf and v_profile.hrdf_claimable and v_hrdf_name <> '' then v_hrdf_name
+                     else v_profile.standard_display_name end;
+  if p_name is distinct from regexp_replace(v_expected, v_trim, '', 'g') then
+    raise exception 'invalid_input:%course_name_snapshot', p_prefix using errcode = 'P0001';
+  end if;
+
+  -- Case conversion and the character class are spelled out (translate, explicit ranges) so the slug never depends on the
+  -- database locale (for example Turkish I) or on collation ordering of [a-z].
+  -- Allowed package keys: the profile's package_includes (strings or {key,label}), plus accommodation / meals when described.
+  for v_elem in select e.value from jsonb_array_elements(v_profile.package_includes) as e loop
+    if jsonb_typeof(v_elem) = 'string' then
+      v_label := regexp_replace(v_elem #>> '{}', v_trim, '', 'g');
+      v_key := null;
+      -- Non-ASCII labels are skipped: PostgreSQL lower() and JavaScript toLowerCase() can differ there, and skipping can only
+      -- REJECT a key the application would accept, never accept one it would reject.
+      if v_label <> '' and v_label ~ '^[\x01-\x7f]*$' then
+        v_key := coalesce(nullif(left(regexp_replace(regexp_replace(translate(v_label, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), '[^abcdefghijklmnopqrstuvwxyz0123456789]+', '_', 'g'), '^_|_$', '', 'g'), 80), ''), 'package_item');
+      end if;
+    elsif jsonb_typeof(v_elem) = 'object' then
+      v_label := case when jsonb_typeof(v_elem -> 'label') = 'string' then regexp_replace(v_elem ->> 'label', v_trim, '', 'g') else '' end;
+      v_key := case when jsonb_typeof(v_elem -> 'key') = 'string' then regexp_replace(v_elem ->> 'key', v_trim, '', 'g')
+                    else coalesce(nullif(left(regexp_replace(regexp_replace(translate(v_label, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), '[^abcdefghijklmnopqrstuvwxyz0123456789]+', '_', 'g'), '^_|_$', '', 'g'), 80), ''), 'package_item') end;
+      if v_label = '' or v_key = '' then v_key := null; end if;
+      -- A key derived from a non-ASCII label is skipped for the same reason; explicit keys are only trimmed.
+      if v_key is not null and jsonb_typeof(v_elem -> 'key') is distinct from 'string' and v_label !~ '^[\x01-\x7f]*$' then v_key := null; end if;
+    else
+      v_key := null;
+    end if;
+    if v_key is not null and v_key <> '' then v_allowed := v_allowed || v_key; end if;
+  end loop;
+  v_acc := regexp_replace(coalesce(v_profile.accommodation_description_default, ''), v_trim, '', 'g');
+  v_meals := regexp_replace(coalesce(v_profile.meals_description_default, ''), v_trim, '', 'g');
+  if v_acc <> '' then v_allowed := v_allowed || 'accommodation'::text; end if;
+  if v_meals <> '' then v_allowed := v_allowed || 'meals'::text; end if;
+
+  for v_item in select e.value from jsonb_array_elements(p_package) as e loop
+    if not ((v_item ->> 'key') = any (v_allowed)) then
+      raise exception 'invalid_input:%package_includes_snapshot', p_prefix using errcode = 'P0001';
+    end if;
+    if (v_item ->> 'key') = any (v_seen) then
+      continue;
+    end if;
+    v_seen := v_seen || (v_item ->> 'key');
+    v_out := v_out || jsonb_build_array(v_item);
+  end loop;
+  return v_out;
 end;
 $$;
 
@@ -344,9 +448,13 @@ begin
       ));
     end loop;
 
-    -- Mirrors prepareQuotationItems(): HRDF and package snapshots need a course profile.
+    -- Mirrors prepareQuotationItems(): HRDF and package snapshots need a course profile, and with a course every
+    -- snapshot must agree with that course's commercial profile.
     if v_course is null and (v_hrdf or jsonb_array_length(v_pkg_out) > 0 or v_course_name is not null) then
       raise exception 'invalid_input:%course_id', v_prefix using errcode = 'P0001';
+    end if;
+    if v_course is not null then
+      v_pkg_out := app.quotation_check_course_commercial(v_course, v_hrdf, v_course_name, v_pkg_out, v_prefix);
     end if;
 
     v_out := v_out || jsonb_build_array(jsonb_build_object(
@@ -460,6 +568,7 @@ $$;
 
 revoke all on function app.quotation_input_numeric(jsonb, text, numeric, numeric, boolean, numeric) from public, anon, authenticated;
 revoke all on function app.quotation_input_text(jsonb, text, integer, boolean) from public, anon, authenticated;
+revoke all on function app.quotation_check_course_commercial(uuid, boolean, text, jsonb, text) from public, anon, authenticated;
 revoke all on function app.quotation_normalize_header(jsonb) from public, anon, authenticated;
 revoke all on function app.quotation_normalize_items(jsonb) from public, anon, authenticated;
 revoke all on function app.quotation_compute_totals(jsonb, jsonb) from public, anon, authenticated;
@@ -485,8 +594,16 @@ declare
   v_totals jsonb;
   v_fingerprint text;
   v_replay uuid;
-  v_stage text;
-  v_lead uuid;
+  v_opp record;
+  v_co record;
+  v_present jsonb;
+  v_company_name text;
+  v_contact_name text;
+  v_registration_no text;
+  v_email text;
+  v_phone text;
+  v_billing text;
+  v_training_address text;
   v_id uuid;
   v_no text;
 begin
@@ -507,14 +624,20 @@ begin
   v_header := app.quotation_normalize_header(p_header);
   v_items := app.quotation_normalize_items(p_items);
   v_totals := app.quotation_compute_totals(v_header, v_items);
-  v_fingerprint := app.quotation_request_fingerprint('create', p_opportunity_id, v_header, v_items);
+  -- Which customer fields the caller supplied decides whether the company/opportunity fallback applies, so it is part of
+  -- the request identity: the same key with a field omitted versus sent empty is a different request.
+  select coalesce(jsonb_agg(k order by k), '[]'::jsonb) into v_present
+  from unnest(array['customer_company_name', 'customer_contact_name', 'customer_registration_no', 'customer_email',
+    'customer_phone', 'billing_address', 'training_service_address']) as k
+  where jsonb_exists(p_header, k);
+  v_fingerprint := app.quotation_request_fingerprint('create', p_opportunity_id, v_header || jsonb_build_object('_present', v_present), v_items);
 
   v_replay := app.quotation_reserve_request(v_actor, p_request_id, 'create', v_fingerprint);
   if v_replay is not null then
     return v_replay;
   end if;
 
-  select o.stage, o.lead_metadata_id into v_stage, v_lead
+  select o.stage, o.lead_metadata_id, o.company_id, o.company_name, o.contact_person, o.contact_email, o.contact_phone into v_opp
   from public.sales_opportunities o
   where o.id = p_opportunity_id
   for update;
@@ -522,9 +645,28 @@ begin
     raise exception 'opportunity_not_found' using errcode = 'P0001';
   end if;
   -- Same refusal as createQuotation today.
-  if v_stage in ('won', 'lost', 'cancelled') then
+  if v_opp.stage in ('won', 'lost', 'cancelled') then
     raise exception 'opportunity_resolved' using errcode = 'P0001';
   end if;
+
+  -- createQuotation prefills each customer field that was not submitted: company first, then the opportunity (first
+  -- non-empty wins); training_service_address has no fallback. A field that WAS submitted, even empty, is used as sent.
+  -- The left join always assigns v_co (all NULL when the opportunity has no company or the company is gone).
+  select c.company_name, c.person_in_charge, c.registration_no, c.email, c.pic_email, c.phone, c.pic_phone, c.billing_address, c.address
+    into v_co from (select 1) as one left join public.companies c on c.id = v_opp.company_id;
+  v_company_name := case when jsonb_exists(p_header, 'customer_company_name') then v_header ->> 'customer_company_name'
+    else coalesce(nullif(v_co.company_name, ''), nullif(v_opp.company_name, '')) end;
+  v_contact_name := case when jsonb_exists(p_header, 'customer_contact_name') then v_header ->> 'customer_contact_name'
+    else coalesce(nullif(v_co.person_in_charge, ''), nullif(v_opp.contact_person, '')) end;
+  v_registration_no := case when jsonb_exists(p_header, 'customer_registration_no') then v_header ->> 'customer_registration_no'
+    else nullif(v_co.registration_no, '') end;
+  v_email := case when jsonb_exists(p_header, 'customer_email') then v_header ->> 'customer_email'
+    else coalesce(nullif(v_co.email, ''), nullif(v_co.pic_email, ''), nullif(v_opp.contact_email, '')) end;
+  v_phone := case when jsonb_exists(p_header, 'customer_phone') then v_header ->> 'customer_phone'
+    else coalesce(nullif(v_co.phone, ''), nullif(v_co.pic_phone, ''), nullif(v_opp.contact_phone, '')) end;
+  v_billing := case when jsonb_exists(p_header, 'billing_address') then v_header ->> 'billing_address'
+    else coalesce(nullif(v_co.billing_address, ''), nullif(v_co.address, '')) end;
+  v_training_address := v_header ->> 'training_service_address';
 
   insert into public.sales_quotations (
     opportunity_id, valid_until, currency, subtotal, discount, sst_applicable, sst_rate, sst_amount, tax, total,
@@ -534,9 +676,9 @@ begin
     p_opportunity_id, (v_header ->> 'valid_until')::date, v_header ->> 'currency', (v_totals ->> 'subtotal')::numeric,
     (v_header ->> 'discount')::numeric, (v_header ->> 'sst_applicable')::boolean, (v_header ->> 'sst_rate')::numeric,
     (v_totals ->> 'tax')::numeric, (v_totals ->> 'tax')::numeric, (v_totals ->> 'total')::numeric,
-    v_header ->> 'terms', v_header ->> 'notes', v_actor, v_header ->> 'customer_company_name',
-    v_header ->> 'customer_contact_name', v_header ->> 'customer_registration_no', v_header ->> 'customer_email',
-    v_header ->> 'customer_phone', v_header ->> 'billing_address', v_header ->> 'training_service_address'
+    v_header ->> 'terms', v_header ->> 'notes', v_actor, v_company_name,
+    v_contact_name, v_registration_no, v_email,
+    v_phone, v_billing, v_training_address
   ) returning id, quotation_no into v_id, v_no;
 
   insert into public.sales_quotation_items (
@@ -557,7 +699,7 @@ begin
   where id = p_opportunity_id;
 
   insert into public.sales_activity (lead_metadata_id, opportunity_id, quotation_id, type, note, actor_id)
-  values (v_lead, p_opportunity_id, v_id, 'quotation_created', v_no || ' created', v_actor);
+  values (v_opp.lead_metadata_id, p_opportunity_id, v_id, 'quotation_created', v_no || ' created', v_actor);
 
   update public.sales_quotation_requests set quotation_id = v_id
   where created_by = v_actor and request_id = p_request_id;
@@ -805,6 +947,9 @@ begin
   v_actor := auth.uid();
   if v_actor is null then
     raise exception 'forbidden' using errcode = '42501';
+  end if;
+  if current_setting('transaction_isolation') <> 'read committed' then
+    raise exception 'unsupported_isolation_level' using errcode = 'P0001';
   end if;
   if p_quotation_id is null then
     raise exception 'invalid_input:request' using errcode = 'P0001';

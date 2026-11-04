@@ -34,7 +34,28 @@ update public.sales_opportunities set stage = 'won' where id = '20000000-0000-00
 select set_config('app.sales_revenue_transition', 'reverse', true);
 update public.sales_opportunities set stage = 'cancelled' where id = '20000000-0000-0000-0000-000000000007';
 select set_config('app.sales_revenue_transition', '', true);
-insert into public.courses (id, title, slug) values ('40000000-0000-0000-0000-000000000001', 'QA Course', 'qa-atomic-rpc-course');
+insert into public.courses (id, title, slug) values
+  ('40000000-0000-0000-0000-000000000001', 'QA Course', 'qa-atomic-rpc-course'),
+  ('40000000-0000-0000-0000-000000000002', 'QA No Profile', 'qa-no-profile'),
+  ('40000000-0000-0000-0000-000000000003', 'QA Not Claimable', 'qa-not-claimable'),
+  ('40000000-0000-0000-0000-000000000004', 'QA Blank HRDF Name', 'qa-blank-hrdf'),
+  ('40000000-0000-0000-0000-000000000005', 'QA Unicode Package', 'qa-unicode-package'),
+  ('40000000-0000-0000-0000-000000000006', 'QA NBSP HRDF Name', 'qa-nbsp-hrdf');
+insert into public.course_commercial_profiles (course_id, standard_display_name, hrdf_display_name, hrdf_claimable, quotation_description, package_includes,
+  accommodation_included_default, accommodation_description_default, meals_included_default, meals_description_default) values
+  ('40000000-0000-0000-0000-000000000001', 'QA Course', 'QA Course (HRDF)', true, 'desc', '["Lunch", {"key":"snacks","label":"Tea break"}, 7, {"label":"Notes pack"}]'::jsonb, true, 'Hotel stay', false, null),
+  ('40000000-0000-0000-0000-000000000003', 'QA Not Claimable', 'QA NC (HRDF)', false, 'desc', '[]'::jsonb, false, null, false, null),
+  ('40000000-0000-0000-0000-000000000004', 'QA Blank HRDF Name', '   ', true, 'desc', '[]'::jsonb, false, null, false, null),
+  ('40000000-0000-0000-0000-000000000005', 'QA Unicode Package', null, false, 'desc', '["Café", "Plain Item", {"key":"x_key","label":"Café explicit"}]'::jsonb, false, null, false, null),
+  ('40000000-0000-0000-0000-000000000006', 'QA NBSP HRDF Name', chr(160) || chr(8195), true, 'desc', '[]'::jsonb, false, null, false, null);
+insert into public.companies (id, company_name, registration_no, email, pic_email, phone, pic_phone, person_in_charge, billing_address, address) values
+  ('50000000-0000-0000-0000-000000000001', 'Fallback Co', 'REG-1', '', 'pic@co.test', null, '011-1111', 'Co PIC', null, 'Co Address 1');
+insert into public.sales_lead_metadata (id, lead_source, source_id) values
+  ('00000000-0000-0000-0000-000000000015', 'enquiry', '10000000-0000-0000-0000-000000000015'),
+  ('00000000-0000-0000-0000-000000000016', 'enquiry', '10000000-0000-0000-0000-000000000016');
+insert into public.sales_opportunities (id, lead_metadata_id, title, stage, company_id, company_name, contact_person, contact_email, contact_phone) values
+  ('20000000-0000-0000-0000-000000000015', '00000000-0000-0000-0000-000000000015', 'QA with company', 'qualified', '50000000-0000-0000-0000-000000000001', 'Opp Co', 'Opp Person', 'opp@x.test', '012-2222'),
+  ('20000000-0000-0000-0000-000000000016', '00000000-0000-0000-0000-000000000016', 'QA no company', 'qualified', null, 'Opp Only Co', 'Opp Only Person', 'only@x.test', '013-3333');
 
 -- Helpers (session-local) ---------------------------------------------------
 create function pg_temp.qa_err(p_sql text) returns text language plpgsql as $$
@@ -68,7 +89,7 @@ $$;
 create function pg_temp.qa_items() returns jsonb language sql as $$
   select jsonb_build_array(
     jsonb_build_object('description', 'Line A', 'quantity', 3, 'unit', 'pax', 'unit_price', 10.33, 'discount', 0.99,
-      'course_id', '40000000-0000-0000-0000-000000000001', 'course_name_snapshot', 'QA Course', 'hrdf_claim', true,
+      'course_id', '40000000-0000-0000-0000-000000000001', 'course_name_snapshot', 'QA Course (HRDF)', 'hrdf_claim', true,
       'package_includes_snapshot', jsonb_build_array(jsonb_build_object('key', 'lunch', 'label', 'Lunch'))),
     jsonb_build_object('description', 'Line B', 'quantity', 1.5, 'unit', 'session', 'unit_price', 0.01, 'discount', 0)
   );
@@ -244,6 +265,94 @@ begin
   perform pg_temp.qa_assert(pg_temp.qa_err('select public.create_quotation_with_items(null, pg_temp.qa_header(), pg_temp.qa_items(), gen_random_uuid())') = 'P0001|invalid_input:request', 'null opportunity refused');
   perform pg_temp.qa_assert(pg_temp.qa_err('select public.create_quotation_with_items(''20000000-0000-0000-0000-000000000012'', pg_temp.qa_header(), pg_temp.qa_items(), null)') = 'P0001|invalid_input:request', 'null request id refused');
   perform pg_temp.qa_assert(pg_temp.qa_err('select public.create_quotation_with_items(''20000000-0000-0000-0000-000000000012'', ''[]''::jsonb, pg_temp.qa_items(), gen_random_uuid())') = 'P0001|invalid_input:header', 'non-object header refused');
+end $$;
+
+-- 5b. Course commercial snapshots must agree with the course profile (reject-only, as the application does) --------------------
+do $$
+declare
+  v_opp text := '20000000-0000-0000-0000-000000000012';
+  v_state text := pg_temp.qa_state();
+  v_id uuid;
+  r record;
+begin
+  for r in select * from (values
+    ('course without a profile', '"course_id":"40000000-0000-0000-0000-000000000002","course_name_snapshot":"x"', 'invalid_input:items[1].course_profile'),
+    ('HRDF on a non-claimable course', '"course_id":"40000000-0000-0000-0000-000000000003","course_name_snapshot":"QA NC (HRDF)","hrdf_claim":true', 'invalid_input:items[1].hrdf_claim'),
+    ('HRDF with a blank HRDF display name', '"course_id":"40000000-0000-0000-0000-000000000004","course_name_snapshot":"QA Blank HRDF Name","hrdf_claim":true', 'invalid_input:items[1].hrdf_claim'),
+    ('stale or forged course name (no HRDF)', '"course_id":"40000000-0000-0000-0000-000000000001","course_name_snapshot":"QA Course (HRDF)"', 'invalid_input:items[1].course_name_snapshot'),
+    ('standard name sent with HRDF on', '"course_id":"40000000-0000-0000-0000-000000000001","course_name_snapshot":"QA Course","hrdf_claim":true', 'invalid_input:items[1].course_name_snapshot'),
+    ('course item without any name snapshot', '"course_id":"40000000-0000-0000-0000-000000000001"', 'invalid_input:items[1].course_name_snapshot'),
+    ('package key not configured for the course', '"course_id":"40000000-0000-0000-0000-000000000001","course_name_snapshot":"QA Course","package_includes_snapshot":[{"key":"limo","label":"Limo"}]', 'invalid_input:items[1].package_includes_snapshot'),
+    ('HRDF name that is only Unicode whitespace is blank, as JavaScript trim() sees it', '"course_id":"40000000-0000-0000-0000-000000000006","course_name_snapshot":"QA NBSP HRDF Name","hrdf_claim":true', 'invalid_input:items[1].hrdf_claim'),
+    ('key derived from a non-ASCII label is not allowed (fail-closed)', '"course_id":"40000000-0000-0000-0000-000000000005","course_name_snapshot":"QA Unicode Package","package_includes_snapshot":[{"key":"caf","label":"Cafe"}]', 'invalid_input:items[1].package_includes_snapshot'),
+    ('meals offered but not described by the profile', '"course_id":"40000000-0000-0000-0000-000000000001","course_name_snapshot":"QA Course","package_includes_snapshot":[{"key":"meals","label":"Meals"}]', 'invalid_input:items[1].package_includes_snapshot')
+  ) as t(name, fields, expected)
+  loop
+    perform pg_temp.qa_assert(
+      pg_temp.qa_err(format('select public.create_quotation_with_items(%L, pg_temp.qa_header(%L), %L::jsonb, gen_random_uuid())', v_opp, '{"discount":0}',
+        '[{"description":"c","quantity":1,"unit":"pax","unit_price":10,' || r.fields || '}]')) = 'P0001|' || r.expected,
+      r.name || ' -> ' || r.expected);
+  end loop;
+  perform pg_temp.qa_assert(pg_temp.qa_state() = v_state, 'rejected course snapshots wrote nothing');
+
+  -- Accepted: strings and {key,label} entries slug to keys; accommodation is allowed through its description; the label is
+  -- stored as submitted (the application does not compare labels); a repeated key is kept once, first wins.
+  v_id := public.create_quotation_with_items(v_opp::uuid, pg_temp.qa_header('{"discount":0}'),
+    '[{"description":"c","quantity":1,"unit":"pax","unit_price":10,"course_id":"40000000-0000-0000-0000-000000000001","course_name_snapshot":"QA Course (HRDF)","hrdf_claim":true,
+       "package_includes_snapshot":[{"key":"lunch","label":"Our lunch"},{"key":"snacks","label":"Tea break"},{"key":"notes_pack","label":"Notes pack"},{"key":"accommodation","label":"Hotel stay"},{"key":"lunch","label":"dup"}]}]',
+    gen_random_uuid());
+  perform pg_temp.qa_assert((select package_includes_snapshot = '[{"key":"lunch","label":"Our lunch"},{"key":"snacks","label":"Tea break"},{"key":"notes_pack","label":"Notes pack"},{"key":"accommodation","label":"Hotel stay"}]'::jsonb
+    and course_name_snapshot = 'QA Course (HRDF)' and hrdf_claim from public.sales_quotation_items where quotation_id = v_id), 'valid course snapshots stored, duplicate key dropped');
+  -- ASCII-derived and explicit keys on a profile that also has a non-ASCII label are still allowed.
+  perform public.create_quotation_with_items(v_opp::uuid, pg_temp.qa_header('{"discount":0}'),
+    '[{"description":"u","quantity":1,"unit":"pax","unit_price":10,"course_id":"40000000-0000-0000-0000-000000000005","course_name_snapshot":"QA Unicode Package","package_includes_snapshot":[{"key":"plain_item","label":"Plain Item"},{"key":"x_key","label":"x"}]}]', gen_random_uuid());
+  -- The same rules apply when a draft is replaced.
+  perform pg_temp.qa_assert(pg_temp.qa_err(format('select public.replace_quotation_draft(%L, pg_temp.qa_header(%L), %L::jsonb, (select updated_at from public.sales_quotations where id = %L))', v_id, '{"discount":0}',
+    '[{"description":"c","quantity":1,"unit":"pax","unit_price":10,"course_id":"40000000-0000-0000-0000-000000000001","course_name_snapshot":"stale"}]', v_id)) = 'P0001|invalid_input:items[1].course_name_snapshot', 'replace enforces the same course rules');
+  -- A revision copies the stored snapshots as they are, without re-resolving them against the (possibly changed) profile.
+  update public.course_commercial_profiles set standard_display_name = 'Renamed Later', hrdf_display_name = 'Renamed Later (HRDF)' where course_id = '40000000-0000-0000-0000-000000000001';
+  update public.sales_quotations set status = 'sent' where id = v_id;
+  perform public.create_quotation_revision(v_id, gen_random_uuid());
+  perform pg_temp.qa_assert((select count(*) from public.sales_quotation_items i join public.sales_quotations q on q.id = i.quotation_id where q.parent_quotation_id = v_id and i.course_name_snapshot = 'QA Course (HRDF)') = 1, 'revision keeps the original snapshot');
+  update public.course_commercial_profiles set standard_display_name = 'QA Course', hrdf_display_name = 'QA Course (HRDF)' where course_id = '40000000-0000-0000-0000-000000000001';
+end $$;
+
+-- 5c. Customer fields not supplied fall back to the company, then the opportunity (createQuotation's prefill) --------------------------
+do $$
+declare
+  v_id uuid;
+  v_req uuid := gen_random_uuid();
+  q record;
+  v_item text := '[{"description":"f","quantity":1,"unit":"pax","unit_price":10}]';
+  v_base jsonb := '{"currency":"MYR","discount":0,"sst_applicable":false,"sst_rate":0}';
+begin
+  -- Nothing supplied, opportunity has a company: company first, then opportunity, first non-empty value wins.
+  v_id := public.create_quotation_with_items('20000000-0000-0000-0000-000000000015', v_base, v_item::jsonb, v_req);
+  select * into q from public.sales_quotations where id = v_id;
+  perform pg_temp.qa_assert(q.customer_company_name = 'Fallback Co' and q.customer_contact_name = 'Co PIC' and q.customer_registration_no = 'REG-1', 'company name, contact and registration come from the company');
+  perform pg_temp.qa_assert(q.customer_email = 'pic@co.test', 'empty company email is skipped for the PIC email');
+  perform pg_temp.qa_assert(q.customer_phone = '011-1111', 'null company phone is skipped for the PIC phone');
+  perform pg_temp.qa_assert(q.billing_address = 'Co Address 1' and q.training_service_address is null, 'billing falls back to the address; training address has no fallback');
+
+  -- A field that is supplied wins, even when empty or null; the rest still fall back.
+  v_id := public.create_quotation_with_items('20000000-0000-0000-0000-000000000015',
+    v_base || '{"customer_company_name":"Typed Co","customer_email":"","customer_phone":null}', v_item::jsonb, gen_random_uuid());
+  select * into q from public.sales_quotations where id = v_id;
+  perform pg_temp.qa_assert(q.customer_company_name = 'Typed Co' and q.customer_email is null and q.customer_phone is null, 'supplied values are used as sent, empty and null become NULL');
+  perform pg_temp.qa_assert(q.customer_contact_name = 'Co PIC' and q.billing_address = 'Co Address 1', 'omitted fields still fall back');
+  v_id := public.create_quotation_with_items('20000000-0000-0000-0000-000000000015', v_base || '{"customer_company_name":""}', v_item::jsonb, gen_random_uuid());
+  perform pg_temp.qa_assert((select customer_company_name is null from public.sales_quotations where id = v_id), 'an explicitly empty company name is kept empty, not replaced by the fallback');
+
+  -- No company on the opportunity: the opportunity's own contact fields are used.
+  v_id := public.create_quotation_with_items('20000000-0000-0000-0000-000000000016', v_base, v_item::jsonb, gen_random_uuid());
+  select * into q from public.sales_quotations where id = v_id;
+  perform pg_temp.qa_assert(q.customer_company_name = 'Opp Only Co' and q.customer_contact_name = 'Opp Only Person' and q.customer_email = 'only@x.test' and q.customer_phone = '013-3333'
+    and q.customer_registration_no is null and q.billing_address is null, 'opportunity fallback without a company');
+
+  -- Omitted versus sent-empty is a different request, so the same key is refused rather than replayed.
+  perform pg_temp.qa_assert(pg_temp.qa_err(format('select public.create_quotation_with_items(%L, %L::jsonb, %L::jsonb, %L)', '20000000-0000-0000-0000-000000000015',
+    (v_base || '{"customer_company_name":null}')::text, v_item, v_req)) = 'P0001|idempotency_key_reused', 'omitted versus null is a different request');
+  perform pg_temp.qa_assert(public.create_quotation_with_items('20000000-0000-0000-0000-000000000015', v_base, v_item::jsonb, v_req) is not null, 'the identical request still replays');
 end $$;
 
 -- 6. Opportunity rules ---------------------------------------------------------------------------------------------------------
