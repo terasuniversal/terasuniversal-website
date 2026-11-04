@@ -356,4 +356,24 @@ assert.match(helper, /\.eq\("status", source\.status\)/, "superseding is conditi
   assert.doesNotMatch(page, /rolled back|undone/i, "the notice never claims a rollback");
 }
 
+// 14. The legacy training_details snapshot is carried onto the revision when the source has it, and the payload is unchanged
+// for a database that has no such column.
+{
+  const training = { schema_version: 1, programme: { course_name_snapshot: "Legacy", duration_label: "2 days" } };
+  const withColumn = scenario({ source: { ...SOURCE, training_details: training } });
+  assert.equal((await run(withColumn.client)).ok, true);
+  const insertWith = withColumn.log.find((op) => op.kind === "insert" && op.table === "sales_quotations")?.payload as Record<string, unknown>;
+  assert.deepEqual(insertWith.training_details, training, "the revision carries the source's training_details");
+
+  const emptyDefault = scenario({ source: { ...SOURCE, training_details: {} } });
+  await run(emptyDefault.client);
+  const insertEmpty = emptyDefault.log.find((op) => op.kind === "insert" && op.table === "sales_quotations")?.payload as Record<string, unknown>;
+  assert.deepEqual(insertEmpty.training_details, {}, "an empty default is carried as-is");
+
+  const noColumn = scenario({});
+  await run(noColumn.client);
+  const insertWithout = noColumn.log.find((op) => op.kind === "insert" && op.table === "sales_quotations")?.payload as Record<string, unknown>;
+  assert.equal("training_details" in insertWithout, false, "a database without the column gets no training_details key");
+}
+
 console.log("Quotation revision order contract passed.");

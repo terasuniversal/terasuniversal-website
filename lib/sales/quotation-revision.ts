@@ -158,6 +158,9 @@ async function revise(supabase: SupabaseClient, input: { quotationId: string; ac
       customer_phone: source.customer_phone,
       billing_address: source.billing_address,
       training_service_address: source.training_service_address,
+      // Legacy snapshot the quotation and invoice PDFs still render. Spread only when the database returned the column, so a
+      // database without it (key absent from select *) gets exactly the payload it had before.
+      ...(source.training_details !== undefined ? { training_details: source.training_details } : {}),
       created_by: actorId,
     })
     .select("id, quotation_no")
