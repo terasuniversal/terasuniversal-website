@@ -199,9 +199,11 @@ begin
     raise notice 'grant hardening: closed to public/anon, authenticated kept: %', r.sig;
   end loop;
 
-  -- 4. Future functions created by postgres: remove any explicit anon default entry, first the schema-level one for public
-  -- (Supabase default privileges), then a global one if it exists. The built-in PUBLIC default is not an anon entry and
-  -- stays (see header); authenticated/service_role defaults stay. A database without such entries is unaffected.
+  -- 4. Future functions created by postgres: remove explicit anon default entries. The schema-level revoke affects only
+  -- new functions in public (the Supabase default privilege). The global revoke removes a global anon entry if one exists,
+  -- and so affects new functions created by postgres in EVERY schema (on the canonical project there is no global entry,
+  -- so it changes nothing there). Neither touches existing functions, the built-in PUBLIC default, schema-level entries
+  -- for other schemas (e.g. storage), or the authenticated/service_role defaults.
   alter default privileges for role postgres in schema public revoke execute on functions from anon;
   -- A GLOBAL (all schemas) explicit anon entry would survive the schema-level revoke, so remove that too. Revoking an entry
   -- that is not there changes nothing; PostgreSQL's built-in PUBLIC default is not an anon entry and is not affected.
