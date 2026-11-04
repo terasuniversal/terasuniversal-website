@@ -7329,3 +7329,61 @@ textarea.feedback-input { resize: vertical; min-height: 88px; }
   #main-content > main h1 { font-size: clamp(30px, 8.4vw, 36px); text-wrap: balance; }
   #main-content > main h2 { font-size: clamp(24px, 6.8vw, 28px); line-height: 1.15; text-wrap: balance; }
 }
+
+/* ================================================================
+   Header and homepage pass (W3)
+   ================================================================ */
+
+/* Desktop header. A later rule shows the menu button at every width, so it
+   appeared beside the full desktop nav; labels were 12px and wrapped, which
+   dropped the dropdown arrow onto its own line and squeezed the logo below
+   a readable width at 921-1024px. */
+@media (min-width: 921px) {
+  .site-header .menu-button { display: none; }
+  /* The artwork is height-limited to ~94px wide, so 112px keeps it whole. */
+  .site-header .brand,
+  .site-header .brand img { min-width: 112px; }
+  .mega-nav { gap: 6px; }
+  .mega-nav-group summary,
+  .mega-nav-verify,
+  .nav-proposal,
+  .nav-cta { display: inline-flex; align-items: center; min-height: 44px; font-size: 13px; white-space: nowrap; }
+  .mega-nav-group summary { padding: 0 8px; }
+  .mega-nav-group summary::after { transform: translateY(-3px); }
+  .mega-nav-panel a { display: flex; align-items: center; min-height: 44px; }
+}
+/* "Verify Certificate" stays in the About TERAS menu (and the mobile menu)
+   where the header has no room for the standalone link. */
+@media (min-width: 921px) and (max-width: 1279px) {
+  .mega-nav-verify { display: none; }
+}
+/* Between tablet and laptop widths the nav cannot fit one row at a readable
+   size; the call-to-action buttons move to a second row instead. */
+@media (min-width: 921px) and (max-width: 1179px) {
+  .site-header .nav-wrap { padding-block: 8px; }
+  .mega-nav { flex-wrap: wrap; justify-content: flex-end; row-gap: 6px; }
+  /* About TERAS (which holds Verify Certificate) ends at the right edge here;
+     a centred panel would open past the viewport. */
+  .mega-nav-group:last-of-type .mega-nav-panel { left: auto; right: 0; transform: none; }
+}
+
+/* Gold tagline: #E1A925 on the light hero is 2.1:1, below the 3:1 large-text
+   minimum. The brand gold stays; it sits on a navy band (6.56:1) behind the
+   tagline line only. A block box keeps the band whole where an inline span
+   would split it into ragged pieces on narrow screens. */
+#main-content > main :is(.hero-corporate, .about-hero-copy, .services-hero-copy) h1 span {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  margin-top: .06em;
+  padding: .02em .14em .08em;
+  border-radius: 12px;
+  background: var(--navy);
+}
+
+/* Homepage card copy: 14px to 15px, scoped to sections after the homepage
+   hero because the same card classes are used on the training pages. */
+.hero-corporate ~ section :is(.method-step, .programme-grid article, .delivery-card, .project-card, .facility-card) p {
+  font-size: 15px;
+  line-height: 1.65;
+}

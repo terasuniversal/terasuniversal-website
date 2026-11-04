@@ -5,13 +5,14 @@ import { usePathname } from "next/navigation";
 
 // The bar steps aside while the visitor reads down the page, fills a form or
 // reaches the footer, so it never sits over headings, fields or footer links.
-// It comes back on any upward scroll and near the top of the page.
+// It also stays out of the first screen, where every hero already carries its
+// own calls to action, and appears on an upward scroll once past it.
 const SCROLL_DELTA = 8;
-const TOP_ZONE = 160;
+const FIRST_SCREEN = 0.75;
 
 export default function StickyCta() {
   const pathname = usePathname();
-  const [scrollHidden, setScrollHidden] = useState(false);
+  const [scrollHidden, setScrollHidden] = useState(true);
   const [blockingInView, setBlockingInView] = useState(false);
   const [fieldFocused, setFieldFocused] = useState(false);
 
@@ -23,13 +24,12 @@ export default function StickyCta() {
       frame = window.requestAnimationFrame(() => {
         frame = 0;
         const y = window.scrollY;
-        if (y < TOP_ZONE) setScrollHidden(false);
-        else if (y > lastY + SCROLL_DELTA) setScrollHidden(true);
+        if (y < window.innerHeight * FIRST_SCREEN || y > lastY + SCROLL_DELTA) setScrollHidden(true);
         else if (y < lastY - SCROLL_DELTA) setScrollHidden(false);
-        if (Math.abs(y - lastY) > SCROLL_DELTA || y < TOP_ZONE) lastY = y;
+        if (Math.abs(y - lastY) > SCROLL_DELTA) lastY = y;
       });
     };
-    setScrollHidden(false);
+    setScrollHidden(true);
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       window.removeEventListener("scroll", onScroll);
