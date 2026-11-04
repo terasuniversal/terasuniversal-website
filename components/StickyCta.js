@@ -58,9 +58,12 @@ export default function StickyCta() {
       setFieldFocused(event.target instanceof HTMLElement && event.target.matches("input, textarea, select"));
       setBarFocused(Boolean(barRef.current?.contains(event.target)));
     };
-    const onFocusOut = () => {
-      setFieldFocused(false);
-      setBarFocused(false);
+    // Judge by where focus is going, so a move between controls inside the bar
+    // never clears barFocused (and makes the bar inert) in between.
+    const onFocusOut = (event) => {
+      const next = event.relatedTarget;
+      setFieldFocused(next instanceof HTMLElement && next.matches("input, textarea, select"));
+      setBarFocused(Boolean(next && barRef.current?.contains(next)));
     };
     document.addEventListener("focusin", onFocusIn);
     document.addEventListener("focusout", onFocusOut);

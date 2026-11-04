@@ -11,6 +11,7 @@ export default function MobileNav({ basePath = "" }) {
   const contactOpen = panel === "contact";
   const contactButtonRef = useRef(null);
   const contactPanelRef = useRef(null);
+  const menuButtonRef = useRef(null);
   const pathname = usePathname() || "";
   const closeMenu = () => setPanel(null);
 
@@ -29,7 +30,7 @@ export default function MobileNav({ basePath = "" }) {
   function handleKeyDown(event) {
     if (event.key === "Escape") {
       closeMenu();
-      event.currentTarget.previousElementSibling?.focus();
+      menuButtonRef.current?.focus();
     }
   }
 
@@ -74,7 +75,7 @@ export default function MobileNav({ basePath = "" }) {
           <a href="mailto:training@terasuniversal.com.my" onClick={closeMenu}><strong>Email</strong><span>training@terasuniversal.com.my</span></a>
         </div>
       )}
-      <button className={`menu-button ${open ? "is-open" : ""}`} type="button" aria-label={open ? "Close navigation menu" : "Open navigation menu"} aria-expanded={open} aria-controls="mobile-navigation" onClick={() => setPanel(open ? null : "menu")} onKeyDown={handleKeyDown}><span /><span /><span /></button>
+      <button ref={menuButtonRef} className={`menu-button ${open ? "is-open" : ""}`} type="button" aria-label={open ? "Close navigation menu" : "Open navigation menu"} aria-expanded={open} aria-controls="mobile-navigation" onClick={() => setPanel(open ? null : "menu")} onKeyDown={handleKeyDown}><span /><span /><span /></button>
       <div id="mobile-navigation" className={`mobile-menu ${open ? "open" : ""}`} role="navigation" aria-label="Mobile navigation" onKeyDown={handleKeyDown}>
         <div className="mobile-menu-heading"><span>TERAS UNIVERSAL</span><strong>Explore our services</strong></div>
         {items.map(({ label, href, external }) => {
