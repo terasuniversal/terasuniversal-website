@@ -8,7 +8,7 @@ export default function HomeHero() {
     <section id="home" className={styles.hero} aria-label="Introduction">
       <div className={styles.board}>
         <div className={`${styles.tile} ${styles.name}`}>
-          <h1 className={styles.wordmark}>TERAS<span className="sr-only"> UNIVERSAL</span></h1>
+          <h1 className={styles.wordmark}>TERAS<span className="sr-only"> UNIVERSAL: scaffolding erector, inspector and working at height training</span></h1>
           <p>Scaffolding erector, inspector and working at height training from Jitra, Kedah.</p>
         </div>
         <div className={`${styles.tile} ${styles.photo} ${styles.photoTop}`}>
