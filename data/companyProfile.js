@@ -37,7 +37,15 @@ export const coreValues = [
 
 // Verified — Corporate Profile 2026 "Recognition & Accreditations".
 export const accreditations = [
-  { org: "JKKP (DOSH)", label: "Approved Training Provider", text: "Registered with the Department of Occupational Safety and Health Malaysia (JKKP) as an approved training provider to conduct occupational safety and health training programmes in accordance with the latest regulations and industry standards." },
+  { org: "JKKP (DOSH)", label: "Approved Training Provider", text: "Registered with the Department of Occupational Safety and Health Malaysia (JKKP) as an approved training provider to conduct occupational safety and health training programmes in accordance with the latest regulations and industry standards.",
+    // Scoped recognition from the JKKP letter dated 29 July 2026 (training centre for tube scaffold
+    // erectors, inspectors and supervisors). It carries its own expiry: the homepage states it as current
+    // only until validUntil and as historical afterwards, until a renewal letter is verified and this is updated.
+    recognition: {
+      scope: "tube scaffold erectors, inspectors and supervisors",
+      validUntil: "2027-05-25",
+    },
+  },
   { org: "HRD Corp", label: "Registered Training Provider", text: "Registered with HRD Corp and approved to deliver training programmes under the Human Resources Development Fund (SBL / HRD Corp Claimable) for eligible courses." },
   { org: "CIDB Malaysia", label: "Registered Training Provider", text: "Registered with the Construction Industry Development Board Malaysia (CIDB) as an approved training provider to deliver construction industry-related training programmes." },
   { org: "MOF", label: "Registered Supplier", text: "Registered with the Ministry of Finance Malaysia (MOF) as an approved supplier for training, courses and development programmes for government agencies and departments." },
