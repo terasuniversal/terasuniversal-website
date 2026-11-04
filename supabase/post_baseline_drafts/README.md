@@ -51,3 +51,13 @@ Rules while a draft:
 - Customer fields omitted from the header fall back to the company, then the opportunity (as `createQuotation` does for unsubmitted fields); fields supplied, even empty, are used as sent.
 - Also validated locally: `supabase/tests/quotation_atomic_rpcs_isolation_test.sql` (every RPC refuses REPEATABLE READ). Both test files are for disposable databases only.
 - Forward-only: stop using the RPCs by revoking EXECUTE and reverting the application; keep the ledger table.
+
+## `20261104090000_harden_anon_function_execute_grants.sql`
+
+Status: **DRAFT — NOT APPLIED — OWNER APPROVAL REQUIRED (security hardening for the canonical staging project)**
+
+Read-only inspection found 69 SECURITY DEFINER functions in `public`/`app` executable by `anon` on the canonical staging project (`eokiaehnvzbggmacifcf`), against 11 intended-public ones on the baseline staging project. Supabase's default privileges grant `anon` on function creation and `revoke ... from public` does not remove them. The draft revokes `anon` on every non-listed SECURITY DEFINER function, revokes `authenticated` on 14 service-only payment-callback/logging functions (the app calls them with the service-role client), and makes four `app.*` trigger/sequence helpers owner-only. It never touches `service_role`.
+
+Deliberately NOT changed: `public.log_event` / `app.log_event` (admin actions call it with the signed-in user's client; revoking `authenticated` would silently stop those audit lines — a separate owner decision), non-SECURITY-DEFINER functions, and authenticated grants on staff RPCs.
+
+Rules while a draft: do not apply it to any shared database or move it into `supabase/migrations/` without explicit owner approval and a captured ACL snapshot (see the file header). Validated only on a throwaway Docker database (Baseline V3 plus a simulation of the canonical drift) with `supabase/tests/harden_anon_function_execute_grants_test.sql`; that test is for disposable databases only. Staging smoke tests after applying: sandbox payment callbacks, public registration, public enquiry and proposal forms, certificate verification, feedback links, admin invoice and quotation flows.
