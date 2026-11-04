@@ -32,3 +32,17 @@ Programme status (from `lib/standard-scaffold-programmes.ts`'s own `content_stat
 The 4 inspection/awareness programmes with `course_id: null` have no corresponding `courses` row yet; the migration only binds the 3 erection programmes that do. Re-running the migration (it's idempotent) after those course rows exist would still require the same sign-off gate below — creating the course rows is not itself sign-off for the certificate feature.
 
 Current production and `main` work correctly without this feature. It does not block, and is not blocked by, anything else in the certificate system.
+
+## `20260913090000_quotation_atomic_rpcs.sql`
+
+Status: **DRAFT — NOT APPLIED — OWNER APPROVAL REQUIRED (P0 quotation integrity, step M4)**
+
+Adds the idempotency ledger `public.sales_quotation_requests`, seven internal helpers in schema `app`, and four SECURITY DEFINER RPCs (`create_quotation_with_items`, `replace_quotation_draft`, `create_quotation_revision`, `mark_quotation_sent`). The application does not call them yet.
+
+Dependency chain (staging only, each step with its own gates): S0 → P1 `20260911115407` → P2 `20260911133000` (rename, once) → P3 `20260912005428` (constraints, once) → this file. The file refuses to run before P3 and refuses to run as any role other than `postgres`.
+
+Rules while a draft:
+- Do not apply it to Staging or Production, and do not move it into `supabase/migrations/`, without explicit owner approval and the staging checklist.
+- Owner decisions embedded in the SQL: D4 (inputs limited to 2 decimals), D5 (negative line totals rejected), D6 (no extra send validation), D8 (a created quotation moves any unresolved opportunity to `quotation`).
+- Validated only on throwaway local databases (Docker `postgres:17.6`): Baseline V2 + P1 + P2 + P3 + this file, and Baseline V3 + this file. Run the behaviour suite `supabase/tests/quotation_atomic_rpcs_behavior_test.sql` against such a database; it ends in ROLLBACK and inserts `auth.users` fixtures, so it must never be pointed at a shared database.
+- Forward-only: stop using the RPCs by revoking EXECUTE and reverting the application; keep the ledger table.
