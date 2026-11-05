@@ -41,6 +41,7 @@
     "test:sales-leads-card-hierarchy": "node --experimental-strip-types scripts/sales-leads-card-hierarchy-contract.mts",
     "test:finance-executive-kpis": "node --experimental-strip-types scripts/finance-executive-kpis.test.mts",
     "test:finance-executive-dashboard": "node --experimental-strip-types scripts/finance-executive-dashboard-contract.mts",
+    "test:font-assets": "node --experimental-strip-types scripts/font-assets-contract.mts",
     "test:registration-review-queue": "node --experimental-strip-types scripts/registration-review-queue.test.mts",
     "test:registration-review-queue-contract": "node --experimental-strip-types scripts/registration-review-queue-contract.mts",
     "test:ebook-capture": "node --experimental-strip-types scripts/ebook-capture.test.mts",
