@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const filters = ["All", "Training", "Scaffolding", "Working at Height", "Confined Space", "Corporate", "Assessment"];
 function categoryFor(title) {
@@ -19,6 +19,21 @@ export default function TrainingGallery({ items, showFullGalleryLink = true }) {
   const [filter, setFilter] = useState("All");
   const filteredItems = items.filter(([title]) => filter === "All" || categoryFor(title) === filter);
   const activeItem = activeIndex === null ? null : filteredItems[activeIndex];
+  const isOpen = activeIndex !== null;
+  const panelRef = useRef(null);
+  const closeRef = useRef(null);
+  const openerRef = useRef(null);
+
+  // Modal focus: move focus into the viewer when it opens and return it to the card that opened it
+  // when it closes, so keyboard and VoiceOver users stay oriented.
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    closeRef.current?.focus();
+    return () => {
+      const opener = openerRef.current;
+      if (opener && opener.isConnected) opener.focus();
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     if (activeIndex === null) return undefined;
@@ -26,6 +41,14 @@ export default function TrainingGallery({ items, showFullGalleryLink = true }) {
       if (event.key === "Escape") setActiveIndex(null);
       if (event.key === "ArrowRight") setActiveIndex((index) => (index + 1) % filteredItems.length);
       if (event.key === "ArrowLeft") setActiveIndex((index) => (index - 1 + filteredItems.length) % filteredItems.length);
+      if (event.key === "Tab" && panelRef.current) {
+        const focusable = [...panelRef.current.querySelectorAll("button")];
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (!panelRef.current.contains(document.activeElement)) { event.preventDefault(); first?.focus(); }
+        else if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+      }
     };
     document.addEventListener("keydown", handleKeyDown);
     document.body.style.overflow = "hidden";
@@ -37,12 +60,12 @@ export default function TrainingGallery({ items, showFullGalleryLink = true }) {
 
   return (
     <>
-      <div className="gallery-filter-bar" role="toolbar" aria-label="Filter training gallery">{filters.map((item) => <button className={filter === item ? "active" : ""} type="button" key={item} onClick={() => { setFilter(item); setActiveIndex(null); }} aria-pressed={filter === item}>{item}</button>)}</div>
+      <div className="gallery-filter-bar" role="toolbar" aria-label="Filter training gallery">{filters.filter((item) => item === "All" || items.some(([title]) => categoryFor(title) === item)).map((item) => <button className={filter === item ? "active" : ""} type="button" key={item} onClick={() => { setFilter(item); setActiveIndex(null); }} aria-pressed={filter === item}>{item}</button>)}</div>
       <p className="gallery-results" aria-live="polite"><strong>{filteredItems.length}</strong> training visuals in {filter === "All" ? "the gallery" : `${filter} category`}</p>
       <div className="training-gallery" aria-label={`${filter} training gallery`}>
         {filteredItems.map(([title, image], index) => (
-          <button className="gallery-card gallery-trigger" type="button" key={title} onClick={() => setActiveIndex(index)} aria-label={`Open ${title} image`}>
-            <Image src={image} alt={`${title} training activity visual.`} width={1200} height={800} sizes="(max-width: 590px) 100vw, (max-width: 920px) 50vw, 33vw" loading="lazy" />
+          <button className="gallery-card gallery-trigger" type="button" key={title} onClick={(event) => { openerRef.current = event.currentTarget; setActiveIndex(index); }} aria-label={`Open ${title} image`}>
+            <Image src={image} alt={title} width={1200} height={800} sizes="(max-width: 590px) 100vw, (max-width: 920px) 50vw, 33vw" loading="lazy" />
             <span className="gallery-card-title">{title}</span>
           </button>
         ))}
@@ -50,9 +73,9 @@ export default function TrainingGallery({ items, showFullGalleryLink = true }) {
       {showFullGalleryLink && <a className="btn btn-outline gallery-view-all" href="/gallery">View Full Gallery <span aria-hidden="true">&rarr;</span></a>}
       {activeItem && (
         <div className="gallery-lightbox" role="dialog" aria-modal="true" aria-label={`${activeItem[0]} enlarged image`} onClick={() => setActiveIndex(null)}>
-          <div className="gallery-lightbox-panel" onClick={(event) => event.stopPropagation()}>
-            <button className="gallery-lightbox-close" type="button" onClick={() => setActiveIndex(null)} aria-label="Close image viewer">&times;</button>
-            <Image src={activeItem[1]} alt={`${activeItem[0]} training activity visual.`} width={1600} height={1067} sizes="(max-width: 920px) 92vw, 78vw" priority />
+          <div className="gallery-lightbox-panel" ref={panelRef} onClick={(event) => event.stopPropagation()}>
+            <button className="gallery-lightbox-close" type="button" ref={closeRef} onClick={() => setActiveIndex(null)} aria-label="Close image viewer">&times;</button>
+            <Image src={activeItem[1]} alt={activeItem[0]} width={1600} height={1067} sizes="(max-width: 920px) 92vw, 78vw" priority />
             <p>{activeItem[0]}</p>
             <button className="gallery-lightbox-control gallery-lightbox-prev" type="button" onClick={() => setActiveIndex((index) => (index - 1 + filteredItems.length) % filteredItems.length)} aria-label="Previous image">&larr;</button>
             <button className="gallery-lightbox-control gallery-lightbox-next" type="button" onClick={() => setActiveIndex((index) => (index + 1) % filteredItems.length)} aria-label="Next image">&rarr;</button>

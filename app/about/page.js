@@ -34,14 +34,14 @@ export default function AboutPage() {
             <p>TERAS UNIVERSAL delivers competency-based industrial safety training, technical competency development, consultancy and workforce capability solutions designed to help organisations operate more safely, efficiently and confidently.</p>
             <div className="hero-actions"><a className="btn btn-primary" href="/training">Explore Training</a><a className="btn btn-outline" href="/#contact">Contact Us</a></div>
           </div>
-          <figure className="about-hero-media"><Image src="/images/temp-ai-homepage-hero.webp" alt="Industrial trainer briefing participants in modern PPE." width={1800} height={1200} priority sizes="(max-width: 920px) 100vw, 52vw" /></figure>
+          <figure className="about-hero-media"><Image src="/images/v2/hero-training-briefing-male-branded.webp" alt="An instructor briefing six trainees in navy workwear, white hard hats and hi-vis vests in a covered training hall" width={1800} height={1200} priority sizes="(max-width: 920px) 100vw, 52vw" /></figure>
         </div>
       </section>
 
       <section className="about-story-section" aria-labelledby="story-title">
         <div className="container about-story-grid">
           <div className="about-story-copy"><span className="eyebrow">Our Story</span><h2 id="story-title">Practical capability for the work that matters.</h2><p>TERAS UNIVERSAL was established to help organisations develop safer, more capable and more confident workforces through learning that connects directly to the workplace.</p><p>Our focus is practical industrial learning: clear knowledge, guided application, structured assessment and solutions that reflect the needs of people, projects and operations.</p><p>We aim to build long-term partnerships with organisations by listening carefully, delivering responsibly and continuously improving the way capability is developed.</p></div>
-          <figure className="about-story-media"><Image src="/images/temp-ai-corporate-scene-02.webp" alt="Corporate discussion in a modern industrial training environment." width={1200} height={800} sizes="(max-width: 920px) 100vw, 50vw" /></figure>
+          <figure className="about-story-media"><Image src="/images/v2/panel-c.svg" alt="" unoptimized width={1200} height={800} sizes="(max-width: 920px) 100vw, 50vw" /></figure>
         </div>
       </section>
 

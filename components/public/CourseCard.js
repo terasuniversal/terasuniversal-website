@@ -7,7 +7,7 @@ export default function CourseCard({ course, source = "training-page" }) {
   const cta = course ? "View Course" : "Enquire About Training";
 
   return <article className={`training-programme-card ${styles.courseCard}`}>
-    {course?.image && <div className="training-programme-media"><Image src={course.image} alt={`${course.title} training visual.`} width={900} height={506} sizes="(max-width: 590px) 100vw, (max-width: 920px) 50vw, 25vw" /></div>}
+    {course?.image && <div className="training-programme-media"><Image src={course.image} alt="" unoptimized width={900} height={506} sizes="(max-width: 590px) 100vw, (max-width: 920px) 50vw, 25vw" /></div>}
     <div className="training-programme-content">
       <span className="training-card-category">{course?.category ?? "Custom solution"}</span>
       <h3>{course?.title ?? "Custom Corporate Training"}</h3>

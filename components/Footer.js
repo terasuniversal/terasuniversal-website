@@ -43,6 +43,9 @@ export default function Footer() {
         <span>&copy; 2026 TERAS UNIVERSAL SDN. BHD. All rights reserved.</span>
         <span>terasuniversal.com.my</span>
       </div>
+      <div className="container footer-ai-note">
+        <p>Imagery on this website includes AI-generated illustrations. The people shown are not TERAS personnel.</p>
+      </div>
     </footer>
   );
 }
