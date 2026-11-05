@@ -29,3 +29,8 @@ Durable decisions for the TERAS Universal shared agent workflow.
 
 - Owner approved A3 Executive + Refined Mosaic as the design standard for the whole public website after physical iPhone QA (9 of 10 passed; the hero mosaic on a phone failed and is being corrected). Logo size accepted.
 - The rollout order is training and course pages, then About/Services/Corporate Training, Contact/Request Proposal, Industries, and the utility pages, all on the existing `components/premium` kit. Nothing migrates until the corrected hero and shared baseline are accepted. Production release is on hold.
+
+## 2026-11-05 - Premium A3 baseline accepted on iPhone
+
+- Owner accepted A3 Executive + Refined Mosaic + Hero Variant B after physical iPhone QA of Preview `3b26524` (hero 5 of 5 PASS). Design and local development are approved; PR, merge, deployment and database changes are not.
+- `3b26524` is the visual reference for the homepage. The inner-page templates extend `components/premium` minimally (statement hero, section heading, course cards, facts, CTA band, recognition block, empty state) and do not repeat the two hero photographs on unrelated pages.
