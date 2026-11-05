@@ -1,5 +1,4 @@
-import Image from "next/image";
-import styles from "./home.module.css";
+import kit from "../premium/premium.module.css";
 
 // Wording is taken from the existing homepage delivery section.
 const options = [
@@ -10,19 +9,22 @@ const options = [
 
 export default function DeliveryOptions() {
   return (
-    <div id="delivery" className={styles.delivery}>
-      <div className={styles.axis}>
-        <h3 className={styles.h3Large}>How training is delivered</h3>
-        <p className={styles.intro}>Public classes, or a programme built for your workforce, at our centre or at your site.</p>
+    <section id="delivery" className={`${kit.sec} ${kit.band}`} aria-labelledby="delivery-title">
+      <div className={kit.wrap}>
+        <div className={kit.kicker}>
+          <h2 id="delivery-title">How training is delivered</h2>
+          <p>Public classes, or a programme built for your workforce, at our centre or at your site.</p>
+        </div>
+        <ul className={kit.modes}>
+          {options.map(([title, text], index) => (
+            <li className={kit.mode} key={title}>
+              <b aria-hidden="true">{String.fromCharCode(65 + index)}</b>
+              <h3>{title}</h3>
+              <p>{text}</p>
+            </li>
+          ))}
+        </ul>
       </div>
-      <div className={styles.three}>
-        {options.map(([title, text]) => (
-          <div key={title} data-reveal><h4 className={styles.h4}>{title}</h4><p>{text}</p></div>
-        ))}
-      </div>
-      <figure className={styles.wide}>
-        <Image src="/images/v2/delivery-instructor-led-male-branded.webp" alt="An instructor holds up a scaffold coupler to a classroom of eight trainees taking notes" fill loading="lazy" sizes="100vw" />
-      </figure>
-    </div>
+    </section>
   );
 }

@@ -83,7 +83,7 @@ export default function MobileNav({ basePath = "" }) {
           const active = isActive(href);
           return <a href={href} key={label} onClick={closeMenu} className={active ? "is-active" : undefined} aria-current={active ? "page" : undefined} {...(external ? { target: "_blank", rel: "noreferrer" } : {})}>{label}</a>;
         })}
-        <a className="mobile-menu-cta" href="/request-proposal?source=mobile-nav-cta" onClick={closeMenu}>Request Corporate Training</a>
+        <a className="mobile-menu-cta" href="/request-proposal?source=mobile-nav-cta" onClick={closeMenu}>Request a Proposal</a>
       </div>
     </>
   );

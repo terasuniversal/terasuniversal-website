@@ -1,20 +1,17 @@
-import Image from "next/image";
-import MobileNav from "../components/MobileNav";
-import MegaNav from "../components/MegaNav";
 import Footer from "../components/Footer";
+import PremiumHeader from "../components/premium/PremiumHeader";
 import { courseCatalog } from "../data/courseCatalog";
 import { getUpcomingSchedules } from "../lib/public-content";
 import HomeHero from "../components/home/HomeHero";
 import CoreProgrammes from "../components/home/CoreProgrammes";
-import CourseTable from "../components/home/CourseTable";
+import CourseCatalogue from "../components/home/CourseCatalogue";
 import UpcomingDates from "../components/home/UpcomingDates";
 import DeliveryOptions from "../components/home/DeliveryOptions";
 import Recognition from "../components/home/Recognition";
 import HomeFaq from "../components/home/HomeFaq";
 import HomeContact from "../components/home/HomeContact";
-import HomeReveal from "../components/home/HomeReveal";
 import LegacyAnchors from "../components/home/LegacyAnchors";
-import styles from "../components/home/home.module.css";
+import kit from "../components/premium/premium.module.css";
 
 const dateLabel = (date) => new Intl.DateTimeFormat("en-MY", { day: "numeric", month: "short", year: "numeric" }).format(new Date(`${date}T00:00:00`));
 
@@ -57,47 +54,29 @@ export default async function HomePage() {
   });
 
   return (
-    <main>
-      <div className="brand-topbar">
-        <div className="container brand-topbar-inner">
-          <span>Industrial Safety Training &amp; Technical Competency</span>
-          <div>
-            <a href="tel:+60195193834">+60 19-519 3834</a>
-            <a href="mailto:training@terasuniversal.com.my">training@terasuniversal.com.my</a>
-          </div>
-        </div>
-      </div>
-      <header className="site-header">
-        <div className="container nav-wrap">
-          <a className="brand" href="#home" aria-label="TERAS UNIVERSAL home">
-            <Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL logo" width={220} height={140} priority sizes="154px" />
-          </a>
-          <MegaNav />
-          <MobileNav />
-        </div>
-      </header>
-
-      <div className={styles.home}>
-        <HomeReveal />
+    <>
+      <PremiumHeader />
+      <main className={kit.px}>
         <LegacyAnchors />
         <HomeHero />
         <CoreProgrammes />
-        <section id="courses" className={styles.courses} aria-labelledby="courses-title">
-          <div className={styles.axis}>
-            <h2 id="courses-title" className={styles.h2}>All courses</h2>
-            <p className={styles.intro}>Every course, how long it runs and how it is delivered.</p>
+        <section id="courses" className={`${kit.sec} ${kit.secFollow}`} aria-labelledby="courses-title">
+          <div className={kit.wrap}>
+            <div className={kit.kicker}>
+              <h2 id="courses-title">All courses</h2>
+              <p>Every course, how long it runs and how it is delivered.</p>
+            </div>
+            <UpcomingDates rows={scheduleRows} />
+            <CourseCatalogue />
+            <p className={kit.links}><a className={kit.tl} href="/training">All course details</a></p>
           </div>
-          <UpcomingDates rows={scheduleRows} />
-          <CourseTable />
-          <p className={styles.more}><a className={styles.tl} href="/training">All course details</a></p>
-          <DeliveryOptions />
         </section>
+        <DeliveryOptions />
         <Recognition />
         <HomeFaq />
         <HomeContact />
-      </div>
-
+      </main>
       <Footer />
-    </main>
+    </>
   );
 }

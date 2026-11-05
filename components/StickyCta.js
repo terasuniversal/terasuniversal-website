@@ -86,7 +86,7 @@ export default function StickyCta() {
 
   return (
     <aside ref={barRef} className={hidden ? "sticky-cta is-hidden" : "sticky-cta"} aria-label="Quick contact options" inert={hidden || undefined}>
-      <a className="sticky-cta-proposal" href="/request-proposal">Request Proposal</a>
+      <a className="sticky-cta-proposal" href="/request-proposal">Request a Proposal</a>
     </aside>
   );
 }

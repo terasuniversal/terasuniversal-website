@@ -42,8 +42,6 @@ export default function MegaNav() {
         );
       })}
       <a className="mega-nav-verify" href="/verify">Verify Certificate</a>
-      <a className="nav-proposal" href="/request-proposal?source=mega-nav-cta">Request Corporate Training</a>
-      <a className="nav-cta" href="https://wa.me/60195193834" target="_blank" rel="noreferrer">WhatsApp</a>
     </nav>
   );
 }
