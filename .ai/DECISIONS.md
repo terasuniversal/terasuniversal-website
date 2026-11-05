@@ -24,3 +24,8 @@ Durable decisions for the TERAS Universal shared agent workflow.
 - The public site's premium design language is Concept A3 Executive with the Refined hero mosaic on the homepage.
 - It lives in `components/premium/` as scoped CSS Modules on the existing site tokens (`--navy`, `--navy-deep`, `--gold`, `--ink`, `--muted`, `--soft`, `--line`); `globals.css` is not rewritten. Inner pages migrate to the same kit template by template; do not add a second public design system.
 - One header action: "Request a Proposal". WhatsApp stays in the top bar, footer and contact block.
+
+## 2026-11-05 - Premium A3 design direction approved site-wide
+
+- Owner approved A3 Executive + Refined Mosaic as the design standard for the whole public website after physical iPhone QA (9 of 10 passed; the hero mosaic on a phone failed and is being corrected). Logo size accepted.
+- The rollout order is training and course pages, then About/Services/Corporate Training, Contact/Request Proposal, Industries, and the utility pages, all on the existing `components/premium` kit. Nothing migrates until the corrected hero and shared baseline are accepted. Production release is on hold.

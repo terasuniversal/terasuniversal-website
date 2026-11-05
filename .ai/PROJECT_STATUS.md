@@ -266,3 +266,10 @@ No migration was applied, no push, no merge, no deploy. Validation not re-run in
 - Live-data paths rendered with a local mock of the two Supabase RPCs (no real database): homepage schedule rows (open, full, unmapped slug falls back to the enquiry link) and `/registration/<id>` (available, full, unknown). JKKP expiry rendered with a shifted server clock on an isolated build copy: 20:00 on 25 May 2027 shows "Approved by JKKP", 5 bodies; 00:30 on 26 May 2027 drops JKKP from the hero line, shows "Recognition ... was valid until 25 May 2027" and 4 bodies.
 - Codex read-only verification of the earlier P1 (landmarks) and P2 (hardcoded year): VERDICT PASS.
 - Known and unchanged: a streamed not-found route such as `/registration/<unknown>` returns HTTP 200 on the base build too.
+
+### Owner decision on the premium A3 Preview (5 Nov 2026)
+- Physical iPhone QA on Preview commit `955bb45eaf06f7dd3657b00c8f2ab56325ca0bb7`: 9 of 10 PASS. Test 3 FAILED: the homepage hero mosaic and the two accepted photographs do not display satisfactorily on the iPhone. The owner did not name the element; the cause is investigated from evidence, not assumed.
+- APPROVED: A3 Executive + Refined Mosaic is the design standard for the entire premium public website. Logo size ACCEPTED. All other nine visual and interaction checks PASS.
+- Design-direction approval is not acceptance of the current hero rendering and not authorization to merge or deploy. Homepage hero mosaic: VISUAL FIX REQUIRED. Production release: HOLD.
+- Accepted components, assets and QA evidence stay as they are; the two accepted photographs are not regenerated, cropped as files or replaced.
+- Next: minimal hero-only CSS correction (local), then owner re-acceptance on a Preview; the inner-page template rollout waits for the corrected hero and shared baseline to be accepted. CRM/Admin, certificate verification, payments and backend integrations stay outside the redesign.
