@@ -34,3 +34,6 @@ Durable decisions for the TERAS Universal shared agent workflow.
 
 - Owner accepted A3 Executive + Refined Mosaic + Hero Variant B after physical iPhone QA of Preview `3b26524` (hero 5 of 5 PASS). Design and local development are approved; PR, merge, deployment and database changes are not.
 - `3b26524` is the visual reference for the homepage. The inner-page templates extend `components/premium` minimally (statement hero, section heading, course cards, facts, CTA band, recognition block, empty state) and do not repeat the two hero photographs on unrelated pages.
+
+## 2026-11-06 - Session price and availability presentation
+- Session fees are shown only from the authoritative schedule record as `RM x,xxx per participant`; null or zero is an enquiry state, never a free session. Registration is offered only when the server flag `registration_available` is true. Full sessions offer an enquiry ("Ask about the next date"), with no waiting-list workflow.

@@ -1,16 +1,31 @@
 import Link from "next/link";
 import type { PublicSchedule } from "../../lib/public-content";
+import { FEE_ENQUIRY_TEXT, FEE_UNIT, KIND_LABELS, formatSessionDates, formatSessionFee, formatSessionVenue, sessionKind } from "../../lib/session-display";
 import kit from "../premium/premium.module.css";
 import inner from "../premium/inner.module.css";
 import SectionHead from "../premium/SectionHead";
+import { enquiryHref } from "./PrimaryCtaGroup";
 
-const statusLabels: Record<string, string> = { open: "Open", full: "Full", cancelled: "Cancelled", completed: "Completed", in_progress: "In progress" };
-const pillClass: Record<string, string> = { open: inner.pillOpen, full: inner.pillFull, cancelled: inner.pillCancelled };
-const formatDate = (value: string) => new Intl.DateTimeFormat("en-MY", { day: "numeric", month: "short", year: "numeric" }).format(new Date(`${value}T00:00:00`));
-const formatMoney = (value: number | null) => value == null ? "Fee to be confirmed" : new Intl.NumberFormat("en-MY", { style: "currency", currency: "MYR" }).format(value);
+const pillClass = { open: inner.pillOpen, enquiry: "", full: inner.pillFull };
 
-export default function CourseScheduleOptions({ sessions, loadError = false }: { sessions: PublicSchedule[]; loadError?: boolean }) {
+// Same sessions and contract as before; only the presentation follows the shared session rules (lib/session-display.ts).
+// Registration is offered only when the server flag registration_available is true. A fee that is null or zero is shown as an
+// enquiry-based state, never as a free session.
+export default function CourseScheduleOptions({ sessions, loadError = false, courseSlug }: { sessions: PublicSchedule[]; loadError?: boolean; courseSlug?: string }) {
   if (loadError) return <section className={kit.sec} aria-labelledby="course-schedule-title"><div className={kit.wrap}><SectionHead id="course-schedule-title" eyebrow="Upcoming Training" title="Training dates are temporarily unavailable.">Please try again shortly or contact TERAS for assistance.</SectionHead><a className={`${kit.btn} ${kit.btnNavy}`} href="/request-proposal">Contact TERAS</a></div></section>;
   if (!sessions.length) return null;
-  return <section className={`${kit.sec} ${kit.trust}`} aria-labelledby="course-schedule-title"><div className={kit.wrap}><SectionHead id="course-schedule-title" eyebrow="Public Sessions" title="Choose a training date.">Review the available sessions below. Registration availability is checked from TERAS training records.</SectionHead><ul className={inner.sessions}>{sessions.map((session) => { const active = session.registration_available === true; return <li className={inner.session} key={session.id}><div><strong>{formatDate(session.start_date)}{session.end_date && session.end_date !== session.start_date ? ` – ${formatDate(session.end_date)}` : ""}</strong><span>{[session.delivery_mode, session.venue].filter(Boolean).join(" · ") || "Venue to be confirmed"}</span></div><span>{formatMoney(session.fee ?? null)} per attendee</span><span className={`${inner.pill} ${active ? inner.pillOpen : (pillClass[session.status] ?? "")}`}>{active ? "Registration open" : (statusLabels[session.status] ?? "Unavailable")}</span>{active ? <Link className={`${kit.btn} ${kit.btnNavy}`} href={`/registration/${session.id}`}>Register</Link> : <span className={inner.unavailable}>Not available</span>}</li>; })}</ul></div></section>;
+  return <section className={`${kit.sec} ${kit.trust}`} aria-labelledby="course-schedule-title"><div className={kit.wrap}><SectionHead id="course-schedule-title" eyebrow="Public Sessions" title="Choose a training date.">Review the available sessions below. Registration availability is checked from TERAS training records.</SectionHead><ul className={inner.sessions}>{sessions.map((session) => {
+    const kind = sessionKind(session);
+    const labels = KIND_LABELS[kind];
+    const dates = formatSessionDates(session.start_date, session.end_date);
+    const fee = formatSessionFee(session.fee);
+    return <li className={inner.session} key={session.id}>
+      <div><strong>{dates}</strong><span>{formatSessionVenue(session)}</span></div>
+      <span>{fee ? `${fee} ${FEE_UNIT}` : FEE_ENQUIRY_TEXT}</span>
+      <span className={`${inner.pill} ${pillClass[kind]}`}>{labels.pill}</span>
+      {kind === "open"
+        ? <Link className={`${kit.btn} ${kit.btnNavy}`} href={`/registration/${session.id}`} aria-label={`${labels.cta}: ${dates}`}>{labels.cta}</Link>
+        : <a className={`${kit.btn} ${kit.btnNavy}`} href={enquiryHref({ course: courseSlug, session: session.start_date, source: "course-schedule" })} aria-label={`${labels.cta}: ${dates}`}>{labels.cta}</a>}
+    </li>;
+  })}</ul></div></section>;
 }

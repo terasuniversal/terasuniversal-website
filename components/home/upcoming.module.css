@@ -1,0 +1,50 @@
+/* Upcoming Training section (homepage). Scoped to its own components; uses the --px-* tokens that the page <main> already
+   provides through the premium kit, the shared kicker/band classes from premium.module.css, and nothing from home.module.css
+   (the approved hero). White cards on the soft band: no gradients, no shadows. */
+.cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--px-gap); }
+.card { display: grid; grid-template-rows: auto auto 1fr auto; gap: 18px; padding: 28px; background: #fff; border: 1px solid var(--line); border-top: 6px solid var(--gold); }
+.top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.date { display: block; font-family: var(--font-montserrat); font-size: 1.625rem; font-weight: 800; letter-spacing: -0.03em; line-height: 1.08; color: var(--navy); }
+.time { display: block; margin-top: 6px; font-family: var(--font-poppins); font-size: 0.875rem; font-weight: 400; letter-spacing: 0; line-height: 1.3; color: var(--muted); }
+.pill { flex: none; padding: 5px 12px; background: #e7edf4; color: var(--navy); font-size: 0.8125rem; font-weight: 600; line-height: 1.3; }
+.pillOpen { background: #e5f3e6; color: #1b5e20; }
+.pillFull { background: #fdeccd; color: #7a4b00; }
+.card h3 { font-size: 1.5rem; letter-spacing: -0.03em; line-height: 1.1; }
+.facts { border-top: 1px solid var(--line); }
+.facts > div { display: grid; grid-template-columns: 6.5rem minmax(0, 1fr); gap: 8px 16px; padding: 12px 0; border-bottom: 1px solid var(--line); font-size: 0.9375rem; }
+.facts dt { padding-top: 2px; color: var(--muted); font-size: 0.8125rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+.facts dd { font-family: var(--font-montserrat); font-size: 1rem; font-weight: 700; line-height: 1.35; color: var(--navy); }
+.amount { font-size: 1.375rem; letter-spacing: -0.02em; }
+.unit { font-family: var(--font-poppins); font-size: 0.875rem; font-weight: 500; color: var(--muted); }
+.muted { font-family: var(--font-poppins); font-size: 0.9375rem; font-weight: 500; color: var(--muted); }
+.fullFee { color: var(--muted); }
+.actions { display: grid; gap: 10px; align-self: end; }
+.foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 28px; margin-top: 28px; }
+.foot span { color: var(--muted); font-size: 0.9375rem; }
+
+/* loading placeholder: same grid and card proportions, static blocks (no animation) */
+.skel { min-height: 372px; background: #fff; border: 1px solid var(--line); border-top: 6px solid var(--gold); }
+.skelBar { height: 14px; margin: 28px 28px 0; background: #e7edf4; }
+.skelBar:nth-child(2) { width: 55%; height: 28px; }
+.skelBar:nth-child(3) { width: 80%; }
+
+/* Desktop: the three cards share their rows (date, title, facts, actions) so the blocks line up even when a title wraps or a
+   session has no start time. Browsers without subgrid keep the independent card layout above. */
+@media (min-width: 921px) {
+  @supports (grid-template-rows: subgrid) {
+    .cards { grid-template-rows: repeat(4, auto); }
+    .card { grid-row: span 4; grid-template-rows: subgrid; }
+  }
+}
+@media (max-width: 920px) {
+  .cards { grid-template-columns: minmax(0, 1fr); }
+  .skel { min-height: 220px; }
+}
+@media (max-width: 590px) {
+  .card { padding: 22px; }
+  /* status first, then the date, so a long date range never competes with the pill for the same line */
+  .top { flex-direction: column; gap: 10px; }
+  .pill { order: -1; }
+  .facts > div { grid-template-columns: 5.5rem minmax(0, 1fr); }
+  .actions a:first-child { min-height: 52px; }
+}

@@ -70,7 +70,7 @@ export default async function CoursePage({ params }) {
         facts={[["Duration", course.duration], ["Delivery", course.deliveryMode]]}
       />
 
-      <CourseScheduleOptions sessions={courseSchedules} loadError={scheduleLoadError} />
+      <CourseScheduleOptions sessions={courseSchedules} loadError={scheduleLoadError} courseSlug={course.slug} />
 
       <section className={kit.sec} aria-labelledby="course-details-title"><div className={`${kit.wrap} ${inner.twoCol}`}><div><span className={`${inner.eyebrow} ${inner.onLight}`}>Course Overview</span><h2 id="course-details-title">Course details</h2><p>{course.summary}</p><FactLedger facts={facts} /></div>{course.audience?.length > 0 && <aside className={inner.aside} aria-labelledby="attend-title"><span className={`${inner.eyebrow} ${inner.onLight}`}>Who Should Attend</span><h3 id="attend-title" className="sr-only">Who should attend</h3><ul>{course.audience.map((item) => <li key={item}>{item}</li>)}</ul></aside>}</div></section>
 
