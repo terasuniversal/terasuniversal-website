@@ -258,3 +258,11 @@ No migration was applied, no push, no merge, no deploy. Validation not re-run in
 ### Not done (premium A3)
 - Inner-page bodies (about, training, course, contact, industries, utility pages) still use the legacy design; they come next by reusable template.
 - Known and unchanged: font-swap layout shift on `/industries/*` at 390 px (identical on `main`), `/gallery` hero contrast, `/verify` and 404 contrast, WAH font-swap P2.
+
+### Premium A3 homepage: acceptance-gate verification (local, 2026-11-05)
+- Added `0dbb6b7`: the sticky-header rule is now `body:has(.site-premium-header) { overflow-x: clip; }`, so only pages that render the shared header change; admin, `/verify`, `/registration/status`, feedback and payment-return pages stay on `overflow-x: hidden` and were pixel-identical to the base build (`dc6dbed`) at 1440 and 390.
+- Verified read-only: 27 public routes have exactly one banner, main, contentinfo, top bar, main nav and header CTA with no legacy header/footer; header pinned at 1440, 768 and 390; tablet and phone menus (aria-expanded, Tab order, Escape returns focus, link tap navigates); anchors land below the pinned header.
+- Functional checks against the base build: SEO head (title, description, canonical, robots, og, twitter, icons, JSON-LD) identical on 30 routes; homepage links 45 and 45 (only the logo link `#home` became `/`); both forms and the newsletter identical in fields, labels, options and consent wording; no inner page has worse layout shift than base.
+- Live-data paths rendered with a local mock of the two Supabase RPCs (no real database): homepage schedule rows (open, full, unmapped slug falls back to the enquiry link) and `/registration/<id>` (available, full, unknown). JKKP expiry rendered with a shifted server clock on an isolated build copy: 20:00 on 25 May 2027 shows "Approved by JKKP", 5 bodies; 00:30 on 26 May 2027 drops JKKP from the hero line, shows "Recognition ... was valid until 25 May 2027" and 4 bodies.
+- Codex read-only verification of the earlier P1 (landmarks) and P2 (hardcoded year): VERDICT PASS.
+- Known and unchanged: a streamed not-found route such as `/registration/<unknown>` returns HTTP 200 on the base build too.
