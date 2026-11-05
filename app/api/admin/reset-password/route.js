@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { validatePublicSupabaseConfig } from "../../../../lib/preview-isolation";
 
 export const runtime = "nodejs";
 
@@ -25,6 +26,9 @@ export async function POST(request) {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
     if (!url || !key) return NextResponse.json({ error: "Supabase belum dikonfigurasi." }, { status: 503 });
+    // Preview isolation: never send a reset email through the Production project from a non-Production deployment.
+    const projectGuard = validatePublicSupabaseConfig();
+    if (!projectGuard.ok) return NextResponse.json({ error: projectGuard.message, code: projectGuard.code }, { status: 503 });
     const client = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
     const { error } = await client.auth.resetPasswordForEmail(cleanEmail, { redirectTo: `${new URL(request.url).origin}/admin/reset-password` });
     // Do not reveal whether an email account exists. This endpoint is public.

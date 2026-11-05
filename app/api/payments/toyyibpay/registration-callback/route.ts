@@ -6,6 +6,7 @@ import {
   verifyCallbackHash,
 } from "../../../../../lib/payments/toyyibpay";
 import { createSupabaseServiceClient } from "../../../../../lib/supabase/server";
+import { blockedCallbackBody, isPreviewIsolationError } from "../../../../../lib/preview-isolation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -60,7 +61,14 @@ async function parseRequest(request: NextRequest): Promise<URLSearchParams | nul
 }
 
 export async function POST(request: NextRequest) {
-  const service = createSupabaseServiceClient();
+  // Preview isolation: a callback blocked by the guard is an explicit 503, never an "OK" acknowledgement.
+  let service: ReturnType<typeof createSupabaseServiceClient>;
+  try {
+    service = createSupabaseServiceClient();
+  } catch (error) {
+    if (isPreviewIsolationError(error)) return NextResponse.json(blockedCallbackBody(), { status: 503 });
+    throw error;
+  }
   try {
     const contentLength = Number(request.headers.get("content-length") || "0");
     if (contentLength > MAX_BODY_BYTES) return genericResponse();
@@ -153,6 +161,7 @@ export async function POST(request: NextRequest) {
     }
     return genericResponse();
   } catch (error) {
+    if (isPreviewIsolationError(error)) return NextResponse.json(blockedCallbackBody(), { status: 503 });
     console.error("Public registration callback unexpected error", { message: error instanceof Error ? error.message : "Unknown error" });
     return genericResponse();
   }
