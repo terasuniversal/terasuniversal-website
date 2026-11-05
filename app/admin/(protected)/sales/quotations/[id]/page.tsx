@@ -10,17 +10,19 @@ import { invoiceStatusLabel, paymentVisibilityLabel, pickNextQuotationTask, QUOT
 import { LeadActivityTimeline } from "../../leads/[id]/LeadActivityTimeline";
 import { QuotationItemsEditor } from "../QuotationItemsEditor";
 import { QuotationActionsPanel } from "./QuotationActionsPanel";
+import { REVISION_AUDIT_NOTICE } from "../../../../../../lib/sales/quotation-revision";
 import { updateQuotationDraft } from "../actions";
 import { loadCourseCommercialOptions, normalizePackageIncludeItems } from "../../../../../../lib/sales/course-commercial";
 
 export const metadata = { title: "Quotation Detail — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
 
-export default async function QuotationDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function QuotationDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ notice?: string }> }) {
   const profile = await requireRole("editor");
   await requireModuleAccess("sales_quotations");
   const canManage = isAdmin(profile.role);
   const { id } = await params;
+  const { notice } = await searchParams;
   const supabase = await createSupabaseServerClient();
 
   const { data: quotation, error: quotationReadError } = await supabase.from("sales_quotations").select("*").eq("id", id).maybeSingle();
@@ -89,6 +91,11 @@ export default async function QuotationDetailPage({ params }: { params: Promise<
         action={primaryAction}
         secondaryAction={opportunity ? <Link href={`/admin/sales/opportunities/${opportunity.id}`} className="ta-btn ta-btn-outline">← Back to Opportunity</Link> : undefined}
       />
+      {notice === REVISION_AUDIT_NOTICE && (
+        <div className="ta-alert ta-alert-info" role="status">
+          This revision was created and saved. Its entry in the activity log could not be recorded, so the timeline may be missing it.
+        </div>
+      )}
       {(opportunityReadError || companyReadError) && <ReadErrorState title="Customer relationship unavailable" message="The related opportunity or company details could not be fully loaded. Retry the page to refresh the relationship context." />}
 
       <div className="ta-lead-meta">

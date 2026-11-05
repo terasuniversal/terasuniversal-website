@@ -1,5 +1,6 @@
 import "../globals.css"; // inherits fonts (Poppins/Montserrat) already set up on the site
 import "./admin.css";
+import "./admin-tailwind.css"; // shadcn/ui primitives; admin-only, see file header
 import type { ReactNode } from "react";
 
 export const metadata = {

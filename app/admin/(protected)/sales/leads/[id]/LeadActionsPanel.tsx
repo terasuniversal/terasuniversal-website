@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { Card, Field } from "../../../../../../components/admin/ui";
 import { updateLeadStatus, assignLead, setLeadFollowUp, addLeadNote, convertLeadToOpportunity, markLeadTest, updateLeadQualification, updateLeadTemperature, type SalesActionState } from "../actions";
-import { CRM_STATUS_ORDER, CRM_STATUS_LABELS, LOST_REASONS, LOST_REASON_LABELS, type SalesCrmStatus, type SalesCrmPriority } from "../../../../../../lib/sales/crm";
+import { CRM_STATUS_LABELS, LOST_REASONS, LOST_REASON_LABELS, type SalesCrmStatus, type SalesCrmPriority } from "../../../../../../lib/sales/crm";
+import { selectableLeadStatuses } from "../../../../../../lib/sales/lead-status";
 import { DISQUALIFICATION_REASONS, DISQUALIFICATION_REASON_LABELS, QUALIFICATION_REASONS, QUALIFICATION_REASON_LABELS } from "../../../../../../lib/sales/qualification";
 import { salesDateTimeLocal } from "../../../../../../lib/sales/task-queue";
 
@@ -57,7 +58,6 @@ export function LeadActionsPanel({
 
   const [pendingStatus, setPendingStatus] = useState<SalesCrmStatus>(status);
   const [pendingQualification, setPendingQualification] = useState(qualificationStatus);
-  const statusFormRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
     setPendingQualification(qualificationStatus);
@@ -65,16 +65,11 @@ export function LeadActionsPanel({
 
   const localDateTimeValue = salesDateTimeLocal(followUpAt);
 
-  function quickSetStatus(next: SalesCrmStatus) {
-    if (next === "lost" && !confirm("Mark this lead as lost? Select a reason below, then submit.")) return;
-    setPendingStatus(next);
-    if (next === "won") {
-      // Won needs no extra field — submit immediately on the next tick so the
-      // state update above is reflected in the form before it's read.
-      requestAnimationFrame(() => statusFormRef.current?.requestSubmit());
-    }
-    // For "lost" we just switch the select and reveal the reason field —
-    // the user still clicks Update Status once a reason is chosen.
+  function quickMarkLost() {
+    if (!confirm("Mark this lead as lost? Select a reason below, then submit.")) return;
+    // Just switch the select and reveal the reason field — the user still
+    // clicks Update Status once a reason is chosen.
+    setPendingStatus("lost");
   }
 
   return (
@@ -150,7 +145,7 @@ export function LeadActionsPanel({
 
       {canManage && (
         <Card title="Pipeline Status">
-          <form ref={statusFormRef} action={statusAction} className="ta-card-pad ta-stack">
+          <form action={statusAction} className="ta-card-pad ta-stack">
             {statusState.message && <div className="ta-alert ta-alert-error">{statusState.message}</div>}
             <Field label="Status" name="status" error={statusState.errors?.status}>
               <select
@@ -159,8 +154,9 @@ export function LeadActionsPanel({
                 value={pendingStatus}
                 onChange={(e) => setPendingStatus(e.target.value as SalesCrmStatus)}
               >
-                {CRM_STATUS_ORDER.map((s) => <option key={s} value={s}>{CRM_STATUS_LABELS[s]}</option>)}
+                {selectableLeadStatuses(status).map((s) => <option key={s} value={s}>{CRM_STATUS_LABELS[s]}</option>)}
               </select>
+              {status !== "won" && <p className="ta-muted-sub" style={{ margin: "6px 0 0" }}>A lead becomes Won when its quotation is accepted.</p>}
             </Field>
             {pendingStatus === "lost" && (
               <Field label="Lost reason" name="lost_reason" error={statusState.errors?.lost_reason}>
@@ -174,10 +170,7 @@ export function LeadActionsPanel({
               {statusPending ? "Saving…" : "Update Status"}
             </button>
             <div className="ta-status-action-row">
-              <button type="button" className="ta-btn ta-btn-success ta-btn-sm" disabled={statusPending} onClick={() => quickSetStatus("won")}>
-                Mark Won
-              </button>
-              <button type="button" className="ta-btn ta-btn-danger ta-btn-sm" disabled={statusPending} onClick={() => quickSetStatus("lost")}>
+              <button type="button" className="ta-btn ta-btn-danger ta-btn-sm" disabled={statusPending} onClick={quickMarkLost}>
                 Mark Lost
               </button>
             </div>

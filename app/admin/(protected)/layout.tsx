@@ -2,14 +2,12 @@ import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { getCurrentModuleAccess, hasModuleAccess, requireStaff } from "../../../lib/auth/session";
 import { createSupabaseServerClient } from "../../../lib/supabase/server";
-import { Sidebar } from "../../../components/admin/Sidebar";
-import { Topbar } from "../../../components/admin/Topbar";
-import { NavScrim } from "../../../components/admin/NavScrim";
+import { AdminShell } from "../../../components/admin/AdminShell";
 
 /**
  * Protected admin shell. Every route in the (protected) group requires at
  * least the "editor" role — enforced here (server-side) AND by middleware.
- * Renders the persistent sidebar + topbar around each page.
+ * Renders the sidebar, mobile drawer and topbar (AdminShell) around each page.
  *
  * First-login gate: a staff member who has not changed their temporary
  * password yet is forced to /admin/account/change-password and cannot reach
@@ -43,21 +41,15 @@ export default async function ProtectedLayout({ children }: { children: ReactNod
   ]);
 
   return (
-    <div className="ta-shell">
-      <NavScrim />
-      <Sidebar
-        role={profile.role}
-        moduleKeys={[...moduleKeys]}
-        accessControlEnabled={profile.access_control_enabled}
-        badges={{
-          ...(canSeeCertificates ? { certificates: pendingCerts ?? 0 } : {}),
-          ...(canSeeParticipants ? { participants: activeParticipants ?? 0 } : {}),
-        }}
-      />
-      <div className="ta-main">
-        <Topbar profile={profile} moduleKeys={[...moduleKeys]} />
-        <main className="ta-content">{children}</main>
-      </div>
-    </div>
+    <AdminShell
+      profile={profile}
+      moduleKeys={[...moduleKeys]}
+      badges={{
+        ...(canSeeCertificates ? { certificates: pendingCerts ?? 0 } : {}),
+        ...(canSeeParticipants ? { participants: activeParticipants ?? 0 } : {}),
+      }}
+    >
+      {children}
+    </AdminShell>
   );
 }

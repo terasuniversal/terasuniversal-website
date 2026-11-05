@@ -7,6 +7,7 @@ import { requireRole, requireModuleAccess } from "../../../../../lib/auth/sessio
 import { quotationHeaderSchema, quotationRejectSchema, fieldErrors, type QuotationHeaderInput } from "../../../../../lib/validation/schemas";
 import { computeQuotationTotals } from "../../../../../lib/sales/crm";
 import { canonicalizePackageSnapshot, commercialName, type CourseCommercialProfileData, type PackageIncludeSnapshot } from "../../../../../lib/sales/course-commercial";
+import { runQuotationRevision, revisionRedirectPath } from "../../../../../lib/sales/quotation-revision";
 
 export type SalesActionState = { message?: string; errors?: Record<string, string> };
 
@@ -340,77 +341,18 @@ export async function rejectQuotationAction(quotationId: string, _prev: SalesAct
  * row is created with the SAME quotation_no and revision_no + 1, items are
  * copied so staff edit from where the client left off rather than from
  * scratch.
+ *
+ * The sequence lives in lib/sales/quotation-revision.ts: replacement first,
+ * original superseded last. It is not atomic (see that file).
  */
 export async function createRevision(quotationId: string, _prev: SalesActionState, _formData: FormData): Promise<SalesActionState> {
   const profile = await requireRole("admin");
   await requireModuleAccess("sales_quotations");
   const supabase = await createSupabaseServerClient();
 
-  const { data: source } = await supabase.from("sales_quotations").select("*").eq("id", quotationId).maybeSingle();
-  if (!source) return { message: "Quotation not found." };
-  if (!["sent", "rejected", "expired"].includes(source.status)) {
-    return { message: `A ${source.status} quotation cannot be revised. Only sent, rejected or expired quotations can be revised.` };
-  }
+  const result = await runQuotationRevision(supabase, { quotationId, actorId: profile.id });
+  if (!result.ok) return { message: result.message };
 
-  const { data: sourceItems } = await supabase
-    .from("sales_quotation_items")
-    .select("description, quantity, unit, unit_price, discount, sort_order, course_id, course_name_snapshot, hrdf_claim, package_includes_snapshot")
-    .eq("quotation_id", quotationId)
-    .order("sort_order");
-
-  const { data: maxRevisionRow } = await supabase
-    .from("sales_quotations")
-    .select("revision_no")
-    .eq("quotation_no", source.quotation_no)
-    .order("revision_no", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  const nextRevisionNo = (maxRevisionRow?.revision_no ?? source.revision_no) + 1;
-
-  await supabase.from("sales_quotations").update({ status: "superseded", superseded_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", quotationId);
-
-  const { data: revision, error } = await supabase
-    .from("sales_quotations")
-    .insert({
-      opportunity_id: source.opportunity_id,
-      quotation_no: source.quotation_no,
-      revision_no: nextRevisionNo,
-      parent_quotation_id: quotationId,
-      valid_until: source.valid_until,
-      currency: source.currency,
-      subtotal: source.subtotal,
-      discount: source.discount,
-       sst_applicable: source.sst_applicable,
-       sst_rate: source.sst_rate,
-       sst_amount: source.sst_amount,
-       tax_label_snapshot: source.tax_label_snapshot,
-       tax_basis_snapshot: source.tax_basis_snapshot,
-       sst_registration_number_snapshot: source.sst_registration_number_snapshot,
-       sst_effective_date_snapshot: source.sst_effective_date_snapshot,
-       tax: source.tax,
-      total: source.total,
-      terms: source.terms,
-      notes: source.notes,
-      customer_company_name: source.customer_company_name,
-      customer_contact_name: source.customer_contact_name,
-      customer_registration_no: source.customer_registration_no,
-      customer_email: source.customer_email,
-      customer_phone: source.customer_phone,
-      billing_address: source.billing_address,
-      training_service_address: source.training_service_address,
-      created_by: profile.id,
-    })
-    .select("id, quotation_no")
-    .single();
-  if (error) return { message: error.message };
-
-  if (sourceItems && sourceItems.length > 0) {
-    await supabase.from("sales_quotation_items").insert(sourceItems.map((item: any) => ({ ...item, quotation_id: revision.id })));
-  }
-
-  const leadMetadataId = await getLeadMetadataId(supabase, source.opportunity_id);
-  await logActivity(supabase, leadMetadataId, source.opportunity_id, revision.id, "quotation_revised", `${revision.quotation_no} revised`, profile.id);
-
-  revalidateQuotation(revision.id, source.opportunity_id);
-  redirect(`/admin/sales/quotations/${revision.id}`);
+  revalidateQuotation(result.revisionId, result.opportunityId);
+  redirect(revisionRedirectPath(result));
 }

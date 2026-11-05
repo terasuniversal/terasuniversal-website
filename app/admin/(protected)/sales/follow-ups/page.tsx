@@ -4,7 +4,8 @@ import { requireRole, requireModuleAccess } from "../../../../../lib/auth/sessio
 import { PageHead, Card, Badge, EmptyState, Pagination, ListToolbar, ReadErrorState } from "../../../../../components/admin/ui";
 import { mytEndOfTodayUtc, type SalesLeadInboxRow } from "../../../../../lib/sales/crm";
 import { clampPage, normalizePage, pageCountFor, pageRange, SALES_QUEUE_PAGE_SIZE } from "../../../../../lib/sales/pagination";
-import { formatMalaysiaDate } from "../../../../../lib/date-time";
+import { formatMalaysiaDate, formatMalaysiaDateTime } from "../../../../../lib/date-time";
+import { isAdmin } from "../../../../../lib/auth/rbac";
 import { FollowUpInlineForm } from "./FollowUpInlineForm";
 import { isCurrentLeadFollowUp } from "../../../../../lib/sales/active-state";
 
@@ -93,11 +94,23 @@ export default async function FollowUpsPage({
   const lastActivityByLead = new Map<string, any>();
   for (const a of activityRows ?? []) if (!lastActivityByLead.has(a.lead_metadata_id)) lastActivityByLead.set(a.lead_metadata_id, a);
 
+  // Scheduling writes sales_lead_metadata, which only Admins may update (RLS
+  // and setLeadFollowUp's requireRole("admin")), so other roles get the date
+  // read-only instead of a form that would bounce them to No Access.
+  const canSchedule = isAdmin(profile.role);
+  const followUpControl = (l: SalesLeadInboxRow) =>
+    canSchedule ? (
+      <FollowUpInlineForm leadMetadataId={l.lead_metadata_id} followUpAt={l.follow_up_at} returnTo={returnTo} />
+    ) : (
+      <span>{l.follow_up_at ? formatMalaysiaDateTime(l.follow_up_at) : "Not scheduled"}</span>
+    );
+
   return (
     <>
       <PageHead title="Follow-ups" subtitle="Real follow-up queue — sourced from Lead/Opportunity follow-up dates, Malaysia time." />
       {sp.feedback === "saved" && <div className="ta-alert ta-alert-success" role="status">Follow-up saved.</div>}
       {sp.feedback === "cleared" && <div className="ta-alert ta-alert-success" role="status">Follow-up cleared.</div>}
+      {!canSchedule && <div className="ta-alert ta-alert-info" role="note">Only an Admin can change follow-up dates. Open a lead to add a note or a task.</div>}
 
       <ListToolbar style={{ flexWrap: "wrap" }}>
         {VIEWS.map((v) => (
@@ -161,7 +174,7 @@ export default async function FollowUpsPage({
                           <Badge status={l.priority} />
                         </td>
                         <td style={{ fontSize: 12.5 }}>
-                          <FollowUpInlineForm leadMetadataId={l.lead_metadata_id} followUpAt={l.follow_up_at} returnTo={returnTo} />
+                          {followUpControl(l)}
                         </td>
                         <td>
                           <Badge status={l.status} />
@@ -202,7 +215,7 @@ export default async function FollowUpsPage({
                       <span>Priority</span>
                       <span><Badge status={l.priority} /></span>
                       <span>Follow-up</span>
-                      <span><FollowUpInlineForm leadMetadataId={l.lead_metadata_id} followUpAt={l.follow_up_at} returnTo={returnTo} /></span>
+                      <span>{followUpControl(l)}</span>
                       <span>Last Activity</span>
                       <span>{lastActivity ? `${lastActivity.type.replace(/_/g, " ")} — ${formatMalaysiaDate(lastActivity.created_at)}` : "—"}</span>
                     </div>

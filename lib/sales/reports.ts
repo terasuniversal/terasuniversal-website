@@ -28,6 +28,34 @@ function parseYmd(s: string): { year: number; month: number; day: number } | nul
   return { year: Number(m[1]), month: Number(m[2]) - 1, day: Number(m[3]) };
 }
 
+/**
+ * `created_at` bounds for a plain-date From/To list filter. The date inputs
+ * carry no timezone, so each value is a Malaysia calendar day: From is
+ * midnight at the start of that day, To is midnight at the start of the next
+ * day (exclusive), which keeps the whole To day. A bound that is empty or not
+ * a real YYYY-MM-DD date is left out, so a mistyped URL shows the unfiltered
+ * list instead of an error. Impossible dates such as 2026-02-31 are rejected
+ * here, because parseYmd alone would roll them into March. Parameters are
+ * `unknown` because a repeated query key (?from=a&from=b) reaches a page as an
+ * array; anything that is not a string is left out the same way. Only years
+ * 1970 to 2200 are accepted: Date.UTC reads years 0 to 99 as 1900 to 1999, so
+ * earlier years could not be checked reliably, and no CRM record is that old.
+ */
+export function mytDateFilterBounds(from?: unknown, to?: unknown): { gte?: string; lt?: string } {
+  const realDay = (value?: unknown) => {
+    const day = typeof value === "string" && value ? parseYmd(value) : null;
+    if (!day || day.year < 1970 || day.year > 2200) return null;
+    const check = new Date(Date.UTC(day.year, day.month, day.day));
+    return check.getUTCFullYear() === day.year && check.getUTCMonth() === day.month && check.getUTCDate() === day.day ? day : null;
+  };
+  const start = realDay(from);
+  const end = realDay(to);
+  return {
+    ...(start ? { gte: mytMidnightUtc(start.year, start.month, start.day).toISOString() } : {}),
+    ...(end ? { lt: mytMidnightUtc(end.year, end.month, end.day + 1).toISOString() } : {}),
+  };
+}
+
 export type ReportRangeKey = "this_month" | "last_month" | "this_quarter" | "this_year" | "custom";
 export const REPORT_RANGE_KEYS: ReportRangeKey[] = ["this_month", "last_month", "this_quarter", "this_year", "custom"];
 export const REPORT_RANGE_LABELS: Record<ReportRangeKey, string> = {
