@@ -34,3 +34,6 @@ Durable decisions for the TERAS Universal shared agent workflow.
 
 - Owner accepted A3 Executive + Refined Mosaic + Hero Variant B after physical iPhone QA of Preview `3b26524` (hero 5 of 5 PASS). Design and local development are approved; PR, merge, deployment and database changes are not.
 - `3b26524` is the visual reference for the homepage. The inner-page templates extend `components/premium` minimally (statement hero, section heading, course cards, facts, CTA band, recognition block, empty state) and do not repeat the two hero photographs on unrelated pages.
+
+## 2026-11-06 - Training design accepted as the site-wide standard
+- Owner accepted the Training/Course templates (Preview `83ab57a`, iPhone 7 of 7). The inner-page kit in `components/premium` is the standard for the remaining public pages; Company and Services are the second template group. Design and local development only.

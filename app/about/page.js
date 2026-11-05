@@ -1,6 +1,13 @@
-import Image from "next/image";
 import Footer from "../../components/Footer";
+import CardGrid from "../../components/premium/CardGrid";
+import CtaBand from "../../components/premium/CtaBand";
+import InnerHero from "../../components/premium/InnerHero";
+import Outline from "../../components/premium/Outline";
 import PremiumHeader from "../../components/premium/PremiumHeader";
+import SectionHead from "../../components/premium/SectionHead";
+import Timeline from "../../components/premium/Timeline";
+import kit from "../../components/premium/premium.module.css";
+import inner from "../../components/premium/inner.module.css";
 import { coreValues, leadership, accreditations, timeline, trainingFacilities, partners } from "../../data/companyProfile";
 
 const reasons = [
@@ -18,143 +25,116 @@ export default function AboutPage() {
   return (
     <>
       <PremiumHeader />
-      <main className="about-page">
+      <main className={`${kit.px} ${inner.page}`}>
+        <InnerHero
+          titleId="about-hero-title"
+          eyebrow="About TERAS Universal"
+          title="Building Competence. Creating Opportunities."
+          lead="TERAS UNIVERSAL delivers competency-based industrial safety training, technical competency development, consultancy and workforce capability solutions designed to help organisations operate more safely, efficiently and confidently."
+          actions={<div className={inner.actions}><a className={kit.btn} href="/training">Explore Training</a><a className={`${kit.btn} ${kit.btnLight}`} href="/#contact">Contact Us</a></div>}
+        />
 
-      <section className="about-hero" aria-labelledby="about-hero-title">
-        <div className="container about-hero-grid">
-          <div className="about-hero-copy">
-            <span className="eyebrow">About TERAS Universal</span>
-            <h1 id="about-hero-title">Building Competence.<br /><span>Creating Opportunities.</span></h1>
-            <p>TERAS UNIVERSAL delivers competency-based industrial safety training, technical competency development, consultancy and workforce capability solutions designed to help organisations operate more safely, efficiently and confidently.</p>
-            <div className="hero-actions"><a className="btn btn-primary" href="/training">Explore Training</a><a className="btn btn-outline" href="/#contact">Contact Us</a></div>
+        <section className={kit.sec} aria-labelledby="story-title">
+          <div className={`${kit.wrap} ${inner.twoCol}`}>
+            <div className={inner.statement}>
+              <span className={`${inner.eyebrow} ${inner.onLight}`}>Our Story</span>
+              <h2 id="story-title">Practical capability for the work that matters.</h2>
+            </div>
+            <div className={inner.statement}>
+              <p>TERAS UNIVERSAL was established to help organisations develop safer, more capable and more confident workforces through learning that connects directly to the workplace.</p>
+              <p>Our focus is practical industrial learning: clear knowledge, guided application, structured assessment and solutions that reflect the needs of people, projects and operations.</p>
+              <p>We aim to build long-term partnerships with organisations by listening carefully, delivering responsibly and continuously improving the way capability is developed.</p>
+            </div>
           </div>
-          <figure className="about-hero-media"><Image src="/images/v2/hero-training-briefing-male-branded.webp" alt="An instructor briefing six trainees in navy workwear, white hard hats and hi-vis vests in a covered training hall" width={1800} height={1200} priority sizes="(max-width: 920px) 100vw, 52vw" /></figure>
-        </div>
-      </section>
+        </section>
 
-      <section className="about-story-section" aria-labelledby="story-title">
-        <div className="container about-story-grid">
-          <div className="about-story-copy"><span className="eyebrow">Our Story</span><h2 id="story-title">Practical capability for the work that matters.</h2><p>TERAS UNIVERSAL was established to help organisations develop safer, more capable and more confident workforces through learning that connects directly to the workplace.</p><p>Our focus is practical industrial learning: clear knowledge, guided application, structured assessment and solutions that reflect the needs of people, projects and operations.</p><p>We aim to build long-term partnerships with organisations by listening carefully, delivering responsibly and continuously improving the way capability is developed.</p></div>
-          <figure className="about-story-media"><Image src="/images/v2/panel-c.svg" alt="" unoptimized width={1200} height={800} sizes="(max-width: 920px) 100vw, 50vw" /></figure>
-        </div>
-      </section>
-
-      <section className="about-accred-section" aria-labelledby="accred-title">
-        <div className="container">
-          <div className="section-heading about-section-heading"><span className="eyebrow">Recognition &amp; Accreditations</span><h2 id="accred-title">Registered and recognised by Malaysia&apos;s governing bodies.</h2></div>
-          <div className="about-accred-grid">
-            {accreditations.map((a) => (
-              <article key={a.org}>
-                <span className="about-accred-badge" aria-hidden="true">{a.org.slice(0, 2).toUpperCase()}</span>
-                <h3>{a.org}</h3>
-                <p className="accred-label">{a.label}</p>
-                <p className="accred-text">{a.text}</p>
-              </article>
-            ))}
+        <section className={`${kit.sec} ${kit.trust}`} aria-labelledby="accred-title">
+          <div className={kit.wrap}>
+            <SectionHead id="accred-title" eyebrow="Recognition & Accreditations" title="Registered and recognised by Malaysia's governing bodies." />
+            <CardGrid label="Recognition and accreditations" items={accreditations.map((a) => ({ label: a.org, title: a.label, text: a.text }))} />
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section className="about-vision-section" aria-labelledby="vision-title">
-        <div className="container"><div className="section-heading about-section-heading"><span className="eyebrow">Direction &amp; Purpose</span><h2 id="vision-title">A clear direction for meaningful workforce development.</h2></div><div className="about-vision-grid"><article><span className="about-card-number">01</span><h3>Vision</h3><p>To be a trusted partner in building safer, more competent and more resilient workforces.</p></article><article><span className="about-card-number">02</span><h3>Mission</h3><p>To deliver practical, competency-based training and industrial solutions that help organisations strengthen people, performance and workplace confidence.</p></article></div></div>
-      </section>
-
-      <section className="about-values-section" aria-labelledby="values-title">
-        <div className="container">
-          <div className="section-heading about-section-heading"><span className="eyebrow">TERAS Values</span><h2 id="values-title">The principles behind every engagement.</h2></div>
-          <div className="about-values-grid is-teras6">
-            {coreValues.map((v) => (
-              <article key={v.letter}>
-                <span className="about-value-icon" aria-hidden="true">{v.letter}</span>
-                <h3>{v.title}</h3>
-                {v.subtitle && <small>{v.subtitle}</small>}
-                <p>{v.text}</p>
-              </article>
-            ))}
+        <section className={kit.sec} aria-labelledby="vision-title">
+          <div className={kit.wrap}>
+            <SectionHead id="vision-title" eyebrow="Direction & Purpose" title="A clear direction for meaningful workforce development." />
+            <CardGrid label="Vision and mission" items={[{ label: "01", title: "Vision", text: "To be a trusted partner in building safer, more competent and more resilient workforces." }, { label: "02", title: "Mission", text: "To deliver practical, competency-based training and industrial solutions that help organisations strengthen people, performance and workplace confidence." }]} />
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section className="about-leadership-section" aria-labelledby="leadership-title">
-        <div className="container">
-          <div className="section-heading about-section-heading"><span className="eyebrow">Our Leadership</span><h2 id="leadership-title">Led by industry practitioners, not just administrators.</h2></div>
-          <div className="about-leadership-grid">
-            {leadership.map((p) => (
-              <article key={p.name}>
-                <span className="about-leader-avatar" aria-hidden="true">{p.name.split(" ").map((s) => s[0]).slice(0, 2).join("")}</span>
-                <span className="about-leader-role">{p.role}</span>
-                <h3>{p.name}</h3>
-                {p.credential && <span className="about-leader-credential">{p.credential}</span>}
-                <p className="leader-bio">{p.bio}</p>
-                {p.focusAreas && (
-                  <div className="about-leader-focus">
-                    {p.focusAreas.map((f) => <span key={f}>{f}</span>)}
-                  </div>
-                )}
-              </article>
-            ))}
+        <section className={`${kit.sec} ${kit.trust}`} aria-labelledby="values-title">
+          <div className={kit.wrap}>
+            <SectionHead id="values-title" eyebrow="TERAS Values" title="The principles behind every engagement." />
+            <CardGrid label="TERAS values" items={coreValues.map((v) => ({ label: v.letter, title: v.title, meta: v.subtitle, text: v.text }))} />
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section className="about-timeline-section" aria-labelledby="timeline-title">
-        <div className="container">
-          <div className="section-heading about-section-heading"><span className="eyebrow">Our Journey</span><h2 id="timeline-title">From the scaffold to founding TERAS UNIVERSAL.</h2></div>
-          <ol className="about-timeline-list">
-            {timeline.map((t, i) => (
-              <li key={`${t.year}-${i}`}>
-                <span className="about-timeline-year">{t.year}</span>
-                <span className="about-timeline-text">{t.text}</span>
-              </li>
-            ))}
-          </ol>
-        </div>
-      </section>
-
-      <section className="about-facilities-section" aria-labelledby="about-facilities-title">
-        <div className="container">
-          <div className="section-heading about-section-heading"><span className="eyebrow">Training Facilities &amp; Participant Support</span><h2 id="about-facilities-title">Everything a training programme needs, in one place.</h2></div>
-          <div className="about-facilities-grid">
-            {trainingFacilities.map((facility) => (
-              <article key={facility.title}>
-                <h3>{facility.title}</h3>
-                <p>{facility.text}</p>
-              </article>
-            ))}
+        <section className={kit.sec} aria-labelledby="leadership-title">
+          <div className={kit.wrap}>
+            <SectionHead id="leadership-title" eyebrow="Our Leadership" title="Led by industry practitioners, not just administrators." />
+            <CardGrid label="Leadership" items={leadership.map((p) => ({ label: p.role, title: p.name, meta: p.credential, text: p.bio, tags: p.focusAreas }))} />
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section className="about-reasons-section" aria-labelledby="reasons-title">
-        <div className="container"><div className="section-heading about-section-heading"><span className="eyebrow">Why Organisations Choose TERAS</span><h2 id="reasons-title">Capability built around real organisational needs.</h2></div><div className="about-reasons-grid">{reasons.map(([number, title, text]) => <article key={title}><span>{number}</span><div><h3>{title}</h3><p>{text}</p></div></article>)}</div></div>
-      </section>
-
-      <section className="about-approach-section" aria-labelledby="approach-title">
-        <div className="container"><div className="section-heading about-section-heading"><span className="eyebrow">Our Approach</span><h2 id="approach-title">A disciplined path from understanding to improvement.</h2></div><div className="about-approach-grid">{approach.map((stage, index) => <article key={stage}><span>{String(index + 1).padStart(2, "0")}</span><h3>{stage}</h3>{index < approach.length - 1 && <b aria-hidden="true">&rarr;</b>}</article>)}</div></div>
-      </section>
-
-      <section className="about-industries-section" aria-labelledby="about-industries-title">
-        <div className="container"><div className="section-heading about-section-heading"><span className="eyebrow">Industries We Support</span><h2 id="about-industries-title">Built for safety-critical environments.</h2></div><div className="about-industries-grid">{industries.map((industry, index) => <article key={industry}><span>{String(index + 1).padStart(2, "0")}</span><h3>{industry}</h3></article>)}</div></div>
-      </section>
-
-      <section className="about-partners-section" aria-labelledby="about-partners-title">
-        <div className="container">
-          <div className="section-heading about-section-heading"><span className="eyebrow">Strategic Partners</span><h2 id="about-partners-title">Organisations we collaborate with.</h2></div>
-          <div className="about-partners-grid">
-            {partners.map((partner) => (
-              <article key={partner.name}>
-                <h3>{partner.name}</h3>
-                <p>{partner.text}</p>
-              </article>
-            ))}
+        <section className={`${kit.sec} ${kit.trust}`} aria-labelledby="timeline-title">
+          <div className={kit.wrap}>
+            <SectionHead id="timeline-title" eyebrow="Our Journey" title="From the scaffold to founding TERAS UNIVERSAL." />
+            <Timeline items={timeline} label="Director career and company timeline" />
           </div>
-          <p className="about-partners-note">We also work with a wide range of corporate clients across Oil &amp; Gas, Construction, Manufacturing and other sectors. <a href="/industries">View industries we serve &rarr;</a></p>
-        </div>
-      </section>
+        </section>
 
-      <section className="about-commitment-section"><div className="container"><span className="eyebrow">Corporate Commitment</span><h2>Committed to Building Safer and More Competent Workforces</h2><p>We work with organisations that value practical capability, responsible delivery and long-term improvement. Every engagement is an opportunity to help people perform with greater understanding, discipline and confidence.</p></div></section>
+        <section className={kit.sec} aria-labelledby="about-facilities-title">
+          <div className={kit.wrap}>
+            <SectionHead id="about-facilities-title" eyebrow="Training Facilities & Participant Support" title="Everything a training programme needs, in one place." />
+            <CardGrid label="Training facilities and participant support" items={trainingFacilities.map((f) => ({ title: f.title, text: f.text }))} />
+          </div>
+        </section>
 
-      <section className="about-final-cta"><div className="container"><div><span className="eyebrow">Let's Work Together</span><h2>Let&apos;s Build Capability Together</h2></div><div className="hero-actions"><a className="btn btn-gold" href="/request-proposal">Request Proposal</a><a className="btn btn-light" href="/contact">Contact Us</a></div></div></section>
+        <section className={`${kit.sec} ${kit.trust}`} aria-labelledby="reasons-title">
+          <div className={kit.wrap}>
+            <SectionHead id="reasons-title" eyebrow="Why Organisations Choose TERAS" title="Capability built around real organisational needs." />
+            <CardGrid label="Why organisations choose TERAS" items={reasons.map(([number, title, text]) => ({ label: number, title, text }))} />
+          </div>
+        </section>
+
+        <section className={kit.sec} aria-labelledby="approach-title">
+          <div className={kit.wrap}>
+            <SectionHead id="approach-title" eyebrow="Our Approach" title="A disciplined path from understanding to improvement." />
+            <Outline items={approach} label="Our approach, in order" />
+          </div>
+        </section>
+
+        <section className={`${kit.sec} ${kit.trust}`} aria-labelledby="about-industries-title">
+          <div className={kit.wrap}>
+            <SectionHead id="about-industries-title" eyebrow="Industries We Support" title="Built for safety-critical environments." />
+            <CardGrid label="Industries we support" items={industries.map((name) => ({ title: name }))} />
+          </div>
+        </section>
+
+        <section className={kit.sec} aria-labelledby="about-partners-title">
+          <div className={kit.wrap}>
+            <SectionHead id="about-partners-title" eyebrow="Strategic Partners" title="Organisations we collaborate with." />
+            <CardGrid label="Strategic partners" items={partners.map((partner) => ({ title: partner.name, text: partner.text }))} />
+            <p className={inner.note}>We also work with a wide range of corporate clients across Oil &amp; Gas, Construction, Manufacturing and other sectors. <a className={kit.tl} href="/industries">View industries we serve &rarr;</a></p>
+          </div>
+        </section>
+
+        <section className={`${kit.sec} ${kit.trust}`} aria-labelledby="commitment-title">
+          <div className={`${kit.wrap} ${inner.twoCol}`}>
+            <div className={inner.statement}>
+              <span className={`${inner.eyebrow} ${inner.onLight}`}>Corporate Commitment</span>
+              <h2 id="commitment-title">Committed to Building Safer and More Competent Workforces</h2>
+            </div>
+            <div className={inner.statement}>
+              <p>We work with organisations that value practical capability, responsible delivery and long-term improvement. Every engagement is an opportunity to help people perform with greater understanding, discipline and confidence.</p>
+            </div>
+          </div>
+        </section>
+
+        <CtaBand id="about-cta-title" eyebrow="Let's Work Together" title="Let's Build Capability Together">
+          <a className={kit.btn} href="/request-proposal">Request Proposal</a>
+          <a className={`${kit.btn} ${kit.btnLight}`} href="/contact">Contact Us</a>
+        </CtaBand>
       </main>
       <Footer />
     </>
