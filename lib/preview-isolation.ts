@@ -112,13 +112,31 @@ export type PrivilegedGuardCode =
   | "service_key_attestation_mismatch";
 
 export type PrivilegedGuardResult =
-  | { ok: true; target: DeploymentTarget; projectRef: string | null; keyCheck: "production_unrestricted" | "jwt_ref_matched" | "attested" }
+  | { ok: true; target: DeploymentTarget; projectRef: string | null; keyCheck: "production_unrestricted" | "jwt_ref_matched" | "attested" | "local_loopback" }
   | { ok: false; target: DeploymentTarget; code: PrivilegedGuardCode; message: string };
 
 function clean(value: string | undefined): string {
   if (typeof value !== "string") return "";
   const normalized = value.replace(/^﻿/, "").trim();
   return /[\u0000-\u001F\u007F﻿]/.test(normalized) ? "" : normalized;
+}
+
+/**
+ * True only for a plain loopback URL (localhost, 127.0.0.1 or [::1], http or
+ * https, no embedded credentials). This is the shape of a local Supabase
+ * stack. It is honored ONLY for the "local" deployment target (no Vercel
+ * variables at all), never for preview, development, custom or unknown
+ * deployments, and it is not a flag anyone can set.
+ */
+export function isLoopbackSupabaseUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
+    if (parsed.username !== "" || parsed.password !== "") return false;
+    return parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1" || parsed.hostname === "[::1]";
+  } catch {
+    return false;
+  }
 }
 
 function projectRefFromUrl(url: string): string | null {
@@ -197,6 +215,17 @@ export function validatePrivilegedSupabaseConfig(env: Env = process.env): Privil
   if (resolved.target === "unknown") return fail("unknown", "target_unknown");
 
   const target = resolved.target;
+
+  // Local development against a local Supabase stack: a verified loopback URL
+  // cannot reach Production, so no approved project reference is needed. The
+  // credential must still be present and recognizable. Local target only.
+  if (target === "local" && isLoopbackSupabaseUrl(clean(env.NEXT_PUBLIC_SUPABASE_URL))) {
+    const localKey = clean(env.SUPABASE_SERVICE_ROLE_KEY);
+    if (localKey === "") return fail(target, "service_key_missing");
+    if (classifyServiceKey(localKey).format === "unknown") return fail(target, "service_key_unrecognized");
+    return { ok: true, target, projectRef: null, keyCheck: "local_loopback" };
+  }
+
   const approvedRef = clean(env[APPROVED_SUPABASE_REF_ENV]);
   if (approvedRef === "") return fail(target, "approved_ref_missing");
   if (!PROJECT_REF_PATTERN.test(approvedRef)) return fail(target, "approved_ref_invalid");
@@ -231,6 +260,91 @@ export function validatePrivilegedSupabaseConfig(env: Env = process.env): Privil
   if (!PROJECT_REF_PATTERN.test(attested)) return fail(target, "service_key_attestation_invalid");
   if (attested !== approvedRef) return fail(target, "service_key_attestation_mismatch");
   return { ok: true, target, projectRef: approvedRef, keyCheck: "attested" };
+}
+
+// ---------------------------------------------------------------------------
+// 2b. Anon / authenticated (non-privileged) Supabase clients
+// ---------------------------------------------------------------------------
+
+export type PublicGuardCode =
+  | "production_project_in_non_production"
+  | "approved_ref_invalid"
+  | "approved_ref_is_production"
+  | "url_ref_mismatch";
+
+export type PublicGuardResult =
+  | { ok: true; target: DeploymentTarget }
+  | { ok: false; target: DeploymentTarget; code: PublicGuardCode; message: string };
+
+const PUBLIC_GUARD_MESSAGES: Record<PublicGuardCode, string> = {
+  production_project_in_non_production: "This environment is not allowed to use the Production Supabase project.",
+  approved_ref_invalid: "The approved Supabase project reference is malformed.",
+  approved_ref_is_production: "Production Supabase project cannot be approved for a non-production environment.",
+  url_ref_mismatch: "Supabase URL does not match the approved project for this environment.",
+};
+
+function publicFail(target: DeploymentTarget, code: PublicGuardCode): PublicGuardResult {
+  return { ok: false, target, code, message: PUBLIC_GUARD_MESSAGES[code] };
+}
+
+/**
+ * Server-side check for anon and authenticated Supabase clients (public
+ * registration, staff sign-in, password reset, user-session certificate
+ * operations). It is intentionally narrower than the privileged check so
+ * read-only Preview pages keep working without extra configuration:
+ *
+ * - Production: unchanged (returns ok immediately).
+ * - Known non-Production targets (preview, development, custom, local): the
+ *   URL must NOT be the Production project; and if an approved project
+ *   reference is configured the URL must match it.
+ * - Unknown target (VERCEL_TARGET_ENV missing or conflicting): allowed,
+ *   because a Production deployment whose system variables are hidden would
+ *   look identical and must not be taken down. The privileged check still
+ *   fails closed for unknown targets.
+ * - A missing URL is left to the caller's existing "not configured" handling.
+ *
+ * Browser-side clients cannot call this (no deployment variables in the
+ * browser); they use the same NEXT_PUBLIC values, and the server-side checks
+ * plus the /admin middleware cover the pages that depend on them.
+ */
+export function validatePublicSupabaseConfig(env: Env = process.env): PublicGuardResult {
+  const resolved = resolveDeploymentTarget(env);
+  const target = resolved.target;
+  if (target === "production" || target === "unknown") return { ok: true, target };
+
+  const url = clean(env.NEXT_PUBLIC_SUPABASE_URL);
+  if (url === "") return { ok: true, target };
+  if (target === "local" && isLoopbackSupabaseUrl(url)) return { ok: true, target };
+
+  const urlRef = projectRefFromUrl(url);
+  if (urlRef === PRODUCTION_SUPABASE_PROJECT_REF) return publicFail(target, "production_project_in_non_production");
+
+  const approvedRef = clean(env[APPROVED_SUPABASE_REF_ENV]);
+  if (approvedRef !== "") {
+    if (!PROJECT_REF_PATTERN.test(approvedRef)) return publicFail(target, "approved_ref_invalid");
+    if (approvedRef === PRODUCTION_SUPABASE_PROJECT_REF) return publicFail(target, "approved_ref_is_production");
+    if (urlRef !== approvedRef) return publicFail(target, "url_ref_mismatch");
+  }
+  return { ok: true, target };
+}
+
+/** Throws PreviewIsolationError (code + generic message only) when an anon/auth client would use a disallowed project. */
+export function assertPublicSupabaseConfig(env: Env = process.env): void {
+  const result = validatePublicSupabaseConfig(env);
+  if (!result.ok) {
+    console.error("Supabase client blocked by preview isolation guard", { code: result.code, target: result.target });
+    throw new PreviewIsolationError(result.code, result.message);
+  }
+}
+
+/** Works across module instances (bundlers can duplicate classes), so match on name as well as instanceof. */
+export function isPreviewIsolationError(error: unknown): error is PreviewIsolationError {
+  return error instanceof PreviewIsolationError || (typeof error === "object" && error !== null && (error as { name?: unknown }).name === "PreviewIsolationError");
+}
+
+/** Body for a provider-facing callback that was blocked: an explicit non-success, never an "OK" acknowledgement. */
+export function blockedCallbackBody() {
+  return { error: "Payment callbacks are disabled in this environment.", code: "callback_disabled_non_production" };
 }
 
 export class PreviewIsolationError extends Error {

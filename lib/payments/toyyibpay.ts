@@ -53,7 +53,12 @@ function resolveToyyibpayEnv(): ToyyibpayEnv {
     // Live ("production") mode is allowed only in the Production deployment
     // target; sandbox moves no real money and stays available everywhere.
     if (!isToyyibpayModeAllowed(env)) {
-      throw new Error('ToyyibPay: live "production" mode is blocked outside the Production deployment. Refusing to make any ToyyibPay request.');
+      // Named like lib/preview-isolation.ts's PreviewIsolationError so route
+      // handlers can answer with an explicit non-success (this file stays import-free).
+      throw Object.assign(new Error('ToyyibPay: live "production" mode is blocked outside the Production deployment. Refusing to make any ToyyibPay request.'), {
+        name: "PreviewIsolationError",
+        code: "live_payment_blocked_non_production",
+      });
     }
     return env;
   }

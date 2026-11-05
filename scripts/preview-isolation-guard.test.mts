@@ -22,6 +22,11 @@ const {
   blockedOutboundBody,
   isToyyibpayModeAllowed,
   PRODUCTION_SUPABASE_PROJECT_REF,
+  validatePublicSupabaseConfig,
+  assertPublicSupabaseConfig,
+  isLoopbackSupabaseUrl,
+  isPreviewIsolationError,
+  blockedCallbackBody,
 } = await import("../lib/preview-isolation.ts");
 
 let passed = 0;
@@ -384,6 +389,114 @@ await check("production code paths do not read any new guard configuration varia
   const productionReturn = fn.indexOf('keyCheck: "production_unrestricted"');
   const firstConfigRead = fn.search(/env\[APPROVED_SUPABASE_REF_ENV\]|env\.NEXT_PUBLIC_SUPABASE_URL|env\.SUPABASE_SERVICE_ROLE_KEY/);
   assert.ok(productionReturn >= 0 && productionReturn < firstConfigRead);
+});
+
+console.log("6. anon / authenticated Supabase clients");
+const prodUrl = `https://${PRODUCTION_SUPABASE_PROJECT_REF}.supabase.co`;
+await check("production target is unchanged (even with a Production URL and no other configuration)", () => {
+  assert.equal(validatePublicSupabaseConfig({ VERCEL_TARGET_ENV: "production", VERCEL_ENV: "production", NEXT_PUBLIC_SUPABASE_URL: prodUrl }).ok, true);
+});
+await check("known non-production targets cannot use the Production project", () => {
+  for (const env of [previewEnv(), previewEnv({ VERCEL_TARGET_ENV: "staging" }), previewEnv({ VERCEL_TARGET_ENV: "development", VERCEL_ENV: "development" }), { NEXT_PUBLIC_SUPABASE_URL: prodUrl }]) {
+    const r = validatePublicSupabaseConfig({ ...env, NEXT_PUBLIC_SUPABASE_URL: prodUrl });
+    assert.equal(r.ok === false && r.code, "production_project_in_non_production");
+  }
+});
+await check("a non-production project is allowed without any extra configuration (read-only Preview pages keep working)", () => {
+  assert.equal(validatePublicSupabaseConfig(previewEnv({ TERAS_APPROVED_SUPABASE_PROJECT_REF: undefined, NEXT_PUBLIC_SUPABASE_URL: `https://${OTHER}.supabase.co` })).ok, true);
+});
+await check("when an approved project is configured the URL must match it", () => {
+  assert.equal(validatePublicSupabaseConfig(previewEnv()).ok, true);
+  const r = validatePublicSupabaseConfig(previewEnv({ NEXT_PUBLIC_SUPABASE_URL: `https://${OTHER}.supabase.co` }));
+  assert.equal(r.ok === false && r.code, "url_ref_mismatch");
+  assert.equal((validatePublicSupabaseConfig(previewEnv({ TERAS_APPROVED_SUPABASE_PROJECT_REF: "bad" })) as any).code, "approved_ref_invalid");
+  assert.equal((validatePublicSupabaseConfig(previewEnv({ TERAS_APPROVED_SUPABASE_PROJECT_REF: PRODUCTION_SUPABASE_PROJECT_REF })) as any).code, "approved_ref_is_production");
+});
+await check("unknown and conflicting targets are not taken down (indistinguishable from Production with hidden system variables)", () => {
+  assert.equal(validatePublicSupabaseConfig({ VERCEL: "1", NEXT_PUBLIC_SUPABASE_URL: prodUrl }).ok, true);
+  assert.equal(validatePublicSupabaseConfig({ VERCEL_TARGET_ENV: "production", VERCEL_ENV: "preview", NEXT_PUBLIC_SUPABASE_URL: prodUrl }).ok, true);
+});
+await check("a missing URL is left to the caller's own not-configured handling", () => {
+  assert.equal(validatePublicSupabaseConfig(previewEnv({ NEXT_PUBLIC_SUPABASE_URL: undefined })).ok, true);
+});
+await check("assertPublicSupabaseConfig throws a coded PreviewIsolationError with no values", () => {
+  const original = console.error;
+  console.error = () => undefined;
+  try {
+    assert.throws(() => assertPublicSupabaseConfig({ ...previewEnv(), NEXT_PUBLIC_SUPABASE_URL: prodUrl }), (error: unknown) => {
+      return isPreviewIsolationError(error) && (error as Error & { code: string }).code === "production_project_in_non_production" && !String((error as Error).message).includes(PRODUCTION_SUPABASE_PROJECT_REF);
+    });
+  } finally {
+    console.error = original;
+  }
+});
+await check("isPreviewIsolationError matches by name across module instances; callback body is never an OK", () => {
+  const foreign = Object.assign(new Error("x"), { name: "PreviewIsolationError" });
+  assert.equal(isPreviewIsolationError(foreign), true);
+  assert.equal(isPreviewIsolationError(new Error("x")), false);
+  assert.equal(isPreviewIsolationError(null), false);
+  assert.equal(blockedCallbackBody().code, "callback_disabled_non_production");
+});
+
+console.log("7. local development (loopback Supabase)");
+await check("isLoopbackSupabaseUrl accepts only plain loopback URLs", () => {
+  for (const url of ["http://127.0.0.1:54321", "http://localhost:54321", "https://localhost", "http://[::1]:54321"]) assert.equal(isLoopbackSupabaseUrl(url), true, url);
+  for (const url of ["http://localhost.attacker.test", "http://127.0.0.1.attacker.test", "http://user:pass@127.0.0.1", "http://10.0.0.5:54321", "http://192.168.1.5", "ftp://127.0.0.1", "not a url", "", `https://${APPROVED}.supabase.co`]) {
+    assert.equal(isLoopbackSupabaseUrl(url), false, url);
+  }
+});
+const loopbackKey = fakeJwt({ role: "service_role", iss: "supabase-demo" });
+await check("local target + loopback URL: privileged config is allowed without an approved project", () => {
+  const r = validatePrivilegedSupabaseConfig({ NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321", SUPABASE_SERVICE_ROLE_KEY: loopbackKey });
+  assert.equal(r.ok, true);
+  if (r.ok) assert.equal(r.keyCheck, "local_loopback");
+  assert.equal(validatePrivilegedSupabaseConfig({ NEXT_PUBLIC_SUPABASE_URL: "http://localhost:54321", SUPABASE_SERVICE_ROLE_KEY: SECRET_KEY }).ok, true);
+});
+await check("local loopback still needs a present, recognizable credential", () => {
+  assert.equal((validatePrivilegedSupabaseConfig({ NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321" }) as any).code, "service_key_missing");
+  assert.equal((validatePrivilegedSupabaseConfig({ NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321", SUPABASE_SERVICE_ROLE_KEY: "plain" }) as any).code, "service_key_unrecognized");
+});
+await check("the loopback exception never applies to preview, development, custom or unknown deployments", () => {
+  for (const env of [
+    { VERCEL: "1", VERCEL_ENV: "preview", VERCEL_TARGET_ENV: "preview" },
+    { VERCEL: "1", VERCEL_ENV: "preview", VERCEL_TARGET_ENV: "staging" },
+    { VERCEL_TARGET_ENV: "development", VERCEL_ENV: "development" },
+    { VERCEL: "1" },
+    { VERCEL: "1", VERCEL_ENV: "preview", VERCEL_TARGET_ENV: "production" },
+  ]) {
+    const r = validatePrivilegedSupabaseConfig({ ...env, NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321", SUPABASE_SERVICE_ROLE_KEY: loopbackKey });
+    assert.equal(r.ok, false, JSON.stringify(env));
+  }
+});
+await check("a local run with a non-loopback URL still needs an approved non-Production project", () => {
+  assert.equal((validatePrivilegedSupabaseConfig({ NEXT_PUBLIC_SUPABASE_URL: stagingUrl, SUPABASE_SERVICE_ROLE_KEY: fakeJwt({ role: "service_role", ref: APPROVED }) }) as any).code, "approved_ref_missing");
+  assert.equal(validatePrivilegedSupabaseConfig({ NEXT_PUBLIC_SUPABASE_URL: prodUrl }).ok, false);
+  assert.equal((validatePublicSupabaseConfig({ NEXT_PUBLIC_SUPABASE_URL: prodUrl }) as any).code, "production_project_in_non_production");
+});
+await check("no generic bypass flag affects either guard", () => {
+  const flags = { ALLOW_PRODUCTION: "1", TERAS_ALLOW_LOCAL: "1", TERAS_ALLOW_PRODUCTION_FROM_PREVIEW: "1", DISABLE_PREVIEW_GUARD: "1" };
+  assert.equal(validatePublicSupabaseConfig({ ...previewEnv(), ...flags, NEXT_PUBLIC_SUPABASE_URL: prodUrl }).ok, false);
+  assert.equal(validatePrivilegedSupabaseConfig({ ...previewEnv(), ...flags, TERAS_APPROVED_SUPABASE_PROJECT_REF: undefined }).ok, false);
+});
+
+console.log("8. call-site contracts for fixes");
+await check("callbacks translate guard errors into 503 before the generic OK handler", () => {
+  for (const route of ["app/api/payments/toyyibpay/callback/route.ts", "app/api/payments/toyyibpay/registration-callback/route.ts"]) {
+    const code = source(route);
+    assert.ok(code.search(/isPreviewIsolationError\(/) >= 0, `${route}: missing guard-error mapping`);
+    assert.match(code, /status: 503/);
+    assert.ok(code.includes("blockedCallbackBody()"));
+  }
+});
+await check("every server-side anon/auth client construction is preceded by the public guard", () => {
+  assert.match(source("lib/supabase/server.ts").slice(source("lib/supabase/server.ts").indexOf("export async function createSupabaseServerClient")), /^[\s\S]*?assertPublicSupabaseConfig\(\)[\s\S]*?createServerClient/);
+  assert.match(source("lib/supabase/middleware.ts"), /validatePublicSupabaseConfig\(\)[\s\S]*createServerClient</);
+  assert.match(source("lib/supabase.js"), /assertPublicSupabaseConfig\(\);\s*return createClient/);
+  assert.match(source("lib/rate-limit.js"), /validatePublicSupabaseConfig\(\)\.ok[\s\S]*createClient\(url/);
+  for (const route of ["app/api/admin/login/route.js", "app/api/admin/reset-password/route.js"]) {
+    const code = source(route);
+    assert.ok(code.search(/validatePublicSupabaseConfig\(\)/) >= 0 && code.search(/validatePublicSupabaseConfig\(\)/) < code.search(/= createClient\(/), route);
+  }
 });
 
 console.log(`\n${passed} check(s) passed.`);
