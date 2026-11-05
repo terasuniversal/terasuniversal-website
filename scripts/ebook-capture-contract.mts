@@ -3,8 +3,8 @@ import { createHash } from "node:crypto";
 import { readFile, readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 
-// /ebook contract: the approved PDF is NOT in the repository and not publicly reachable; the form keeps TWO separate,
-// unchecked checkboxes; the public API uses the shared limiter, origin, honeypot and timing checks and one narrow RPC;
+// /ebook contract: the approved PDF is NOT in the repository and not publicly reachable; the form keeps ONE required,
+// unchecked acknowledgement checkbox and NO marketing opt-in (Owner policy, Option A); the public API uses the shared limiter, origin, honeypot and timing checks and one narrow RPC;
 // the feature is off by default; nothing is linked or in the sitemap; the migration never overwrites a consent choice.
 // Static source checks; behaviour is covered by ebook-capture.test.mts, the local database tests and the local route QA.
 
@@ -80,22 +80,21 @@ for (const [name, text] of [["resources", resources], ["sitemap", sitemap], ["Me
   assert.ok(!/["'`]\/ebook|["'`]\/privacy/.test(text), `${name} does not link /ebook or /privacy`);
 }
 
-// 5. The form: TWO separate checkboxes, both unchecked by default; the acknowledgement is required, marketing optional.
+// 5. The form (Owner policy Option A): ONE checkbox, the required Privacy Notice acknowledgement, unchecked by default.
+// There is no marketing opt-in: marketing consent is neither shown, collected nor sent.
 assert.match(formCode, /const \[privacy, setPrivacy\] = useState\(false\);/, "privacy acknowledgement starts unchecked");
-assert.match(formCode, /const \[marketing, setMarketing\] = useState\(false\);/, "marketing consent starts unchecked");
-const checkboxes = [...formCode.matchAll(/<input id="(ebook-privacy|ebook-marketing)" type="checkbox"([\s\S]*?)\/>/g)];
-assert.deepEqual(checkboxes.map((m) => m[1]), ["ebook-privacy", "ebook-marketing"], "exactly two checkboxes, privacy then marketing");
+const checkboxes = [...formCode.matchAll(/<input id="([^"]+)" type="checkbox"([\s\S]*?)\/>/g)];
+assert.deepEqual(checkboxes.map((m) => m[1]), ["ebook-privacy"], "exactly one checkbox: the Privacy Notice acknowledgement");
 assert.match(checkboxes[0][2], /checked=\{privacy\}/);
 assert.match(checkboxes[0][2], /required/);
 assert.match(checkboxes[0][2], /aria-required="true"/);
-assert.match(checkboxes[1][2], /checked=\{marketing\}/);
-assert.ok(!/required/.test(checkboxes[1][2]), "marketing consent is optional");
-assert.ok(!/defaultChecked|checked=\{true\}|\schecked(?=[\s/>])/.test(checkboxes.map((m) => m[2]).join(" ")), "no checkbox is pre-ticked");
+assert.ok(!/defaultChecked|checked=\{true\}|\schecked(?=[\s/>])/.test(checkboxes[0][2]), "the checkbox is not pre-ticked");
 assert.match(formCode, /privacy_acknowledged: true,/, "the acknowledgement is sent only after it was ticked");
-assert.match(formCode, /marketing_opt_in: marketing,/, "marketing consent is sent exactly as the visitor chose");
 assert.match(formCode, /if \(!privacy\) found\.privacy = /, "submitting without the acknowledgement is blocked client-side too");
-assert.ok(!/setMarketing\(true\)|setPrivacy\(true\)/.test(formCode), "neither box is ever ticked by code");
-assert.match(formCode, /Pilihan\. Anda masih boleh mendapatkan eBook tanpa kebenaran ini/, "the form says the eBook does not depend on marketing consent");
+assert.ok(!/setPrivacy\(true\)/.test(formCode), "the acknowledgement is never ticked by code");
+assert.ok(!/marketing|ebook-marketing|bersetuju menerima|promosi/i.test(formCode), "no marketing state, field, checkbox or wording remains in the form code");
+assert.ok(!/ebook-marketing|bersetuju menerima maklumat kursus dan promosi/i.test(pageCode), "the /ebook page no longer shows or describes a marketing checkbox");
+assert.match(page, /Permintaan ini tidak meminta persetujuan pemasaran, dan kami tidak menghantar pemasaran kepada anda hasil permintaan ini/, "the /ebook page states that the request asks for no marketing consent");
 assert.match(formCode, /\(DRAF, belum disemak undang-undang\)/, "the privacy link is marked DRAFT");
 assert.match(formCode, /name="website"/, "honeypot field");
 assert.match(formCode, /formStartedAt: startedAt\.current/, "form start time is sent");
@@ -137,7 +136,14 @@ assert.match(routeCode, /catch \{[^}]*server_client_unavailable[\s\S]*?503/, "a 
 assert.equal([...routeCode.matchAll(/\.rpc\(/g)].length, 1, "exactly one RPC call");
 assert.ok(!/\.(insert|update|upsert|delete)\(|\.from\(/.test(routeCode), "the route never touches a table directly");
 assert.match(routeCode, /p_privacy_notice_version: PRIVACY_NOTICE_VERSION/, "notice version comes from the server, not the client");
-assert.match(routeCode, /p_consent_text_version: CONSENT_TEXT_VERSION/, "consent text version comes from the server, not the client");
+assert.match(routeCode, /p_consent_text_version: MARKETING_CONSENT_NOT_REQUESTED/, "the audit marker comes from the server, not the client");
+// Owner policy (Option A): the RPC marketing argument is a server-side literal false. No request field can reach it.
+assert.match(routeCode, /p_marketing_opt_in: false,/, "p_marketing_opt_in is the literal false");
+assert.equal([...routeCode.matchAll(/p_marketing_opt_in/g)].length, 1, "p_marketing_opt_in appears exactly once in the route");
+assert.ok(!/marketing_opt_in(?!:)|marketing_consent|input\.marketing|raw\.marketing|consent_status/.test(routeCode.replace(/p_marketing_opt_in: false,/, "")), "the route never reads a marketing or consent field from the request");
+assert.ok(!/marketing_opt_in|marketing_consent|CONSENT_TEXT_VERSION/.test(code(rules)), "the input schema has no marketing field and the old consent-text constant is gone");
+assert.match(rules, /DISCARDED by Zod's default object behaviour/, "the schema documents that unknown fields are discarded, not rejected");
+assert.ok(!/\.strict\(\)|\.passthrough\(\)/.test(code(rules).slice(code(rules).indexOf("ebookLeadSchema"))), "the lead schema is neither strict nor passthrough");
 assert.match(routeCode, /p_utm: sanitizeUtm\(input\.utm\)/, "UTM is re-sanitised on the server");
 // Failure handling and privacy of responses and logs.
 assert.match(routeCode, /if \(error \|\| !data \|\| typeof data !== "object"\) \{/, "a failed or empty RPC result is an error, never a success");
@@ -192,9 +198,14 @@ assert.match(mw, /"\/ebook",\s*"\/privacy",?\s*\]/, "the matcher adds only those
 assert.match(code(flagSrc), /EBOOK_LEAD_CAPTURE_ENABLED === "true"/, "exact-true flag, off by default");
 assert.ok(/Anda memuat turun eBook percuma/.test(privacyData) && /You download the free eBook/.test(privacyData), "the Owner's original draft wording is preserved unchanged in data/privacyNoticeDraft.js");
 assert.match(adapted, /PENDING LEGAL APPROVAL/, "the adapted copy is marked pending legal approval");
-assert.match(adapted, /E-mel dan pengakuan Notis Privasi wajib\. Nama, telefon dan pilihan pemasaran adalah pilihan dan berasingan\./, "adapted (Malay): email and acknowledgement required, the rest optional");
-assert.match(adapted, /Email and the privacy-notice acknowledgement are required\. Name, phone and the marketing choice are optional and separate\./, "adapted (English): same");
-assert.match(adapted, /download is not active yet/, "the adapted copy says there is no download yet");
+assert.match(adapted, /E-mel dan pengakuan Notis Privasi wajib\. Nama dan telefon adalah pilihan\./, "adapted (Malay): email and acknowledgement required, name and phone optional");
+assert.match(adapted, /Email and the privacy-notice acknowledgement are required\. Name and phone are optional\./, "adapted (English): same");
+assert.ok(!/download is not active yet|belum aktif/.test(adapted), "the adapted copy no longer claims that the download is inactive");
+assert.match(adapted, /Anda meminta dan memuat turun eBook percuma/, "adapted (Malay): the request and immediate download are described");
+assert.match(adapted, /Permintaan eBook tidak meminta dan tidak merekod persetujuan pemasaran/, "adapted (Malay): the eBook request asks for no marketing consent");
+assert.match(adapted, /An eBook request does not ask for or record marketing consent/, "adapted (English): same");
+assert.ok(!/pilihan pemasaran|marketing choice/i.test(code(adapted)), "the adapted copy no longer lists a marketing choice in the eBook data row");
+assert.ok(/Kami hanya menghantar pemasaran jika anda memilihnya/.test(privacyData) && /persetujuan menerima eBook/.test(privacyData), "the Owner's original marketing paragraph is preserved unchanged in the draft file");
 assert.ok(!/retention|retensi|disimpan selama|stored for|years|tahun/i.test(code(adapted).replace(/Akta[^"]*2010/g, "")), "the adapted copy adds no invented legal terms (retention, periods)");
 assert.match(code(privacyPage), /privacyNoticeAdapted/, "/privacy renders the adapted copy");
 assert.match(privacyPage, /menunggu kelulusan undang-undang/, "/privacy states the adapted version is pending legal approval");

@@ -90,8 +90,8 @@ export default function EbookPage() {
       <section className="ebook-privacy-info">
         <div className="container">
           <h2>Privasi anda</h2>
-          <p>Mengakui Notis Privasi diperlukan untuk meminta eBook. Persetujuan menerima maklumat kursus dan promosi adalah pilihan dan berasingan: tanpanya anda masih mendapat eBook, dan kami tidak menghantar pemasaran kepada anda.</p>
-          <p>Untuk berhenti menerima pemasaran, menarik balik persetujuan atau meminta data anda dipadam, hubungi <a href="mailto:admin@terasuniversal.com.my">admin@terasuniversal.com.my</a>. Baca <a href="/privacy">Notis Privasi (DRAF)</a>.</p>
+          <p>Mengakui Notis Privasi diperlukan untuk meminta eBook. Permintaan ini tidak meminta persetujuan pemasaran, dan kami tidak menghantar pemasaran kepada anda hasil permintaan ini.</p>
+          <p>Untuk meminta akses, pembetulan atau pemadaman data anda, hubungi <a href="mailto:admin@terasuniversal.com.my">admin@terasuniversal.com.my</a>. Baca <a href="/privacy">Notis Privasi (DRAF)</a>.</p>
         </div>
       </section>
 

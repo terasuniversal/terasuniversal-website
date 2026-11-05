@@ -276,3 +276,11 @@ Branch `security/preview-isolation-guards` from `origin/main` (`6fce05b`). Code-
 - Local worktree `D:\Projects\_worktrees\ebook-216-on-main-sim`: `origin/main` `ef493fc` (PR #215 merged) with `feat/ebook-lead-capture` `9be8293` via `git merge --no-commit --no-ff`. The only conflict was this file; both records are kept.
 - Carried forward from the Phase C integration `381334f` (only these three files): `lib/marketing/ebookStorage.ts` runs `assertPrivilegedSupabaseConfig()` as its first statement, before the service key, the URL or any fetch; contract section 12 in `scripts/ebook-capture-contract.mts` enforces that; one line in `docs/EBOOK_PRIVATE_DELIVERY.md`.
 - Local mock tests only. This is not a new Staging UAT and nothing was deployed.
+
+## eBook (#216) Option A: no marketing opt-in (2026-11-06, local commit, not pushed)
+
+- Owner policy: the public eBook flow asks for the Privacy Notice acknowledgement only. The marketing checkbox is removed from `components/public/EbookLeadForm.js`; `/ebook` copy and the adapted privacy draft (`data/privacyNoticeAdapted.js`) no longer describe a marketing choice or an inactive download. The Owner's draft (`data/privacyNoticeDraft.js`) is unchanged and the DRAFT labels stay.
+- `app/api/ebook/route.ts` sends `p_marketing_opt_in: false` as a server-side literal and the fixed marker `not-requested-ebook-option-a` as `p_consent_text_version` (a factual note, not consent evidence). `marketing_opt_in` is gone from `ebookLeadSchema`; unknown fields are discarded (not rejected) so older cached clients keep working.
+- RPC `submit_public_ebook_lead` and its migration are NOT changed (no Staging or Production migration is needed). Because the argument is always false, a new contact is `not_set`, existing `opted_in`/`opted_out`/`not_set` contacts are unchanged, `consent_changed` is never written, and the event metadata records `requested=false`, `applied=false`, `email_verified=false`.
+- Not done: push, Staging UAT, double opt-in, legal approval. Remaining launch blockers are unchanged (IP-based rate limiting disclosure and retention, international processing, retention and deletion, minors, DPO, notice versioning).
+

@@ -26,9 +26,13 @@ export const EBOOK_CATALOG = [
 export type EbookId = (typeof EBOOK_CATALOG)[number]["id"];
 export const EBOOK_IDS = EBOOK_CATALOG.map((e) => e.id) as [EbookId, ...EbookId[]];
 
-/** Versions stored with every submission as consent evidence. DRAFT text: NOT LEGALLY REVIEWED. */
+/** Privacy-notice version stored with every submission as acknowledgement evidence. DRAFT text: NOT LEGALLY REVIEWED. */
 export const PRIVACY_NOTICE_VERSION = "draft-2026-11-02-unreviewed";
-export const CONSENT_TEXT_VERSION = "ebook-form-draft-2026-11-05-unreviewed";
+/**
+ * Owner policy (Option A): the eBook flow never requests or applies marketing consent. This fixed marker is stored as
+ * marketing_consent.text_version purely as a factual note that no consent text was shown. It is NOT evidence of consent.
+ */
+export const MARKETING_CONSENT_NOT_REQUESTED = "not-requested-ebook-option-a";
 
 export const UTM_KEYS = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term"] as const;
 export type UtmKey = (typeof UTM_KEYS)[number];
@@ -75,6 +79,8 @@ const PHONE_PATTERN = /^[0-9+()./ -]{3,40}$/;
 
 const optionalText = (max: number) => z.string().trim().max(max).optional().or(z.literal(""));
 
+// Unknown keys (for example the former marketing_opt_in sent by an older cached client, or a forged consent field) are
+// DISCARDED by Zod's default object behaviour, never rejected and never forwarded. Do not add .strict() or .passthrough().
 export const ebookLeadSchema = z.object({
   email: z.string().trim().min(1, "email_required").max(254, "email_invalid").email("email_invalid"),
   full_name: optionalText(200),
@@ -83,8 +89,6 @@ export const ebookLeadSchema = z.object({
   ebook_id: z.enum(EBOOK_IDS),
   /** Required. Acknowledging the Privacy Notice is NOT marketing consent. */
   privacy_acknowledged: z.literal(true, { message: "privacy_acknowledgement_required" }),
-  /** Optional and separate. Never inferred from submitting the form. */
-  marketing_opt_in: z.boolean(),
   request_id: z.string().uuid(),
   utm: z.record(z.string(), z.unknown()).optional(),
   /** Honeypot: humans never see or fill this field. */

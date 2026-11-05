@@ -2,9 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 
-// DRAFT form wording: NOT LEGALLY REVIEWED. The two checkboxes below are deliberately SEPARATE and both start UNCHECKED:
-//   A. Privacy Notice acknowledgement: REQUIRED. It is not marketing consent.
-//   B. Marketing communications: OPTIONAL. Not ticking it never blocks the eBook.
+// DRAFT form wording: NOT LEGALLY REVIEWED. Owner policy (Option A): this form asks for ONE thing only, the Privacy Notice
+// acknowledgement. It is REQUIRED and starts UNCHECKED. There is no marketing opt-in here: marketing consent is neither
+// requested nor recorded by the eBook flow.
 // No analytics event, console output or URL ever carries what the visitor types.
 
 const UTM_KEYS = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term"];
@@ -40,7 +40,6 @@ export default function EbookLeadForm({ ebookId }) {
   const [message, setMessage] = useState("");
   const [errors, setErrors] = useState({});
   const [privacy, setPrivacy] = useState(false);
-  const [marketing, setMarketing] = useState(false);
   // A short-lived download token, held in memory only (never in a URL, storage or the console).
   const [downloadToken, setDownloadToken] = useState("");
 
@@ -83,7 +82,6 @@ export default function EbookLeadForm({ ebookId }) {
           phone,
           ebook_id: ebookId,
           privacy_acknowledged: true,
-          marketing_opt_in: marketing,
           request_id: requestId.current,
           utm: utm.current,
           website,
@@ -158,7 +156,7 @@ export default function EbookLeadForm({ ebookId }) {
       </div>
 
       <fieldset className="ebook-checks">
-        <legend className="ebook-sr">Pengakuan dan persetujuan</legend>
+        <legend className="ebook-sr">Pengakuan Notis Privasi</legend>
         <div className="ebook-check">
           <input id="ebook-privacy" type="checkbox" checked={privacy} onChange={(e) => setPrivacy(e.target.checked)} required aria-required="true" aria-invalid={Boolean(errors.privacy)} aria-describedby={errors.privacy ? "ebook-privacy-error" : undefined} />
           <label htmlFor="ebook-privacy">
@@ -166,13 +164,6 @@ export default function EbookLeadForm({ ebookId }) {
           </label>
         </div>
         {errors.privacy && <p className="ebook-error" id="ebook-privacy-error">{errors.privacy}</p>}
-
-        <div className="ebook-check">
-          <input id="ebook-marketing" type="checkbox" checked={marketing} onChange={(e) => setMarketing(e.target.checked)} />
-          <label htmlFor="ebook-marketing">
-            Saya bersetuju menerima maklumat kursus dan promosi daripada TERAS UNIVERSAL. <span className="ebook-optional">Pilihan. Anda masih boleh mendapatkan eBook tanpa kebenaran ini.</span>
-          </label>
-        </div>
       </fieldset>
 
       {message && <p className="ebook-error ebook-form-error" id="ebook-form-message" role="alert">{message}</p>}

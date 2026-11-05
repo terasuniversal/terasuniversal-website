@@ -6,7 +6,7 @@ import { getEbookDeliveryConfig, issueDownloadToken } from "../../../lib/marketi
 import { readCappedBody } from "../../../lib/marketing/readCappedBody";
 import { createSupabaseServiceClient } from "../../../lib/supabase/server";
 import {
-  CONSENT_TEXT_VERSION,
+  MARKETING_CONSENT_NOT_REQUESTED,
   PRIVACY_NOTICE_VERSION,
   captureErrorMessage,
   confirmedCaptureOutcome,
@@ -102,8 +102,10 @@ export async function POST(request: Request) {
       p_ebook_id: input.ebook_id,
       p_privacy_acknowledged: input.privacy_acknowledged,
       p_privacy_notice_version: PRIVACY_NOTICE_VERSION,
-      p_marketing_opt_in: input.marketing_opt_in,
-      p_consent_text_version: CONSENT_TEXT_VERSION,
+      // Owner policy (Option A): the eBook flow NEVER requests or applies marketing consent. A server-side literal, never read
+      // from the request body, so no client field can opt a contact in. Existing consent choices are left untouched.
+      p_marketing_opt_in: false,
+      p_consent_text_version: MARKETING_CONSENT_NOT_REQUESTED,
       p_utm: sanitizeUtm(input.utm),
       p_request_id: input.request_id,
     }));

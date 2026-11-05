@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import {
-  CONSENT_TEXT_VERSION,
   EBOOK_CATALOG,
   EBOOK_IDS,
+  MARKETING_CONSENT_NOT_REQUESTED,
   MIN_FILL_TIME_MS,
   PRIVACY_NOTICE_VERSION,
   CONFIRMED_CAPTURE_OUTCOMES,
@@ -25,7 +25,6 @@ const valid = (o: Record<string, unknown> = {}) => ({
   phone: "012-345 6789",
   ebook_id: "dari-zero-ke-dunia-industri",
   privacy_acknowledged: true,
-  marketing_opt_in: false,
   request_id: REQ,
   utm: {},
   website: "",
@@ -49,7 +48,8 @@ assert.equal(EBOOK_CATALOG[0].pdfFileName, "TERAS_eBook_DariZeroKeDuniaIndustri.
 assert.equal(EBOOK_CATALOG[0].delivery, "not_active", "no download until storage is approved");
 assert.ok(!("url" in EBOOK_CATALOG[0]) && !("href" in EBOOK_CATALOG[0]), "no download URL in the catalogue");
 assert.deepEqual([...EBOOK_IDS], ["dari-zero-ke-dunia-industri"]);
-assert.ok(/unreviewed/.test(PRIVACY_NOTICE_VERSION) && /unreviewed/.test(CONSENT_TEXT_VERSION), "draft versions are marked unreviewed");
+assert.ok(/unreviewed/.test(PRIVACY_NOTICE_VERSION), "the privacy-notice version is marked unreviewed");
+assert.equal(MARKETING_CONSENT_NOT_REQUESTED, "not-requested-ebook-option-a", "the audit marker is the fixed non-consent marker");
 
 // 3. Required and optional fields.
 assert.deepEqual(issues(valid()), [], "a minimal valid submission");
@@ -63,11 +63,14 @@ assert.ok(issues(valid({ privacy_acknowledged: false })).some((i) => i.includes(
 assert.ok(issues({ ...valid(), privacy_acknowledged: undefined }).some((i) => i.startsWith("privacy_acknowledged")), "missing is rejected");
 assert.ok(issues(valid({ privacy_acknowledged: "true" })).some((i) => i.startsWith("privacy_acknowledged")), "a string is not an acknowledgement");
 assert.ok(issues(valid({ privacy_acknowledged: false, marketing_opt_in: true })).length > 0, "marketing consent cannot stand in for the acknowledgement");
-assert.deepEqual(issues(valid({ marketing_opt_in: true })), [], "opt-in path is valid");
-assert.deepEqual(issues(valid({ marketing_opt_in: false })), [], "no-opt-in path is valid: the eBook never depends on marketing consent");
-assert.ok(issues({ ...valid(), marketing_opt_in: undefined }).some((i) => i.startsWith("marketing_opt_in")), "the choice must be explicit, never inferred");
-assert.ok(issues(valid({ marketing_opt_in: "true" })).some((i) => i.startsWith("marketing_opt_in")), "a string is not an opt-in");
-assert.ok(issues(valid({ marketing_opt_in: 1 })).some((i) => i.startsWith("marketing_opt_in")), "a number is not an opt-in");
+// Owner policy (Option A): there is no marketing opt-in in the eBook flow. A client that still sends the former field (an older
+// cached form) or a forged consent field is NEVER rejected for it, and the field never reaches the server logic: the schema discards it.
+assert.deepEqual(issues(valid({ marketing_opt_in: true })), [], "a legacy client that still sends marketing_opt_in is not rejected");
+assert.deepEqual(issues(valid({ marketing_opt_in: false })), [], "a legacy client that sends marketing_opt_in=false is not rejected");
+assert.deepEqual(issues(valid({ marketing_opt_in: "yes", marketing_consent: true })), [], "unexpected marketing fields of any type are ignored, not rejected");
+const forged = ebookLeadSchema.parse({ ...valid(), marketing_opt_in: true, marketing_consent: true, consent_status: "opted_in", p_marketing_opt_in: true, consent: "opted_in" });
+for (const key of ["marketing_opt_in", "marketing_consent", "consent_status", "p_marketing_opt_in", "consent"]) assert.ok(!(key in forged), `forged field ${key} is discarded by the schema`);
+assert.deepEqual(Object.keys(forged).sort(), Object.keys(valid()).sort(), "the parsed input carries exactly the known fields and nothing else");
 
 // 5. Input limits and validation.
 for (const email of ["not-an-email", "a@b", "a b@example.com", "@example.com", "a@@example.com", `${"a".repeat(250)}@x.com`]) {
