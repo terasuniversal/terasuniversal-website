@@ -246,3 +246,10 @@ No migration was applied, no push, no merge, no deploy. Validation not re-run in
 ### Not done
 - The 24 remaining SCH-000034 certificates: owner-operated through Super Admin Generate as normal operations, at the owner's chosen time.
 - Scaffolding Erector watermark: a placement-only attempt was rejected by the owner on 2026-11-03 because it does not match the Inspector/WAH illustration style. Erector needs owner-approved artwork (scene for page 1, detail for page 2) like Inspector and WAH. Changing it will also restyle the already issued Erector C4 certificate CERT-2026-000098, which renders live; that needs an owner decision. No Erector code was committed.
+
+## /ebook private PDF delivery (local, 2026-11-06)
+
+- Branch `feat/ebook-lead-capture` (Draft PR #216), worktree `D:\Projects\_worktrees\ebook-lead-capture`. Local, uncommitted: short-lived HMAC download token minted by `POST /api/ebook` only when the capture RPC returns a confirmed outcome (`created`, `matched` or `duplicate_request`; anything else fails closed with a 502 and no token). `POST /api/ebook/download` reads ONE fixed object from a private bucket (`lib/marketing/ebookStorage.ts`, size-capped while reading), verifies its SHA-256, then sends it. Off by default (`EBOOK_DELIVERY_ENABLED`, `EBOOK_DELIVERY_TOKEN_SECRET`).
+- The download response is BUFFERED, not streamed: the whole verified file (about 4.35 MB) is held in memory once before any byte is sent. Application cap `MAX_PDF_BYTES` = 4,500,000 bytes (equal to the proposed bucket limit and the believed 4.5 MB Vercel buffered-response limit). Not verified: Vercel limits and real memory use; needs a real Vercel Staging test.
+- Not done and not approved: bucket `ebook-private`, PDF upload, env vars, e-mail delivery, compressed PDF copy (proposal only), public activation. Design, verified-versus-Staging table and Owner decisions: `docs/EBOOK_PRIVATE_DELIVERY.md`.
+- Validation (local only): `npm run test:ebook-delivery`, `test:ebook-capture`, `test:ebook-capture-contract`; production-build route QA against a stand-in backend (116 delivery checks and 81 capture regression checks); `tsc --noEmit`.

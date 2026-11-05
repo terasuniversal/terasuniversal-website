@@ -2,11 +2,14 @@ import { NextResponse } from "next/server";
 import { checkSharedRateLimit } from "../../../lib/rate-limit";
 import { clientIp, isAllowedOrigin } from "../../../lib/public-registration";
 import { isEbookCaptureEnabled } from "../../../lib/marketing/ebookFlag";
+import { getEbookDeliveryConfig, issueDownloadToken } from "../../../lib/marketing/ebookDelivery";
+import { readCappedBody } from "../../../lib/marketing/readCappedBody";
 import { createSupabaseServiceClient } from "../../../lib/supabase/server";
 import {
   CONSENT_TEXT_VERSION,
   PRIVACY_NOTICE_VERSION,
   captureErrorMessage,
+  confirmedCaptureOutcome,
   ebookLeadSchema,
   emailRateKeyPart,
   fillTimeStatus,
@@ -31,7 +34,9 @@ function respond(body: Record<string, unknown>, status = 200) {
  * (no contact enumeration), and no personal data goes into the URL, the logs or the response. The RPC is the
  * only write path and is EXECUTE-granted to service_role only, so this route (server-only, after every check above)
  * is the sole entrypoint: anon and authenticated callers cannot reach it directly. The service client is used for
- * that one RPC and nothing else. No download URL is returned: delivery is not active until the Owner approves storage.
+ * that one RPC and nothing else. No download URL is ever returned. Only when delivery is explicitly enabled
+ * (EBOOK_DELIVERY_ENABLED, off by default) AND the database accepted the capture does the response carry a short-lived signed
+ * token, which only POST /api/ebook/download accepts. Otherwise the response says delivery is not active.
  */
 export async function POST(request: Request) {
   if (!isEbookCaptureEnabled()) return respond({ error: "Not found." }, 404);
@@ -44,28 +49,10 @@ export async function POST(request: Request) {
     return respond({ error: "Terlalu banyak percubaan. Sila tunggu sebentar dan cuba lagi." }, 429);
   }
 
-  // Read the stream with a running byte count and stop at the cap, so a missing or false Content-Length cannot make the
-  // server buffer an unbounded body.
-  let text = "";
-  try {
-    const reader = request.body?.getReader();
-    if (!reader) return respond({ error: "Invalid request." }, 400);
-    const decoder = new TextDecoder();
-    let received = 0;
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      received += value.byteLength;
-      if (received > MAX_BODY_BYTES) {
-        await reader.cancel();
-        return respond({ error: "Invalid request." }, 413);
-      }
-      text += decoder.decode(value, { stream: true });
-    }
-    text += decoder.decode();
-  } catch {
-    return respond({ error: "Invalid request." }, 400);
-  }
+  // Bounded read: a missing or false Content-Length cannot make the server buffer an unbounded body.
+  const body = await readCappedBody(request, MAX_BODY_BYTES);
+  if (!body.ok) return respond({ error: "Invalid request." }, body.status);
+  const text = body.text;
   let raw: unknown;
   try {
     raw = JSON.parse(text);
@@ -133,6 +120,17 @@ export async function POST(request: Request) {
     return respond({ error: mapped.message }, mapped.status);
   }
 
-  // Identical for a new contact, a matched contact and a retried request.
-  return respond({ ok: true, delivery: "not_active" });
+  // Only an explicitly confirmed outcome counts as a persisted registration. An unknown or missing outcome (for example a
+  // different RPC version) fails closed: no success, no token, fixed log code.
+  if (confirmedCaptureOutcome(data) === null) {
+    console.error("ebook lead capture failed", { code: "rpc_unexpected_outcome" });
+    return respond({ error: "Kami tidak dapat merekod permintaan anda sekarang. Sila cuba lagi sebentar lagi." }, 502);
+  }
+
+  // Identical for every confirmed outcome. The token is minted only here, after the database confirmed the capture, so a
+  // failed or unconfirmed capture can never reach delivery.
+  const delivery = getEbookDeliveryConfig();
+  if (!delivery) return respond({ ok: true, delivery: "not_active" });
+  const issued = issueDownloadToken({ ebookId: input.ebook_id, requestId: input.request_id, now: Date.now(), secret: delivery.secret });
+  return respond({ ok: true, delivery: "download", download: { token: issued.token, expires_in: issued.expiresInSeconds } });
 }

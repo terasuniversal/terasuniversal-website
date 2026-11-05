@@ -5,7 +5,9 @@ import {
   EBOOK_IDS,
   MIN_FILL_TIME_MS,
   PRIVACY_NOTICE_VERSION,
+  CONFIRMED_CAPTURE_OUTCOMES,
   captureErrorMessage,
+  confirmedCaptureOutcome,
   ebookLeadSchema,
   emailRateKeyPart,
   fillTimeStatus,
@@ -126,6 +128,14 @@ for (const raw of ["", "connection refused 10.0.0.1:5432", 'duplicate key value 
   const r = captureErrorMessage(raw);
   assert.equal(r.status, 502, `unknown error "${raw.slice(0, 30)}" is a generic server error`);
   assert.ok(!/(10\.0|constraint|permission|table|marketing_contacts|idx)/i.test(r.message), "the visitor message leaks no internals");
+}
+
+// 9. A registration counts as persisted ONLY for an explicitly confirmed RPC outcome (the download token depends on it).
+assert.deepEqual([...CONFIRMED_CAPTURE_OUTCOMES], ["created", "matched", "duplicate_request"]);
+for (const o of CONFIRMED_CAPTURE_OUTCOMES) assert.equal(confirmedCaptureOutcome({ outcome: o }), o, `${o} is confirmed`);
+assert.equal(confirmedCaptureOutcome({ outcome: "created", extra: 1 }), "created", "extra fields do not matter");
+for (const bad of [null, undefined, 0, 1, "created", true, [], ["created"], [{ outcome: "created" }], {}, { outcome: null }, { outcome: undefined }, { outcome: "" }, { outcome: "CREATED" }, { outcome: " created" }, { outcome: "updated" }, { outcome: "error" }, { outcome: "ok" }, { outcome: ["created"] }, { outcome: { v: "created" } }, { outcome: 1 }, { Outcome: "created" }, { status: "created" }, { result: { outcome: "created" } }]) {
+  assert.equal(confirmedCaptureOutcome(bad), null, `not confirmed: ${JSON.stringify(bad)}`);
 }
 
 console.log("Ebook capture rule tests passed.");

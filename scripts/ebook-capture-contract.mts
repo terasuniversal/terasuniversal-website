@@ -54,7 +54,11 @@ const pageCode = code(page);
 const sql = migration.replace(/^\s*--.*$/gm, "");
 
 // 2. No unprotected download URL anywhere in the new public code.
-for (const [name, text] of [["page", pageCode], ["form", formCode], ["route", routeCode], ["rules", code(rules)]] as const) {
+// The one allowed reference is the form's POST target for the short-lived private download (section 10): an action,
+// not a link, and it only works with a token that the capture route minted.
+const formForUrlCheck = formCode.replace('action="/api/ebook/download"', "").replace('className="ebook-download"', "");
+assert.ok(!/<a[^>]*download/i.test(formCode), "the form has no download link, only the token-bearing POST form");
+for (const [name, text] of [["page", pageCode], ["form", formForUrlCheck], ["route", routeCode], ["rules", code(rules)]] as const) {
   assert.ok(!/\.pdf|\/downloads\/|\/ebooks?\/|signedUrl|createSignedUrl|downloadUrl|download_url|href=\{?["'`]?\/?[^"'`]*download/i.test(text.replace(/pdfFileName[^,\n]*,?/g, "")), `${name} contains no download URL`);
 }
 assert.match(code(rules), /delivery: "not_active"/, "delivery is explicitly not active");
@@ -94,7 +98,7 @@ assert.match(formCode, /formStartedAt: startedAt\.current/, "form start time is 
 assert.match(formCode, /request_id: requestId\.current/, "a stable request id makes retries idempotent");
 // A failed capture never shows success: success is set in exactly one place, after a confirmed ok response.
 assert.equal([...formCode.matchAll(/setStatus\("success"\)/g)].length, 1, "one success transition");
-assert.match(formCode, /if \(response\.ok && payload && payload\.ok === true\) \{\s*setStatus\("success"\);/, "success only when the server confirmed");
+assert.match(formCode, /if \(response\.ok && payload && payload\.ok === true\) \{[^}]*?setStatus\("success"\);/, "success only when the server confirmed");
 assert.ok(!/console\.|localStorage|sessionStorage|gtag|dataLayer|fbq|navigator\.sendBeacon|document\.cookie/.test(formCode), "no logging, storage or analytics in the form");
 assert.ok(!/className="btn|className=\{?"[^"]*\bbtn\b/.test(formCode), "the submit button does not use the .btn class that the site analytics tracks");
 assert.ok(!/router\.(push|replace)|window\.location\.(href|assign|replace)\s*=/.test(formCode), "no redirect that could carry personal data in a URL");
@@ -156,7 +160,7 @@ assert.match(sql, /security definer\s+set search_path = pg_catalog, public/, "SE
 assert.match(sql, /revoke all on function public\.submit_public_ebook_lead\([^)]*\) from public;/, "no PUBLIC execute");
 assert.match(sql, /revoke all on function public\.submit_public_ebook_lead\([^)]*\) from anon, authenticated;/, "anon and authenticated explicitly revoked");
 assert.match(sql, /grant execute on function public\.submit_public_ebook_lead\([^)]*\) to service_role;/, "EXECUTE only for service_role");
-assert.ok(!/grant execute on function public\.submit_public_ebook_lead[^;]*(anon|authenticated|public)/.test(sql), "no EXECUTE grant to anon, authenticated or public");
+assert.ok(!/grant execute on function public\.submit_public_ebook_lead[^;]*(anon|authenticated|public)\b/.test(sql), "no EXECUTE grant to anon, authenticated or public");
 assert.ok(!/grant\s+(all|select|insert|update|delete)\s+on\s+(table\s+)?public\./i.test(sql), "no table grant to anyone");
 assert.ok(!/create policy|alter policy|disable row level security|service_role'|drop table|truncate|delete from/i.test(sql), "no policy change, RLS change or destructive statement");
 assert.match(sql, /p_privacy_acknowledged is distinct from true then\s+raise exception 'privacy_acknowledgement_required'/, "acknowledgement enforced in the database");
@@ -191,3 +195,77 @@ assert.ok(!/retention|retensi|disimpan selama|stored for|years|tahun/i.test(code
 assert.match(code(privacyPage), /privacyNoticeAdapted/, "/privacy renders the adapted copy");
 assert.match(privacyPage, /menunggu kelulusan undang-undang/, "/privacy states the adapted version is pending legal approval");
 console.log("Ebook capture contract (security and privacy additions) passed.");
+
+// 10. Private PDF delivery (local only, off by default): see docs/EBOOK_PRIVATE_DELIVERY.md.
+const [delivery, dlRoute, storageModule, envExample, gitignore] = await Promise.all([read("lib/marketing/ebookDelivery.ts"), read("app/api/ebook/download/route.ts"), read("lib/marketing/ebookStorage.ts"), read(".env.example").catch(() => ""), read(".gitignore")]);
+const storageCode = code(storageModule);
+const deliveryCode = code(delivery);
+const dlCode = code(dlRoute);
+const dlPost = dlCode.slice(dlCode.indexOf("export async function POST"), dlCode.indexOf("export async function GET"));
+// Off by default, exact-match, fail closed.
+assert.match(deliveryCode, /env\.EBOOK_DELIVERY_ENABLED !== "true"\) return null/, "delivery needs the exact flag");
+assert.match(deliveryCode, /env\.EBOOK_LEAD_CAPTURE_ENABLED !== "true"\) return null/, "delivery needs capture on too");
+assert.match(deliveryCode, /secret\.length < MIN_SECRET_CHARS\) return null/, "a missing or short secret means off");
+assert.match(dlPost, /getEbookDeliveryConfig\(\);\s*if \(!delivery\) return respond\(\{ error: "Not found\." \}, 404\);/, "the download route returns 404 first when delivery is off");
+// Order of defences in the download route.
+const dlOrder = ["getEbookDeliveryConfig()", "isAllowedOrigin(request)", 'startsWith("application/x-www-form-urlencoded")', "MAX_BODY_BYTES", "ebook-dl:ip:", "readCappedBody(", "verifyDownloadToken(", "loadVerifiedEbookPdf(", "fetchEbookObject"].map((needle) => ({ needle, at: dlPost.indexOf(needle) }));
+for (const { needle, at } of dlOrder) assert.ok(at >= 0, `download route has ${needle}`);
+assert.deepEqual([...dlOrder.map((o) => o.at)].sort((a, b) => a - b), dlOrder.map((o) => o.at), "defences run in order: flag, origin, type, size, IP limit, bounded read, token, verified load, storage read");
+assert.match(dlCode, /checkSharedRateLimit\(\{[^\n]*failClosed: true/, "the download IP limit is shared and fails closed");
+// The download route has no Supabase client of its own: its single Storage read is lib/marketing/ebookStorage.ts.
+assert.ok(!/createSupabaseServiceClient|createSupabaseServerClient|\.storage\.from\(|SERVICE_ROLE/.test(dlCode), "the download route holds no client or key");
+assert.match(dlCode, /loadVerifiedEbookPdf\(checked\.ebookId, \{ download: fetchEbookObject \}\)/, "the only downloader is fetchEbookObject, keyed by the verified token's ebook id");
+assert.match(storageModule, /^import "server-only";/, "the storage module is server-only (a client import fails the build)");
+assert.equal([...storageCode.matchAll(/\bfetch\(/g)].length, 1, "exactly one outbound fetch");
+assert.match(storageCode, /fetch\(`\$\{origin\}\/storage\/v1\/object\/\$\{EBOOK_PRIVATE_BUCKET\}\/\$\{objectPath\}`/, "the URL is built from the fixed bucket and the object key only");
+assert.match(storageCode, /!ALLOWED_KEYS\.has\(objectPath\)/, "the object key must be in the allowlist");
+assert.match(storageCode, /redirect: "error"/, "redirects are refused so the credential cannot be forwarded");
+assert.match(storageCode, /signal: AbortSignal\.timeout\(/, "the Storage read has a timeout");
+assert.match(storageCode, /headers: \{ apikey: key, Authorization: `Bearer \$\{key\}` \}/, "the key travels only as a header");
+assert.ok(!/console\./.test(storageCode), "the storage module logs nothing");
+assert.ok(!/\.blob\(|\.arrayBuffer\(|Buffer\.from\(bytes/.test(dlCode + storageCode), "no whole-object blob/arrayBuffer or extra Buffer copy on the download path");
+assert.match(deliveryCode, /export const MAX_PDF_BYTES = 4_500_000;/, "the application cap is 4,500,000 bytes, equal to the proposed bucket limit");
+assert.match(deliveryCode, /readCappedBytes\(/, "the capped reader exists");
+const storageImporters = files.filter((f) => /\.(ts|tsx|js|jsx|mjs|mts)$/.test(f) && !f.startsWith("work/") && !f.startsWith("scripts/") && f !== "lib/marketing/ebookStorage.ts");
+const importing: string[] = [];
+for (const f of storageImporters) if (/ebookStorage/.test(await read(f))) importing.push(f);
+assert.deepEqual(importing, ["app/api/ebook/download/route.ts"], "only the download route imports the storage module");
+const deliveryDocs = await read("docs/EBOOK_PRIVATE_DELIVERY.md");
+assert.match(deliveryDocs, /file_size_limit, allowed_mime_types\)\s*values \('ebook-private', 'ebook-private', false, 4500000,/, "the proposed bucket limit in the docs equals the application cap");
+assert.match(deliveryDocs, /BUKAN streaming|bukan streaming/, "the docs state plainly that the response is not streamed");
+assert.ok(!/(menstrim|distrim|strim(kan)?) (fail|pdf|bait|ebook)|streams the (pdf|file|bytes)|is streamed/i.test(deliveryDocs), "the docs never claim true streaming");
+assert.ok(!/streams? (the|a|an) (verified )?(pdf|file|bytes|object)|menstrim|distrim/i.test(delivery + dlRoute + storageModule + await read("lib/marketing/ebookCapture.ts") + await read(".ai/PROJECT_STATUS.md")), "no source comment or status note claims true streaming");
+// The token is in the body, never the URL; there is no GET download; no signed or public URL is ever created.
+assert.ok(!/nextUrl|searchParams\.get|new URL\(request\.url\)/.test(dlCode), "the download route never reads a URL or query value");
+assert.match(dlCode, /export async function GET\(\) \{\s*return respond\(\{ error: "Not found\." \}, 404\);/, "GET is always 404");
+for (const [name, text] of [["delivery rules", deliveryCode], ["download route", dlCode], ["capture route", routeCode], ["form", formCode]] as const) {
+  assert.ok(!/createSignedUrl|createSignedUrls|createSignedUploadUrl|getPublicUrl|signedURL|publicUrl/i.test(text), `${name} never creates or exposes a Storage URL`);
+}
+// Headers on the file response.
+for (const h of ['"Content-Type": "application/pdf"', "attachment; filename=", '"X-Content-Type-Options": "nosniff"', '"Cache-Control": "no-store"']) assert.ok(dlCode.includes(h), `file response sets ${h}`);
+// Logs: fixed codes only. Never the token, the object path or an error object.
+for (const [, body] of [...dlCode.matchAll(/console\.error\("[^"]*", \{(.*)\}\);/g)]) assert.ok(/^\s*code: /.test(body), `download logs carry only a code (found: ${body})`);
+assert.equal([...dlCode.matchAll(/console\.error\(/g)].length, [...dlCode.matchAll(/console\.error\("[^"]*", \{/g)].length, "every download log is a literal message plus a small object");
+assert.ok(!/console\.(log|info|debug|warn)\(/.test(dlCode + deliveryCode), "no other console output");
+// The token is issued only after the RPC succeeded, never for the honeypot, and carries no personal data.
+const capturePost = routeCode.slice(routeCode.indexOf("export async function POST"));
+assert.ok(capturePost.indexOf("issueDownloadToken(") > capturePost.indexOf('supabase.rpc("submit_public_ebook_lead"'), "token minted only after the RPC");
+assert.ok(capturePost.indexOf("issueDownloadToken(") > capturePost.indexOf('if (error || !data || typeof data !== "object")'), "token minted only after the RPC result was checked");
+assert.equal([...capturePost.matchAll(/issueDownloadToken\(/g)].length, 1, "one place mints a token");
+const outcomeAt = capturePost.indexOf("confirmedCaptureOutcome(data) === null");
+assert.ok(outcomeAt > capturePost.indexOf('if (error || !data || typeof data !== "object")') && outcomeAt < capturePost.indexOf("issueDownloadToken("), "an unconfirmed outcome is rejected before any token or success response");
+assert.match(capturePost.slice(outcomeAt, outcomeAt + 260), /code: "rpc_unexpected_outcome"[\s\S]*?\}, 502\)/, "an unconfirmed outcome fails closed with a fixed code and a 502");
+assert.ok(capturePost.indexOf("confirmedCaptureOutcome(data) === null") < capturePost.indexOf("getEbookDeliveryConfig()"), "the unconfirmed-outcome guard precedes every success response, including not_active");
+assert.ok(!/issueDownloadToken/.test(capturePost.slice(0, capturePost.indexOf("ebookLeadSchema.safeParse(raw)"))), "the honeypot path and every earlier rejection cannot reach delivery");
+assert.match(routeCode, /ebookId: input\.ebook_id, requestId: input\.request_id/, "the token carries only the ebook id and the request id");
+// Server-side only: no client or public-page code may import the delivery module or name its secret.
+const clientish = await Promise.all(files.filter((f) => /^(components|app)\/.*\.(js|jsx|tsx)$/.test(f) && !f.startsWith("app/admin/") && !f.startsWith("app/api/")).map(async (f) => [f, await read(f)] as const));
+for (const [f, text] of clientish) assert.ok(!/ebookDelivery|EBOOK_DELIVERY|EBOOK_PRIVATE_BUCKET|ebook-private/.test(text), `${f} does not reference server-only delivery code`);
+const referencing = (await Promise.all(files.filter((f) => /\.(ts|tsx|js|jsx|mjs|cjs|mts)$/.test(f) && !f.startsWith("work/") && !f.startsWith("scripts/")).map(async (f) => [f, await read(f)] as const))).filter(([, t]) => /EBOOK_DELIVERY_TOKEN_SECRET/.test(t)).map(([f]) => f);
+assert.deepEqual(referencing, ["lib/marketing/ebookDelivery.ts"], "the token secret is named in exactly one source file");
+assert.ok(!/NEXT_PUBLIC_[A-Z_]*EBOOK|NEXT_PUBLIC_[A-Z_]*DELIVERY/.test(deliveryCode + dlCode + routeCode + envExample), "no public env var for delivery");
+assert.ok(!/EBOOK_DELIVERY_TOKEN_SECRET=.+/.test(envExample), "no secret value in an example env file");
+assert.match(gitignore, /^\.env/m, ".env files stay ignored");
+// No bucket or policy is created by any committed migration (the proposal is in the docs, applied only after approval).
+for (const f of files.filter((x) => /^supabase\/(migrations|baseline)\//.test(x))) assert.ok(!/ebook-private/.test(await read(f)), `${f} does not create the eBook bucket`);
+console.log("Ebook capture contract (private delivery) passed.");

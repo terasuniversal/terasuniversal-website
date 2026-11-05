@@ -41,6 +41,8 @@ export default function EbookLeadForm({ ebookId }) {
   const [errors, setErrors] = useState({});
   const [privacy, setPrivacy] = useState(false);
   const [marketing, setMarketing] = useState(false);
+  // A short-lived download token, held in memory only (never in a URL, storage or the console).
+  const [downloadToken, setDownloadToken] = useState("");
 
   useEffect(() => {
     startedAt.current = Date.now();
@@ -96,6 +98,7 @@ export default function EbookLeadForm({ ebookId }) {
       }
       // Success is only ever shown when the server confirmed the capture.
       if (response.ok && payload && payload.ok === true) {
+        if (payload.delivery === "download" && payload.download && typeof payload.download.token === "string") setDownloadToken(payload.download.token);
         setStatus("success");
         return;
       }
@@ -112,10 +115,19 @@ export default function EbookLeadForm({ ebookId }) {
       <div className="ebook-success" role="status" aria-live="polite">
         <h2>Permintaan anda telah direkodkan</h2>
         <p>Terima kasih. Kami telah menerima permintaan eBook anda.</p>
-        <div className="ebook-placeholder">
-          <strong>Muat turun belum diaktifkan.</strong>
-          <span> [PLACEHOLDER: pautan muat turun akan ditambah selepas Pemilik meluluskan storan dan kaedah penghantaran.]</span>
-        </div>
+        {downloadToken ? (
+          // A plain POST form: the token goes in the request body, so it never appears in a URL, log or Referer.
+          <form className="ebook-download" method="POST" action="/api/ebook/download">
+            <input type="hidden" name="token" value={downloadToken} />
+            <button type="submit" className="ebook-submit">Muat turun eBook (PDF)</button>
+            <p className="ebook-optional">Butang ini sah selama 10 minit sahaja. Jika tamat tempoh, minta eBook semula.</p>
+          </form>
+        ) : (
+          <div className="ebook-placeholder">
+            <strong>Muat turun belum diaktifkan.</strong>
+            <span> [PLACEHOLDER: pautan muat turun akan ditambah selepas Pemilik meluluskan storan dan kaedah penghantaran.]</span>
+          </div>
+        )}
       </div>
     );
   }

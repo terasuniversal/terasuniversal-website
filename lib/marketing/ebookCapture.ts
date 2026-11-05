@@ -93,6 +93,19 @@ export const ebookLeadSchema = z.object({
 });
 export type EbookLeadInput = z.infer<typeof ebookLeadSchema>;
 
+/**
+ * The only RPC results that mean "a registration is persisted". Anything else (a missing or unknown outcome, a non-object, an
+ * array, a different RPC version) is NOT a confirmation, so the route fails closed and issues no download token.
+ */
+export const CONFIRMED_CAPTURE_OUTCOMES = ["created", "matched", "duplicate_request"] as const;
+export type ConfirmedCaptureOutcome = (typeof CONFIRMED_CAPTURE_OUTCOMES)[number];
+
+export function confirmedCaptureOutcome(data: unknown): ConfirmedCaptureOutcome | null {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+  const outcome = (data as Record<string, unknown>).outcome;
+  return typeof outcome === "string" && (CONFIRMED_CAPTURE_OUTCOMES as readonly string[]).includes(outcome) ? (outcome as ConfirmedCaptureOutcome) : null;
+}
+
 /** Rate-limit key part for an email: a truncated SHA-256 of the normalised address, so no address is stored. */
 export async function emailRateKeyPart(email: string): Promise<string> {
   const data = new TextEncoder().encode(email.trim().toLowerCase());
