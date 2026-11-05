@@ -7530,3 +7530,7 @@ textarea.feedback-input { resize: vertical; min-height: 88px; }
 }
 .footer-ai-note { padding-top: 12px; padding-bottom: 20px; }
 .footer-ai-note p { margin: 0; font-size: 0.8125rem; opacity: 0.8; }
+/* Course hero actions: between phone and desktop the third button wrapped only after the web font
+   loaded, pushing the image down (layout shift). A fixed two-column grid gives the same rows before
+   and after the font swap. Actions and links are unchanged. */
+@media (min-width: 591px) and (max-width: 920px) { .catalog-course-hero .hero-actions { display: grid; grid-template-columns: repeat(2, max-content); justify-content: start; } }
