@@ -46,10 +46,11 @@ export default async function CoursePage({ params }) {
       : `/calendar?course=${encodeURIComponent(course.slug)}`;
 
   return (
-    <main className="course-catalog-page">
+    <>
+      <PremiumHeader />
+      <main className="course-catalog-page">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(courseSchema(course)) }} />
       <BreadcrumbJsonLd items={[{ name: "Home", path: "/" }, { name: "Training", path: "/training" }, { name: course.title, path: `/training/${course.slug}` }]} />
-      <PremiumHeader />
 
       <section className="catalog-course-hero"><div className="container catalog-course-grid"><div><nav className="course-breadcrumb" aria-label="Breadcrumb"><a href="/">Home</a><span>/</span><a href="/training">Training</a><span>/</span><span aria-current="page">{course.title}</span></nav><span className="eyebrow">{course.category}</span><h1>{course.title}</h1><p>{course.summary}</p><PrimaryCtaGroup course={course} source="course-page" scheduleHref={scheduleHref} hasRegistration={hasRegistration} /></div><figure><Image src={course.image} alt="" unoptimized width={1200} height={800} priority sizes="(max-width: 920px) 100vw, 52vw" /></figure></div></section>
 
@@ -64,7 +65,8 @@ export default async function CoursePage({ params }) {
       <section className="course-final-cta"><div className="container"><div><span className="eyebrow">Upcoming Training</span><h2>Looking for a date for {course.title}?</h2><p>Review confirmed public sessions or send an enquiry for your workforce. Registration is arranged with the TERAS team.</p></div><PrimaryCtaGroup course={course} source="course-final-cta" scheduleHref={scheduleHref} hasRegistration={hasRegistration} /></div></section>
       <RelatedIndustries courseSlug={course.slug} />
       {relatedCourses.length > 0 && <section className="training-programmes-section"><div className="container"><div className="section-heading"><span className="eyebrow">Related Courses</span><h2>Continue your competency pathway.</h2></div><div className="training-programme-grid">{relatedCourses.map((relatedCourse) => <CourseCard key={relatedCourse.slug} course={relatedCourse} source="related-course" />)}</div></div></section>}
+      </main>
       <Footer />
-    </main>
+    </>
   );
 }

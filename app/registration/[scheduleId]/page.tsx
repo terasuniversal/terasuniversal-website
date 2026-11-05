@@ -13,12 +13,14 @@ export default async function RegistrationPage({ params }: { params: Promise<{ s
   if (!schedule) notFound();
 
   return (
-    <main className="registration-page">
+    <>
       <PremiumHeader />
+      <main className="registration-page">
       <div className="container registration-container">
         <PublicRegistrationFlow schedule={schedule} />
       </div>
+      </main>
       <Footer />
-    </main>
+    </>
   );
 }

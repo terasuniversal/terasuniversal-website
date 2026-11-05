@@ -18,9 +18,10 @@ export default async function IndustryPage({ params }) {
   const relevantCourses = industry.relevantCourseSlugs.map((s) => courseCatalog.find((c) => c.slug === s)).filter(Boolean);
 
   return (
-    <main className="industry-page">
-      <BreadcrumbJsonLd items={[{ name: "Home", path: "/" }, { name: "Industries", path: "/industries" }, { name: industry.name, path: `/industries/${industry.slug}` }]} />
+    <>
       <PremiumHeader />
+      <main className="industry-page">
+      <BreadcrumbJsonLd items={[{ name: "Home", path: "/" }, { name: "Industries", path: "/industries" }, { name: industry.name, path: `/industries/${industry.slug}` }]} />
 
       <section className="industry-hero"><div className="container"><nav className="course-breadcrumb" aria-label="Breadcrumb"><a href="/">Home</a><span>/</span><a href="/industries">Industries</a><span>/</span><span aria-current="page">{industry.name}</span></nav><span className="eyebrow">Corporate Solutions &middot; {industry.fullName}</span><h1>{industry.name} Training &amp; Competency Solutions</h1><p>{industry.summary}</p><div className="hero-actions"><a className="btn btn-primary" href={`/request-proposal?industry=${encodeURIComponent(industry.slug)}&source=industry-page`}>Request {industry.name} Training</a><a className="btn btn-outline" href="/corporate-training">Explore Corporate Training</a></div></div></section>
 
@@ -35,8 +36,8 @@ export default async function IndustryPage({ params }) {
       {industry.clients.length > 0 && <section className="industry-clients-section"><div className="container"><div className="section-heading"><span className="eyebrow">Among Organisations We&apos;ve Supported</span><h2>Trusted across {industry.name.toLowerCase()}.</h2></div><div className="industry-clients-grid">{industry.clients.map((client) => <span key={client}>{client}</span>)}</div></div></section>}
 
       <section className="container"><CorporateTrainingCta industry={industry.slug} source="industry-page-final" title={`Planning ${industry.name} training for your team?`} text="Share the workforce, operating context and preferred delivery arrangement so TERAS can begin the right conversation." /></section>
-
+      </main>
       <Footer />
-    </main>
+    </>
   );
 }

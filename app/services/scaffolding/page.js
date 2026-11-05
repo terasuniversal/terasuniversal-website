@@ -23,9 +23,10 @@ const reasons = [
 
 export default function ScaffoldingServicePage() {
   return (
-    <main className="scaffolding-page">
-      <BreadcrumbJsonLd items={[{ name: "Home", path: "/" }, { name: "Services", path: "/services" }, { name: "Scaffolding Rental & Installation", path: "/services/scaffolding" }]} />
+    <>
       <PremiumHeader />
+      <main className="scaffolding-page">
+      <BreadcrumbJsonLd items={[{ name: "Home", path: "/" }, { name: "Services", path: "/services" }, { name: "Scaffolding Rental & Installation", path: "/services/scaffolding" }]} />
 
       <section className="scaffolding-hero" aria-labelledby="scaffolding-hero-title"><div className="container"><nav className="course-breadcrumb" aria-label="Breadcrumb"><a href="/">Home</a><span>/</span><a href="/services">Services</a><span>/</span><span aria-current="page">Scaffolding Rental &amp; Installation</span></nav><div className="scaffolding-hero-grid"><div className="scaffolding-hero-copy"><span className="eyebrow">Scaffolding Rental &amp; Installation</span><h1 id="scaffolding-hero-title">Safe, Reliable Scaffolding Solutions</h1><p>Rental, erection, dismantling, inspection and maintenance support for construction and industrial projects.</p><div className="hero-actions"><a className="btn btn-primary" href="/request-proposal">Request a Quotation</a><a className="btn btn-outline" href={whatsappHref} target="_blank" rel="noreferrer">WhatsApp Us</a></div></div><figure className="scaffolding-hero-media"><Image src="/images/scaffolding-rental-poster-en.webp" alt="TERAS UNIVERSAL Scaffolding Rental and Installation Services" width={853} height={1280} priority sizes="(max-width: 920px) 260px, 340px" /></figure></div></div></section>
 
@@ -40,8 +41,8 @@ export default function ScaffoldingServicePage() {
       <section className="scaffolding-poster-section" aria-labelledby="scaffolding-poster-title"><div className="container scaffolding-poster-grid"><figure className="scaffolding-poster-media"><Image src="/images/scaffolding-rental-poster-en.webp" alt="TERAS UNIVERSAL Scaffolding Rental and Installation Services" width={853} height={1280} sizes="(max-width: 920px) 260px, 340px" /></figure><div className="scaffolding-poster-copy"><span className="eyebrow">TERAS UNIVERSAL Scaffolding</span><h2 id="scaffolding-poster-title">Scaffolding Solutions You Can Rely On</h2><p>Safe, reliable and professionally managed scaffolding solutions for construction, maintenance and industrial projects. Reach out to discuss your rental duration, scaffolding type and site requirements.</p><div className="hero-actions"><a className="btn btn-gold" href="/request-proposal">Request a Quotation</a><a className="btn btn-light" href={whatsappHref} target="_blank" rel="noreferrer">Enquire About Scaffolding</a></div><p className="scaffolding-poster-phone">Call or WhatsApp: <a href="tel:+60195193834">019-519 3834</a></p></div></div></section>
 
       <section className="course-final-cta"><div className="container"><div><span className="eyebrow">Scaffolding Enquiries</span><h2>Need Scaffolding for Your Next Project?</h2><p>Talk to TERAS UNIVERSAL about your project requirements, rental duration and site needs.</p></div><div className="hero-actions"><a className="btn btn-gold" href="/request-proposal">Request a Quotation</a><a className="btn btn-light" href={whatsappHref} target="_blank" rel="noreferrer">WhatsApp 019-519 3834</a></div></div></section>
-
+      </main>
       <Footer />
-    </main>
+    </>
   );
 }

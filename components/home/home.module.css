@@ -36,6 +36,10 @@
   .dark, .accent { padding: 24px 20px; }
 }
 
+@media (min-width: 600px) and (max-width: 820px) {
+  .photoTop, .photoBottom { aspect-ratio: 1 / 1; }
+}
+
 /* The shared phone title rule in globals.css is scoped by ID; this matches it so the wordmark keeps its scale. */
 @media (max-width: 590px) {
   :global(#main-content) .wordmark { font-size: clamp(4.25rem, 21vw, 6rem); line-height: 0.8; }

@@ -12,8 +12,9 @@ export const metadata = {
 
 export default function GalleryPage() {
   return (
-    <main className="gallery-page">
+    <>
       <PremiumHeader />
+      <main className="gallery-page">
 
       <section className="gallery-page-hero" aria-labelledby="gallery-page-title">
         <div className="container">
@@ -27,8 +28,8 @@ export default function GalleryPage() {
           <TrainingGallery items={trainingGallery} showFullGalleryLink={false} />
         </div>
       </section>
-
+      </main>
       <Footer />
-    </main>
+    </>
   );
 }

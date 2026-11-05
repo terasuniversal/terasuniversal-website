@@ -32,8 +32,9 @@ export const metadata = { title: "Resources", description: "TERAS UNIVERSAL corp
 
 export default function ResourcesPage() {
   return (
-    <main className="resources-page">
+    <>
       <PremiumHeader />
+      <main className="resources-page">
 
       <section className="resources-hero"><div className="container"><span className="eyebrow">Resources Centre</span><h1>Useful information for better training decisions.</h1><p className="utility-lead">Access corporate information and training resources, or speak with our team when you need a tailored recommendation.</p></div></section>
 
@@ -57,8 +58,8 @@ export default function ResourcesPage() {
       ))}
 
       <section className="services-cta"><div className="container"><div><span className="eyebrow">Need Something Specific?</span><h2>Talk to Our Team Directly</h2></div><div className="hero-actions"><a className="btn btn-gold" href="/request-proposal">Request Proposal</a><a className="btn btn-light" href="https://wa.me/60195193834" target="_blank" rel="noreferrer">WhatsApp Us</a></div></div></section>
-
+      </main>
       <Footer />
-    </main>
+    </>
   );
 }

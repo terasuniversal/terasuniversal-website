@@ -24,8 +24,9 @@ const quickLinks = [
 
 export default function NotFound() {
   return (
-    <main>
+    <>
       <PremiumHeader />
+      <main>
 
       <section className="notfound-section" aria-labelledby="notfound-title">
         <div className="container notfound-inner">
@@ -46,8 +47,8 @@ export default function NotFound() {
           <a className="btn btn-primary" href="/">Back to Homepage</a>
         </div>
       </section>
-
+      </main>
       <Footer />
-    </main>
+    </>
   );
 }
