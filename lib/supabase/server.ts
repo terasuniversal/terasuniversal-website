@@ -3,6 +3,7 @@ import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import type { Database } from "./database.types";
+import { assertPrivilegedSupabaseConfig } from "../preview-isolation";
 import { getSupabasePublishableKey, getSupabaseServiceRoleKey, getSupabaseUrl } from "./env";
 
 /**
@@ -48,6 +49,10 @@ export async function createSupabaseServerClient() {
  * server-side). Never import this into a Client Component.
  */
 export function createSupabaseServiceClient() {
+  // Fail closed outside Production: the effective URL and service key must be
+  // verifiably (or by explicit attestation) for the one approved non-Production
+  // project. Production is returned unchanged. See lib/preview-isolation.ts.
+  assertPrivilegedSupabaseConfig();
   const client = createClient<Database>(
     getSupabaseUrl(),
     getSupabaseServiceRoleKey(),

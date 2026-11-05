@@ -32,9 +32,31 @@ const TOYYIBPAY_BASE_URLS: Record<ToyyibpayEnv, string> = {
  * would risk real money on a deployment that was never actually reviewed
  * for production use).
  */
+/**
+ * Live ("production") ToyyibPay mode is allowed only in the Production
+ * deployment target; sandbox moves no real money and stays available
+ * everywhere. Intentionally mirrors isToyyibpayModeAllowed() in
+ * lib/preview-isolation.ts (this file stays import-free so its node check
+ * script keeps working); scripts/preview-isolation-guard.test.mts asserts the
+ * two agree for every target/mode combination.
+ */
+function isToyyibpayModeAllowed(mode: ToyyibpayEnv): boolean {
+  if (mode === "sandbox") return true;
+  const target = (process.env.VERCEL_TARGET_ENV ?? "").trim();
+  const vercelEnv = (process.env.VERCEL_ENV ?? "").trim();
+  return target === "production" && (vercelEnv === "" || vercelEnv === "production");
+}
+
 function resolveToyyibpayEnv(): ToyyibpayEnv {
   const env = process.env.TOYYIBPAY_ENV;
-  if (env === "sandbox" || env === "production") return env;
+  if (env === "sandbox" || env === "production") {
+    // Live ("production") mode is allowed only in the Production deployment
+    // target; sandbox moves no real money and stays available everywhere.
+    if (!isToyyibpayModeAllowed(env)) {
+      throw new Error('ToyyibPay: live "production" mode is blocked outside the Production deployment. Refusing to make any ToyyibPay request.');
+    }
+    return env;
+  }
   throw new Error(
     `ToyyibPay: TOYYIBPAY_ENV must be exactly "sandbox" or "production" (got ${env === undefined ? "unset" : JSON.stringify(env)}). Refusing to make any ToyyibPay request.`
   );
@@ -51,7 +73,7 @@ export function getToyyibpayCapability():
   | { enabled: true; env: ToyyibpayEnv; isSandbox: boolean }
   | { enabled: false; env: null; isSandbox: false } {
   const env = process.env.TOYYIBPAY_ENV;
-  if (env === "sandbox" || env === "production") {
+  if ((env === "sandbox" || env === "production") && isToyyibpayModeAllowed(env)) {
     return { enabled: true, env, isSandbox: env === "sandbox" };
   }
   return { enabled: false, env: null, isSandbox: false };

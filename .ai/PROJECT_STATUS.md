@@ -246,3 +246,14 @@ No migration was applied, no push, no merge, no deploy. Validation not re-run in
 ### Not done
 - The 24 remaining SCH-000034 certificates: owner-operated through Super Admin Generate as normal operations, at the owner's chosen time.
 - Scaffolding Erector watermark: a placement-only attempt was rejected by the owner on 2026-11-03 because it does not match the Inspector/WAH illustration style. Erector needs owner-approved artwork (scene for page 1, detail for page 2) like Inspector and WAH. Changing it will also restyle the already issued Erector C4 certificate CERT-2026-000098, which renders live; that needs an owner decision. No Erector code was committed.
+
+## Preview isolation security guards (2026-11-05, Draft PR, not merged)
+
+Branch `security/preview-isolation-guards` from `origin/main` (`6fce05b`). Code-level protections so a Vercel Preview or any non-Production deployment cannot use Production resources or trigger live integrations. No Vercel environment, database or migration change was made.
+
+- `lib/preview-isolation.ts` (new, dependency-free): resolves the target from `VERCEL_TARGET_ENV` (production, preview, development, custom such as `staging`, local, or unknown for missing/unexpected/conflicting values). Only the exact `production` target is unrestricted; everything else fails closed.
+- `createSupabaseServiceClient()` now calls `assertPrivilegedSupabaseConfig()`: outside Production it requires `TERAS_APPROVED_SUPABASE_PROJECT_REF` (never the Production ref), a URL on that project, and a service key verified by its legacy JWT `ref` claim or, for opaque `sb_secret_` keys, by the per-environment attestation `TERAS_SERVICE_KEY_PROJECT_REF`. Keys are never printed or returned.
+- Contact, newsletter, request-proposal (Resend and Google Sheets) and both staff-invitation actions return explicit 503 / error outcomes outside Production, before any external call. There is no override flag; enabling a channel later needs a reviewed code change with dedicated test credentials.
+- ToyyibPay: live `production` mode refused outside Production (sandbox stays available); `getToyyibpayCapability()` reports disabled.
+- Tests: `npm run test:preview-isolation` (68 checks) and `npm run check:toyyibpay-env` (12); `tsc --noEmit` and lint pass. `check-toyyibpay-env-resolver.mts` now sets the Production target for its Production-mode cases.
+- Owner follow-ups (not done): set `TERAS_APPROVED_SUPABASE_PROJECT_REF` (and the attestation for `sb_secret_` keys) per non-Production scope, verify Vercel system environment variables are exposed so Production reports `VERCEL_TARGET_ENV=production`, then proceed with the separate Supabase Preview cutover.
