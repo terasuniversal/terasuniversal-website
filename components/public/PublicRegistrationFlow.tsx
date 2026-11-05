@@ -32,7 +32,7 @@ export default function PublicRegistrationFlow({ schedule }: { schedule: PublicR
 
   const total = result?.amount ?? null;
   const perPax = total == null || !attendees.length ? null : total / attendees.length;
-  const unavailable = !schedule.registration_available || schedule.fee == null || schedule.available_seats < 1;
+  const unavailable = !schedule.registration_available || !(typeof schedule.fee === "number" && schedule.fee > 0) || schedule.available_seats < 1;
   const updateAttendee = (index: number, field: keyof Attendee, value: string) => setAttendees((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: value } : item));
 
   const validate = () => {

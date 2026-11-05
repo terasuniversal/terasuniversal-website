@@ -80,10 +80,10 @@ export function ScheduleForm({
           <Field
             label="Public registration fee (MYR)"
             name="fee"
-            hint="Optional session-specific price. Leave blank to keep the session visible but unavailable for online registration."
+            hint="Price per participant, above 0. Leave blank if the fee is not confirmed: the session stays visible but online registration is closed and visitors are asked to enquire. Zero is not accepted."
             error={e.fee}
           >
-            <input id="fee" name="fee" type="number" min="0" step="0.01" inputMode="decimal" defaultValue={d.fee ?? ""} />
+            <input id="fee" name="fee" type="number" min="0.01" step="0.01" inputMode="decimal" defaultValue={d.fee ?? ""} />
           </Field>
         </div>
       </Card>
