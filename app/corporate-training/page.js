@@ -6,8 +6,13 @@ import PremiumHeader from "../../components/premium/PremiumHeader";
 import SectionHead from "../../components/premium/SectionHead";
 import kit from "../../components/premium/premium.module.css";
 import inner from "../../components/premium/inner.module.css";
-import { accreditations, confirmedFacts, leadership, partners } from "../../data/companyProfile";
+import AccreditationGrid from "../../components/premium/AccreditationGrid";
+import { accreditationRows } from "../../components/home/recognitionStatus";
+import { confirmedFacts, leadership, partners } from "../../data/companyProfile";
 import { industries } from "../../data/industries";
+
+// The JKKP recognition shown on this page expires; re-render hourly so it flips on the day it ends.
+export const revalidate = 3600;
 
 export const metadata = { title: "Corporate Training", description: "Corporate, in-house and onsite industrial safety, technical competency and workforce development solutions from TERAS UNIVERSAL.", alternates: { canonical: "/corporate-training" }, openGraph: { title: "Corporate Training | TERAS UNIVERSAL", description: "Custom industrial safety, competency and workforce development solutions for Malaysian organisations.", url: "/corporate-training" } };
 
@@ -18,6 +23,9 @@ const whatsappHref = "https://wa.me/60195193834?text=Hi%20TERAS%2C%20saya%20ingi
 
 export default function CorporateTrainingPage() {
   const director = leadership[0];
+  // The profile JKKP line is only shown while the scoped JKKP recognition is current (same rule as the homepage).
+  const jkkpCurrent = accreditationRows().find((row) => row.org.startsWith("JKKP"))?.current ?? false;
+  const facts = confirmedFacts.slice(0, 4).filter((fact) => !fact.startsWith("JKKP") || jkkpCurrent);
   return <>
       <PremiumHeader />
       <main className={`${kit.px} ${inner.page}`}>
@@ -37,7 +45,7 @@ export default function CorporateTrainingPage() {
             </div>
             <div className={inner.statement}>
               <p>Corporate arrangements can be shaped around workforce roles, operational requirements, participant profiles and preferred delivery methods.</p>
-              <ul className={inner.tags} aria-label="TERAS UNIVERSAL credentials">{confirmedFacts.slice(0, 4).map((fact) => <li key={fact}>{fact}</li>)}</ul>
+              <ul className={inner.tags} aria-label="TERAS UNIVERSAL credentials">{facts.map((fact) => <li key={fact}>{fact}</li>)}</ul>
             </div>
           </div>
         </section>
@@ -82,7 +90,7 @@ export default function CorporateTrainingPage() {
         <section className={`${kit.sec} ${kit.trust}`} aria-labelledby="why-title">
           <div className={kit.wrap}>
             <SectionHead id="why-title" eyebrow="Why TERAS" title="Verified credentials for corporate conversations." />
-            <CardGrid label="Credentials" items={accreditations.map((credential) => ({ label: credential.org, title: credential.label, text: credential.text }))} />
+            <AccreditationGrid label="Credentials" />
           </div>
         </section>
 

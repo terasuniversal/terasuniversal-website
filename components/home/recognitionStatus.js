@@ -7,14 +7,20 @@ const longDate = (iso) => new Intl.DateTimeFormat("en-MY", { day: "numeric", mon
 // until a renewal is verified and data/companyProfile.js is updated with the new validity date.
 export const isCurrent = (recognition, now = Date.now()) => !recognition || now <= new Date(`${recognition.validUntil}T23:59:59+08:00`).getTime();
 
+// `status` is the single string the homepage shows. `label` and `detail` carry the same wording in two parts for
+// pages that lay out a heading and a body separately: `label` is the approval label while the recognition is
+// current (null once it has ended), `detail` is the scoped, dated sentence (null for entries without a dated scope).
 export function accreditationRows(now = Date.now()) {
   return accreditations.map((entry) => {
     const { recognition } = entry;
-    if (!recognition) return { org: entry.org, status: entry.label, current: true };
+    if (!recognition) return { org: entry.org, status: entry.label, current: true, label: entry.label, detail: null };
     const until = longDate(recognition.validUntil);
-    return isCurrent(recognition, now)
-      ? { org: entry.org, status: `${entry.label}. Recognised training centre for ${recognition.scope}, valid until ${until}.`, current: true }
-      : { org: entry.org, status: `Recognition as a training centre for ${recognition.scope} was valid until ${until}.`, current: false };
+    if (isCurrent(recognition, now)) {
+      const detail = `Recognised training centre for ${recognition.scope}, valid until ${until}.`;
+      return { org: entry.org, status: `${entry.label}. ${detail}`, current: true, label: entry.label, detail };
+    }
+    const detail = `Recognition as a training centre for ${recognition.scope} was valid until ${until}.`;
+    return { org: entry.org, status: detail, current: false, label: null, detail };
   });
 }
 

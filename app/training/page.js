@@ -11,6 +11,9 @@ import kit from "../../components/premium/premium.module.css";
 import inner from "../../components/premium/inner.module.css";
 import { comparableCourses } from "../../data/courseCatalog";
 
+// The JKKP recognition shown in the Recognition block expires; re-render hourly so it flips on the day it ends.
+export const revalidate = 3600;
+
 const deliveryOptions = [["01", "Public Programme", "Scheduled learning for individuals and employees from different organisations."], ["02", "In-House Training", "A focused programme delivered exclusively for one organisation or workforce group."], ["03", "Onsite Training", "Practical learning arranged at a client workplace, plant, project site or approved facility."], ["04", "Competency Assessment", "Structured theoretical and practical evaluation against defined requirements."]];
 
 export default function TrainingPage() {

@@ -8,6 +8,9 @@ import SectionHead from "../../../components/premium/SectionHead";
 import kit from "../../../components/premium/premium.module.css";
 import inner from "../../../components/premium/inner.module.css";
 
+// The JKKP recognition shown in the Recognition block expires; re-render hourly so it flips on the day it ends.
+export const revalidate = 3600;
+
 const objectives = ["Understand fundamental scaffolding terminology and components.", "Recognise common scaffolding hazards and unsafe conditions.", "Understand basic safe erection and dismantling principles.", "Apply relevant workplace safety responsibilities.", "Identify inspection and reporting considerations.", "Demonstrate improved task awareness and procedural discipline."];
 const modules = ["Introduction to Scaffolding", "Scaffold Components and Terminology", "Roles and Responsibilities", "Hazard Identification", "Safe Erection and Dismantling Principles", "Access, Platforms and Guardrails", "PPE and Fall Protection Awareness", "Basic Inspection Awareness", "Practical Demonstration", "Assessment and Programme Review"];
 const participants = ["Scaffolders", "Supervisors", "Safety personnel", "Construction workers", "Maintenance teams", "Industrial workforce personnel"];

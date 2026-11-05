@@ -8,6 +8,7 @@ import SectionHead from "../../components/premium/SectionHead";
 import ServiceBlock from "../../components/premium/ServiceBlock";
 import kit from "../../components/premium/premium.module.css";
 import inner from "../../components/premium/inner.module.css";
+import { industries } from "../../data/industries";
 
 // Pillar copy (short, for the index) and service copy (long, for the detail blocks) are the existing approved sentences.
 // Scope lists and business outcomes were identical in both places, so they are shown once, in the detail block.
@@ -24,7 +25,6 @@ const serviceDetails = [
   ["workforce", "Workforce Development", "Role-focused programmes that help organisations build capability across teams, supervisors and workforce groups.", ["Corporate Training", "In-house Programme", "Competency Assessment", "Supervisor Development", "Foreign Worker Skills"], "A more prepared and adaptable workforce"],
 ];
 const process = ["Need Analysis", "Planning", "Training", "Assessment", "Improvement"];
-const industries = ["Oil & Gas", "Construction", "Manufacturing", "Petrochemical", "Marine", "Utilities", "Government"];
 
 export default function ServicesPage() {
   return (
@@ -92,7 +92,7 @@ export default function ServicesPage() {
         <section className={kit.sec} aria-labelledby="services-industries-title">
           <div className={kit.wrap}>
             <SectionHead id="services-industries-title" eyebrow="Industries Supported" title="Built for safety-critical environments." />
-            <CardGrid label="Industries supported" items={industries.map((name) => ({ title: name }))} />
+            <CardGrid label="Industries supported" items={industries.map((industry) => ({ title: industry.name }))} />
           </div>
         </section>
 

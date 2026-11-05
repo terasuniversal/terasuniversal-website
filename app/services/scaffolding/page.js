@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Footer from "../../../components/Footer";
 import CardGrid from "../../../components/premium/CardGrid";
 import CtaBand from "../../../components/premium/CtaBand";
@@ -77,21 +76,19 @@ export default function ScaffoldingServicePage() {
           </div>
         </section>
 
-        <section className={kit.sec} aria-labelledby="scaffolding-poster-title">
+        <section className={kit.sec} aria-labelledby="scaffolding-contact-title">
           <div className={`${kit.wrap} ${inner.twoCol}`}>
             <div>
               <span className={`${inner.eyebrow} ${inner.onLight}`}>TERAS UNIVERSAL Scaffolding</span>
-              <h2 id="scaffolding-poster-title">Scaffolding Solutions You Can Rely On</h2>
+              <h2 id="scaffolding-contact-title">Scaffolding Solutions You Can Rely On</h2>
               <p>Safe, reliable and professionally managed scaffolding solutions for construction, maintenance and industrial projects. Reach out to discuss your rental duration, scaffolding type and site requirements.</p>
-              <div className={inner.actions}>
-                <a className={`${kit.btn} ${kit.btnNavy}`} href="/request-proposal">Request a Quotation</a>
-                <a className={`${kit.btn} ${kit.btnNavy}`} href={whatsappHref} target="_blank" rel="noreferrer">Enquire About Scaffolding<span className="sr-only"> (opens in a new tab)</span></a>
-              </div>
-              <p>Call or WhatsApp: <a className={kit.tl} href="tel:+60195193834">019-519 3834</a></p>
             </div>
-            <figure className={inner.figure}>
-              <Image src="/images/scaffolding-rental-poster-en.webp" alt="TERAS UNIVERSAL Scaffolding Rental and Installation Services" width={853} height={1280} sizes="(max-width: 920px) 260px, 340px" />
-            </figure>
+            <dl className={`${inner.ledger} ${inner.ledgerWrap}`}>
+              <div><dt>Quotation</dt><dd><a className={kit.tl} href="/request-proposal">Request a Quotation</a></dd></div>
+              <div><dt>WhatsApp</dt><dd><a className={kit.tl} href={whatsappHref} target="_blank" rel="noreferrer">Enquire About Scaffolding<span className="sr-only"> (opens in a new tab)</span></a></dd></div>
+              <div><dt>Call or WhatsApp</dt><dd><a className={kit.tl} href="tel:+60195193834">019-519 3834</a></dd></div>
+              <div><dt>Email</dt><dd><a className={kit.tl} href="mailto:admin@terasuniversal.com.my">admin@terasuniversal.com.my</a></dd></div>
+            </dl>
           </div>
         </section>
 

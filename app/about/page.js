@@ -8,7 +8,12 @@ import SectionHead from "../../components/premium/SectionHead";
 import Timeline from "../../components/premium/Timeline";
 import kit from "../../components/premium/premium.module.css";
 import inner from "../../components/premium/inner.module.css";
-import { coreValues, leadership, accreditations, timeline, trainingFacilities, partners } from "../../data/companyProfile";
+import AccreditationGrid from "../../components/premium/AccreditationGrid";
+import { companyProfile, coreValues, leadership, timeline, trainingFacilities, partners } from "../../data/companyProfile";
+import { industries } from "../../data/industries";
+
+// The JKKP recognition shown on this page expires; re-render hourly so it flips on the day it ends.
+export const revalidate = 3600;
 
 const reasons = [
   ["01", "Industry-focused programmes", "Training shaped around the hazards, roles and realities of industrial workplaces."],
@@ -19,7 +24,6 @@ const reasons = [
   ["06", "Flexible delivery options", "Public, in-house, onsite and assessment arrangements according to programme requirements."],
 ];
 const approach = ["Understand Needs", "Plan", "Deliver", "Assess", "Improve"];
-const industries = ["Oil & Gas", "Construction", "Manufacturing", "Marine & Offshore", "Power & Utilities", "Government & GLC"];
 
 export default function AboutPage() {
   return (
@@ -51,14 +55,14 @@ export default function AboutPage() {
         <section className={`${kit.sec} ${kit.trust}`} aria-labelledby="accred-title">
           <div className={kit.wrap}>
             <SectionHead id="accred-title" eyebrow="Recognition & Accreditations" title="Registered and recognised by Malaysia's governing bodies." />
-            <CardGrid label="Recognition and accreditations" items={accreditations.map((a) => ({ label: a.org, title: a.label, text: a.text }))} />
+            <AccreditationGrid label="Recognition and accreditations" />
           </div>
         </section>
 
         <section className={kit.sec} aria-labelledby="vision-title">
           <div className={kit.wrap}>
             <SectionHead id="vision-title" eyebrow="Direction & Purpose" title="A clear direction for meaningful workforce development." />
-            <CardGrid label="Vision and mission" items={[{ label: "01", title: "Vision", text: "To be a trusted partner in building safer, more competent and more resilient workforces." }, { label: "02", title: "Mission", text: "To deliver practical, competency-based training and industrial solutions that help organisations strengthen people, performance and workplace confidence." }]} />
+            <CardGrid label="Vision and mission" items={[{ label: "01", title: "Vision", text: companyProfile.vision }, { label: "02", title: "Mission", points: companyProfile.mission }]} />
           </div>
         </section>
 
@@ -107,7 +111,7 @@ export default function AboutPage() {
         <section className={`${kit.sec} ${kit.trust}`} aria-labelledby="about-industries-title">
           <div className={kit.wrap}>
             <SectionHead id="about-industries-title" eyebrow="Industries We Support" title="Built for safety-critical environments." />
-            <CardGrid label="Industries we support" items={industries.map((name) => ({ title: name }))} />
+            <CardGrid label="Industries we support" items={industries.map((industry) => ({ title: industry.name }))} />
           </div>
         </section>
 
