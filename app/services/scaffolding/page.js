@@ -87,7 +87,7 @@ export default function ScaffoldingServicePage() {
               <div><dt>Quotation</dt><dd><a className={kit.tl} href="/request-proposal">Request a Quotation</a></dd></div>
               <div><dt>WhatsApp</dt><dd><a className={kit.tl} href={whatsappHref} target="_blank" rel="noreferrer">Enquire About Scaffolding<span className="sr-only"> (opens in a new tab)</span></a></dd></div>
               <div><dt>Call or WhatsApp</dt><dd><a className={kit.tl} href="tel:+60195193834">019-519 3834</a></dd></div>
-              <div><dt>Email</dt><dd><a className={kit.tl} href="mailto:admin@terasuniversal.com.my">admin@terasuniversal.com.my</a></dd></div>
+              <div><dt>Email</dt><dd><a className={kit.tl} href="mailto:training@terasuniversal.com.my">training@terasuniversal.com.my</a></dd></div>
             </dl>
           </div>
         </section>

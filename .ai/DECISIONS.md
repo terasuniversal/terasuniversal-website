@@ -37,3 +37,6 @@ Durable decisions for the TERAS Universal shared agent workflow.
 
 ## 2026-11-06 - Training design accepted as the site-wide standard
 - Owner accepted the Training/Course templates (Preview `83ab57a`, iPhone 7 of 7). The inner-page kit in `components/premium` is the standard for the remaining public pages; Company and Services are the second template group. Design and local development only.
+
+## 2026-11-06 - Public enquiry email on the scaffolding service page
+- The scaffolding service page uses the website training enquiry channel (`training@`), consistent with the forms, header, footer and structured data. `admin@` stays in administrative references. A role-based public contact policy is pending owner approval.
