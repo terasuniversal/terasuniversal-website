@@ -1,6 +1,7 @@
 # /ebook: Penghantaran PDF Peribadi (Private PDF Delivery)
 
 Status: **kod tempatan sahaja, belum di-commit, dimatikan secara lalai.** Tiada storage jauh, e-mel, env var, migrasi atau muat naik PDF telah dibuat.
+**PDF yang diluluskan Pemilik: versi Balanced** (2,929,572 bait, 12 muka surat, SHA-256 `9595cc47…06d5`). Lihat bahagian 5. Pemilihan versi telah diluluskan; **pelepasan Staging dan Production belum diluluskan**.
 Berkaitan: Draft PR #216 (`feat/ebook-lead-capture`), `lib/marketing/ebookDelivery.ts`, `lib/marketing/ebookStorage.ts`, `app/api/ebook/route.ts`, `app/api/ebook/download/route.ts`.
 
 Dokumen ini membezakan tiga jenis dakwaan:
@@ -42,14 +43,14 @@ Pelawat -> POST /api/ebook/download  (borang HTML biasa, token dalam body)
         -> hantar sebagai respons biasa (buffered) dengan Content-Disposition: attachment
 ```
 
-### Kawalan [Tempatan: ujian unit, kontrak statik, 116 semakan laluan pada build production dengan mock]
+### Kawalan [Tempatan: ujian unit, kontrak statik, 118 semakan laluan pada build production dengan mock]
 
 - **Token hanya selepas pendaftaran disahkan.** Dikeluarkan di satu tempat, hanya apabila RPC memulangkan outcome `created`, `matched` atau `duplicate_request` (`confirmedCaptureOutcome` dalam `ebookCapture.ts`). Outcome tiada, tidak dikenali, bukan objek, tatasusunan, rentetan, bersarang, RPC kosong atau ralat: respons 502 generik, **tiada token, tiada capaian Storage**, log `rpc_unexpected_outcome`. Ini juga berlaku apabila delivery dimatikan (capture tidak dilaporkan berjaya jika outcome tidak disahkan). Honeypot dan semua penolakan awal tidak boleh mencapai token.
 - **Token tidak membawa data peribadi** (claims: `e`, `r`, `i`, `x`) dan **tidak berada dalam URL** (body POST; tiada laluan GET, sentiasa 404).
 - **Tamat tempoh dan pemalsuan.** HMAC-SHA256 dengan label tujuan, `timingSafeEqual`, had 512 aksara, tempoh maksimum 600 saat walaupun tandatangan sah, `iat` tidak boleh di masa depan. Semua penolakan menjawab 403 yang sama.
 - **Tiada akses objek sewenang-wenang.** Id eBook dalam token memilih satu kunci tetap daripada jadual `EBOOK_PDF_OBJECTS`; `fetchEbookObject` menolak kunci di luar allowlist. Tiada parameter laluan, nama fail atau query dibaca.
 - **Tiada URL Storage.** Tiada signed URL atau public URL dicipta atau dipulangkan. Pembacaan Storage ialah `fetch` server-ke-server dengan kunci service-role dalam header sahaja, `redirect: "error"` dan timeout 15 saat. Modul `ebookStorage.ts` ialah `server-only` dan hanya diimport oleh laluan muat turun.
-- **Integriti.** Bait mesti bermula dengan `%PDF-` dan sepadan dengan SHA-256 yang diluluskan (`fbf19c28...04dc`). Hash hanya dikira selepas semakan saiz dan header lulus. Jika gagal, tiada bait dihantar (503).
+- **Integriti.** Bait mesti bermula dengan `%PDF-` dan sepadan dengan SHA-256 versi Balanced yang diluluskan Pemilik (`9595cc47...06d5`). Hash hanya dikira selepas semakan saiz dan header lulus. Jika gagal, tiada bait dihantar (503).
 - **Had kadar, persetujuan, idempotency** tidak berubah. Capture: 5/min/IP dan 5/jam/e-mel. Muat turun: 10/10 min/IP (dikongsi, fail-closed). Marketing opt-in tidak diperlukan.
 - **Log:** kod tetap sahaja.
 - **Dimatikan secara lalai:** perlu `EBOOK_LEAD_CAPTURE_ENABLED=true`, `EBOOK_DELIVERY_ENABLED=true` (tepat) dan `EBOOK_DELIVERY_TOKEN_SECRET` (≥32 aksara).
@@ -62,7 +63,7 @@ Pelawat -> POST /api/ebook/download  (borang HTML biasa, token dalam body)
 
 Pelaksanaan sekarang:
 
-1. `fetchEbookObject` membaca badan Storage secara berperingkat (`readCappedBytes`) ke dalam **satu** buffer yang diperuntukkan sekali dan diisi di tempat (tiada senarai chunk, tiada salinan `concat`). Saiznya ialah `Content-Length` jika diketahui dan tiada `content-encoding`; jika tidak (panjang tidak diketahui atau badan dimampatkan), saiznya ialah had penuh 4,500,000 bait dan respons menggunakan pandangan (`subarray`) bahagian yang terisi, tanpa salinan tambahan.
+1. `fetchEbookObject` membaca badan Storage secara berperingkat (`readCappedBytes`) ke dalam **satu** buffer yang diperuntukkan sekali dan diisi di tempat (tiada senarai chunk, tiada salinan `concat`). Saiznya ialah `Content-Length` jika diketahui dan tiada `content-encoding`; jika tidak (panjang tidak diketahui atau badan dimampatkan), saiznya ialah had penuh 3,000,000 bait dan respons menggunakan pandangan (`subarray`) bahagian yang terisi, tanpa salinan tambahan.
 2. Hash SHA-256 dikira atas buffer itu (tanpa salinan).
 3. Buffer yang sama diserahkan kepada `NextResponse`. **Aplikasi memegang seluruh fail yang telah disahkan dalam memori sebelum menghantar satu bait pun.** Sama ada runtime Next.js/Node menyalin sekali lagi tidak diukur dan tidak diketahui.
 
@@ -70,27 +71,27 @@ Streaming sebenar (`ReadableStream` daripada Storage terus ke pelanggan) **tidak
 
 Pemerhatian tempatan: respons HTTP tempatan menggunakan `Transfer-Encoding: chunked` walaupun aplikasi memegang seluruh fail. Oleh itu bentuk respons di wayar tidak membuktikan apa-apa tentang buffering, dan tidak boleh dijadikan bukti tentang had Vercel.
 
-Ukuran memori tempatan (10 muat turun serentak) tidak menghasilkan kesimpulan: pensampelan Working Set terlalu kasar. **Tiada angka memori yang boleh dipegang.** Anggaran kasar: satu buffer (4.35 MB; sehingga 4.5 MB jika panjang tidak diketahui) bagi setiap permintaan aktif dalam kod aplikasi, ditambah chunk sementara daripada `fetch` dan overhead runtime Next.js/Node yang tidak diketahui.
+Ukuran memori tempatan (10 muat turun serentak) tidak menghasilkan kesimpulan: pensampelan Working Set terlalu kasar. **Tiada angka memori yang boleh dipegang.** Anggaran kasar: satu buffer (2.93 MB; sehingga 3.0 MB jika panjang tidak diketahui) bagi setiap permintaan aktif dalam kod aplikasi, ditambah chunk sementara daripada `fetch` dan overhead runtime Next.js/Node yang tidak diketahui.
 
 ### Sempadan saiz
 
 | Had | Nilai | Dikuatkuasakan | Status |
 |---|---|---|---|
-| `MAX_PDF_BYTES` (aplikasi) | **4,500,000 bait** | Semasa membaca: ditolak jika `Content-Length` melebihi had sebelum membaca; jika tiada `Content-Length`, bacaan dihentikan dan strim dibatalkan sebaik bait melebihi had; selepas itu semakan akhir pada buffer | [Tempatan: ujian unit dan laluan] |
-| Bucket `file_size_limit` (cadangan) | **4,500,000** | Storage API semasa muat naik | [Staging] hanya wujud selepas bucket disediakan |
+| `MAX_PDF_BYTES` (aplikasi) | **3,000,000 bait** | Semasa membaca: ditolak jika `Content-Length` melebihi had sebelum membaca; jika tiada `Content-Length`, bacaan dihentikan dan strim dibatalkan sebaik bait melebihi had; selepas itu semakan akhir pada buffer | [Tempatan: ujian unit dan laluan] |
+| Bucket `file_size_limit` (cadangan) | **3,000,000** | Storage API semasa muat naik | [Staging] hanya wujud selepas bucket disediakan |
 | Had respons buffered fungsi Vercel | 4.5 MB (dipercayai) | Platform | [Staging] **belum disahkan**; tidak ada dokumentasi atau ujian di sini |
-| PDF diluluskan | 4,353,912 bait | n/a | muat dengan ~3% ruang kosong |
+| PDF Balanced diluluskan | 2,929,572 bait | n/a | muat dengan ~2.4% ruang kosong; ~35% di bawah 4.5 MB |
 
-Satu nilai dipilih sengaja supaya bucket dan aplikasi menggunakan had yang sama, dan supaya had itu **tidak melebihi** had respons buffered Vercel yang dipercayai (4.5 MB). Ini niat reka bentuk, **bukan jaminan**: had Vercel dan unitnya belum disahkan (lihat jadual dan bahagian Staging). Fail lebih besar memerlukan keputusan sedar (ubah `MAX_PDF_BYTES`, had bucket dan ujian Staging bersama).
+Satu nilai dipilih sengaja supaya bucket dan aplikasi menggunakan had yang sama, dan supaya had itu jauh **di bawah** had respons buffered Vercel yang dipercayai (4.5 MB). Ini niat reka bentuk, **bukan jaminan**: had Vercel dan unitnya belum disahkan (lihat jadual dan bahagian Staging). Fail lebih besar memerlukan keputusan sedar (ubah `MAX_PDF_BYTES`, had bucket dan ujian Staging bersama).
 
 Metadata yang dikawal klien tidak dipercayai: had bergantung pada bait sebenar yang dibaca, bukan header sahaja. `Content-Length` hanya digunakan untuk menolak lebih awal.
 
 ### Yang hanya boleh disahkan selepas bucket wujud / pada Staging
 
-- Bucket benar-benar menolak muat naik melebihi 4,500,000 bait dan bukan `application/pdf`.
+- Bucket benar-benar menolak muat naik melebihi 3,000,000 bait dan bukan `application/pdf`.
 - Storage sebenar menghantar `Content-Length` (jika tidak, laluan fallback yang ditanggung oleh had running-count digunakan).
-- Fungsi Vercel menerima respons ~4.35 MB (had 4.5 MB mungkin dikira dalam MB atau MiB), dan masa serta memori fungsi untuk beberapa muat turun serentak.
-- **Jika ujian Staging gagal,** fallback minimum yang selamat (keputusan Pemilik, belum dibina): (a) hantar `ReadableStream` daripada bait yang telah disahkan (integriti dikekalkan, tiada URL didedahkan; andaian bahawa respons strim tidak tertakluk had 4.5 MB, mesti dibuktikan); (b) signed URL 60 saat yang dikeluarkan hanya selepas token disahkan (menanggalkan memori tetapi mendedahkan URL Storage sementara dan SHA-256 tidak lagi disahkan di server). Fail termampat (bahagian 5) mengurangkan masalah ini.
+- Fungsi Vercel menerima respons ~2.93 MB (had 4.5 MB dipercayai; unit MB atau MiB belum disahkan), dan masa serta memori fungsi untuk beberapa muat turun serentak.
+- **Jika ujian Staging gagal,** fallback minimum yang selamat (keputusan Pemilik, belum dibina): (a) hantar `ReadableStream` daripada bait yang telah disahkan (integriti dikekalkan, tiada URL didedahkan; andaian bahawa respons strim tidak tertakluk had 4.5 MB, mesti dibuktikan); (b) signed URL 60 saat yang dikeluarkan hanya selepas token disahkan (menanggalkan memori tetapi mendedahkan URL Storage sementara dan SHA-256 tidak lagi disahkan di server). Versi Balanced (bahagian 5) sudah mengurangkan saiz daripada 4.35 MB kepada 2.93 MB.
 
 ## 4. Keperluan storage (belum dibuat; memerlukan kelulusan)
 
@@ -98,31 +99,37 @@ Bucket peribadi `ebook-private`, tiada polisi Storage (hanya service role boleh 
 
 ```sql
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values ('ebook-private', 'ebook-private', false, 4500000, array['application/pdf'])
+values ('ebook-private', 'ebook-private', false, 3000000, array['application/pdf'])
 on conflict (id) do nothing;
 ```
 
 Sengaja **tidak diletakkan** dalam `supabase/migrations/`; contract test memastikan tiada migrasi menyebut `ebook-private`.
 
-Muat naik (selepas kelulusan): objek `ebooks/dari-zero-ke-dunia-industri-v1.pdf`; sahkan `sha256sum` = `fbf19c283c534e0638bfd91816e7e5b708ee3a8b69a6946612c53a4d570a04dc` sebelum dan selepas. Versi baharu = kunci baharu; kemas kini `EBOOK_PDF_OBJECTS` dan catalog bersama; jangan tulis ganti.
+Muat naik (selepas kelulusan berasingan): objek `ebooks/dari-zero-ke-dunia-industri-balanced-v1.pdf`, fail `TERAS_eBook_DariZeroKeDuniaIndustri_balanced.pdf`; sahkan `sha256sum` = `9595cc470063bcd5fd35404b771b09f580c3562e5b7ea38aa6aef49e37ab520c` dan saiz 2,929,572 bait sebelum dan selepas. Versi baharu = kunci baharu; kemas kini `EBOOK_PDF_OBJECTS` dan catalog bersama; jangan tulis ganti.
 
 Env var (server sahaja; belum ditetapkan): `EBOOK_DELIVERY_ENABLED`, `EBOOK_DELIVERY_TOKEN_SECRET` (rawak panjang, dijana di luar repo; memutarnya membatalkan token aktif, tidak mengapa kerana tempohnya 10 minit). Placeholder dikomen dalam `.env.example`.
 
-## 5. Cadangan salinan PDF termampat (belum dibuat, tiada fail dicipta)
+## 5. PDF yang diluluskan: versi Balanced
 
-PDF diluluskan tidak diubah. Pemeriksaan baca-sahaja (pypdf) terhadap fail asal [Tempatan]:
+**Rekod keputusan.** Pemilik mengarahkan penggunaan versi **Balanced** dalam konfigurasi penghantaran (arahan "Owner-approved PDF, Version: Balanced"). Ini ialah **pemilihan versi**. Ia **bukan** kelulusan pelepasan Staging atau Production, **bukan** kelulusan muat naik, dan rekod kelulusan penerbitan baharu (seperti `REKOD_KELULUSAN_PENERBITAN.md` di luar repo) masih milik Pemilik. Pemeriksaan yang **tidak** dilakukan oleh kami dan tidak boleh dianggap selesai: semakan visual penuh 12 muka surat pada peranti telefon, imbasan kod QR dengan kamera telefon, dan klik pautan dalam pembaca PDF sebenar.
 
-- 12 muka surat; penerbit `Skia/PDF` (dicetak daripada pelayar); 3 fon Poppins.
-- 13 imej menggunakan **3,877,008 bait daripada 4,353,912 (~89%)**; baki (~0.48 MB) ialah teks, fon dan struktur.
-- Terbesar: lencana HRD Corp "Registered Training Provider" PNG **3601×3601** (643,868 bait, muka surat 11); PNG 1184×847 (416,303); beberapa JPEG 933–1400 px (250 hingga 425 KB setiap satu).
+| | PDF asal (digantikan) | **Balanced (aktif)** |
+|---|---|---|
+| Saiz | 4,353,912 bait | **2,929,572 bait** |
+| Muka surat | 12 | 12 |
+| SHA-256 | `fbf19c283c534e0638bfd91816e7e5b708ee3a8b69a6946612c53a4d570a04dc` | **`9595cc470063bcd5fd35404b771b09f580c3562e5b7ea38aa6aef49e37ab520c`** |
+| Dalam katalog dan pemetaan penghantaran | Tidak (rekod sejarah sahaja) | Ya |
+| Kunci objek peribadi (dirancang) | `ebooks/dari-zero-ke-dunia-industri-v1.pdf` (tidak dipetakan) | `ebooks/dari-zero-ke-dunia-industri-balanced-v1.pdf` |
 
-Cadangan (tidak diuji; anggaran sahaja):
+PDF asal kekal tidak diubah di luar repo dan kekal sebagai rekod kelulusan sejarah. Fingerprintnya hanya muncul dalam dokumen ini dan dalam satu pernyataan kontrak sejarah; contract test memastikan ia tidak aktif dalam katalog, pemetaan, atau mana-mana fail sumber, dan bahawa tiada PDF eBook (asal atau Balanced) wujud dalam repo.
 
-1. Jana semula daripada sumber (folder `04_output`/`07_website` Pemilik) dengan imej diubah saiz kepada ≤ 2× saiz paparan sebenar. Lencana 3601 px diturunkan kepada ~800 hingga 1000 px (kemungkinan menjimatkan ~500 KB); PNG 1184 px dioptimumkan/dikuantumkan; JPEG dikodkan semula pada kualiti ~80 hingga 85 (jangan mampat semula JPEG berulang kali). Jangkaan: **2.5 hingga 3.0 MB** [Andaian].
-2. Jangan gunakan pemampat "automatik" agresif (cth. ghostscript `/screen`) kerana risiko teks kabur dan kod QR/pautan WhatsApp (muka surat 12) rosak.
-3. Nama berasingan yang jelas, cth. `TERAS_eBook_DariZeroKeDuniaIndustri_web.pdf` (bukan menimpa fail asal), SHA-256 baharu, direktori berasingan daripada direktori sumber PDF peribadi yang diluluskan Pemilik.
-4. Semakan Pemilik: baca semua 12 muka surat pada skrin dan cetak, imbas kod QR, klik semua pautan, bandingkan teks, simpan rekod kelulusan baharu seperti `REKOD_KELULUSAN_PENERBITAN.md`.
-5. **Selepas** kelulusan sahaja: kunci objek baharu (cth. `ebooks/dari-zero-ke-dunia-industri-web-v1.pdf`), kemas kini `EBOOK_PDF_OBJECTS` dan `EBOOK_CATALOG` (SHA-256), tetapkan had bucket dan `MAX_PDF_BYTES` yang lebih kecil dalam commit yang sama, jalankan semula ujian. SHA-256 kanonik semasa dan pemetaan objek **tidak diubah** sekarang.
+Bukti penyediaan [Tempatan; PyMuPDF/OpenCV pada render, bukan pembaca PDF sebenar]:
+
+- Hanya imej diturunkan resolusinya (had 300 dpi, JPEG kualiti 90; logo PNG lutsinar had 450 dpi). Teks vektor, fon Poppins (disematkan), susun atur dan pautan tidak disentuh.
+- Teks setiap muka surat sama dengan asal, senarai fon sama, enam pautan (WhatsApp, `tel:`, `mailto:`, laman web) sama jenis, URI dan kawasan klik.
+- Kod QR (vektor, muka surat 12) dinyahkod kepada URL WhatsApp yang sama pada 72, 100, 150 dan 300 dpi.
+- Perbandingan render 150 dpi dengan asal: SSIM 0.996 hingga 1.000; muka surat 1, 3, 9 dan 12 identik piksel.
+- Versi **Small** (1.75 MB) dihasilkan sebagai sandaran tetapi **tidak dipilih**; ia tidak dipetakan.
 
 ## 6. Batasan yang diketahui
 
@@ -141,13 +148,13 @@ Penyedia e-mel dan domain disahkan, templat BM, jadual token pengesahan (hash, t
 ## 8. Keputusan Pemilik diperlukan
 
 1. Luluskan A sekarang (B kemudian), atau terus ke B.
-2. Luluskan bucket `ebook-private` (had 4,500,000) dan siapa memuat naik PDF.
+2. Luluskan bucket `ebook-private` (had 3,000,000) dan siapa memuat naik PDF Balanced.
 3. Luluskan rahsia token dan `EBOOK_DELIVERY_*` untuk Staging dahulu.
 4. Dasar double opt-in sebelum pemasaran.
 5. Semakan undang-undang Notis Privasi, termasuk perkataan penghantaran.
 6. Terima token boleh-guna-semula 10 minit (vs guna sekali dengan RPC baharu).
-7. Luluskan penyediaan salinan termampat (bahagian 5) dan semakan visualnya.
-8. Keputusan fallback jika ujian Vercel Staging menolak respons 4.35 MB.
+7. Rekod kelulusan penerbitan untuk versi Balanced (semakan telefon, imbasan QR, klik pautan oleh Pemilik) dan izin memuat naiknya. Pemilihan versi sudah dibuat.
+8. Keputusan fallback jika ujian Vercel Staging menolak respons ~2.93 MB (kurang berkemungkinan).
 
 ## 9. Keperluan integrasi website (masa depan)
 

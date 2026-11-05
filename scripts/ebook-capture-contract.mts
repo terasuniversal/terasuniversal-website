@@ -11,7 +11,10 @@ import { join } from "node:path";
 const read = async (p: string) => (await readFile(p, "utf8")).replace(/\r\n/g, "\n");
 const code = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
 
-const APPROVED_PDF_SHA256 = "fbf19c283c534e0638bfd91816e7e5b708ee3a8b69a6946612c53a4d570a04dc";
+// The Owner-approved Balanced PDF is the only active fingerprint. The original (superseded) PDF is kept only in historical
+// records (the docs and this test): neither may ever appear as a file in the repository.
+const APPROVED_PDF_SHA256 = "9595cc470063bcd5fd35404b771b09f580c3562e5b7ea38aa6aef49e37ab520c";
+const SUPERSEDED_ORIGINAL_PDF_SHA256 = "fbf19c283c534e0638bfd91816e7e5b708ee3a8b69a6946612c53a4d570a04dc";
 
 // 1. No eBook PDF anywhere in the repository (by content fingerprint and by name), and nothing in a public directory.
 async function walk(dir: string, out: string[] = []): Promise<string[]> {
@@ -30,6 +33,7 @@ assert.deepEqual(pdfs, ["public/downloads/TERAS-UNIVERSAL-Company-Profile.pdf"],
 for (const pdf of pdfs) {
   const hash = createHash("sha256").update(await readFile(pdf)).digest("hex");
   assert.notEqual(hash, APPROVED_PDF_SHA256, `${pdf} must not be the approved eBook`);
+  assert.notEqual(hash, SUPERSEDED_ORIGINAL_PDF_SHA256, `${pdf} must not be the superseded original eBook`);
 }
 assert.ok(!files.some((f) => /^public\/.*ebook/i.test(f)), "nothing eBook-related in public/");
 assert.ok(!files.some((f) => /TERAS_eBook|DariZeroKeDuniaIndustri/i.test(f)), "no file named after the eBook PDF");
@@ -224,14 +228,14 @@ assert.match(storageCode, /signal: AbortSignal\.timeout\(/, "the Storage read ha
 assert.match(storageCode, /headers: \{ apikey: key, Authorization: `Bearer \$\{key\}` \}/, "the key travels only as a header");
 assert.ok(!/console\./.test(storageCode), "the storage module logs nothing");
 assert.ok(!/\.blob\(|\.arrayBuffer\(|Buffer\.from\(bytes/.test(dlCode + storageCode), "no whole-object blob/arrayBuffer or extra Buffer copy on the download path");
-assert.match(deliveryCode, /export const MAX_PDF_BYTES = 4_500_000;/, "the application cap is 4,500,000 bytes, equal to the proposed bucket limit");
+assert.match(deliveryCode, /export const MAX_PDF_BYTES = 3_000_000;/, "the application cap is 3,000,000 bytes, equal to the proposed bucket limit");
 assert.match(deliveryCode, /readCappedBytes\(/, "the capped reader exists");
 const storageImporters = files.filter((f) => /\.(ts|tsx|js|jsx|mjs|mts)$/.test(f) && !f.startsWith("work/") && !f.startsWith("scripts/") && f !== "lib/marketing/ebookStorage.ts");
 const importing: string[] = [];
 for (const f of storageImporters) if (/ebookStorage/.test(await read(f))) importing.push(f);
 assert.deepEqual(importing, ["app/api/ebook/download/route.ts"], "only the download route imports the storage module");
 const deliveryDocs = await read("docs/EBOOK_PRIVATE_DELIVERY.md");
-assert.match(deliveryDocs, /file_size_limit, allowed_mime_types\)\s*values \('ebook-private', 'ebook-private', false, 4500000,/, "the proposed bucket limit in the docs equals the application cap");
+assert.match(deliveryDocs, /file_size_limit, allowed_mime_types\)\s*values \('ebook-private', 'ebook-private', false, 3000000,/, "the proposed bucket limit in the docs equals the application cap");
 assert.match(deliveryDocs, /BUKAN streaming|bukan streaming/, "the docs state plainly that the response is not streamed");
 assert.ok(!/(menstrim|distrim|strim(kan)?) (fail|pdf|bait|ebook)|streams the (pdf|file|bytes)|is streamed/i.test(deliveryDocs), "the docs never claim true streaming");
 assert.ok(!/streams? (the|a|an) (verified )?(pdf|file|bytes|object)|menstrim|distrim/i.test(delivery + dlRoute + storageModule + await read("lib/marketing/ebookCapture.ts") + await read(".ai/PROJECT_STATUS.md")), "no source comment or status note claims true streaming");
@@ -269,3 +273,14 @@ assert.match(gitignore, /^\.env/m, ".env files stay ignored");
 // No bucket or policy is created by any committed migration (the proposal is in the docs, applied only after approval).
 for (const f of files.filter((x) => /^supabase\/(migrations|baseline)\//.test(x))) assert.ok(!/ebook-private/.test(await read(f)), `${f} does not create the eBook bucket`);
 console.log("Ebook capture contract (private delivery) passed.");
+
+// 11. Fingerprint and object mapping: the Balanced release is the only active one; the original appears only in history.
+const [capRules, delRules] = await Promise.all([read("lib/marketing/ebookCapture.ts"), read("lib/marketing/ebookDelivery.ts")]);
+assert.ok(capRules.includes(`pdfSha256: "${APPROVED_PDF_SHA256}"`) && delRules.includes(`sha256: "${APPROVED_PDF_SHA256}"`), "catalogue and delivery mapping hold the Balanced fingerprint");
+assert.match(delRules, /objectPath: "ebooks\/dari-zero-ke-dunia-industri-balanced-v1\.pdf"/, "the intended object key identifies the Balanced release");
+const sourceFiles = files.filter((f) => /\.(ts|tsx|js|jsx|mjs|cjs|mts|sql|json)$/.test(f) && !f.startsWith("work/") && !f.startsWith("supabase/baseline/"));
+const stale: string[] = [];
+for (const f of sourceFiles) if ((await read(f)).includes(SUPERSEDED_ORIGINAL_PDF_SHA256)) stale.push(f);
+assert.deepEqual(stale, ["scripts/ebook-capture-contract.mts", "scripts/ebook-delivery.test.mts"], "the superseded original fingerprint appears only in the two historical negative assertions (this file and the delivery unit test), in no source or config file");
+assert.ok(!/ebooks\/dari-zero-ke-dunia-industri-v1\.pdf/.test(delRules + capRules), "the old object key is not mapped");
+console.log("Ebook capture contract (Balanced fingerprint and mapping) passed.");

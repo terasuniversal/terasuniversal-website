@@ -44,7 +44,7 @@ assert.equal(isEbookCaptureEnabled({ EBOOK_LEAD_CAPTURE_ENABLED: "true" }), true
 
 // 2. The catalogue describes the Owner-approved PDF but does not activate any download.
 assert.equal(EBOOK_CATALOG.length, 1);
-assert.equal(EBOOK_CATALOG[0].pdfSha256, "fbf19c283c534e0638bfd91816e7e5b708ee3a8b69a6946612c53a4d570a04dc", "approved PDF fingerprint");
+assert.equal(EBOOK_CATALOG[0].pdfSha256, "9595cc470063bcd5fd35404b771b09f580c3562e5b7ea38aa6aef49e37ab520c", "approved Balanced PDF fingerprint");
 assert.equal(EBOOK_CATALOG[0].pdfFileName, "TERAS_eBook_DariZeroKeDuniaIndustri.pdf");
 assert.equal(EBOOK_CATALOG[0].delivery, "not_active", "no download until storage is approved");
 assert.ok(!("url" in EBOOK_CATALOG[0]) && !("href" in EBOOK_CATALOG[0]), "no download URL in the catalogue");

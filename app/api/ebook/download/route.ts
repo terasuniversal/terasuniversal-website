@@ -30,7 +30,7 @@ function respond(body: Record<string, unknown>, status: number) {
  * allowlist, the object is read with a hard size cap (lib/marketing/ebookStorage.ts), the bytes are verified against the
  * Owner-approved SHA-256 before a single byte is returned, and no Storage URL (signed or public) is created or exposed.
  *
- * This is a BUFFERED response, not a stream: the whole verified file (about 4.15 MB) is held in memory once and handed to
+ * This is a BUFFERED response, not a stream: the whole verified file (about 2.93 MB) is held in memory once and handed to
  * the runtime. Streaming is deliberately not used because the hash must be verified before any byte is sent.
  * Every rejection answers the same way, so a caller cannot tell a forged token from an expired one.
  */

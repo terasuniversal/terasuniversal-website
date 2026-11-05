@@ -83,6 +83,9 @@ assert.equal(reason(wrongPurpose), "signature", "signature from another purpose 
 // 5. Object keys come from a fixed allowlist, never from a request value.
 assert.deepEqual(Object.keys(EBOOK_PDF_OBJECTS), EBOOK_CATALOG.map((e) => e.id));
 for (const entry of Object.values(EBOOK_PDF_OBJECTS)) assert.match(entry.objectPath, /^ebooks\/[a-z0-9-]+-v\d+\.pdf$/, "fixed, versioned, no traversal characters");
+assert.equal(EBOOK_PDF_OBJECTS[ID].sha256, "9595cc470063bcd5fd35404b771b09f580c3562e5b7ea38aa6aef49e37ab520c", "the delivery mapping holds the Owner-approved Balanced fingerprint");
+assert.equal(EBOOK_PDF_OBJECTS[ID].objectPath, "ebooks/dari-zero-ke-dunia-industri-balanced-v1.pdf", "the intended private object key identifies the Balanced release");
+assert.ok(!JSON.stringify([EBOOK_PDF_OBJECTS, EBOOK_CATALOG]).includes("fbf19c283c534e0638bfd91816e7e5b708ee3a8b69a6946612c53a4d570a04dc"), "the superseded original fingerprint is not active in the catalogue or the delivery mapping");
 for (const e of EBOOK_CATALOG) {
   assert.equal(EBOOK_PDF_OBJECTS[e.id].sha256, e.pdfSha256, "delivery fingerprint equals the catalog fingerprint");
   assert.equal(EBOOK_PDF_OBJECTS[e.id].fileName, e.pdfFileName, "delivery file name equals the catalog file name");
@@ -117,8 +120,9 @@ try {
 }
 
 // 7. Size boundary: one limit for app, bucket and the buffered Vercel response; read with a hard cap while streaming IN.
-assert.equal(MAX_PDF_BYTES, 4_500_000, "application cap equals the proposed bucket file_size_limit and the 4.5 MB buffered-response limit");
-assert.ok(MAX_PDF_BYTES >= 4_353_912, "the approved PDF (4,353,912 bytes) fits under the cap");
+assert.equal(MAX_PDF_BYTES, 3_000_000, "application cap equals the proposed bucket file_size_limit (3,000,000 bytes)");
+assert.ok(MAX_PDF_BYTES >= 2_929_572, "the approved Balanced PDF (2,929,572 bytes) fits under the cap");
+assert.ok(MAX_PDF_BYTES < 2_929_572 * 1.05, "the cap stays close to the approved file: no room for a silently larger one");
 const bodyOf = (chunks: Uint8Array[], headers: Record<string, string> = {}) => {
   let cancelled = false;
   const stream = new ReadableStream<Uint8Array>({
@@ -140,7 +144,7 @@ const mk = (n: number, fill = 7) => new Uint8Array(n).fill(fill);
   const out2 = await readCappedBytes(r2, 5000);
   assert.equal(out2.length, 600); assert.equal(out2[0], 1); assert.equal(out2[599], 2);
   assert.equal(out2.byteOffset, 0, "unknown length: a view of the single buffer, no merge copy");
-  assert.equal(out2.buffer.byteLength, MAX_PDF_BYTES === 4_500_000 ? 5000 : -1, "unknown length: exactly one allocation of the cap");
+  assert.equal(out2.buffer.byteLength, 5000, "unknown length: exactly one allocation of the cap");
   // Declared length above the cap: refused BEFORE reading the body.
   const big = bodyOf([mk(10)], { "content-length": String(MAX_PDF_BYTES + 1) });
   await assert.rejects(() => readCappedBytes(big.res, MAX_PDF_BYTES), (e: unknown) => e instanceof EbookDeliveryError && e.code === "integrity", "declared oversize refused");

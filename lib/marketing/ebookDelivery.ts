@@ -22,11 +22,12 @@ export const EBOOK_PRIVATE_BUCKET = "ebook-private";
 export const DOWNLOAD_TOKEN_TTL_SECONDS = 600;
 export const MAX_TOKEN_CHARS = 512;
 /**
- * One limit for three things: the application, the proposed private bucket's file_size_limit, and the Vercel Function
- * response body limit for a buffered response (4.5 MB, to be confirmed on Staging). Decimal bytes on purpose, so the
- * approved 4,353,912-byte PDF fits with ~3% headroom and anything larger needs a deliberate decision.
+ * One limit for two things that must never disagree: the application cap and the proposed private bucket's file_size_limit.
+ * Decimal bytes on purpose. The Owner-approved Balanced PDF is 2,929,572 bytes, so it fits with ~2.4% headroom; a larger
+ * file is a deliberate new decision (cap, bucket limit and tests change together). It also keeps the buffered response well
+ * below the believed 4.5 MB Vercel Function response limit, which is still UNVERIFIED and needs a Vercel Staging test.
  */
-export const MAX_PDF_BYTES = 4_500_000;
+export const MAX_PDF_BYTES = 3_000_000;
 const MIN_SECRET_CHARS = 32;
 const CLOCK_SKEW_SECONDS = 60;
 const TOKEN_VERSION = "v1";
@@ -34,10 +35,10 @@ const TOKEN_VERSION = "v1";
 /** The ONLY objects the download route can read. A token names an ebook id; the id selects the key from this table. */
 export const EBOOK_PDF_OBJECTS: Readonly<Record<EbookId, { objectPath: string; fileName: string; sha256: string }>> = {
   "dari-zero-ke-dunia-industri": {
-    objectPath: "ebooks/dari-zero-ke-dunia-industri-v1.pdf",
+    objectPath: "ebooks/dari-zero-ke-dunia-industri-balanced-v1.pdf",
     fileName: "TERAS_eBook_DariZeroKeDuniaIndustri.pdf",
-    // Fingerprint of the Owner-approved distribution PDF (same value as EBOOK_CATALOG).
-    sha256: "fbf19c283c534e0638bfd91816e7e5b708ee3a8b69a6946612c53a4d570a04dc",
+    // Fingerprint of the Owner-approved Balanced PDF (same value as EBOOK_CATALOG). The superseded original is not mapped.
+    sha256: "9595cc470063bcd5fd35404b771b09f580c3562e5b7ea38aa6aef49e37ab520c",
   },
 };
 

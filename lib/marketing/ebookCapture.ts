@@ -15,9 +15,9 @@ export const EBOOK_CATALOG = [
     title: "Dari Zero Ke Dunia Industri",
     subtitle: "Panduan Santai Untuk Kenal Scaffolding & Kerjaya Scaffold Erector",
     kicker: "eBook Percuma",
-    /** Fingerprint of the Owner-approved distribution PDF. A file placed in storage later must match it. */
+    /** Fingerprint of the Owner-approved Balanced distribution PDF (2,929,572 bytes, 12 pages). A file placed in storage later must match it. */
     pdfFileName: "TERAS_eBook_DariZeroKeDuniaIndustri.pdf",
-    pdfSha256: "fbf19c283c534e0638bfd91816e7e5b708ee3a8b69a6946612c53a4d570a04dc",
+    pdfSha256: "9595cc470063bcd5fd35404b771b09f580c3562e5b7ea38aa6aef49e37ab520c",
     /** The PDF is NOT in this repository and no download exists until storage and delivery are approved. */
     delivery: "not_active",
   },
