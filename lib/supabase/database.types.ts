@@ -422,6 +422,66 @@ export interface SalesActivityInsert {
 export type SalesActivityUpdate = Partial<SalesActivityInsert>;
 
 /**
+ * Public registration tables. Written only by SECURITY DEFINER RPCs; the only
+ * client access is an Admin-only SELECT policy, so Insert/Update are not offered.
+ * Row mirrors the live columns; the review queue selects an explicit subset.
+ */
+export interface PublicRegistration {
+  id: string;
+  registration_reference: string;
+  confirmation_token_hash: string;
+  schedule_id: string;
+  course_id: string;
+  attendee_count: number;
+  currency: string;
+  amount_snapshot: number;
+  registration_status: "pending_payment" | "payment_pending" | "confirmed" | "failed" | "cancelled" | "expired";
+  payment_status: "pending" | "processing" | "paid" | "failed" | "cancelled" | "refunded";
+  idempotency_key_hash: string;
+  hold_expires_at: string | null;
+  confirmed_at: string | null;
+  cancelled_at: string | null;
+  expired_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PublicRegistrationAttendee {
+  id: string;
+  registration_id: string;
+  full_name: string;
+  ic_passport_no: string | null;
+  identity_normalized: string | null;
+  email: string | null;
+  phone: string | null;
+  company: string | null;
+  participant_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PublicRegistrationPayment {
+  id: string;
+  registration_id: string;
+  payment_provider: "toyyibpay" | "bank_transfer" | "cash" | "cheque" | "other";
+  status: "pending" | "processing" | "paid" | "failed" | "cancelled" | "refunded";
+  amount: number;
+  currency: string;
+  provider_bill_code: string | null;
+  provider_transaction_id: string | null;
+  provider_reference: string | null;
+  payment_url: string | null;
+  bill_creation_state: "not_claimed" | "claimed" | "attached" | "failed" | "orphaned";
+  bill_creation_claimed_at: string | null;
+  verified_amount: number | null;
+  verified_at: string | null;
+  callback_received_at: string | null;
+  raw_response: Json;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
  * Minimal Database shape so `createServerClient<Database>()` is typed. Tables
  * not listed here fall back to `any` via the index signature, so nothing
  * breaks before you run `supabase gen types`.
@@ -504,6 +564,9 @@ export interface Database {
         Update: Partial<CertificateSkillResult>;
         Relationships: [];
       };
+      public_registrations: { Row: PublicRegistration; Insert: Record<string, never>; Update: Record<string, never>; Relationships: [] };
+      public_registration_attendees: { Row: PublicRegistrationAttendee; Insert: Record<string, never>; Update: Record<string, never>; Relationships: [] };
+      public_registration_payments: { Row: PublicRegistrationPayment; Insert: Record<string, never>; Update: Record<string, never>; Relationships: [] };
       // New operational tables are added through migrations. This fallback
       // keeps the client usable before CI regenerates the complete types.
       [key: string]: { Row: any; Insert: any; Update: any; Relationships: [] };

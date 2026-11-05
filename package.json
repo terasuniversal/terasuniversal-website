@@ -39,6 +39,8 @@
     "test:sales-leads-card-hierarchy": "node --experimental-strip-types scripts/sales-leads-card-hierarchy-contract.mts",
     "test:finance-executive-kpis": "node --experimental-strip-types scripts/finance-executive-kpis.test.mts",
     "test:finance-executive-dashboard": "node --experimental-strip-types scripts/finance-executive-dashboard-contract.mts",
+    "test:registration-review-queue": "node --experimental-strip-types scripts/registration-review-queue.test.mts",
+    "test:registration-review-queue-contract": "node --experimental-strip-types scripts/registration-review-queue-contract.mts",
     "test:sales-wave3c-timezone": "node --experimental-strip-types scripts/sales-wave3c-timezone-contract.mts",
     "test:quotation-pdf-layout": "node --experimental-strip-types scripts/quotation-pdf-layout-contract.mts",
     "test:quotation-read-error": "node --experimental-strip-types scripts/quotation-read-error-contract.mts",
