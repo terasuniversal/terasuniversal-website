@@ -133,7 +133,7 @@
 .dates h3 { font-size: 1.75rem; letter-spacing: -0.03em; }
 .dates .note { margin-top: 12px; color: var(--muted); max-width: 40ch; }
 .ledger { border-top: 2px solid var(--navy); }
-.ledger li { display: grid; grid-template-columns: 190px minmax(0, 1fr) auto auto; gap: 20px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.ledger li { display: grid; grid-template-columns: 240px minmax(0, 1fr) auto auto; gap: 20px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--line); }
 .when { display: grid; gap: 2px; color: var(--navy); font-family: var(--font-montserrat); font-weight: 700; }
 .when span { color: var(--muted); font-family: var(--font-poppins); font-size: 0.875rem; font-weight: 400; }
 .what { display: grid; gap: 2px; }

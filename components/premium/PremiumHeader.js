@@ -23,7 +23,7 @@ export default function PremiumHeader() {
       <header className={`${kit.px} ${kit.hdr}`}>
         <div className={`${kit.wrap} ${kit.hdrRow}`}>
           <a className={kit.logo} href="/" aria-label="TERAS UNIVERSAL home">
-            <Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL" width={220} height={140} sizes="72px" />
+            <Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL" width={220} height={140} sizes="72px" loading="eager" />
           </a>
           <MegaNav />
           <a className={`${kit.btn} ${kit.cta}`} href="/request-proposal?source=mega-nav-cta">Request a Proposal</a>
