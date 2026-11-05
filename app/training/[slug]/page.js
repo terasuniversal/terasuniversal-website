@@ -1,8 +1,7 @@
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import MobileNav from "../../../components/MobileNav";
-import MegaNav from "../../../components/MegaNav";
 import Footer from "../../../components/Footer";
+import PremiumHeader from "../../../components/premium/PremiumHeader";
 import BreadcrumbJsonLd from "../../../components/public/BreadcrumbJsonLd";
 import CourseCard from "../../../components/public/CourseCard";
 import CourseFactList from "../../../components/public/CourseFactList";
@@ -50,7 +49,7 @@ export default async function CoursePage({ params }) {
     <main className="course-catalog-page">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(courseSchema(course)) }} />
       <BreadcrumbJsonLd items={[{ name: "Home", path: "/" }, { name: "Training", path: "/training" }, { name: course.title, path: `/training/${course.slug}` }]} />
-      <header className="site-header"><div className="container nav-wrap"><a className="brand" href="/" aria-label="TERAS UNIVERSAL home"><Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL logo" width={220} height={140} priority sizes="154px" /></a><MegaNav /><MobileNav basePath="/" /></div></header>
+      <PremiumHeader />
 
       <section className="catalog-course-hero"><div className="container catalog-course-grid"><div><nav className="course-breadcrumb" aria-label="Breadcrumb"><a href="/">Home</a><span>/</span><a href="/training">Training</a><span>/</span><span aria-current="page">{course.title}</span></nav><span className="eyebrow">{course.category}</span><h1>{course.title}</h1><p>{course.summary}</p><PrimaryCtaGroup course={course} source="course-page" scheduleHref={scheduleHref} hasRegistration={hasRegistration} /></div><figure><Image src={course.image} alt="" unoptimized width={1200} height={800} priority sizes="(max-width: 920px) 100vw, 52vw" /></figure></div></section>
 

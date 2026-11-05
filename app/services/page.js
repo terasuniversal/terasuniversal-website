@@ -1,7 +1,6 @@
 import Image from "next/image";
-import MobileNav from "../../components/MobileNav";
-import MegaNav from "../../components/MegaNav";
 import Footer from "../../components/Footer";
+import PremiumHeader from "../../components/premium/PremiumHeader";
 
 const pillars = [
   ["01", "Industrial Safety", "Strengthen hazard recognition, procedural discipline and safe task execution across safety-critical work environments.", ["Working at Height", "Confined Space", "Scaffolding", "Safety Passport", "Lifting Awareness", "PPE"], "Safer execution and stronger workplace controls", "#safety"],
@@ -22,13 +21,7 @@ const industries = ["Oil & Gas", "Construction", "Manufacturing", "Petrochemical
 export default function ServicesPage() {
   return (
     <main className="services-page">
-      <header className="site-header">
-        <div className="container nav-wrap">
-          <a className="brand" href="/" aria-label="TERAS UNIVERSAL home"><Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL logo" width={220} height={140} priority sizes="154px" /></a>
-          <MegaNav />
-          <MobileNav basePath="/" />
-        </div>
-      </header>
+      <PremiumHeader />
 
       <section className="services-hero" aria-labelledby="services-hero-title">
         <div className="container services-hero-grid">

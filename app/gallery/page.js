@@ -1,8 +1,6 @@
-import Image from "next/image";
-import MobileNav from "../../components/MobileNav";
-import MegaNav from "../../components/MegaNav";
 import TrainingGallery from "../../components/TrainingGallery";
 import Footer from "../../components/Footer";
+import PremiumHeader from "../../components/premium/PremiumHeader";
 import { trainingGallery } from "../../data/trainingGallery";
 
 export const metadata = {
@@ -15,13 +13,7 @@ export const metadata = {
 export default function GalleryPage() {
   return (
     <main className="gallery-page">
-      <header className="site-header">
-        <div className="container nav-wrap">
-          <a className="brand" href="/" aria-label="TERAS UNIVERSAL home"><Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL logo" width={220} height={140} priority sizes="154px" /></a>
-          <MegaNav />
-          <MobileNav basePath="/" />
-        </div>
-      </header>
+      <PremiumHeader />
 
       <section className="gallery-page-hero" aria-labelledby="gallery-page-title">
         <div className="container">

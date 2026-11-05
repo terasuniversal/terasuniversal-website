@@ -1,7 +1,5 @@
-import Image from "next/image";
-import MobileNav from "../../components/MobileNav";
-import MegaNav from "../../components/MegaNav";
 import Footer from "../../components/Footer";
+import PremiumHeader from "../../components/premium/PremiumHeader";
 
 const resourceGroups = [
   {
@@ -35,13 +33,7 @@ export const metadata = { title: "Resources", description: "TERAS UNIVERSAL corp
 export default function ResourcesPage() {
   return (
     <main className="resources-page">
-      <header className="site-header">
-        <div className="container nav-wrap">
-          <a className="brand" href="/" aria-label="TERAS UNIVERSAL home"><Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL logo" width={220} height={140} priority sizes="154px" /></a>
-          <MegaNav />
-          <MobileNav basePath="/" />
-        </div>
-      </header>
+      <PremiumHeader />
 
       <section className="resources-hero"><div className="container"><span className="eyebrow">Resources Centre</span><h1>Useful information for better training decisions.</h1><p className="utility-lead">Access corporate information and training resources, or speak with our team when you need a tailored recommendation.</p></div></section>
 

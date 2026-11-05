@@ -1,7 +1,5 @@
-import Image from "next/image";
-import MobileNav from "../components/MobileNav";
-import MegaNav from "../components/MegaNav";
 import Footer from "../components/Footer";
+import PremiumHeader from "../components/premium/PremiumHeader";
 
 // Sitewide 404 page (Next.js App Router convention: app/not-found.js).
 //
@@ -27,15 +25,7 @@ const quickLinks = [
 export default function NotFound() {
   return (
     <main>
-      <header className="site-header">
-        <div className="container nav-wrap">
-          <a className="brand" href="/" aria-label="TERAS UNIVERSAL home">
-            <Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL logo" width={220} height={140} priority sizes="154px" />
-          </a>
-          <MegaNav />
-          <MobileNav />
-        </div>
-      </header>
+      <PremiumHeader />
 
       <section className="notfound-section" aria-labelledby="notfound-title">
         <div className="container notfound-inner">

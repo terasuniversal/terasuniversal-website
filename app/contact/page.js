@@ -1,8 +1,7 @@
 import Image from "next/image";
-import MobileNav from "../../components/MobileNav";
-import MegaNav from "../../components/MegaNav";
 import ContactEnquiryForm from "../../components/ContactEnquiryForm";
 import Footer from "../../components/Footer";
+import PremiumHeader from "../../components/premium/PremiumHeader";
 
 const faqs = [
   ["Can training be customised?", "Yes. Programme scope can be discussed around participant profiles, operational risks, organisational procedures and desired learning outcomes."],
@@ -20,13 +19,7 @@ const reasons = [
 export default function ContactPage() {
   return (
     <main className="contact-page">
-      <header className="site-header">
-        <div className="container nav-wrap">
-          <a className="brand" href="/" aria-label="TERAS UNIVERSAL home"><Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL logo" width={220} height={140} priority sizes="154px" /></a>
-          <MegaNav />
-          <MobileNav basePath="/" />
-        </div>
-      </header>
+      <PremiumHeader />
 
       <section className="contact-page-hero" aria-labelledby="contact-hero-title">
         <div className="container contact-page-hero-grid">

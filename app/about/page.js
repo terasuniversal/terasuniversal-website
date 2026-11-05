@@ -1,7 +1,6 @@
 import Image from "next/image";
-import MobileNav from "../../components/MobileNav";
-import MegaNav from "../../components/MegaNav";
 import Footer from "../../components/Footer";
+import PremiumHeader from "../../components/premium/PremiumHeader";
 import { coreValues, leadership, accreditations, timeline, trainingFacilities, partners } from "../../data/companyProfile";
 
 const reasons = [
@@ -18,13 +17,7 @@ const industries = ["Oil & Gas", "Construction", "Manufacturing", "Marine & Offs
 export default function AboutPage() {
   return (
     <main className="about-page">
-      <header className="site-header">
-        <div className="container nav-wrap">
-          <a className="brand" href="/" aria-label="TERAS UNIVERSAL home"><Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL logo" width={220} height={140} priority sizes="154px" /></a>
-          <MegaNav />
-          <MobileNav basePath="/" />
-        </div>
-      </header>
+      <PremiumHeader />
 
       <section className="about-hero" aria-labelledby="about-hero-title">
         <div className="container about-hero-grid">

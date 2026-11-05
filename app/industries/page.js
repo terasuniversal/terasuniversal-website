@@ -1,7 +1,5 @@
-import Image from "next/image";
-import MobileNav from "../../components/MobileNav";
-import MegaNav from "../../components/MegaNav";
 import Footer from "../../components/Footer";
+import PremiumHeader from "../../components/premium/PremiumHeader";
 import CorporateTrainingCta from "../../components/public/CorporateTrainingCta";
 import { industries } from "../../data/industries";
 
@@ -10,13 +8,7 @@ export const metadata = { title: "Industries We Serve", description: "Industrial
 export default function IndustriesPage() {
   return (
     <main className="industries-hub-page">
-      <header className="site-header">
-        <div className="container nav-wrap">
-          <a className="brand" href="/" aria-label="TERAS UNIVERSAL home"><Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL logo" width={220} height={140} priority sizes="154px" /></a>
-          <MegaNav />
-          <MobileNav basePath="/" />
-        </div>
-      </header>
+      <PremiumHeader />
 
       <section className="industries-hub-hero"><div className="container"><span className="eyebrow">Corporate Solutions</span><h1>Industry-Focused Safety &amp; Competency Solutions</h1><p>TERAS UNIVERSAL supports safety-critical sectors with competency-based training, consultancy and workforce development shaped around real operational risk.</p><div className="hero-actions"><a className="btn btn-primary" href="/corporate-training">Explore Corporate Training</a><a className="btn btn-outline" href="/request-proposal?source=industries-hub">Request Proposal</a></div></div></section>
 

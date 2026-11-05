@@ -1,8 +1,7 @@
 import Image from "next/image";
-import MobileNav from "../../components/MobileNav";
-import MegaNav from "../../components/MegaNav";
 import ProposalWizard from "../../components/ProposalWizard";
 import Footer from "../../components/Footer";
+import PremiumHeader from "../../components/premium/PremiumHeader";
 
 const benefits = [
   ["01", "Customised Solutions", "A proposal shaped around your workforce profile, operational requirements and delivery preferences."],
@@ -15,7 +14,7 @@ const process = ["Submit Request", "Review", "Consultation", "Proposal", "Traini
 export default function RequestProposalPage() {
   return (
     <main className="proposal-page">
-      <header className="site-header"><div className="container nav-wrap"><a className="brand" href="/" aria-label="TERAS UNIVERSAL home"><Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL logo" width={220} height={140} priority sizes="154px" /></a><MegaNav /><MobileNav basePath="/" /></div></header>
+      <PremiumHeader />
 
       <section className="proposal-hero" aria-labelledby="proposal-hero-title"><div className="container proposal-hero-grid"><div className="proposal-hero-copy"><span className="eyebrow">Request a Proposal</span><h1 id="proposal-hero-title">Tell Us About Your Training Requirements</h1><p>Share your organisation&apos;s training needs and our team will prepare a suitable proposal based on your workforce, operational requirements and preferred delivery method.</p><div className="hero-actions"><a className="btn btn-primary" href="https://wa.me/60195193834" target="_blank" rel="noreferrer">WhatsApp Us</a><a className="btn btn-outline" href="/training">Explore Training</a></div></div><figure className="proposal-hero-media"><Image src="/images/v2/panel-c.svg" alt="" unoptimized width={1200} height={800} priority sizes="(max-width: 920px) 100vw, 52vw" /></figure></div></section>
 

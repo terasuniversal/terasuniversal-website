@@ -1,7 +1,6 @@
 import Image from "next/image";
-import MobileNav from "../../components/MobileNav";
-import MegaNav from "../../components/MegaNav";
 import Footer from "../../components/Footer";
+import PremiumHeader from "../../components/premium/PremiumHeader";
 import CredentialGrid from "../../components/public/CredentialGrid";
 import CorporateTrainingCta from "../../components/public/CorporateTrainingCta";
 import DeliveryOptions from "../../components/public/DeliveryOptions";
@@ -19,7 +18,7 @@ const process = [["Understand Requirements", "Discuss workforce profile, operati
 export default function CorporateTrainingPage() {
   const director = leadership[0];
   return <main className="corporate-training-page">
-    <header className="site-header"><div className="container nav-wrap"><a className="brand" href="/" aria-label="TERAS UNIVERSAL home"><Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL logo" width={220} height={140} priority sizes="154px" /></a><MegaNav /><MobileNav basePath="/" /></div></header>
+    <PremiumHeader />
     <section className="services-hero" aria-labelledby="corporate-training-title"><div className="container services-hero-grid"><div className="services-hero-copy"><span className="eyebrow">Corporate Training</span><h1 id="corporate-training-title">Build competence around your workforce and operating realities.</h1><p>TERAS UNIVERSAL supports organisations with industrial safety training, technical competency development, consultancy and workforce solutions shaped around practical workplace needs.</p><div className="hero-actions"><a className="btn btn-primary" href="/request-proposal?source=corporate-training">Request Corporate Training</a><a className="btn btn-outline" href="https://wa.me/60195193834?text=Hi%20TERAS%2C%20saya%20ingin%20bertanya%20tentang%20latihan%20korporat." target="_blank" rel="noreferrer">Talk to TERAS</a></div></div><figure className="services-hero-media"><Image src="/images/v2/panel-b.svg" alt="" unoptimized width={1200} height={800} priority sizes="(max-width: 920px) 100vw, 52vw" /></figure></div></section>
     <section className="services-standard-section"><div className="container services-standard-grid"><div><span className="eyebrow">Corporate Capability</span><h2>Training, assessment and advice that connect with the work.</h2></div><div><p>Corporate arrangements can be shaped around workforce roles, operational requirements, participant profiles and preferred delivery methods.</p><TrustStrip facts={confirmedFacts.slice(0, 4)} /></div></div></section>
     <section className="training-programmes-section"><div className="container"><div className="section-heading"><span className="eyebrow">Corporate Solutions</span><h2>One conversation, relevant capability options.</h2><p>Start with the requirement, then build the most suitable training, assessment or advisory arrangement.</p></div><div className={styles.solutionGrid}>{pillars.map(([title, text], index) => <article key={title}><span>{String(index + 1).padStart(2, "0")}</span><h3>{title}</h3><p>{text}</p></article>)}</div></div></section>

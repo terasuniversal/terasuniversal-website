@@ -1,7 +1,5 @@
-import Image from "next/image";
-import MobileNav from "../../../components/MobileNav";
-import MegaNav from "../../../components/MegaNav";
 import Footer from "../../../components/Footer";
+import PremiumHeader from "../../../components/premium/PremiumHeader";
 import CorporateTrainingCta from "../../../components/public/CorporateTrainingCta";
 import BreadcrumbJsonLd from "../../../components/public/BreadcrumbJsonLd";
 import DeliveryOptions from "../../../components/public/DeliveryOptions";
@@ -22,13 +20,7 @@ export default async function IndustryPage({ params }) {
   return (
     <main className="industry-page">
       <BreadcrumbJsonLd items={[{ name: "Home", path: "/" }, { name: "Industries", path: "/industries" }, { name: industry.name, path: `/industries/${industry.slug}` }]} />
-      <header className="site-header">
-        <div className="container nav-wrap">
-          <a className="brand" href="/" aria-label="TERAS UNIVERSAL home"><Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL logo" width={220} height={140} priority sizes="154px" /></a>
-          <MegaNav />
-          <MobileNav basePath="/" />
-        </div>
-      </header>
+      <PremiumHeader />
 
       <section className="industry-hero"><div className="container"><nav className="course-breadcrumb" aria-label="Breadcrumb"><a href="/">Home</a><span>/</span><a href="/industries">Industries</a><span>/</span><span aria-current="page">{industry.name}</span></nav><span className="eyebrow">Corporate Solutions &middot; {industry.fullName}</span><h1>{industry.name} Training &amp; Competency Solutions</h1><p>{industry.summary}</p><div className="hero-actions"><a className="btn btn-primary" href={`/request-proposal?industry=${encodeURIComponent(industry.slug)}&source=industry-page`}>Request {industry.name} Training</a><a className="btn btn-outline" href="/corporate-training">Explore Corporate Training</a></div></div></section>
 
