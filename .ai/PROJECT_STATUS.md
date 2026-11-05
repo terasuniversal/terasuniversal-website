@@ -246,3 +246,15 @@ No migration was applied, no push, no merge, no deploy. Validation not re-run in
 ### Not done
 - The 24 remaining SCH-000034 certificates: owner-operated through Super Admin Generate as normal operations, at the owner's chosen time.
 - Scaffolding Erector watermark: a placement-only attempt was rejected by the owner on 2026-11-03 because it does not match the Inspector/WAH illustration style. Erector needs owner-approved artwork (scene for page 1, detail for page 2) like Inspector and WAH. Changing it will also restyle the already issued Erector C4 certificate CERT-2026-000098, which renders live; that needs an owner decision. No Erector code was committed.
+
+### Premium A3 homepage and shared header/footer (local branch, 2026-11-05)
+- Branch `feat/website-premium-a3-homepage` (6 commits on `main` dc6dbed), local only: not pushed, no PR, not deployed.
+- New scoped public kit in `components/premium/` (`premium.module.css`, `PremiumHeader.js`); shared `components/Footer.js` rewritten on it; homepage rebuilt from it (`components/home/*`). `globals.css` is untouched except one rule (`body { overflow-x: clip }`) so the sticky header actually pins (it never did, on any page, because `html, body { overflow-x: hidden }` made body a scroll container).
+- Reused unchanged: `MegaNav` (trailing CTA/WhatsApp links removed, header now owns the single "Request a Proposal"), `MobileNav` (label only), `StickyCta` (label only), `ContactForm`, `NewsletterSignup`, `getUpcomingSchedules`, `recognitionStatus.js`, `LegacyAnchors`.
+- All 21 public pages now use `PremiumHeader` with header/main/footer as sibling landmarks. `app/verify/*` (Certificate) and the insight article pages (no header today) were not touched.
+- Validation (local production build with placeholder env): `next build` PASS, `tsc --noEmit` PASS, `scripts/lint.mjs` PASS; interaction suite 33/33 (menus, Escape focus return, deep links #training #services #contact #faq, FAQ, reduced motion); 62 route captures at 390/1440 with no new status, h1, overflow, alt, broken-image or console issues; homepage LCP 0.45-0.75 s, CLS 0 at 375/390/430/768/1440; Codex read-only review requested changes (inner-page landmarks, hardcoded year), both fixed.
+- No form was submitted and no database, payment or email call was made.
+
+### Not done (premium A3)
+- Inner-page bodies (about, training, course, contact, industries, utility pages) still use the legacy design; they come next by reusable template.
+- Known and unchanged: font-swap layout shift on `/industries/*` at 390 px (identical on `main`), `/gallery` hero contrast, `/verify` and 404 contrast, WAH font-swap P2.

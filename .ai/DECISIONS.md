@@ -18,3 +18,9 @@ Durable decisions for the TERAS Universal shared agent workflow.
 
 - Database changes are forward-only and additive by default.
 - Destructive production reset, `DROP`, `TRUNCATE`, or destructive data changes are prohibited without explicit human confirmation and the database safety workflow.
+
+## 2026-11-05 - Premium public design kit (A3 Executive)
+
+- The public site's premium design language is Concept A3 Executive with the Refined hero mosaic on the homepage.
+- It lives in `components/premium/` as scoped CSS Modules on the existing site tokens (`--navy`, `--navy-deep`, `--gold`, `--ink`, `--muted`, `--soft`, `--line`); `globals.css` is not rewritten. Inner pages migrate to the same kit template by template; do not add a second public design system.
+- One header action: "Request a Proposal". WhatsApp stays in the top bar, footer and contact block.
