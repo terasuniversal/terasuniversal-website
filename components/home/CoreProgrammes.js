@@ -14,8 +14,8 @@ const eachDuration = (slugs) => {
 const erectorSlugs = ["basic-scaffolder-level-1", "intermediate-scaffolder-level-2", "advanced-scaffolder-level-3"];
 const inspectorSlugs = ["scaffolding-inspector-basic", "scaffolding-inspector-intermediate", "scaffolding-inspector-advanced"];
 
-// Illustrative photography (AI-generated) where an accepted image exists; the other two programmes use a
-// Navy/Gold panel (`panel` = programme number) rather than a photograph that has not been approved.
+// No approved photograph exists for any of the three programmes, so each uses a Navy/Gold panel
+// (`panel` = programme number). A photograph needs scaffolding-trainer approval first.
 const items = [
   {
     // "Scaffolding Erector" is the public category label; the destination is the existing
@@ -24,8 +24,7 @@ const items = [
     href: "/training/scaffolding-competency",
     summary: "Erect, modify, inspect and dismantle scaffolding to industry standards. ",
     facts: `Basic, Intermediate and Advanced Scaffolder · ${eachDuration(erectorSlugs)}`,
-    image: "/images/v2/programme-erector-coupler-closeup.webp",
-    alt: "An instructor holding up a scaffold coupler to show its clamp halves and bolt",
+    panel: "01",
   },
   {
     title: "Scaffolding Inspector",

@@ -95,7 +95,6 @@ export default async function HomePage() {
         <Recognition />
         <HomeFaq />
         <HomeContact />
-        <p className={styles.disclosure}>Photographs on this page are AI-generated illustrations. The people shown are not TERAS personnel.</p>
       </div>
 
       <Footer />

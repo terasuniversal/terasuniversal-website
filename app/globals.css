@@ -7528,3 +7528,5 @@ textarea.feedback-input { resize: vertical; min-height: 88px; }
 #main-content > main:not(.verify-page, .verification-route, .feedback-page, .registration-page, .registration-status-page) :is(.upcoming-empty p, .gallery-results, .form-note) {
   font-size: 15px;
 }
+.footer-ai-note { padding-top: 12px; padding-bottom: 20px; }
+.footer-ai-note p { margin: 0; font-size: 0.8125rem; opacity: 0.8; }

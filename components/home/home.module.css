@@ -71,7 +71,6 @@
 .progFacts { display: block; margin-top: 10px; font-family: var(--font-montserrat); font-weight: 700; font-size: 1.25rem; }
 .progInline { display: none; position: relative; aspect-ratio: 16 / 10; margin-top: 18px; }
 .progInline img { object-fit: cover; }
-.progInline img { object-position: 50% 30%; }
 .panel { position: absolute; inset: 0; background: var(--navy); color: #fff; display: flex; flex-direction: column; justify-content: space-between; padding: clamp(20px, 3vw, 36px); border-bottom: 12px solid var(--gold); }
 .panelNo { font-family: var(--font-montserrat); font-weight: 800; font-size: clamp(4.5rem, 12vw, 9rem); line-height: 0.85; letter-spacing: -0.05em; color: var(--gold); }
 .panelTitle { font-family: var(--font-montserrat); font-weight: 800; font-size: clamp(1.5rem, 2.6vw, 2.25rem); line-height: 1.05; letter-spacing: -0.03em; max-width: 12ch; }
@@ -139,7 +138,6 @@
 .say { font-size: var(--lead); font-weight: 500; line-height: 1.35; margin-top: 20px; max-width: 26ch; }
 .reach { margin-top: 40px; min-width: 0; }
 .reach a { display: flex; align-items: center; min-height: 44px; overflow-wrap: anywhere; font-family: var(--font-montserrat); font-size: 1.125rem; font-weight: 700; text-decoration: underline; text-underline-offset: 5px; }
-.disclosure { padding: 0 var(--m) 48px; font-size: 0.875rem; color: var(--soft); max-width: 72ch; }
 .reach small { display: block; margin-top: 14px; font-size: 0.9375rem; color: var(--soft); max-width: 36ch; }
 .formSlot { grid-column: 3; min-width: 0; }
 .formSlot :global(.contact-form) { padding: 0; border: 0; box-shadow: none; background: transparent; border-radius: 0; }
