@@ -157,6 +157,10 @@ export default async function SalesDashboardPage() {
     ? "Unable to load this metric."
     : followUpsDueResult.count > 0 ? "Includes overdue" : undefined;
 
+  // Compact state only when every attention metric loaded and is exactly zero: countValue() yields the string
+  // "Unavailable" for a failed query, so an error (or any positive count) keeps all four cards and links.
+  const attentionAllClear = [overdueFollowUpsResult, followUpsDueTodayResult, overdueTasksMetric, tasksDueTodayMetric].every((metric) => countValue(metric) === 0);
+
   return (
     <div className="ta-sales">
       <PageHead
@@ -183,12 +187,22 @@ export default async function SalesDashboardPage() {
             <CardDescription>Overdue and due-today follow-ups and tasks, using the same boundaries as their queues.</CardDescription>
           </CardHeader>
           <CardContent>
-            <ul role="list" className="m-0 grid list-none grid-cols-1 gap-4 p-0 sm:grid-cols-2 xl:grid-cols-4">
-              <li><SalesMetricCard label="Overdue Follow-ups" value={countValue(overdueFollowUpsResult)} attention href="/admin/sales/follow-ups?view=overdue" /></li>
-              <li><SalesMetricCard label="Follow-ups Due Today" value={countValue(followUpsDueTodayResult)} attention href="/admin/sales/follow-ups?view=today" /></li>
-              <li><SalesMetricCard label="Overdue Tasks" value={countValue(overdueTasksMetric)} attention href="/admin/sales/tasks?view=overdue" /></li>
-              <li><SalesMetricCard label="Tasks Due Today" value={countValue(tasksDueTodayMetric)} attention href="/admin/sales/tasks?view=today" /></li>
-            </ul>
+            {attentionAllClear ? (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-secondary px-4 py-4 text-sm text-muted-foreground">
+                <p className="m-0">Nothing overdue or due today. Follow-ups and tasks are up to date.</p>
+                <div className="flex flex-wrap gap-2">
+                  <Link className="ta-btn ta-btn-outline ta-btn-sm" href="/admin/sales/follow-ups">View follow-ups</Link>
+                  <Link className="ta-btn ta-btn-outline ta-btn-sm" href="/admin/sales/tasks">View tasks</Link>
+                </div>
+              </div>
+            ) : (
+              <ul role="list" className="m-0 grid list-none grid-cols-1 gap-4 p-0 sm:grid-cols-2 xl:grid-cols-4">
+                <li><SalesMetricCard label="Overdue Follow-ups" value={countValue(overdueFollowUpsResult)} attention href="/admin/sales/follow-ups?view=overdue" /></li>
+                <li><SalesMetricCard label="Follow-ups Due Today" value={countValue(followUpsDueTodayResult)} attention href="/admin/sales/follow-ups?view=today" /></li>
+                <li><SalesMetricCard label="Overdue Tasks" value={countValue(overdueTasksMetric)} attention href="/admin/sales/tasks?view=overdue" /></li>
+                <li><SalesMetricCard label="Tasks Due Today" value={countValue(tasksDueTodayMetric)} attention href="/admin/sales/tasks?view=today" /></li>
+              </ul>
+            )}
           </CardContent>
           <CardContent className="px-0">
             <h3 className="mb-2 px-5 font-heading text-sm font-bold text-primary">Oldest overdue follow-ups</h3>

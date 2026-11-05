@@ -34,6 +34,7 @@
     "test:sales-quotation-revision-order": "node --experimental-strip-types scripts/sales-quotation-revision-order-contract.mts",
     "test:sst-revision-snapshot": "node --experimental-strip-types scripts/sst-revision-snapshot.test.mts",
     "test:sales-shared-ui": "node --experimental-strip-types scripts/sales-shared-ui-foundation-contract.mts",
+    "test:sales-dashboard-attention-empty": "node --experimental-strip-types scripts/sales-dashboard-attention-empty-contract.mts",
     "test:sales-wave3c-timezone": "node --experimental-strip-types scripts/sales-wave3c-timezone-contract.mts",
     "test:quotation-pdf-layout": "node --experimental-strip-types scripts/quotation-pdf-layout-contract.mts",
     "test:quotation-read-error": "node --experimental-strip-types scripts/quotation-read-error-contract.mts",
