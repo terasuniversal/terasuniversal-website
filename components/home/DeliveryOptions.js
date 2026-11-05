@@ -21,7 +21,7 @@ export default function DeliveryOptions() {
         ))}
       </div>
       <figure className={styles.wide}>
-        <Image src="/images/temp-ai-corporate-scene-09.webp" alt="A crew in navy overalls and hard hats walking through a training facility" fill loading="lazy" sizes="100vw" />
+        <Image src="/images/v2/delivery-instructor-led-male-branded.webp" alt="An instructor holds up a scaffold coupler to a classroom of eight trainees taking notes" fill loading="lazy" sizes="100vw" />
       </figure>
     </div>
   );

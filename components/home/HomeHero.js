@@ -15,7 +15,7 @@ export default function HomeHero() {
           <Image className={styles.drift} src="/images/temp-ai-corporate-scene-05.webp" alt="Two trainees in harnesses checking scaffold fittings" fill priority sizes="(max-width: 820px) 100vw, 50vw" />
         </div>
         <div className={`${styles.tile} ${styles.photo} ${styles.photoBottom}`}>
-          <Image className={styles.drift} src="/images/temp-ai-training-yard.webp" alt="Trainees in hard hats and vests at a training yard briefing" fill sizes="(max-width: 820px) 100vw, 50vw" />
+          <Image className={styles.drift} src="/images/v2/hero-training-briefing-male-branded.webp" alt="An instructor briefing six trainees in navy workwear, white hard hats and hi-vis vests in a covered training hall with scaffold tubes racked behind them" fill sizes="(max-width: 820px) 100vw, 50vw" />
         </div>
         <div className={styles.split}>
           <div className={styles.dark}>
