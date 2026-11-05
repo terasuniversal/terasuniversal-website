@@ -164,29 +164,32 @@ export default async function QuotationsPage({
                 const expiry = quotationExpiryState(q.valid_until);
                 const taskState = task ? dueDateState(task.due_at) : "none";
                 return (
-                <li className="ta-card ta-lead-card" key={q.id}>
-                  <div className="ta-lead-card-top">
-                    <Link href={`/admin/sales/quotations/${q.id}`} className="ta-sales-record-link"><code style={{ fontSize: 12 }}>{q.quotation_no}</code></Link>
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3 }}><Badge status={q.status} />{q.superseded_at && <span className="ta-badge-pill ta-badge-muted">Superseded</span>}<span style={{ fontSize: 11, color: expiry === "expired" ? "var(--ta-danger)" : "var(--ta-muted)" }}>{QUOTATION_EXPIRY_LABELS[expiry]}</span></div>
+                <li className="ta-card ta-lead-card ta-q-card" key={q.id}>
+                  <div className="ta-q-card-head">
+                    <div className="ta-q-card-id">
+                      <Link href={`/admin/sales/quotations/${q.id}`} className="ta-sales-record-link ta-q-card-no"><code>{q.quotation_no}</code></Link>
+                      <span className="ta-q-card-rev">{revisionLabel(q.revision_no)}{q.superseded_at ? " · Superseded; view history only" : ""}</span>
+                    </div>
+                    <div className="ta-q-card-status"><Badge status={q.status} />{q.superseded_at && <span className="ta-badge-pill ta-badge-muted">Superseded</span>}</div>
                   </div>
-                  <div className="ta-lead-card-company">
+                  <div className="ta-q-card-customer">
                     <strong>{q.sales_opportunities?.company_name ?? "—"}</strong>
                     {q.sales_opportunities?.opportunity_no && <div className="ta-lead-sub"><Link href={`/admin/sales/opportunities/${q.opportunity_id}`}>{q.sales_opportunities.opportunity_no}</Link></div>}
                   </div>
-                  <div className="ta-lead-card-grid">
-                    <span>Revision</span>
-                    <span>{revisionLabel(q.revision_no)}{q.superseded_at ? " · Superseded; view history only" : ""}</span>
-                    <span>Total</span>
-                    <span>RM {Number(q.total).toLocaleString("en-MY", { minimumFractionDigits: 2 })}</span>
+                  <div className="ta-q-card-total">
+                    <span className="ta-q-card-total-label">Total</span>
+                    <span className="ta-q-card-amount">RM {Number(q.total).toLocaleString("en-MY", { minimumFractionDigits: 2 })}</span>
+                  </div>
+                  <div className="ta-lead-card-grid ta-q-card-grid">
                     <span>Valid Until</span>
-                    <span>{q.valid_until ? formatMalaysiaDate(q.valid_until) : "—"}</span>
+                    <span>{q.valid_until ? formatMalaysiaDate(q.valid_until) : "—"}<span className="ta-q-card-expiry" data-state={expiry}>{QUOTATION_EXPIRY_LABELS[expiry]}</span></span>
                     <span>Issued</span><span>{formatMalaysiaDate(q.issue_date)}</span>
                     <span>Next Action</span>
                     <span style={{ overflowWrap: "anywhere", color: taskState === "overdue" ? "var(--ta-danger)" : undefined }}>{task ? `${task.title} · ${task.due_at ? `${FOLLOW_UP_STATE_LABELS[taskState]} · ${formatMalaysiaDateTime(task.due_at)}` : "No due date"}` : "No Follow-up"}</span>
                     {invoice && <><span>Invoice</span><span>{invoice.invoice_no} · {invoiceStatusLabel(invoice.status)} · {paymentVisibilityLabel(invoice.status, paymentStatusesByInvoice.get(invoice.id) ?? [])}</span></>}
                   </div>
                   <div className="ta-lead-card-action">
-                    <Link href={`/admin/sales/quotations/${q.id}`} className="ta-btn ta-btn-outline ta-btn-sm">View quotation →</Link>
+                    <Link href={`/admin/sales/quotations/${q.id}`} className="ta-btn ta-btn-outline ta-btn-sm" aria-label={`View quotation ${q.quotation_no}`}>View quotation →</Link>
                   </div>
                 </li>
                 );
