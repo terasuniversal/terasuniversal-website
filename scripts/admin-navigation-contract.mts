@@ -28,7 +28,7 @@ const allItems = NAV.flatMap((group) => group.items);
 assert.deepEqual(
   allItems.map((i) => `${i.key} ${i.href}`),
   [
-    "dashboard /admin/dashboard", "reports /admin/reports",
+    "dashboard /admin/dashboard", "reports /admin/reports", "executive /admin/executive",
     "courses /admin/courses", "trainers /admin/trainers", "schedules /admin/schedules",
     "participants /admin/participants", "companies /admin/companies", "attendance /admin/attendance",
     "assessment /admin/assessment", "assessors /admin/assessors", "legacy_import /admin/participants/legacy-import",

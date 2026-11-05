@@ -29,6 +29,8 @@ export const NAV: NavGroup[] = [
     items: [
       { key: "dashboard", label: "Dashboard", href: "/admin/dashboard", icon: "dashboard", minRole: "editor" },
       { key: "reports", label: "Reports & Analytics", href: "/admin/reports", icon: "reports", minRole: "editor" },
+      // Super Admin only; the page and its loader enforce the role server-side.
+      { key: "executive", label: "CEO Dashboard", href: "/admin/executive", icon: "dashboard", minRole: "super_admin" },
     ],
   },
   {

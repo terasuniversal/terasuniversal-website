@@ -138,9 +138,13 @@ export const MODULE_CATALOG: ModuleDefinition[] = [
   ["feedback_actions", "Feedback Actions", "Feedback", "editor"],
 ].map(([key, label, group, minRole]) => ({ key, label, group, minRole } as ModuleDefinition));
 
-export const MODULE_ACCESS: Record<string, UserRole> = Object.fromEntries(
-  MODULE_CATALOG.map((module) => [module.key, module.minRole])
-);
+export const MODULE_ACCESS: Record<string, UserRole> = {
+  ...Object.fromEntries(MODULE_CATALOG.map((module) => [module.key, module.minRole])),
+  // Role-gated page with no staff_module_catalog row. It is deliberately NOT in
+  // MODULE_CATALOG, so Staff User Management cannot assign it. Only Super Admin
+  // reaches /admin/executive (requireRole("super_admin") in the page and loader).
+  executive: "super_admin",
+};
 
 export const SALES_MODULE_KEYS = [
   "sales",
