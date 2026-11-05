@@ -26,18 +26,44 @@
   .drift { animation: none; }
 }
 
-@media (max-width: 820px) {
-  .board { grid-template-columns: 1fr 1fr; }
+/* Near full-frame hero on phones, tablets and phones in landscape (up to 932 px): the two photographs are 16:10 tiles, so about 90% of
+   each 16:9 image stays in view and the instructor and every trainee are in frame. The earlier 3:4 phone tiles showed only 42%. */
+@media (max-width: 932px) {
+  .board { grid-template-columns: 1fr; }
   .name { grid-column: 1 / -1; min-height: 0; padding: 28px calc(var(--px-m) - var(--px-gap)); }
-  .photoTop, .photoBottom { min-height: 0; aspect-ratio: 3 / 4; }
-  .photoTop img { object-position: 22% 30%; }
-  .photoBottom img { object-position: 20% 40%; }
-  .split { grid-column: 1 / -1; grid-template-columns: 1fr; }
-  .dark, .accent { padding: 24px 20px; }
+  .photoTop, .photoBottom { min-height: 0; aspect-ratio: 16 / 10; }
+  .photoTop img { object-position: 0% 50%; }
+  .photoBottom img { object-position: 70% 50%; }
+  .split { grid-column: 1 / -1; }
 }
 
-@media (min-width: 600px) and (max-width: 820px) {
-  .photoTop, .photoBottom { aspect-ratio: 1 / 1; }
+/* Tablet and landscape: the two photographs sit side by side at the same ratio, and the two tiles below stay side by side. */
+@media (min-width: 591px) and (max-width: 932px) {
+  .board { grid-template-columns: 1fr 1fr; }
+}
+
+/* Landscape phones and small tablets: wordmark and tagline share one row, which balances the wide tile and starts the photographs sooner. */
+@media (min-width: 700px) and (max-width: 932px) and (orientation: landscape) {
+  .name { flex-direction: row; align-items: flex-end; justify-content: space-between; gap: 32px; }
+  .name p { margin-top: 0; max-width: 26ch; }
+}
+
+/* 933-1280 px (iPad landscape, small laptops): the narrower mosaic tiles were cropping the instructor out of the Delivery photograph. */
+@media (min-width: 933px) and (max-width: 1280px) {
+  .photoTop img { object-position: 15% 20%; }
+  .photoBottom img { object-position: 35% 50%; }
+}
+
+/* Phones: the proposal tile sits between the two photographs, so the call to action stays on the first screen of current iPhones while
+   both photographs keep their full frame. Visual order only; the tab order (proposal button, then the course links) is unchanged. */
+@media (max-width: 590px) {
+  .split { display: contents; }
+  .name { order: 1; }
+  .photoTop { order: 2; }
+  .dark { order: 3; }
+  .photoBottom { order: 4; }
+  .accent { order: 5; }
+  .dark, .accent { padding: 24px 20px; }
 }
 
 /* The shared phone title rule in globals.css is scoped by ID; this matches it so the wordmark keeps its scale. */
