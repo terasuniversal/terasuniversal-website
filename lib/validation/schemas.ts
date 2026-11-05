@@ -679,7 +679,7 @@ export const MARKETING_CAMPAIGN_CHANNELS = [
 ] as const;
 export const MARKETING_CAMPAIGN_STATUSES = ["draft", "active", "completed", "archived"] as const;
 export const MARKETING_CONTACT_STATUSES = ["new", "nurturing", "sales_ready", "promoted", "archived"] as const;
-export const MARKETING_CONTACT_SOURCES = ["manual", "newsletter", "event", "referral", "import", "website", "other"] as const;
+export const MARKETING_CONTACT_SOURCES = ["manual", "newsletter", "event", "referral", "import", "website", "other", "free_ebook"] as const;
 export const MARKETING_CONTACT_CONSENT_STATUSES = ["not_set", "opted_in", "opted_out"] as const;
 
 export const marketingCampaignSchema = z.object({

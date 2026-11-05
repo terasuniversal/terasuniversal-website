@@ -83,10 +83,20 @@ export type MarketingCampaignChannel =
   | "whatsapp" | "email" | "website" | "event" | "referral" | "other";
 export type MarketingCampaignStatus = "draft" | "active" | "completed" | "archived";
 export type MarketingContactStatus = "new" | "nurturing" | "sales_ready" | "promoted" | "archived";
-export type MarketingContactSource = "manual" | "newsletter" | "event" | "referral" | "import" | "website" | "other";
+export type MarketingContactSource = "manual" | "newsletter" | "event" | "referral" | "import" | "website" | "other" | "free_ebook";
 export type MarketingContactConsentStatus = "not_set" | "opted_in" | "opted_out";
 export type LeadAttributionSource = "facebook" | "tiktok" | "whatsapp" | "website" | "referral" | "other";
-export type MarketingContactEventType = "created" | "status_changed" | "note_added" | "campaign_linked" | "consent_changed" | "unsubscribed" | "promoted_to_sales";
+export type MarketingContactEventType =
+  | "created"
+  | "status_changed"
+  | "note_added"
+  | "campaign_linked"
+  | "consent_changed"
+  | "unsubscribed"
+  | "promoted_to_sales"
+  | "ebook_requested"
+  | "ebook_downloaded"
+  | "ebook_course_enquiry";
 
 export interface Profile {
   id: string;
@@ -317,6 +327,8 @@ export interface MarketingContactEvent {
   campaign_id: string | null;
   lead_metadata_id: string | null;
   actor_id: string | null;
+  /** Per-submission evidence for eBook events (privacy acknowledgement, consent choice and versions, UTM, eBook id). */
+  metadata: Json | null;
   created_at: string;
 }
 
