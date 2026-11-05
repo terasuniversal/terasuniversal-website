@@ -1,10 +1,16 @@
-import Image from "next/image";
 import { notFound } from "next/navigation";
 import Footer from "../../../components/Footer";
+import Recognition from "../../../components/home/Recognition";
+import CtaBand from "../../../components/premium/CtaBand";
+import FactLedger from "../../../components/premium/FactLedger";
+import InnerHero from "../../../components/premium/InnerHero";
+import Outline from "../../../components/premium/Outline";
 import PremiumHeader from "../../../components/premium/PremiumHeader";
+import ProgrammeRow from "../../../components/premium/ProgrammeRow";
+import SectionHead from "../../../components/premium/SectionHead";
+import kit from "../../../components/premium/premium.module.css";
+import inner from "../../../components/premium/inner.module.css";
 import BreadcrumbJsonLd from "../../../components/public/BreadcrumbJsonLd";
-import CourseCard from "../../../components/public/CourseCard";
-import CourseFactList from "../../../components/public/CourseFactList";
 import PrimaryCtaGroup from "../../../components/public/PrimaryCtaGroup";
 import CourseScheduleOptions from "../../../components/public/CourseScheduleOptions";
 import RelatedIndustries from "../../../components/public/RelatedIndustries";
@@ -45,26 +51,39 @@ export default async function CoursePage({ params }) {
       ? `/calendar?courseId=${encodeURIComponent(courseId)}`
       : `/calendar?course=${encodeURIComponent(course.slug)}`;
 
+  const sameList = JSON.stringify(course.objectives) === JSON.stringify(course.modules);
+  const facts = [["Duration", course.duration], ["Delivery", course.deliveryMode], ["Assessment", course.assessment], ["Completion", course.completion]];
+
   return (
     <>
       <PremiumHeader />
-      <main className="course-catalog-page">
+      <main className={`${kit.px} ${inner.page}`}>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(courseSchema(course)) }} />
       <BreadcrumbJsonLd items={[{ name: "Home", path: "/" }, { name: "Training", path: "/training" }, { name: course.title, path: `/training/${course.slug}` }]} />
 
-      <section className="catalog-course-hero"><div className="container catalog-course-grid"><div><nav className="course-breadcrumb" aria-label="Breadcrumb"><a href="/">Home</a><span>/</span><a href="/training">Training</a><span>/</span><span aria-current="page">{course.title}</span></nav><span className="eyebrow">{course.category}</span><h1>{course.title}</h1><p>{course.summary}</p><PrimaryCtaGroup course={course} source="course-page" scheduleHref={scheduleHref} hasRegistration={hasRegistration} /></div><figure><Image src={course.image} alt="" unoptimized width={1200} height={800} priority sizes="(max-width: 920px) 100vw, 52vw" /></figure></div></section>
+      <InnerHero
+        crumbs={[{ label: "Home", href: "/" }, { label: "Training", href: "/training" }, { label: course.title }]}
+        eyebrow={course.category}
+        title={course.title}
+        lead={course.summary}
+        actions={<PrimaryCtaGroup course={course} source="course-page" scheduleHref={scheduleHref} hasRegistration={hasRegistration} />}
+        facts={[["Duration", course.duration], ["Delivery", course.deliveryMode]]}
+      />
 
       <CourseScheduleOptions sessions={courseSchedules} loadError={scheduleLoadError} />
 
-      <section className="catalog-course-content"><div className="container course-content-grid"><div><span className="eyebrow">Course Overview</span><h2>Course details</h2><p>{course.summary}</p><CourseFactList course={course} /></div>{course.audience?.length > 0 && <aside className="course-attend-card"><span className="eyebrow">Who Should Attend</span><ul>{course.audience.map((item) => <li key={item}>{item}</li>)}</ul></aside>}</div></section>
+      <section className={kit.sec} aria-labelledby="course-details-title"><div className={`${kit.wrap} ${inner.twoCol}`}><div><span className={`${inner.eyebrow} ${inner.onLight}`}>Course Overview</span><h2 id="course-details-title">Course details</h2><p>{course.summary}</p><FactLedger facts={facts} /></div>{course.audience?.length > 0 && <aside className={inner.aside} aria-labelledby="attend-title"><span className={`${inner.eyebrow} ${inner.onLight}`}>Who Should Attend</span><h3 id="attend-title" className="sr-only">Who should attend</h3><ul>{course.audience.map((item) => <li key={item}>{item}</li>)}</ul></aside>}</div></section>
 
-      {course.objectives?.length > 0 && <section className="catalog-course-modules"><div className="container"><div className="section-heading"><span className="eyebrow">Learning Objectives</span><h2>What participants will build.</h2></div><div className="catalog-module-grid">{course.objectives.map((objective, index) => <article key={objective}><span>{String(index + 1).padStart(2, "0")}</span><h3>{objective}</h3></article>)}</div></div></section>}
-      {course.entryRequirements?.length > 0 && <section className="catalog-course-content"><div className="container"><div className="section-heading"><span className="eyebrow">Entry Requirements</span><h2>Before attending.</h2></div><ul className="course-attend-card">{course.entryRequirements.map((requirement) => <li key={requirement}>{requirement}</li>)}</ul></div></section>}
-      {course.modules?.length > 0 && <section className="catalog-course-modules"><div className="container"><div className="section-heading"><span className="eyebrow">Course Outline</span><h2>Learning modules</h2></div><div className="catalog-module-grid">{course.modules.map((module, index) => <article key={module}><span>{String(index + 1).padStart(2, "0")}</span><h3>{module}</h3></article>)}</div></div></section>}
+      {course.objectives?.length > 0 && <section className={`${kit.sec} ${kit.trust}`} aria-labelledby="objectives-title"><div className={kit.wrap}><SectionHead id="objectives-title" eyebrow={sameList ? "Learning Objectives and Course Outline" : "Learning Objectives"} title="What participants will build." /><Outline items={course.objectives} label="Learning objectives" /></div></section>}
+      {course.entryRequirements?.length > 0 && <section className={kit.sec} aria-labelledby="entry-title"><div className={kit.wrap}><SectionHead id="entry-title" eyebrow="Entry Requirements" title="Before attending." /><Outline items={course.entryRequirements} check single label="Entry requirements" /></div></section>}
+      {course.modules?.length > 0 && !sameList && <section className={`${kit.sec} ${kit.trust}`} aria-labelledby="modules-title"><div className={kit.wrap}><SectionHead id="modules-title" eyebrow="Course Outline" title="Learning modules" /><Outline items={course.modules} label="Learning modules" /></div></section>}
 
-      <section className="course-final-cta"><div className="container"><div><span className="eyebrow">Upcoming Training</span><h2>Looking for a date for {course.title}?</h2><p>Review confirmed public sessions or send an enquiry for your workforce. Registration is arranged with the TERAS team.</p></div><PrimaryCtaGroup course={course} source="course-final-cta" scheduleHref={scheduleHref} hasRegistration={hasRegistration} /></div></section>
+      <CtaBand id="course-cta-title" eyebrow="Upcoming Training" title={`Looking for a date for ${course.title}?`} text="Review confirmed public sessions or send an enquiry for your workforce. Registration is arranged with the TERAS team.">
+        <PrimaryCtaGroup course={course} source="course-final-cta" scheduleHref={scheduleHref} hasRegistration={hasRegistration} />
+      </CtaBand>
       <RelatedIndustries courseSlug={course.slug} />
-      {relatedCourses.length > 0 && <section className="training-programmes-section"><div className="container"><div className="section-heading"><span className="eyebrow">Related Courses</span><h2>Continue your competency pathway.</h2></div><div className="training-programme-grid">{relatedCourses.map((relatedCourse) => <CourseCard key={relatedCourse.slug} course={relatedCourse} source="related-course" />)}</div></div></section>}
+      {relatedCourses.length > 0 && <section className={kit.sec} aria-labelledby="related-courses-title"><div className={kit.wrap}><SectionHead id="related-courses-title" eyebrow="Related Courses" title="Continue your competency pathway." /><ul className={kit.idx}>{relatedCourses.map((relatedCourse) => <ProgrammeRow key={relatedCourse.slug} course={relatedCourse} />)}</ul></div></section>}
+      <Recognition />
       </main>
       <Footer />
     </>

@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import EmptyState from "./premium/EmptyState";
+import inner from "./premium/inner.module.css";
 
 const MAX_SELECT = 3;
 const FIELDS = [
@@ -36,90 +38,65 @@ export default function TrainingComparison({ courses }) {
   };
 
   return (
-    <section className="training-compare-section" aria-labelledby="compare-title">
-      <div className="container">
-        <div className="section-heading training-section-heading">
-          <span className="eyebrow">Compare Programmes</span>
-          <h2 id="compare-title">Not sure which level is right for your team?</h2>
-          <p>Select up to {MAX_SELECT} programmes to compare duration, delivery mode, assessment and completion side by side. All figures shown are verified against the official TERAS UNIVERSAL course catalogue.</p>
-        </div>
-
-        <div className="training-compare-picker" role="group" aria-label="Choose programmes to compare">
-          {courses.map((course) => {
-            const isOn = selected.includes(course.slug);
-            const disabled = !isOn && selected.length >= MAX_SELECT;
-            return (
-              <button
-                key={course.slug}
-                type="button"
-                className={`training-compare-chip${isOn ? " is-active" : ""}`}
-                aria-pressed={isOn}
-                disabled={disabled}
-                onClick={() => toggle(course.slug)}
-              >
-                {course.title}
-              </button>
-            );
-          })}
-        </div>
-
-        {chosen.length > 0 ? (
-          <div className="training-compare-table-wrap">
-            <table className="training-compare-table">
-              <thead>
-                <tr>
-                  <th scope="col" className="training-compare-rowlabel">Programme</th>
-                  {chosen.map((c) => (
-                    <th scope="col" key={c.slug}>
-                      {c.title}
-                      <a href={`/training/${c.slug}`} className="training-compare-viewlink">View programme &rarr;</a>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {FIELDS.map(({ key, label }) => (
-                  <tr key={key}>
-                    <th scope="row" className="training-compare-rowlabel">{label}</th>
-                    {chosen.map((c) => (
-                      <td key={c.slug}>{c[key] || "Available on request"}</td>
-                    ))}
-                  </tr>
-                ))}
-                <tr>
-                  <th scope="row" className="training-compare-rowlabel">Target Audience</th>
-                  {chosen.map((c) => (
-                    <td key={c.slug}>
-                      {c.audience && c.audience.length > 0 ? (
-                        <ul className="training-compare-list">
-                          {c.audience.slice(0, 4).map((a) => <li key={a}>{a}</li>)}
-                        </ul>
-                      ) : "Available on request"}
-                    </td>
-                  ))}
-                </tr>
-                <tr>
-                  <th scope="row" className="training-compare-rowlabel">Objectives</th>
-                  {chosen.map((c) => (
-                    <td key={c.slug}>
-                      {c.objectives && c.objectives.length > 0 ? (
-                        <ul className="training-compare-list">
-                          {c.objectives.slice(0, 3).map((o) => <li key={o}>{o}</li>)}
-                          {c.objectives.length > 3 && <li className="training-compare-more">+{c.objectives.length - 3} more</li>}
-                        </ul>
-                      ) : "Available on request"}
-                    </td>
-                  ))}
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <p className="training-compare-empty">Select at least one programme above to see its details.</p>
-        )}
-
-        <p className="training-compare-note">Course information shown is limited to what has been verified in TERAS UNIVERSAL&apos;s official course catalogue. Programmes without a confirmed field show &ldquo;Available on request&rdquo; — contact our team for the latest details.</p>
+    <>
+      <div className={inner.picker} role="group" aria-label="Choose programmes to compare">
+        {courses.map((course) => {
+          const isOn = selected.includes(course.slug);
+          const disabled = !isOn && selected.length >= MAX_SELECT;
+          return <button key={course.slug} type="button" className={inner.pick} aria-pressed={isOn} disabled={disabled} onClick={() => toggle(course.slug)}>{course.title}</button>;
+        })}
       </div>
-    </section>
+
+      {chosen.length > 0 ? (
+        <div className={inner.tableWrap} tabIndex={0} role="region" aria-label="Programme comparison table">
+          <table className={inner.table}>
+            <thead>
+              <tr>
+                <th scope="col">Programme</th>
+                {chosen.map((c) => (
+                  <th scope="col" key={c.slug}>
+                    {c.title}
+                    <a href={`/training/${c.slug}`} className={inner.viewLink}>View programme &rarr;</a>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {FIELDS.map(({ key, label }) => (
+                <tr key={key}>
+                  <th scope="row">{label}</th>
+                  {chosen.map((c) => <td key={c.slug}>{c[key] || "Available on request"}</td>)}
+                </tr>
+              ))}
+              <tr>
+                <th scope="row">Target Audience</th>
+                {chosen.map((c) => (
+                  <td key={c.slug}>
+                    {c.audience && c.audience.length > 0 ? <ul>{c.audience.slice(0, 4).map((a) => <li key={a}>{a}</li>)}</ul> : "Available on request"}
+                  </td>
+                ))}
+              </tr>
+              <tr>
+                <th scope="row">Objectives</th>
+                {chosen.map((c) => (
+                  <td key={c.slug}>
+                    {c.objectives && c.objectives.length > 0 ? (
+                      <ul>
+                        {c.objectives.slice(0, 3).map((o) => <li key={o}>{o}</li>)}
+                        {c.objectives.length > 3 && <li>+{c.objectives.length - 3} more</li>}
+                      </ul>
+                    ) : "Available on request"}
+                  </td>
+                ))}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <EmptyState title="No programme selected." text="Select at least one programme above to see its details." />
+      )}
+
+      <p className={inner.note}>Course information shown is limited to what has been verified in TERAS UNIVERSAL&apos;s official course catalogue. Programmes without a confirmed field show &ldquo;Available on request&rdquo; — contact our team for the latest details.</p>
+    </>
   );
 }

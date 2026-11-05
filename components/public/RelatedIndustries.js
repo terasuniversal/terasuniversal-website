@@ -1,5 +1,7 @@
 import { industries } from "../../data/industries";
-import styles from "./public-phase-one.module.css";
+import SectionHead from "../premium/SectionHead";
+import kit from "../premium/premium.module.css";
+import inner from "../premium/inner.module.css";
 
 export default function RelatedIndustries({ courseSlug }) {
   const relatedIndustries = industries.filter((industry) => industry.relevantCourseSlugs.includes(courseSlug));
@@ -7,23 +9,19 @@ export default function RelatedIndustries({ courseSlug }) {
   if (relatedIndustries.length === 0) return null;
 
   return (
-    <section className={styles.relatedIndustries} aria-labelledby="related-industries-title">
-      <div className="container">
-        <div className="section-heading">
-          <span className="eyebrow">Industry Context</span>
-          <h2 id="related-industries-title">Explore relevant industry solutions.</h2>
-          <p>See how TERAS connects this programme to the operating needs of the sectors it supports.</p>
-        </div>
-        <div className={styles.relatedIndustryGrid}>
+    <section className={kit.sec} aria-labelledby="related-industries-title">
+      <div className={kit.wrap}>
+        <SectionHead id="related-industries-title" title="Explore relevant industry solutions.">See how TERAS connects this programme to the operating needs of the sectors it supports.</SectionHead>
+        <ul className={inner.tiles}>
           {relatedIndustries.map((industry) => (
-            <a className={styles.relatedIndustryCard} href={`/industries/${industry.slug}`} key={industry.slug}>
-              <span className="eyebrow">Industry</span>
-              <h3>{industry.name}</h3>
+            <li className={inner.tile} key={industry.slug}>
+              <span className={inner.cat}>Industry</span>
+              <h3><a className={inner.stretch} href={`/industries/${industry.slug}`}>{industry.name}</a></h3>
               <p>{industry.summary}</p>
-              <span>Explore solutions <span aria-hidden="true">&rarr;</span></span>
-            </a>
+              <span className={inner.tileGo} aria-hidden="true">Explore solutions &rarr;</span>
+            </li>
           ))}
-        </div>
+        </ul>
       </div>
     </section>
   );
