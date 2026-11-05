@@ -106,7 +106,7 @@
 .three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px; margin-top: 48px; }
 .three p { margin-top: 10px; max-width: 32ch; }
 .wide { position: relative; margin: 120px calc(var(--m) * -1) 0; aspect-ratio: 21 / 8; overflow: hidden; }
-.wide img { object-fit: cover; }
+.wide img { object-fit: cover; object-position: 50% 20%; }
 
 /* recognition */
 .recog { margin-top: 120px; background: var(--navy); color: #fff; padding-top: 120px; padding-bottom: 120px; }
@@ -198,6 +198,7 @@
   .delivery { margin-top: 104px; }
   .three { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; margin-top: 32px; }
   .wide { margin-top: 72px; aspect-ratio: 4 / 3; }
+  .wide img { object-position: 8% 50%; }
   .recog { margin-top: 72px; padding-top: 72px; padding-bottom: 72px; }
   .bodyName { white-space: normal; }
   .band { grid-template-columns: 1fr; padding: 32px 20px; gap: 10px; }
