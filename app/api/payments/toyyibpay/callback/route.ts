@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyCallbackHash, getBillTransactions, parseToyyibpayTransactionDate } from "../../../../../lib/payments/toyyibpay";
 import { createSupabaseServiceClient } from "../../../../../lib/supabase/server";
+import { blockedCallbackBody, isPreviewIsolationError } from "../../../../../lib/preview-isolation";
 
 /**
  * ToyyibPay Phase 2C callback -- public, provider-facing, no staff login.
@@ -98,6 +99,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
     return await handleCallback(req);
   } catch (err) {
+    // Preview isolation: a callback blocked by the guard (privileged Supabase
+    // configuration, or live payment mode outside Production) must not be
+    // acknowledged as handled -- ToyyibPay would stop retrying. Explicit 503
+    // instead of the generic "OK". Production never reaches this branch.
+    if (isPreviewIsolationError(err)) {
+      console.error("[toyyibpay-callback] blocked by preview isolation guard", { code: err.code });
+      return NextResponse.json(blockedCallbackBody(), { status: 503 });
+    }
     console.error("[toyyibpay-callback] unexpected error", { message: err instanceof Error ? err.message : String(err) });
     return genericResponse();
   }
