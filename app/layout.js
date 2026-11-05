@@ -1,10 +1,31 @@
 import "./globals.css";
+import "./fonts/fallbacks.css";
 import Analytics from "../components/Analytics";
 import StickyCta from "../components/StickyCta";
-import { Montserrat, Poppins } from "next/font/google";
+import localFont from "next/font/local";
 
-const montserrat = Montserrat({ subsets: ["latin"], weight: ["600", "700", "800"], variable: "--font-montserrat", display: "swap" });
-const poppins = Poppins({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-poppins", display: "swap" });
+// Self-hosted Latin subsets (SIL OFL 1.1; sources, versions and SHA-256 in app/fonts/README.md).
+// Loaded from the repository so a build never depends on Google Fonts being reachable. The
+// fallback faces come from fonts/fallbacks.css and keep the previous fallback metrics.
+const montserrat = localFont({
+  src: [{ path: "./fonts/montserrat/montserrat-v31-latin-wght-normal.woff2", weight: "600 800", style: "normal" }],
+  variable: "--font-montserrat",
+  display: "swap",
+  adjustFontFallback: false,
+  fallback: ["Montserrat Fallback"],
+});
+const poppins = localFont({
+  src: [
+    { path: "./fonts/poppins/poppins-v24-latin-400.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/poppins/poppins-v24-latin-500.woff2", weight: "500", style: "normal" },
+    { path: "./fonts/poppins/poppins-v24-latin-600.woff2", weight: "600", style: "normal" },
+    { path: "./fonts/poppins/poppins-v24-latin-700.woff2", weight: "700", style: "normal" },
+  ],
+  variable: "--font-poppins",
+  display: "swap",
+  adjustFontFallback: false,
+  fallback: ["Poppins Fallback"],
+});
 
 export const viewport = {
   width: "device-width",

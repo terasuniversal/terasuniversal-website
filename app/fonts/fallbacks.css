@@ -1,0 +1,8 @@
+/*
+ * Metric-matched local fallbacks for the three self-hosted families.
+ * The values are exactly those Next.js generated for the former Google Fonts loader, so the
+ * layout before the web fonts load (and for glyphs outside the Latin subset) is unchanged.
+ */
+@font-face { font-family: "Montserrat Fallback"; src: local("Arial"); ascent-override: 85.79%; descent-override: 22.25%; line-gap-override: 0.00%; size-adjust: 112.83%; }
+@font-face { font-family: "Poppins Fallback"; src: local("Arial"); ascent-override: 93.62%; descent-override: 31.21%; line-gap-override: 8.92%; size-adjust: 112.16%; }
+@font-face { font-family: "Inter Fallback"; src: local("Arial"); ascent-override: 90.44%; descent-override: 22.52%; line-gap-override: 0.00%; size-adjust: 107.12%; }

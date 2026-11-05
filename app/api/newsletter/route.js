@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
+import { blockedOutboundBody, outboundDecision } from "../../../lib/preview-isolation";
 
 export const runtime = "nodejs";
 
@@ -24,6 +25,10 @@ function responseError(message, status = 400) { return NextResponse.json({ error
  * already used in app/api/request-proposal/route.js for its own env vars.
  */
 export async function POST(request) {
+  // Preview isolation: runs before the Resend key is read or any API call is made.
+  const outbound = outboundDecision("email");
+  if (!outbound.allowed) return NextResponse.json(blockedOutboundBody(outbound), { status: outbound.status });
+
   const apiKey = process.env.RESEND_API_KEY;
   const audienceId = process.env.RESEND_AUDIENCE_ID?.trim();
   const origin = request.headers.get("origin");
