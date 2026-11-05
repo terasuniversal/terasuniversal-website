@@ -1030,3 +1030,11 @@ body:has(.teras-admin) .skip-link { display: none; }
   .ta-followup-inline button { min-height: 44px; }
 }
 
+
+/* CEO Dashboard (read-only): breakdown rows and notes. Reuses the Sales report KPI grid, intro and toolbar styles. */
+.ta-exec-dl { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 14px; margin: 0; }
+.ta-exec-row { display: contents; }
+.ta-exec-row dt { color: var(--ta-muted); font-size: 13px; overflow-wrap: anywhere; }
+.ta-exec-row dd { margin: 0; font-weight: 700; font-size: 13px; text-align: right; }
+.ta-exec-issues, .ta-exec-defs { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.55; }
+.ta-exec .ta-stat-value { overflow-wrap: anywhere; }
