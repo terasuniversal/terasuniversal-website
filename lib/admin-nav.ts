@@ -41,6 +41,8 @@ export const NAV: NavGroup[] = [
       { key: "schedules", label: "Training Schedule", href: "/admin/schedules", icon: "schedules", minRole: "editor" },
       { key: "participants", label: "Participants", href: "/admin/participants", icon: "participants", minRole: "editor" },
       { key: "companies", label: "Companies", href: "/admin/companies", icon: "companies", minRole: "editor" },
+      // Admin and above; the page and its loader enforce the role server-side and RLS allows only admin reads.
+      { key: "registrations", label: "Registrations", href: "/admin/registrations", icon: "participants", minRole: "admin" },
       { key: "attendance", label: "Attendance", href: "/admin/attendance", icon: "attendance", minRole: "trainer" },
       { key: "assessment", label: "Assessment", href: "/admin/assessment", icon: "assessment", minRole: "trainer" },
       // Reconciled 2026-08-23: this module and its routes already existed
