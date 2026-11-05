@@ -37,6 +37,12 @@ html, body {
   overflow-x: hidden;
 }
 
+/* overflow-x: hidden on body made it a scroll container, so the sticky header could never stay pinned.
+   clip clips the same way without creating one; browsers without clip keep the hidden rule above. */
+body {
+  overflow-x: clip;
+}
+
 main,
 section,
 header,
