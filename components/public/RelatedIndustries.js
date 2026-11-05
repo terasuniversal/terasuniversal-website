@@ -11,7 +11,7 @@ export default function RelatedIndustries({ courseSlug }) {
   return (
     <section className={kit.sec} aria-labelledby="related-industries-title">
       <div className={kit.wrap}>
-        <SectionHead id="related-industries-title" title="Explore relevant industry solutions.">See how TERAS connects this programme to the operating needs of the sectors it supports.</SectionHead>
+        <SectionHead id="related-industries-title" eyebrow="Industry Context" title="Explore relevant industry solutions.">See how TERAS connects this programme to the operating needs of the sectors it supports.</SectionHead>
         <ul className={inner.tiles}>
           {relatedIndustries.map((industry) => (
             <li className={inner.tile} key={industry.slug}>
