@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "../../lib/supabase/client";
 import type { Profile } from "../../lib/supabase/database.types";
@@ -27,6 +27,20 @@ function SearchIcon() {
   );
 }
 
+// The long search hint only fits above the drawer breakpoint (admin.css, 900px); below it the
+// field is narrower and the placeholder would clip. The accessible name is the aria-label, not this text.
+const COMPACT_QUERY = "(max-width: 900px)";
+const PLACEHOLDER_FULL = "Search courses, participants, companies, enquiries…";
+const PLACEHOLDER_COMPACT = "Search…";
+function subscribeCompact(onChange: () => void) {
+  const query = window.matchMedia(COMPACT_QUERY);
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+}
+const compactSnapshot = () => window.matchMedia(COMPACT_QUERY).matches;
+// Server render and hydration use the full text, so there is no hydration mismatch; phones switch right after load.
+const compactServerSnapshot = () => false;
+
 /**
  * Top bar: mobile nav trigger (opens AdminShell's drawer, so it must render
  * inside its Sheet), breadcrumbs from the nav tree, global search box (Cmd-K style — posts to the
@@ -36,6 +50,7 @@ export function Topbar({ profile, moduleKeys = [], pathname }: { profile: Profil
   const router = useRouter();
   const [q, setQ] = useState("");
   const [signingOut, setSigningOut] = useState(false);
+  const compact = useSyncExternalStore(subscribeCompact, compactSnapshot, compactServerSnapshot);
   const initials = (profile.full_name || profile.email)
     .split(" ")
     .map((s) => s[0])
@@ -94,7 +109,7 @@ export function Topbar({ profile, moduleKeys = [], pathname }: { profile: Profil
           type="search"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Search courses, participants, companies, enquiries…"
+          placeholder={compact ? PLACEHOLDER_COMPACT : PLACEHOLDER_FULL}
           aria-label="Global search"
         />
       </form>
