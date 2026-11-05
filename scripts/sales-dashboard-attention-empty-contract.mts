@@ -21,6 +21,7 @@ assert.ok(!/attentionAllClear\s*=[^;]*(\|\||some\()/.test(src), "all-clear is no
 // 2. The message and the links.
 assert.match(src, /Nothing overdue or due today\. Follow-ups and tasks are up to date\./, "approved message text");
 assert.match(src, /<Link className="ta-btn ta-btn-outline ta-btn-sm" href="\/admin\/sales\/follow-ups">View follow-ups<\/Link>/, "follow-ups queue stays reachable");
+assert.match(src, /<Link className="ta-btn ta-btn-outline ta-btn-sm" href="\/admin\/sales\/tasks">View tasks<\/Link>/, "tasks queue stays reachable");
 
 // 3. Otherwise all four cards render exactly as before, with their links.
 const afterCond = src.split("{attentionAllClear ? (")[1] ?? "";
