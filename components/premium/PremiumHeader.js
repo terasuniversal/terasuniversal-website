@@ -20,7 +20,7 @@ export default function PremiumHeader() {
           </nav>
         </div>
       </div>
-      <header className={`${kit.px} ${kit.hdr}`}>
+      <header className={`${kit.px} ${kit.hdr} site-premium-header`}>
         <div className={`${kit.wrap} ${kit.hdrRow}`}>
           <a className={kit.logo} href="/" aria-label="TERAS UNIVERSAL home">
             <Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL" width={220} height={140} sizes="72px" loading="eager" />

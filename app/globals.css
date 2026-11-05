@@ -38,8 +38,10 @@ html, body {
 }
 
 /* overflow-x: hidden on body made it a scroll container, so the sticky header could never stay pinned.
-   clip clips the same way without creating one; browsers without clip keep the hidden rule above. */
-body {
+   clip clips the same way without creating one. Scoped to pages that render the shared premium header, so
+   the admin, certificate verification and other layouts keep the hidden rule above; browsers without clip
+   or :has keep it everywhere. */
+body:has(.site-premium-header) {
   overflow-x: clip;
 }
 
