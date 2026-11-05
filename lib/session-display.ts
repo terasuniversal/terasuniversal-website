@@ -6,7 +6,7 @@ import type { PublicSchedule } from "./public-content";
 
 export type SessionKind = "open" | "enquiry" | "full";
 
-type SessionState = Pick<PublicSchedule, "status" | "capacity" | "available_seats" | "registration_available">;
+type SessionState = Pick<PublicSchedule, "status" | "capacity" | "available_seats" | "fee" | "registration_available">;
 
 /** A fee counts as confirmed only when it is a positive number. Null, zero, negative and non-numeric values are not shown as prices. */
 export function confirmedFee(fee: number | null | undefined): number | null {
@@ -27,11 +27,19 @@ export const FEE_UNIT = "per participant";
 export const FEE_ENQUIRY_TEXT = "Fee confirmed on enquiry";
 
 /**
- * Registration is offered only when the server says so. Fee and status are never used to infer eligibility.
- * A session that is not registrable is "full" when the server reports it full or no seats remain, otherwise enquiry-only.
+ * Authoritative contract (get_public_registration_schedule, supabase/migrations/20260907135351): registration_available is true only for a
+ * published, open session that has not started, whose fee is NOT NULL, with capacity greater than seats taken plus live holds. So a session
+ * that is full, or has a null fee or no seat, is never registrable on the server. A fee of 0 passes that rule (the column allows
+ * fee >= 0), but the payment step cannot bill RM 0 (createBill requires a positive amount), so such a registration would fail after it
+ * had already held a seat.
+ *
+ * The "open" (Register) state therefore needs the server flag AND a confirmed positive fee AND a seat (and a status other than full): exactly what the registration page
+ * itself requires, plus the positive fee the payment provider requires. This never grants registration beyond the flag; it only withholds
+ * the Register link where the registration flow could not complete. Any other session is "full" (server says full or no seat remains)
+ * or enquiry-only.
  */
 export function sessionKind(session: SessionState): SessionKind {
-  if (session.registration_available === true) return "open";
+  if (session.registration_available === true && session.status !== "full" && confirmedFee(session.fee) !== null && session.available_seats >= 1) return "open";
   if (session.status === "full" || (session.capacity > 0 && session.available_seats <= 0)) return "full";
   return "enquiry";
 }

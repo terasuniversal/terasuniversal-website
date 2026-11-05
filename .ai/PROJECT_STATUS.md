@@ -312,3 +312,9 @@ No migration was applied, no push, no merge, no deploy. Validation not re-run in
 - Course pages and `/calendar` use the same helpers (presentation only). `/training` next-session data is deferred (it would add per-session schedule calls and change caching).
 - `lib/public-content.ts`: `getUpcomingSchedulesWithState` replaces `getUpcomingSchedules` (same RPC calls and 60 s cache; new cache key; adds an error flag so a failed schedule request shows the unavailable state). Repo guard scripts updated to the current implementation.
 - Test data was synthetic and labelled. Production schedule data, prices and dates from the owner's legacy screenshot were not used.
+
+### Upcoming Training final safety gate (2026-11-06)
+- Registration contract verified against `get_public_registration_schedule` (migration `20260907135351`): `registration_available` requires a published, open session that has not started, `fee IS NOT NULL`, capacity greater than seats taken plus live holds. A null fee or a full session therefore cannot be registrable on the server. A fee of 0 can (the column allows `fee >= 0`), but the payment step rejects a non-positive amount (`createBill`), so a Register link for it would fail after holding a seat.
+- Correction: the Register state (`sessionKind` "open") now needs the server flag AND status other than full AND a positive fee AND a seat, the same checks the registration page applies plus the positive fee the payment provider needs. Homepage cards, course pages (session list and hero) and the calendar all use it. Frontend never grants registration beyond the flag.
+- Verified: no extra schedule RPC calls (1 list + 3 registration calls per cache window, identical to the baseline), the `schedules` tag and 60 second revalidation are unchanged, the new cache key does not collide with the old array-shaped entry.
+- Local only: nothing pushed.

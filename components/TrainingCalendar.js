@@ -46,10 +46,10 @@ const seatsLabel = (session) => {
 
 // A session that is still ahead and not registrable goes to an enquiry: "Ask about the next date" when it is full, "Enquire About This
 // Session" otherwise (no waiting list). Past or closed sessions keep the course-details link.
-const isEnquiryAhead = (session) => !session.registration_available && isUpcoming(session) && isLiveStatus(session);
+const isEnquiryAhead = (session) => sessionKind(session) !== "open" && isUpcoming(session) && isLiveStatus(session);
 const enquiryUrl = (session) => enquiryHref({ course: session.slug ?? undefined, source: "calendar", session: session.start_date });
-const sessionUrl = (session) => session.registration_available ? `/registration/${session.id}` : isEnquiryAhead(session) ? enquiryUrl(session) : (session.slug ? `/training/${session.slug}` : enquiryHref({ source: "calendar", session: session.start_date }));
-const sessionCta = (session) => session.registration_available ? "Register" : isEnquiryAhead(session) ? (sessionKind(session) === "full" ? "Ask about the next date" : "Enquire About This Session") : (session.slug ? "View Course Details" : "Enquire About This Session");
+const sessionUrl = (session) => sessionKind(session) === "open" ? `/registration/${session.id}` : isEnquiryAhead(session) ? enquiryUrl(session) : (session.slug ? `/training/${session.slug}` : enquiryHref({ source: "calendar", session: session.start_date }));
+const sessionCta = (session) => sessionKind(session) === "open" ? "Register" : isEnquiryAhead(session) ? (sessionKind(session) === "full" ? "Ask about the next date" : "Enquire About This Session") : (session.slug ? "View Course Details" : "Enquire About This Session");
 
 function isUpcoming(session) {
   return session.start_date >= todayString();

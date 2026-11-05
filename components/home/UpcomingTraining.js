@@ -17,8 +17,8 @@ import styles from "./upcoming.module.css";
 const PILL = { open: styles.pillOpen, enquiry: "", full: styles.pillFull };
 
 // The section keeps the #upcoming-training anchor that existing links use. Sessions come from getUpcomingSchedulesWithState() in
-// app/page.js (same RPC calls and cache lifetime as before, at most three). Registration is offered only when the server flag
-// registration_available is true; the fee is shown exactly as the schedule provides it and never decides eligibility.
+// app/page.js (same RPC calls and cache lifetime as before, at most three). Registration is offered only for the "open" state
+// in lib/session-display.ts (server flag registration_available, a positive fee and a seat); the fee is shown exactly as the schedule provides it.
 function SessionCard({ session }) {
   const kind = sessionKind(session);
   const labels = KIND_LABELS[kind];

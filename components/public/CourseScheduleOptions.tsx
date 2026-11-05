@@ -9,8 +9,8 @@ import { enquiryHref } from "./PrimaryCtaGroup";
 const pillClass = { open: inner.pillOpen, enquiry: "", full: inner.pillFull };
 
 // Same sessions and contract as before; only the presentation follows the shared session rules (lib/session-display.ts).
-// Registration is offered only when the server flag registration_available is true. A fee that is null or zero is shown as an
-// enquiry-based state, never as a free session.
+// Registration is offered only for the "open" state (server flag registration_available, a positive fee and a seat). A fee that is null
+// or zero is shown as an enquiry-based state, never as a free session.
 export default function CourseScheduleOptions({ sessions, loadError = false, courseSlug }: { sessions: PublicSchedule[]; loadError?: boolean; courseSlug?: string }) {
   if (loadError) return <section className={kit.sec} aria-labelledby="course-schedule-title"><div className={kit.wrap}><SectionHead id="course-schedule-title" eyebrow="Upcoming Training" title="Training dates are temporarily unavailable.">Please try again shortly or contact TERAS for assistance.</SectionHead><a className={`${kit.btn} ${kit.btnNavy}`} href="/request-proposal">Contact TERAS</a></div></section>;
   if (!sessions.length) return null;

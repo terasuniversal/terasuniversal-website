@@ -37,3 +37,6 @@ Durable decisions for the TERAS Universal shared agent workflow.
 
 ## 2026-11-06 - Session price and availability presentation
 - Session fees are shown only from the authoritative schedule record as `RM x,xxx per participant`; null or zero is an enquiry state, never a free session. Registration is offered only when the server flag `registration_available` is true. Full sessions offer an enquiry ("Ask about the next date"), with no waiting-list workflow.
+
+## 2026-11-06 - Register state follows the registration and payment contract
+- A public session shows Register only when the server flag `registration_available` is true, the status is not full, the fee is a positive amount and a seat remains. A zero fee is an enquiry state, because the payment provider cannot bill RM 0. The registration page, payment and database logic are unchanged.
