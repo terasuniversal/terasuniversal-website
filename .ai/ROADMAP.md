@@ -23,3 +23,7 @@ Shared roadmap for the TERAS Universal website/CRM and its agent workflow.
 
 - Live Supabase schema, RLS, grants, and read-only advisors were re-verified for the Marketing tables on 2026-08-28.
 - Local unauthenticated browser smoke check for `/admin/marketing` was completed on 2026-08-28.
+
+## Premium A3 full-site rollout (planned, gated)
+
+- After the corrected hero and shared baseline are accepted: 1) training and course pages, 2) About, Services, Corporate Training, 3) Contact and Request Proposal, 4) Industries, 5) utility pages (gallery, calendar, FAQ, resources, insights, search, stories, 404). Each template is its own branch, QA gate, SSO Preview, iPhone check and separate merge approval. CRM/Admin, certificate verification, payments and backend integrations are out of scope. Details in the design workspace `ROLLOUT-PLAN.md`.
