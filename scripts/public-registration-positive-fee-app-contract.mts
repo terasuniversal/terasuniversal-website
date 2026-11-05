@@ -86,6 +86,50 @@ check("admin: the help text states positive-only and enquiry for a blank fee", (
   assert.match(form, /enquire/);
 });
 
+// ---- Public fee presentation: zero is never shown as a price -----------------
+// The formatter expressions are read from the real components and evaluated here
+// (trusted repository source) so the test follows the shipped code.
+const calendar = read("components/TrainingCalendar.js");
+const feeLabelSource = /const feeLabel = (\(fee\) => [\s\S]*?);\r?\n/.exec(calendar)?.[1];
+check("presentation: calendar feeLabel is present", () => assert.ok(feeLabelSource));
+const feeLabel = (fee: unknown): string | null => new Function("Intl", `return (${feeLabelSource});`)(Intl)(fee) as string | null;
+check("presentation: calendar shows RM1,500 / pax for a positive fee", () => assert.equal(feeLabel(1500), "RM1,500 / pax"));
+check("presentation: calendar shows the minimum fee RM0.01 / pax", () => assert.equal(feeLabel(0.01), "RM0.01 / pax"));
+check("presentation: calendar keeps decimals (RM1,234.5 / pax)", () => assert.equal(feeLabel(1234.5), "RM1,234.5 / pax"));
+check("presentation: calendar hides a zero fee (no RM0)", () => assert.equal(feeLabel(0), null));
+check("presentation: calendar hides a NULL fee", () => assert.equal(feeLabel(null), null));
+check("presentation: calendar hides undefined, negative and non-numeric fees", () => {
+  assert.equal(feeLabel(undefined), null);
+  assert.equal(feeLabel(-5), null);
+  assert.equal(feeLabel("1500"), null);
+  assert.equal(feeLabel(Number.NaN), null);
+});
+
+const options = read("components/public/CourseScheduleOptions.tsx");
+const moneySource = /const formatMoney = \(value: number \| null\) => ([^\r\n]+?);?\r?\n/.exec(options)?.[1];
+check("presentation: course formatMoney is present", () => assert.ok(moneySource));
+const formatMoney = (value: unknown): string => new Function("Intl", `return ((value) => ${moneySource});`)(Intl)(value) as string;
+check("presentation: course page shows MYR 1,500.00 for a positive fee", () => assert.match(formatMoney(1500), /1,500\.00/));
+check("presentation: course page shows the minimum fee MYR 0.01", () => assert.match(formatMoney(0.01), /0\.01/));
+check("presentation: course page says 'Fee to be confirmed' for zero", () => assert.equal(formatMoney(0), "Fee to be confirmed"));
+check("presentation: course page says 'Fee to be confirmed' for NULL", () => assert.equal(formatMoney(null), "Fee to be confirmed"));
+check("presentation: course page never shows 0.00 for zero or negative", () => {
+  assert.doesNotMatch(formatMoney(0), /0\.00/);
+  assert.equal(formatMoney(-1), "Fee to be confirmed");
+});
+
+// ---- CTA stays driven by the server eligibility flag --------------------------
+check("cta: the calendar Register link still depends on registration_available only", () => {
+  assert.match(calendar, /const sessionUrl = \(session\) => session\.registration_available \?/);
+  assert.match(calendar, /const sessionCta = \(session\) => session\.registration_available \? "Register"/);
+});
+check("cta: the course page Register link still depends on registration_available only", () => {
+  assert.match(options, /const active = session\.registration_available === true;/);
+});
+check("source data: public-content keeps the raw fee (presentation-only change)", () => {
+  assert.match(read("lib/public-content.ts"), /fee: row\.fee == null \? null : Number\(row\.fee\),/);
+});
+
 // ---- Scope guards -----------------------------------------------------------
 check("scope: the catalogue course fee schema is unchanged (nonnegative)", () => {
   assert.match(read("lib/validation/schemas.ts"), /fee: z\.coerce\.number\(\)\.nonnegative\(\)\.optional\(\)\.nullable\(\),/);
