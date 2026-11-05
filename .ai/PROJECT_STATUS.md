@@ -246,3 +246,13 @@ No migration was applied, no push, no merge, no deploy. Validation not re-run in
 ### Not done
 - The 24 remaining SCH-000034 certificates: owner-operated through Super Admin Generate as normal operations, at the owner's chosen time.
 - Scaffolding Erector watermark: a placement-only attempt was rejected by the owner on 2026-11-03 because it does not match the Inspector/WAH illustration style. Erector needs owner-approved artwork (scene for page 1, detail for page 2) like Inspector and WAH. Changing it will also restyle the already issued Erector C4 certificate CERT-2026-000098, which renders live; that needs an owner decision. No Erector code was committed.
+
+## Public registration: positive-fee-only (local, 2026-11-06)
+Branch `fix/registration-positive-fee-only` (from `origin/main` 964c1d1). Not pushed. No migration applied anywhere.
+- Policy (owner-approved): fee > 0 = paid online registration when server eligibility passes; fee = 0 or NULL = enquiry only; no free-registration flow; retired YPM Laluan Kerjaya not reopened.
+- Migration `20261106090000_public_registration_positive_fee_only.sql` (`create or replace` only): `get_public_registration_schedule` requires `cs.fee > 0`; `create_public_registration` rejects `fee <= 0` or NULL with `schedule_unavailable` before insert and seat hold. Signatures, SECURITY DEFINER, search_path, grants and the idempotent-retry lookup are unchanged; `begin_public_registration_payment` is unchanged.
+- App/Admin: `PublicRegistrationFlow` guard requires a positive numeric fee; `scheduleSchema.fee` accepts NULL or a positive amount; `clean()` keeps an explicit NULL so a fee can be cleared; fee input `min="0.01"` with updated help text.
+- Verified locally only: `npm run test:public-registration-positive-fee` and `:db` (disposable Supabase Postgres in Docker, Baseline V3 + the new migration, synthetic fixtures; negative control without the migration reproduces `created|0.00` and a seat hold).
+- Baseline V3 normalised function hashes equal the deployed Production and canonical Staging hashes, so `supabase/baseline/v2` and `v3` stay unchanged: a fresh install is Baseline V3 plus the migrations after it, including this one.
+- Not changed on purpose: staff CRM enrolment (`register_personal_lead`, `register_company_enrollment`, Admin `assignParticipants`). 43 of 44 Production sessions have a NULL fee and are enrolled by staff; a fee check there would block normal operations.
+- Production Supabase identity is documented in repo notes and Baseline V3 as `iagzkrzeuawaxvacqprk`; Vercel env values are sensitive and could not be read, so confirm before any remote step.
