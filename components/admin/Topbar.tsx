@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "../../lib/supabase/client";
 import type { Profile } from "../../lib/supabase/database.types";
 import { canAccessModule } from "../../lib/auth/rbac";
+import { breadcrumbsFor } from "../../lib/admin-nav";
 import { Button } from "../ui/button";
 import { SheetTrigger } from "../ui/sheet";
 
@@ -28,7 +29,7 @@ function SearchIcon() {
 
 /**
  * Top bar: mobile nav trigger (opens AdminShell's drawer, so it must render
- * inside its Sheet), global search box (Cmd-K style — posts to the
+ * inside its Sheet), breadcrumbs from the nav tree, global search box (Cmd-K style — posts to the
  * global_search RPC), and the signed-in user menu with sign-out.
  */
 export function Topbar({ profile, moduleKeys = [], pathname }: { profile: Profile; moduleKeys?: readonly string[]; pathname: string }) {
@@ -41,6 +42,7 @@ export function Topbar({ profile, moduleKeys = [], pathname }: { profile: Profil
     .slice(0, 2)
     .join("")
     .toUpperCase();
+  const crumbs = breadcrumbsFor(pathname);
   const onAutomation = pathname === "/admin/automation" || pathname.startsWith("/admin/automation/");
 
   function onSearch(e: React.FormEvent) {
@@ -64,10 +66,26 @@ export function Topbar({ profile, moduleKeys = [], pathname }: { profile: Profil
   return (
     <header className="ta-topbar">
       <SheetTrigger asChild>
-        <Button variant="ghost" size="icon" className="ta-hamburger [&_svg]:size-6" aria-label="Open navigation">
+        <Button variant="ghost" size="icon" className="ta-hamburger size-11 [&_svg]:size-6" aria-label="Open navigation">
           <MenuIcon />
         </Button>
       </SheetTrigger>
+      <nav className="ta-crumbs" aria-label="Breadcrumb">
+        <ol>
+          {crumbs.map((crumb, index) => {
+            const last = index === crumbs.length - 1;
+            return (
+              <li key={`${index}-${crumb.label}`}>
+                {crumb.href && !last ? (
+                  <Link href={crumb.href}>{crumb.label}</Link>
+                ) : (
+                  <span aria-current={last ? "page" : undefined}>{crumb.label}</span>
+                )}
+              </li>
+            );
+          })}
+        </ol>
+      </nav>
       <form className="ta-search" onSubmit={onSearch} role="search">
         <span className="ta-search-ico" aria-hidden="true">
           <SearchIcon />
@@ -94,7 +112,7 @@ export function Topbar({ profile, moduleKeys = [], pathname }: { profile: Profil
           <strong>{profile.full_name || profile.email}</strong>
           <small>{profile.role.replace("_", " ")}</small>
         </div>
-        <Button variant="outline" size="sm" onClick={signOut} disabled={signingOut}>
+        <Button variant="outline" size="sm" className="max-[900px]:h-11" onClick={signOut} disabled={signingOut}>
           {signingOut ? "Signing out…" : "Sign out"}
         </Button>
       </div>

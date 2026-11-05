@@ -144,3 +144,47 @@ export function activeNavKey(pathname: string, items: readonly Pick<NavItem, "ke
   }
   return best?.key;
 }
+
+export interface Crumb {
+  label: string;
+  /** Set only for ancestors that are real routes; the last crumb is the current page. */
+  href?: string;
+}
+
+const ID_SEGMENT = /^(?:\d+|[0-9a-f]{8}-[0-9a-f-]{27})$/i;
+
+function segmentLabel(segment: string): string {
+  if (ID_SEGMENT.test(segment)) return "Details";
+  let decoded = segment;
+  try {
+    decoded = decodeURIComponent(segment);
+  } catch {
+    // Malformed escape: show the raw segment rather than throw while rendering the topbar.
+  }
+  const words = decoded.replace(/[-_]+/g, " ").trim();
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : "Details";
+}
+
+/**
+ * Breadcrumb trail for a path: department group, then the module (a link
+ * only when the page is deeper than the module), then one crumb per further
+ * segment. Built from NAV alone, so it can never point at a route that is not
+ * in the navigation, and a path outside NAV gets a single label crumb.
+ */
+export function breadcrumbsFor(pathname: string): Crumb[] {
+  const entries = NAV.flatMap((group) => group.items.map((item) => ({ group, item })));
+  let best: (typeof entries)[number] | undefined;
+  for (const entry of entries) {
+    const { href } = entry.item;
+    const matches = pathname === href || pathname.startsWith(href + "/");
+    if (matches && (!best || href.length > best.item.href.length)) best = entry;
+  }
+  if (!best) {
+    const first = pathname.split("/").filter(Boolean)[1];
+    return [{ label: first ? segmentLabel(first) : "Admin" }];
+  }
+  const rest = pathname.slice(best.item.href.length).split("/").filter(Boolean);
+  const crumbs: Crumb[] = [{ label: best.group.label }, rest.length ? { label: best.item.label, href: best.item.href } : { label: best.item.label }];
+  for (const segment of rest) crumbs.push({ label: segmentLabel(segment) });
+  return crumbs;
+}

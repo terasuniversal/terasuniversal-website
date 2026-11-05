@@ -5,25 +5,33 @@
    ===================================================================== */
 
 .teras-admin {
+  /* Premium V2 tokens (locked baseline: teras-ops/design/premium-v2). */
   --ta-navy: #0B3A63;
   --ta-navy-700: #09294a;
   --ta-gold: #D4AF37;
-  --ta-ink: #333333;
-  --ta-muted: #667085;
-  --ta-line: #e4e8ef;
-  --ta-soft: #f6f8fb;
-  --ta-bg: #f5f7fb;
+  --ta-gold-ink: #7A5F00;
+  --ta-ink: #0F1B2D;
+  --ta-muted: #566176;
+  --ta-faint: #667085;
+  --ta-line: #E6EAF0;
+  --ta-control: #CDD4DF;
+  --ta-soft: #F8F9FB;
+  --ta-active: #E6EAF0;
+  --ta-bg: #F3F5F8;
   --ta-white: #fff;
-  --ta-danger: #d64545;
-  --ta-success: #2e9e5b;
-  --ta-warning: #d4af37;
+  --ta-danger: #B42318;
+  --ta-success: #247B50;
+  --ta-warning: #D4AF37;
   --ta-info: #2f6fed;
-  --ta-radius: 12px;
-  --ta-shadow: 0 1px 2px rgba(11, 58, 99, 0.04), 0 8px 24px rgba(11, 58, 99, 0.06);
-  --ta-shadow-hover: 0 3px 8px rgba(11, 58, 99, 0.08), 0 14px 34px rgba(11, 58, 99, 0.12);
-  --ta-sidebar-w: 248px;
+  --ta-radius: 10px;
+  --ta-radius-sheet: 14px;
+  /* Flat surfaces: structure comes from 1px borders, not shadows. */
+  --ta-shadow: none;
+  --ta-shadow-hover: 0 1px 2px rgba(15, 27, 45, 0.06);
+  --ta-sidebar-w: 232px;
+  --ta-rail-w: 64px;
 
-  font-family: var(--font-poppins), system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  font-family: var(--font-inter), system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
   color: var(--ta-ink);
   background: var(--ta-bg);
   min-height: 100vh;
@@ -34,47 +42,38 @@
 .teras-admin * { box-sizing: border-box; }
 .teras-admin a { color: inherit; text-decoration: none; }
 .teras-admin h1, .teras-admin h2, .teras-admin h3 {
-  font-family: var(--font-montserrat), var(--font-poppins), sans-serif;
-  color: var(--ta-navy);
+  font-family: var(--font-montserrat), var(--font-inter), sans-serif;
+  color: var(--ta-ink);
   margin: 0;
 }
 
 /* --- Layout shell --------------------------------------------------- */
 .ta-shell { display: flex; min-height: 100vh; }
+/* Light sidebar on the page ground: no fill, gradient or shadow (V2). */
 .ta-sidebar {
   width: var(--ta-sidebar-w);
-  background: var(--ta-navy);
-  color: #dbe4f2;
+  background: var(--ta-bg);
+  color: #3D4A5F;
   display: flex;
   flex-direction: column;
   position: fixed;
   inset: 0 auto 0 0;
   z-index: 40;
   overflow: hidden;
-  transition: transform 0.22s ease;
-}
-.ta-sidebar::after {
-  content: "";
-  position: absolute;
-  inset: 0 auto auto 0;
-  right: 0;
-  height: 3px;
-  background: linear-gradient(90deg, var(--ta-gold), rgba(212, 175, 55, 0.35));
-  pointer-events: none;
 }
 .ta-sidebar-brand {
-  display: flex; align-items: center; gap: 12px;
-  padding: 18px 20px; border-bottom: 1px solid rgba(255,255,255,0.08);
+  display: flex; align-items: center; gap: 10px;
+  padding: 16px 18px 12px;
   flex-shrink: 0;
 }
-.ta-sidebar-brand img { width: 38px; height: 38px; object-fit: contain; background:#fff; border-radius:9px; padding:4px; box-shadow: 0 2px 8px rgba(0,0,0,.18); }
+.ta-sidebar-brand img { width: 36px; height: 36px; flex: none; display: block; }
 .ta-sidebar-brand span { display: flex; flex-direction: column; min-width: 0; }
-.ta-sidebar-brand strong { color: #fff; font-size: 13px; letter-spacing: .03em; white-space: nowrap; }
-.ta-sidebar-brand small { color: var(--ta-gold); font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .2em; margin-top: 2px; }
+.ta-sidebar-brand strong { color: var(--ta-ink); font-size: 14px; line-height: 16px; font-weight: 600; white-space: nowrap; }
+.ta-sidebar-brand small { color: var(--ta-faint); font-size: 12px; line-height: 14px; }
 /* IMPORTANT: globals.css ships a bare `nav{display:flex;gap:25px;align-items:center}`
    (and `nav{display:none}` at <=920px) which leaks onto the admin sidebar's
    <nav class="ta-nav">. These class-scoped rules must win (class specificity
-   beats the element selector) and force a strict VERTICAL layout â€” two
+   beats the element selector) and force a strict VERTICAL layout -- two
    navigation groups must never sit in one horizontal row. */
 .ta-nav {
   flex: 1;
@@ -86,7 +85,7 @@
   gap: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 10px 12px 16px;
+  padding: 4px 10px 12px;
 }
 .ta-nav > div {
   display: block;
@@ -97,35 +96,69 @@
   box-sizing: border-box;
 }
 .ta-nav::-webkit-scrollbar { width: 6px; }
-.ta-nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,.18); border-radius: 999px; }
+.ta-nav::-webkit-scrollbar-thumb { background: rgba(15, 27, 45, .16); border-radius: 999px; }
 .ta-nav::-webkit-scrollbar-track { background: transparent; }
-.ta-nav-group-label { padding: 16px 12px 6px; font-size: 10px; text-transform: uppercase; letter-spacing: .12em; color: #8ea6c8; font-weight: 700; font-family: var(--font-poppins), system-ui, sans-serif; }
+/* Group heading doubles as the collapse control (a real button). */
+.ta-nav-group { margin-top: 10px; }
+.ta-nav-group-label {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  width: 100%; min-height: 28px; padding: 6px 10px 4px; border: 0; border-radius: 6px; background: none;
+  color: var(--ta-faint); font: inherit; font-size: 12px; line-height: 16px; font-weight: 500; text-align: left; cursor: pointer;
+}
+.ta-nav-group-label:hover { color: var(--ta-ink); }
+.ta-nav-group-chev { flex: none; width: 14px; height: 14px; opacity: .7; }
+.ta-nav-group-label[aria-expanded="true"] .ta-nav-group-chev { transform: rotate(90deg); }
+/* Marks a collapsed group that holds the current page. */
+.ta-nav-group-here { width: 6px; height: 6px; border-radius: 50%; background: var(--ta-gold); flex: none; }
 .ta-nav-item {
-  display: flex; align-items: center; gap: 12px;
+  position: relative;
+  display: flex; align-items: center; gap: 10px;
   width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box;
-  padding: 9px 12px; border-radius: 8px; margin-bottom: 2px;
-  color: #c7d6ea; font-weight: 600; font-size: 13.5px; line-height: 1.3;
-  font-family: var(--font-poppins), system-ui, sans-serif;
-  transition: background .15s, color .15s;
+  min-height: 32px; padding: 0 10px; border-radius: 8px; margin-bottom: 1px;
+  color: #3D4A5F; font-weight: 400; font-size: 14px; line-height: 1.3;
 }
-.ta-nav-item:hover { background: rgba(255,255,255,.07); color: #fff; }
-.ta-nav-item.active {
-  background: rgba(212,175,55,.14); color: #fff; font-weight: 700;
-  box-shadow: inset 3px 0 0 var(--ta-gold);
+.ta-nav-item .ta-ico { color: #5B6B82; }
+.ta-nav-item:hover { background: rgba(11, 58, 99, .05); }
+.ta-nav-item.active { background: var(--ta-active); color: var(--ta-ink); font-weight: 500; }
+.ta-nav-item.active .ta-ico { color: var(--ta-navy); }
+.ta-nav-item .ta-ico { width: 18px; height: 18px; display: grid; place-items: center; flex-shrink: 0; }
+.ta-nav-item .ta-nav-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Counts are quiet text, not filled pills (V2). */
+.ta-nav-item .ta-badge { margin-left: auto; color: var(--ta-muted); font-size: 12px; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+.ta-sidebar-footer { display: flex; align-items: center; gap: 10px; margin: 0 10px 10px; padding: 10px 8px 0; border-top: 1px solid var(--ta-line); flex-shrink: 0; }
+.ta-sidebar-footer .ta-status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ta-success); flex-shrink: 0; }
+.ta-sidebar-footer strong { display: block; color: var(--ta-ink); font-size: 12px; font-weight: 500; }
+.ta-sidebar-footer small { display: block; margin-top: 1px; color: var(--ta-faint); font-size: 12px; }
+.ta-rail-toggle { margin-left: auto; flex: none; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 0; border-radius: 8px; background: none; color: #5B6B82; cursor: pointer; }
+.ta-rail-toggle:hover { background: rgba(11, 58, 99, .05); color: var(--ta-ink); }
+.ta-rail-toggle svg { width: 16px; height: 16px; }
+/* Mobile drawer (AdminShell): same column on a white surface with an edge,
+   wider rows for touch, above the topbar. Hidden from print with the rest
+   of .ta-sidebar. */
+.ta-sidebar-drawer { width: min(86vw, 300px); max-width: none; z-index: 50; background: var(--ta-white); border-right: 1px solid var(--ta-line); }
+.ta-sidebar-drawer .ta-sidebar-brand { padding-right: 8px; }
+.ta-sidebar-drawer .ta-nav-item { min-height: 44px; }
+.ta-sidebar-drawer .ta-nav-group-label { min-height: 44px; }
+
+/* Collapsed rail (desktop only): icons with the labels kept for screen
+   readers. The drawer never uses it. */
+.ta-rail { width: var(--ta-rail-w); }
+.ta-rail .ta-sidebar-brand { padding: 16px 0 12px; justify-content: center; }
+.ta-rail .ta-sidebar-brand span,
+.ta-rail .ta-nav-label,
+.ta-rail .ta-sidebar-footer-text { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.ta-rail .ta-nav { padding: 4px 8px 12px; }
+.ta-rail .ta-nav-group { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--ta-line); }
+.ta-rail .ta-nav-group:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+.ta-rail .ta-nav-group-label { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); }
+.ta-rail .ta-nav-item { justify-content: center; padding: 0; min-height: 36px; }
+.ta-rail .ta-nav-item .ta-badge { position: absolute; top: 2px; right: 4px; margin: 0; padding: 0 4px; min-width: 16px; border-radius: 999px; background: var(--ta-navy); color: #fff; font-size: 10px; line-height: 16px; text-align: center; }
+.ta-rail .ta-sidebar-footer { justify-content: center; padding-left: 0; padding-right: 0; flex-direction: column; }
+.ta-rail .ta-rail-toggle { margin-left: 0; }
+.ta-shell[data-rail="true"] { --ta-sidebar-w: var(--ta-rail-w); }
+@media (prefers-reduced-motion: no-preference) {
+  .ta-nav-item, .ta-nav-group-chev, .ta-rail-toggle { transition: background-color .15s, color .15s, transform .15s; }
 }
-.ta-nav-item.active .ta-ico { color: var(--ta-gold); }
-.ta-nav-item .ta-ico { width: 20px; height: 20px; display: grid; place-items: center; flex-shrink: 0; }
-.ta-nav-item .ta-nav-label { flex: 1; min-width: 0; }
-.ta-nav-item .ta-badge { margin-left: auto; background: var(--ta-gold); color: var(--ta-navy); font-size: 10.5px; font-weight: 800; border-radius: 999px; padding: 1px 7px; flex-shrink: 0; }
-.ta-nav-item.active .ta-badge { background: var(--ta-navy); color: #fff; }
-.ta-sidebar-footer { display: flex; align-items: center; gap: 10px; margin: 10px 12px; padding: 11px 12px; border-top: 1px solid rgba(255,255,255,.08); flex-shrink: 0; }
-.ta-sidebar-footer .ta-status-dot { width: 8px; height: 8px; border-radius: 50%; background: #59cc83; box-shadow: 0 0 0 3px rgba(89,204,131,.15); flex-shrink: 0; }
-.ta-sidebar-footer strong { display: block; color: #fff; font-size: 12px; }
-.ta-sidebar-footer small { display: block; margin-top: 2px; color: #aec1dd; font-size: 11px; }
-/* Mobile drawer (AdminShell): same navy column, wider for touch, above the
-   topbar. Hidden from print with the rest of .ta-sidebar. */
-.ta-sidebar-drawer { width: min(86vw, 300px); max-width: none; z-index: 50; }
-.ta-sidebar-drawer .ta-sidebar-brand { padding-right: 12px; }
 
 /* Gold so it stands out over the navy sidebar; .teras-admin prefix beats
    the `.teras-admin a { color: inherit }` reset. */
@@ -139,29 +172,48 @@ body:has(.teras-admin) .skip-link { display: none; }
 .ta-content:focus { outline: none; }
 
 .ta-main { flex: 1; margin-left: var(--ta-sidebar-w); display: flex; flex-direction: column; min-width: 0; }
+/* Opaque ground (not translucent) so scrolled content never shows through. */
 .ta-topbar {
-  min-height: 64px; background: rgba(255,255,255,.94); border-bottom: 1px solid var(--ta-line);
-  display: flex; align-items: center; gap: 18px; padding: 0 24px; position: sticky; top: 0; z-index: 30; backdrop-filter: blur(12px);
+  min-height: 56px; background: var(--ta-bg);
+  display: flex; align-items: center; gap: 12px; padding: 0 20px 0 12px; position: sticky; top: 0; z-index: 30;
 }
-.ta-hamburger { display: none; background: none; border: 0; font-size: 20px; cursor: pointer; color: var(--ta-navy); }
-.ta-search { flex: 1; max-width: 420px; position: relative; }
+.ta-hamburger { display: none; flex: none; background: none; border: 0; font-size: 20px; cursor: pointer; color: var(--ta-ink); }
+/* Breadcrumbs: group › module › sub-page. Truncates, never wraps. */
+.ta-crumbs { min-width: 0; flex: 0 1 auto; }
+.ta-crumbs ol { display: flex; align-items: center; gap: 6px; margin: 0; padding: 0; list-style: none; font-size: 13px; color: var(--ta-faint); white-space: nowrap; overflow: hidden; }
+.ta-crumbs li { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.ta-crumbs li + li::before { content: "›"; opacity: .6; }
+.ta-crumbs a:hover { color: var(--ta-ink); text-decoration: underline; }
+.ta-crumbs [aria-current="page"] { color: var(--ta-ink); font-weight: 500; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+/* min-width:0 on the box and the input, and appearance:none on the input: a
+   search field has an intrinsic width in WebKit and would otherwise refuse to
+   shrink, pushing the topbar (and the page) wider than a phone. */
+.ta-search { flex: 1; min-width: 0; max-width: 460px; margin: 0 auto; position: relative; }
 .ta-search input {
-  width: 100%; height: 40px; padding: 0 14px 0 40px; border: 1px solid var(--ta-line);
-  border-radius: 10px; background: var(--ta-soft); font: inherit; font-size: 13.5px; outline: none;
+  width: 100%; min-width: 0; height: 32px; padding: 0 12px 0 34px; border: 1px solid var(--ta-control);
+  border-radius: 8px; background: var(--ta-white); font: inherit; font-size: 13px; outline: none;
+  -webkit-appearance: none; appearance: none;
 }
-.ta-search input::placeholder { color: #98a2b3; }
-.ta-search input:focus { border-color: var(--ta-navy); background: #fff; box-shadow: 0 0 0 3px rgba(11,58,99,.08); }
-.ta-search .ta-search-ico { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--ta-muted); display: flex; }
-.ta-topbar-spacer { flex: 1; }
-.ta-user { display: flex; align-items: center; gap: 12px; }
-.ta-avatar { width: 38px; height: 38px; border-radius: 50%; background: var(--ta-navy); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 13px; }
+.ta-search input::placeholder { color: var(--ta-faint); }
+.ta-search input:focus { border-color: var(--ta-navy); box-shadow: 0 0 0 3px rgba(11,58,99,.12); }
+.ta-search .ta-search-ico { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--ta-faint); display: flex; }
+.ta-topbar-spacer { flex: 0 0 0; }
+.ta-user { display: flex; align-items: center; gap: 10px; margin-left: auto; flex: none; }
+.ta-avatar { width: 28px; height: 28px; border-radius: 50%; background: #DCE6F1; color: var(--ta-navy); display: grid; place-items: center; font-weight: 600; font-size: 12px; }
 .ta-user-meta { line-height: 1.25; }
-.ta-user-meta strong { display: block; font-size: 13px; color: var(--ta-ink); }
-.ta-user-meta small { color: var(--ta-muted); font-size: 11px; text-transform: capitalize; }
-.ta-topbar-link { display: inline-flex; align-items: center; gap: 6px; color: var(--ta-muted); font-size: 12px; font-weight: 700; padding: 8px 10px; border-radius: 8px; }
-.ta-topbar-link:hover, .ta-topbar-link[aria-current="page"] { color: var(--ta-navy); background: var(--ta-soft); }
+.ta-user-meta strong { display: block; font-size: 13px; font-weight: 500; color: var(--ta-ink); }
+.ta-user-meta small { color: var(--ta-faint); font-size: 12px; text-transform: capitalize; }
+.ta-topbar-link { display: inline-flex; align-items: center; gap: 6px; color: var(--ta-muted); font-size: 13px; font-weight: 500; padding: 6px 10px; border-radius: 8px; }
+.ta-topbar-link:hover, .ta-topbar-link[aria-current="page"] { color: var(--ta-ink); background: var(--ta-active); }
 
-.ta-content { padding: 28px 32px 40px; max-width: 1400px; width: 100%; }
+/* The page sits on a white sheet over the ground (V2). */
+.ta-content { flex: 1; min-width: 0; margin: 0 8px 8px 0; padding: 28px 32px 40px; max-width: 1400px; background: var(--ta-white); border: 1px solid var(--ta-line); border-radius: var(--ta-radius-sheet); }
+/* Phone and tablet: pin the sheet to the column width (the pre-Phase A rule
+   was width:100%; stretch alone let wide content size it on iOS) and clip
+   horizontal overflow at the column so nothing can widen the page or leave
+   it panned sideways. Tables keep their own scroll wrappers. */
+@media (max-width: 900px) { .ta-content { margin: 0; width: 100%; border-width: 1px 0 0; border-radius: 0; } }
+@media print { .teras-admin .ta-content { margin: 0; border: 0; border-radius: 0; max-width: none; } }
 .ta-page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
 .ta-page-head h1 { font-size: clamp(24px, 2.2vw, 30px); letter-spacing: -.025em; }
 .ta-page-head p { color: var(--ta-muted); margin: 5px 0 0; font-size: 14px; }
@@ -362,7 +414,7 @@ body:has(.teras-admin) .skip-link { display: none; }
 .ta-checklist li::marker { color: var(--ta-gold); font-weight: 800; }
 .ta-page-note { margin: 16px 2px 0; color: var(--ta-muted); font-size: 12px; }
 
-.teras-admin :is(a, button, input, select, textarea):focus-visible { outline: 3px solid rgba(212,175,55,.6); outline-offset: 2px; }
+.teras-admin :is(a, button, input, select, textarea):focus-visible { outline: 2px solid var(--ta-navy); outline-offset: 2px; }
 
 @media print {
   /* Scoped with :has() so this only fires on a page that actually renders
@@ -398,8 +450,11 @@ body:has(.teras-admin) .skip-link { display: none; }
   /* Removed rather than moved off-screen, so its links leave the tab order;
      the drawer takes over. */
   .ta-sidebar-desktop { display: none; }
-  .ta-main { margin-left: 0; }
+  .ta-main { margin-left: 0; max-width: 100%; overflow-x: clip; }
   .ta-hamburger { display: inline-flex; }
+  /* 44px touch targets in the topbar below the desktop breakpoint; 16px text
+     because iOS zooms the page in when a smaller field is focused. */
+  .ta-search input { height: 44px; font-size: 16px; }
   .ta-grid.cols-3, .ta-grid.cols-2 { grid-template-columns: 1fr; }
   .ta-invoice-detail-grid { grid-template-columns: 1fr; }
   .ta-task-detail-layout { grid-template-columns: minmax(0, 1fr); }
@@ -412,6 +467,7 @@ body:has(.teras-admin) .skip-link { display: none; }
   .ta-user-meta { display: none; }
   .ta-topbar { padding: 0 16px; gap: 10px; }
   .ta-topbar-link { display: none; }
+  .ta-crumbs { display: none; }
   .ta-dashboard-intro { align-items: flex-start; flex-direction: column; }
   .ta-card-head { padding: 14px 16px; }
   .ta-card-pad { padding: 16px; }

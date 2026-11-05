@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
  * Lightweight inline SVG icons for the admin navigation.
  *
  * Deliberately dependency-free: a small set of 24×24 stroke icons drawn to the
- * same grid, rendered with `currentColor` so the sidebar can tint them (gold on
+ * same grid, rendered with `currentColor` so the sidebar can tint them (navy on
  * the active item). Kept separate from any business icon usage so this stays a
  * pure presentational map.
  */
@@ -16,7 +16,7 @@ function Icon({ children }: { children: ReactNode }) {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.8"
+      strokeWidth="1.6"
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"

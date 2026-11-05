@@ -41,6 +41,7 @@
     "test:hrdf-sales-view-only": "node --experimental-strip-types scripts/hrdf-sales-view-only.test.mts",
     "test:sales": "npm run -s test:sales-lead-won-guard && npm run -s test:sales-csv-export-safety && npm run -s test:sales-date-filter && npm run -s test:sales-quotation-revision-order && npm run -s test:sst-revision-snapshot && npm run -s test:sales-staff-efficiency-fix1 && npm run -s test:sales-queue-pagination-fix2 && npm run -s test:sales-owner-archive-semantics && npm run -s test:sales-wave2 && npm run -s test:sales-wave3 && npm run -s test:sales-shared-ui && npm run -s test:sales-wave3c-timezone && npm run -s test:quotation-training-details && npm run -s test:quotation-pdf-layout && npm run -s test:quotation-read-error && npm run -s test:staff-sales-preset && npm run -s test:hrdf-sales-view-only",
     "test:admin-navigation": "node --experimental-strip-types scripts/admin-navigation-contract.mts",
+    "test:admin-premium-shell": "node --experimental-strip-types scripts/admin-premium-shell-contract.mts",
     "build": "next build",
     "start": "next start"
   },

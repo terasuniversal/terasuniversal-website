@@ -5,11 +5,13 @@ import { usePathname } from "next/navigation";
 import type { Profile } from "../../lib/supabase/database.types";
 import { Button } from "../ui/button";
 import { Sheet, SheetClose, SheetContent, SheetTitle } from "../ui/sheet";
+import { collapsedCookie, railCookie } from "../../lib/admin-shell-prefs";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 
 // admin.css swaps the fixed sidebar for the drawer at max-width: 900px.
 const DESKTOP_QUERY = "(min-width: 901px)";
+
 
 function CloseIcon() {
   return (
@@ -28,15 +30,24 @@ export function AdminShell({
   profile,
   moduleKeys,
   badges,
+  initialRail = false,
+  initialCollapsed = [],
   children,
 }: {
   profile: Profile;
   moduleKeys: readonly string[];
   badges: Record<string, number>;
+  /** Saved display preferences, read from cookies by the server layout. */
+  initialRail?: boolean;
+  initialCollapsed?: readonly string[];
   children: ReactNode;
 }) {
   const pathname = usePathname();
   const [navOpen, setNavOpen] = useState(false);
+  // Collapsed icon rail on desktop and collapsed nav groups: per-browser
+  // display preferences, shared by the desktop sidebar and the drawer.
+  const [rail, setRail] = useState(initialRail);
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set(initialCollapsed));
   // Any route change (a link, back/forward, a redirect) closes the drawer.
   // Adjusted during render, as React recommends for state derived from a
   // changed value, so there is no flash of an open drawer on the new page.
@@ -54,20 +65,35 @@ export function AdminShell({
     return () => query.removeEventListener("change", onChange);
   }, []);
 
+  function toggleRail() {
+    const next = !rail;
+    setRail(next);
+    document.cookie = railCookie(next);
+  }
+
+  function toggleGroup(label: string) {
+    const next = new Set(collapsed);
+    if (!next.delete(label)) next.add(label);
+    setCollapsed(next);
+    document.cookie = collapsedCookie([...next]);
+  }
+
   const sidebarProps = {
     role: profile.role,
     moduleKeys,
     accessControlEnabled: profile.access_control_enabled,
     badges,
     pathname,
+    collapsed,
+    onToggleGroup: toggleGroup,
   };
 
   return (
     <Sheet open={navOpen} onOpenChange={setNavOpen}>
-      <div className="ta-shell">
+      <div className="ta-shell" data-rail={rail}>
         <a href="#admin-main" className="ta-skip-link">Skip to main content</a>
-        <div className="ta-sidebar ta-sidebar-desktop">
-          <Sidebar {...sidebarProps} />
+        <div className={`ta-sidebar ta-sidebar-desktop${rail ? " ta-rail" : ""}`}>
+          <Sidebar {...sidebarProps} rail={rail} onToggleRail={toggleRail} />
         </div>
         <SheetContent className="ta-sidebar ta-sidebar-drawer" aria-describedby={undefined}>
           <SheetTitle className="sr-only">Admin navigation</SheetTitle>
@@ -76,7 +102,7 @@ export function AdminShell({
             onNavigate={() => setNavOpen(false)}
             brandAction={
               <SheetClose asChild>
-                <Button variant="ghost" size="icon" className="ml-auto text-white hover:bg-white/10 [&_svg]:size-5" aria-label="Close navigation">
+                <Button variant="ghost" size="icon" className="ml-auto size-11 [&_svg]:size-5" aria-label="Close navigation">
                   <CloseIcon />
                 </Button>
               </SheetClose>
