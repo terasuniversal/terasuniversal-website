@@ -91,6 +91,14 @@ assert.ok(!/rail/.test(drawer), "the mobile drawer never renders the rail");
 assert.match(shell, /aria-label="Close navigation"/, "drawer keeps its Close button");
 assert.match(shell, /className="ta-skip-link"/, "skip link kept");
 assert.match(css, /\.ta-sidebar-drawer \.ta-nav-item \{ min-height: 44px; \}/, "drawer rows meet the 44px touch target");
+// Phone overflow guard (staging iPhone QA): the topbar search must be able to shrink, the sheet must be pinned to
+// the column width, and nothing inside the column may widen or sideways-pan the page.
+assert.match(css, /\.ta-search \{ flex: 1; min-width: 0;/, "search box can shrink");
+assert.match(css, /\.ta-search input \{[^}]*min-width: 0;[^}]*appearance: none;/, "search input has no intrinsic width");
+assert.match(css, /@media \(max-width: 900px\) \{ \.ta-content \{ margin: 0; width: 100%;/, "sheet is pinned to the column width on phones");
+assert.match(css, /\.ta-main \{ margin-left: 0; max-width: 100%; overflow-x: clip; \}/, "column clips horizontal overflow on phones");
+assert.match(css, /\.ta-search input \{ height: 44px; font-size: 16px; \}/, "phone search text is 16px so iOS does not zoom on focus");
+assert.match(css, /\.ta-user \{[^}]*flex: none;/, "signed-in controls never shrink");
 
 // 4. Rail keeps accessible names: labels are clipped visually, never display:none.
 const railLabel = css.match(/\.ta-rail \.ta-sidebar-brand span,\s*\.ta-rail \.ta-nav-label,[^{]*\{([^}]*)\}/);
