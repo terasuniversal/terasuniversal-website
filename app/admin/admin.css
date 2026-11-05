@@ -608,6 +608,29 @@ body:has(.teras-admin) .skip-link { display: none; }
 .ta-lead-card-grid { display: grid; grid-template-columns: 108px 1fr; gap: 7px 14px; font-size: 13px; }
 .ta-lead-card-grid > span:nth-child(odd) { color: var(--ta-muted); font-weight: 600; }
 .ta-lead-card-action { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* Phase B3: Quotations mobile card hierarchy (number, customer, total, status, then dates and actions).
+   Presentation only; shown under the same 900px breakpoint as the other Sales list cards. */
+.ta-q-card { display: grid; gap: 12px; padding: 16px; min-width: 0; }
+.ta-q-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.ta-q-card-id { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
+.ta-q-card-no code { font-size: 14px; font-weight: 700; color: var(--ta-navy); overflow-wrap: anywhere; }
+.ta-q-card-rev { font-size: 12px; line-height: 1.35; color: var(--ta-muted); }
+.ta-q-card-status { display: flex; flex: none; flex-direction: column; align-items: flex-end; gap: 4px; }
+.ta-q-card-customer { min-width: 0; overflow-wrap: anywhere; }
+.ta-q-card-customer > strong { font-size: 15px; line-height: 1.35; color: var(--ta-ink); }
+.ta-q-card-total { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 10px 12px; border-left: 3px solid var(--ta-gold); border-radius: 8px; background: var(--ta-soft); }
+.ta-q-card-total-label { flex: none; font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--ta-muted); }
+.ta-q-card-amount { min-width: 0; text-align: right; overflow-wrap: anywhere; font-family: var(--font-montserrat), var(--font-inter), sans-serif; font-size: 20px; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; color: var(--ta-navy); }
+.ta-q-card-grid { grid-template-columns: 92px minmax(0, 1fr); }
+.ta-q-card-expiry { display: block; margin-top: 2px; font-size: 12px; font-weight: 400; color: var(--ta-muted); }
+.ta-q-card-expiry[data-state="expired"] { font-weight: 600; color: var(--ta-danger); }
+/* Statuses without a shared pill style (sent, accepted, expired) read as plain text; style them on the card only. */
+.ta-q-card .ta-badge-pill.sent { background: rgba(11,58,99,.1); color: var(--ta-navy); }
+.ta-q-card .ta-badge-pill.accepted { background: rgba(46,158,91,.12); color: var(--ta-success); }
+.ta-q-card .ta-badge-pill.expired { background: rgba(214,69,69,.12); color: var(--ta-danger); }
+/* Touch target: the View quotation link is at least 44px high wherever the card layout shows (900px and below). */
+@media (max-width: 900px) { .ta-q-card .ta-lead-card-action > .ta-btn { min-height: 44px; } }
 @media (max-width: 900px) {
   .ta-lead-table, .ta-opp-table, .ta-q-table, .ta-tasks-table, .ta-followups-table { display: none; }
   .ta-lead-cards { display: grid; }
