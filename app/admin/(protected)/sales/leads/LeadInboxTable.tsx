@@ -76,28 +76,25 @@ export function LeadInboxTable({
 
       <ul className="ta-lead-cards">
         {rows.map((r) => (
-          <li className="ta-card ta-lead-card" key={r.lead_metadata_id}>
-            <div className="ta-lead-card-top">
-              <span className={`ta-badge-pill ta-source ta-source-${r.lead_source}`}>{SOURCE_LABELS[r.lead_source]}</span>
-              <span>
+          <li className="ta-card ta-lead-card ta-lead-m" key={r.lead_metadata_id}>
+            <div className="ta-lead-m-head">
+              <div className="ta-lead-m-id">
+                <strong className="ta-lead-m-name">{r.contact_name ?? "—"}</strong>
+                {r.company && <div className="ta-lead-sub">{r.company}</div>}
+              </div>
+              <div className="ta-lead-m-status">
                 <Badge status={r.status} />
-                {r.is_test && <span className="ta-badge-pill" style={{ background: "#f4f5f7", color: "#667085", marginLeft: 4 }}>Test</span>}
-              </span>
+                {r.is_test && <span className="ta-badge-pill" style={{ background: "#f4f5f7", color: "#667085" }}>Test</span>}
+              </div>
             </div>
-            <div className="ta-lead-card-grid">
-              <span>Qualification</span><span>{qualificationLabel(qualificationByLead.get(r.lead_metadata_id)?.qualification_status)}</span>
-              <span>Temperature</span><span>{temperatureLabel(qualificationByLead.get(r.lead_metadata_id)?.temperature)}</span>
-              <span>Priority</span><span>{PRIORITY_LABELS[r.priority]}</span>
-              <span>Last activity</span><span>{daysSinceActivityLabel(lastActivityByLead.get(r.lead_metadata_id) ?? null)}</span>
+            <p className="ta-lead-sub ta-lead-m-subject">{r.subject ?? "No enquiry subject"}</p>
+            <div className="ta-lead-m-meta">
+              <span className={`ta-badge-pill ta-source ta-source-${r.lead_source}`}>{SOURCE_LABELS[r.lead_source]}</span>
+              <span className="ta-lead-m-chip">Qualification <b>{qualificationLabel(qualificationByLead.get(r.lead_metadata_id)?.qualification_status)}</b></span>
+              <span className="ta-lead-m-chip">Temperature <b>{temperatureLabel(qualificationByLead.get(r.lead_metadata_id)?.temperature)}</b></span>
+              <span className="ta-lead-m-chip">Priority <b>{PRIORITY_LABELS[r.priority]}</b></span>
             </div>
-            <div className="ta-lead-card-company">
-              <strong>{r.contact_name ?? "—"}</strong>
-              {r.company && <div className="ta-lead-sub">{r.company}</div>}
-            </div>
-            <p className="ta-lead-sub ta-lead-card-context">{r.subject ?? "No enquiry subject"}</p>
-            <div className="ta-lead-card-grid">
-              <span>Owner</span>
-              <span>{r.assigned_to ? staffNamesUnavailable ? "Owner unavailable" : staffNames.get(r.assigned_to) ?? "—" : "Unassigned"}</span>
+            <div className="ta-lead-card-grid ta-lead-m-grid">
               <span>Follow-up</span>
               <span>
                 <FollowUpBadge state={followUpState(r.follow_up_at, r.status)} />
@@ -109,9 +106,12 @@ export function LeadInboxTable({
                   <Link href={`/admin/sales/tasks/${nextActions.get(r.lead_metadata_id)!.id}`}>{nextActions.get(r.lead_metadata_id)!.title}</Link>
                 ) : "None"}
               </span>
+              <span>Owner</span>
+              <span>{r.assigned_to ? staffNamesUnavailable ? "Owner unavailable" : staffNames.get(r.assigned_to) ?? "—" : "Unassigned"}</span>
+              <span>Last activity</span><span>{daysSinceActivityLabel(lastActivityByLead.get(r.lead_metadata_id) ?? null)}</span>
             </div>
             <div className="ta-lead-card-action">
-              <Link href={`/admin/sales/leads/${r.lead_metadata_id}`} className="ta-btn ta-btn-outline ta-btn-sm">View lead →</Link>
+              <Link href={`/admin/sales/leads/${r.lead_metadata_id}`} className="ta-btn ta-btn-outline ta-btn-sm" aria-label={`View lead ${r.contact_name ?? r.company ?? ""}`.trim()}>View lead →</Link>
             </div>
           </li>
         ))}

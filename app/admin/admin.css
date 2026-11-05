@@ -631,6 +631,26 @@ body:has(.teras-admin) .skip-link { display: none; }
 .ta-q-card .ta-badge-pill.expired { background: rgba(214,69,69,.12); color: var(--ta-danger); }
 /* Touch target: the View quotation link is at least 44px high wherever the card layout shows (900px and below). */
 @media (max-width: 900px) { .ta-q-card .ta-lead-card-action > .ta-btn { min-height: 44px; } }
+
+/* Phase B2: Leads mobile card hierarchy (name, status, source and qualification chips, follow-up and next action, View).
+   Presentation only; shown under the same 900px breakpoint as the other Sales list cards. */
+.ta-lead-m { display: grid; gap: 10px; padding: 14px 16px; min-width: 0; }
+.ta-lead-m-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.ta-lead-m-id { min-width: 0; overflow-wrap: anywhere; }
+.ta-lead-m-name { display: block; font-size: 16px; line-height: 1.3; color: var(--ta-ink); }
+.ta-lead-m-status { display: flex; flex: none; flex-direction: column; align-items: flex-end; gap: 4px; }
+.ta-lead-m-subject { margin: 0; font-size: 13px; line-height: 1.4; overflow-wrap: anywhere; }
+.ta-lead-m-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.ta-lead-m-chip { padding: 3px 9px; border: 1px solid var(--ta-line); border-radius: 999px; background: var(--ta-soft); font-size: 12px; line-height: 1.4; color: var(--ta-muted); }
+.ta-lead-m-chip > b { font-weight: 600; color: var(--ta-ink); }
+.ta-lead-m-grid { grid-template-columns: 92px minmax(0, 1fr); overflow-wrap: anywhere; }
+.ta-lead-m .ta-lead-card-action { margin-top: 2px; }
+/* The source pill classes are ta-source-<kind>, which the shared .ta-source.<kind> rules never match; reuse their colours on the card. */
+.ta-lead-m .ta-source { background: var(--ta-soft); color: var(--ta-navy); }
+.ta-lead-m .ta-source-enquiry { background: rgba(47,111,237,.1); color: var(--ta-info); }
+.ta-lead-m .ta-source-proposal_request { background: rgba(212,175,55,.15); color: #7A5F00; }
+/* Touch target: the View lead link is at least 44px high wherever the card layout shows (900px and below). */
+@media (max-width: 900px) { .ta-lead-m .ta-lead-card-action > .ta-btn { min-height: 44px; } }
 @media (max-width: 900px) {
   .ta-lead-table, .ta-opp-table, .ta-q-table, .ta-tasks-table, .ta-followups-table { display: none; }
   .ta-lead-cards { display: grid; }
