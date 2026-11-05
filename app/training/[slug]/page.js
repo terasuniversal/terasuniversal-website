@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { notFound } from "next/navigation";
 import MobileNav from "../../../components/MobileNav";
 import MegaNav from "../../../components/MegaNav";
 import Footer from "../../../components/Footer";
@@ -12,6 +13,10 @@ import { courseCatalog, findCourse } from "../../../data/courseCatalog";
 import { getPublicCourseIdentity, getPublishedSchedulesWithState } from "../../../lib/public-content";
 
 export function generateStaticParams() { return courseCatalog.map(({ slug }) => ({ slug })); }
+// Only catalogue slugs exist. Rejecting others at routing time is what makes
+// them a real HTTP 404: app/loading.js streams the page, so a notFound() thrown
+// during render arrives after a 200 status has already been sent.
+export const dynamicParams = false;
 export const revalidate = 60;
 export async function generateMetadata({ params }) { const { slug } = await params; const course = findCourse(slug); return course ? { title: course.title, description: course.summary, alternates: { canonical: `/training/${course.slug}` }, openGraph: { title: `${course.title} | TERAS UNIVERSAL`, description: course.summary, url: `/training/${course.slug}` } } : { title: "Training Programme | TERAS UNIVERSAL" }; }
 
@@ -21,7 +26,7 @@ function courseSchema(course) { const isoDuration = toIsoDuration(course.duratio
 export default async function CoursePage({ params }) {
   const { slug } = await params;
   const course = findCourse(slug);
-  if (!course) return <main className="utility-page"><div className="container utility-container"><h1>Training programme not found</h1><p>Return to the training catalogue to explore available programmes.</p><a className="btn btn-primary" href="/training">View Training</a></div></main>;
+  if (!course) notFound();
 
   const relatedCourses = (course.related || []).map((reference) => findCourse(reference) || courseCatalog.find((item) => item.title === reference)).filter(Boolean);
   const [{ schedules: publicSchedules, error: scheduleLoadError }, canonicalCourse] = await Promise.all([getPublishedSchedulesWithState(), getPublicCourseIdentity(course.slug)]);

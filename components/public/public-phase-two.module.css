@@ -4,7 +4,7 @@
 
 .credentialGrid, .solutionGrid, .deliveryGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; }
 .credentialCard, .solutionGrid article, .deliveryGrid article { border: 1px solid rgba(11, 58, 99, .15); background: #FFFFFF; padding: 1.35rem; border-radius: .7rem; }
-.credentialCard > span, .solutionGrid article > span, .deliveryGrid article > span { color: #D4AF37; font-weight: 800; letter-spacing: .06em; }
+.credentialCard > span, .solutionGrid article > span, .deliveryGrid article > span { color: #0B3A63; font-weight: 800; letter-spacing: .06em; }
 .credentialCard h3, .solutionGrid h3, .deliveryGrid h3 { color: #0B3A63; font-size: 1.05rem; margin: .55rem 0; }
 .credentialCard p, .solutionGrid p, .deliveryGrid p { color: #333333; line-height: 1.65; margin: 0; }
 
@@ -19,7 +19,7 @@
 
 .processGrid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 1rem; }
 .processGrid article, .proofGrid article, .partnerGrid article, .industryLinkGrid a { border: 1px solid rgba(11, 58, 99, .15); background: #FFFFFF; padding: 1.35rem; border-radius: .7rem; }
-.processGrid span, .proofGrid span, .industryLinkGrid span { color: #D4AF37; font-weight: 800; }
+.processGrid span, .proofGrid span, .industryLinkGrid span { color: #0B3A63; font-weight: 800; }
 .processGrid h3, .proofGrid strong, .partnerGrid h3, .industryLinkGrid h3 { color: #0B3A63; display: block; margin: .55rem 0; }
 .processGrid p, .proofGrid p, .partnerGrid p, .industryLinkGrid p { color: #333333; line-height: 1.65; margin: 0; }
 .proofGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
