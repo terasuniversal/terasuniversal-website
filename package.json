@@ -36,6 +36,7 @@
     "test:sales-shared-ui": "node --experimental-strip-types scripts/sales-shared-ui-foundation-contract.mts",
     "test:sales-dashboard-attention-empty": "node --experimental-strip-types scripts/sales-dashboard-attention-empty-contract.mts",
     "test:sales-quotations-card-hierarchy": "node --experimental-strip-types scripts/sales-quotations-card-hierarchy-contract.mts",
+    "test:sales-leads-card-hierarchy": "node --experimental-strip-types scripts/sales-leads-card-hierarchy-contract.mts",
     "test:sales-wave3c-timezone": "node --experimental-strip-types scripts/sales-wave3c-timezone-contract.mts",
     "test:quotation-pdf-layout": "node --experimental-strip-types scripts/quotation-pdf-layout-contract.mts",
     "test:quotation-read-error": "node --experimental-strip-types scripts/quotation-read-error-contract.mts",
