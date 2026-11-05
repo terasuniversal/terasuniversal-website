@@ -71,6 +71,11 @@
 .progFacts { display: block; margin-top: 10px; font-family: var(--font-montserrat); font-weight: 700; font-size: 1.25rem; }
 .progInline { display: none; position: relative; aspect-ratio: 16 / 10; margin-top: 18px; }
 .progInline img { object-fit: cover; }
+.progInline img { object-position: 50% 30%; }
+.panel { position: absolute; inset: 0; background: var(--navy); color: #fff; display: flex; flex-direction: column; justify-content: space-between; padding: clamp(20px, 3vw, 36px); border-bottom: 12px solid var(--gold); }
+.panelNo { font-family: var(--font-montserrat); font-weight: 800; font-size: clamp(4.5rem, 12vw, 9rem); line-height: 0.85; letter-spacing: -0.05em; color: var(--gold); }
+.panelTitle { font-family: var(--font-montserrat); font-weight: 800; font-size: clamp(1.5rem, 2.6vw, 2.25rem); line-height: 1.05; letter-spacing: -0.03em; max-width: 12ch; }
+.panelWrap { position: absolute; inset: 0; }
 .stage { position: sticky; top: 32px; aspect-ratio: 4 / 5; overflow: hidden; background: var(--navy); }
 .stageImg, .stageOn { object-fit: cover; opacity: 0; transition: opacity 0.45s ease; }
 .stageOn { opacity: 1; }

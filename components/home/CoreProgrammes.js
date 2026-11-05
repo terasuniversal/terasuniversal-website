@@ -14,7 +14,8 @@ const eachDuration = (slugs) => {
 const erectorSlugs = ["basic-scaffolder-level-1", "intermediate-scaffolder-level-2", "advanced-scaffolder-level-3"];
 const inspectorSlugs = ["scaffolding-inspector-basic", "scaffolding-inspector-intermediate", "scaffolding-inspector-advanced"];
 
-// Illustrative photography: temporary AI-generated images approved for this design slice.
+// Illustrative photography (AI-generated) where an accepted image exists; the other two programmes use a
+// Navy/Gold panel (`panel` = programme number) rather than a photograph that has not been approved.
 const items = [
   {
     // "Scaffolding Erector" is the public category label; the destination is the existing
@@ -23,24 +24,22 @@ const items = [
     href: "/training/scaffolding-competency",
     summary: "Erect, modify, inspect and dismantle scaffolding to industry standards. ",
     facts: `Basic, Intermediate and Advanced Scaffolder · ${eachDuration(erectorSlugs)}`,
-    image: "/images/temp-ai-corporate-scene-07.webp",
-    alt: "Scaffolder tightening a coupler on a scaffold tube",
+    image: "/images/v2/programme-erector-coupler-closeup.webp",
+    alt: "An instructor holding up a scaffold coupler to show its clamp halves and bolt",
   },
   {
     title: "Scaffolding Inspector",
     href: "/training/scaffolding-inspector-basic",
     summary: "Inspect scaffold structures against standards and report defects and corrective actions. ",
     facts: `Basic, Intermediate, Advanced · ${eachDuration(inspectorSlugs)}`,
-    image: "/images/temp-ai-corporate-scene-14.webp",
-    alt: "Inspectors reviewing a scaffold against a checklist",
+    panel: "02",
   },
   {
     title: "Working at Height",
     href: "/training/working-at-height",
     summary: "Identify hazards, apply fall prevention and protection, and check and use PPE. ",
     facts: workingAtHeightProgrammes.working_at_height.duration_label,
-    image: "/images/temp-ai-corporate-scene-12.webp",
-    alt: "Trainees practising a rescue on a harnessed casualty",
+    panel: "03",
   },
 ];
 

@@ -27,7 +27,7 @@ export default function GalleryPage() {
         <div className="container">
           <span className="eyebrow">Training Gallery</span>
           <h1 id="gallery-page-title">A closer look at training in action.</h1>
-          <p>Explore visual representations of industrial safety training, technical development and practical competency activities.</p>
+          <p>Explore visual representations of industrial safety training, technical development and practical competency activities. These are AI-generated illustrations; the people shown are not TERAS personnel.</p>
         </div>
       </section>
       <section className="gallery-page-content" aria-label="Complete training gallery">

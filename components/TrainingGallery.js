@@ -37,7 +37,7 @@ export default function TrainingGallery({ items, showFullGalleryLink = true }) {
 
   return (
     <>
-      <div className="gallery-filter-bar" role="toolbar" aria-label="Filter training gallery">{filters.map((item) => <button className={filter === item ? "active" : ""} type="button" key={item} onClick={() => { setFilter(item); setActiveIndex(null); }} aria-pressed={filter === item}>{item}</button>)}</div>
+      <div className="gallery-filter-bar" role="toolbar" aria-label="Filter training gallery">{filters.filter((item) => item === "All" || items.some(([title]) => categoryFor(title) === item)).map((item) => <button className={filter === item ? "active" : ""} type="button" key={item} onClick={() => { setFilter(item); setActiveIndex(null); }} aria-pressed={filter === item}>{item}</button>)}</div>
       <p className="gallery-results" aria-live="polite"><strong>{filteredItems.length}</strong> training visuals in {filter === "All" ? "the gallery" : `${filter} category`}</p>
       <div className="training-gallery" aria-label={`${filter} training gallery`}>
         {filteredItems.map(([title, image], index) => (
