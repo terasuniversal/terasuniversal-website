@@ -68,11 +68,10 @@ function readForm(formData: FormData) {
 
 function clean(data: any) {
   const out: any = { ...data };
-  // The session fee column is introduced by the Phase 3 additive migration.
-  // Omit an empty value so this action remains compatible with a baseline
-  // database before that migration is applied; once present, NULL means the
-  // session is visible but not eligible for online payment.
-  if (out.fee === null || out.fee === undefined) delete out.fee;
+  // NULL means the session is visible but not eligible for online payment.
+  // Keep an explicit NULL so staff can clear a previously confirmed fee; only
+  // an absent value is left out of the payload.
+  if (out.fee === undefined) delete out.fee;
   // exam_date is a nullable `date` column and, unlike start_date/end_date, is
   // genuinely optional -- a blank submission must clear it to NULL, not send
   // an empty string (which Postgres rejects for a date column).

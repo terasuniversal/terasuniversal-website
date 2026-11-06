@@ -2,11 +2,18 @@ import "../globals.css"; // site-wide base; Montserrat (headings) is loaded by t
 import "./admin.css";
 import "./admin-tailwind.css"; // shadcn/ui primitives; admin-only, see file header
 import type { ReactNode } from "react";
-import { Inter } from "next/font/google";
+import localFont from "next/font/local";
 
 // Admin body font. Loaded here, not in the root layout, so the public site
 // never downloads it; the variable is only defined inside .teras-admin.
-const inter = Inter({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-inter", display: "swap" });
+// Self-hosted Latin subset (SIL OFL 1.1; see app/fonts/README.md).
+const inter = localFont({
+  src: [{ path: "../fonts/inter/inter-v20-latin-wght-normal.woff2", weight: "400 600", style: "normal" }],
+  variable: "--font-inter",
+  display: "swap",
+  adjustFontFallback: false,
+  fallback: ["Inter Fallback"], // face defined in fonts/fallbacks.css (loaded by the root layout)
+});
 
 export const metadata = {
   title: "Admin — TERAS UNIVERSAL",

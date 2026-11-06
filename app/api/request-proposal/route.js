@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { createSupabaseServerClient, createSupabaseServiceClient } from "../../../lib/supabase/server";
+import { blockedOutboundBody, outboundDecision } from "../../../lib/preview-isolation";
 
 export const runtime = "nodejs";
 
@@ -93,6 +94,13 @@ async function syncToGoogleSheets(data, requestedAt) {
 }
 
 export async function POST(request) {
+  // Preview isolation: runs before persistence, Resend or Google Sheets. Both
+  // channels are checked explicitly; any block is an explicit failure.
+  for (const channel of ["email", "google_sheets"]) {
+    const outbound = outboundDecision(channel);
+    if (!outbound.allowed) return NextResponse.json(blockedOutboundBody(outbound), { status: outbound.status });
+  }
+
   const origin = request.headers.get("origin");
   const siteOrigin = new URL(request.url).origin;
   if (origin && origin !== siteOrigin && !origin.endsWith(".vercel.app")) return responseError("Invalid request origin.", 403);

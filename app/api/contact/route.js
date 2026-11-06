@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { contactEnquirySchema, fieldErrors } from "../../../lib/validation/schemas";
 import { createSupabaseServerClient } from "../../../lib/supabase/server";
+import { blockedOutboundBody, outboundDecision } from "../../../lib/preview-isolation";
 
 export const runtime = "nodejs";
 
@@ -53,6 +54,11 @@ async function notifyInternal(data) {
 }
 
 export async function POST(request) {
+  // Preview isolation: runs before persistence or any email call. Explicit
+  // failure outside Production -- never a simulated success.
+  const outbound = outboundDecision("email");
+  if (!outbound.allowed) return NextResponse.json(blockedOutboundBody(outbound), { status: outbound.status });
+
   const origin = request.headers.get("origin");
   const siteOrigin = new URL(request.url).origin;
   if (origin && origin !== siteOrigin && !origin.endsWith(".vercel.app")) {

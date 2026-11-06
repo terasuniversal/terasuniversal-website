@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { enquiryHref } from "./public/PrimaryCtaGroup";
+import { FEE_ENQUIRY_TEXT, FEE_UNIT, formatSessionFee, sessionKind } from "../lib/session-display";
 
 // Data-driven training calendar. Sessions come from the live CMS
 // (course_schedules) via the parent server page — this component never
@@ -28,9 +29,13 @@ const dateLabel = (date, options = {}) =>
 const timeLabel = (time) =>
   new Intl.DateTimeFormat("en-MY", { hour: "numeric", minute: "2-digit" }).format(new Date(`2000-01-01T${time}`));
 
-const feeLabel = (fee) => fee == null
-  ? null
-  : `RM${new Intl.NumberFormat("en-MY", { maximumFractionDigits: 2 }).format(Number(fee))} / pax`;
+// One price format across the site: "RM 1,234 per participant". A fee that is null or zero is not shown as a price; for sessions
+// that are still ahead it reads as an enquiry-based state (never as a free session).
+const feeLabel = (session) => {
+  const fee = formatSessionFee(session.fee);
+  if (fee) return `${fee} ${FEE_UNIT}`;
+  return isUpcoming(session) && isLiveStatus(session) ? FEE_ENQUIRY_TEXT : null;
+};
 
 const seatsLabel = (session) => {
   if (session.status === "cancelled") return "Cancelled";
@@ -39,8 +44,12 @@ const seatsLabel = (session) => {
   return null;
 };
 
-const sessionUrl = (session) => session.registration_available ? `/registration/${session.id}` : (session.slug ? `/training/${session.slug}` : enquiryHref({ source: "calendar", session: session.start_date }));
-const sessionCta = (session) => session.registration_available ? "Register" : (session.slug ? "View Course Details" : "Enquire About This Session");
+// A session that is still ahead and not registrable goes to an enquiry: "Ask about the next date" when it is full, "Enquire About This
+// Session" otherwise (no waiting list). Past or closed sessions keep the course-details link.
+const isEnquiryAhead = (session) => sessionKind(session) !== "open" && isUpcoming(session) && isLiveStatus(session);
+const enquiryUrl = (session) => enquiryHref({ course: session.slug ?? undefined, source: "calendar", session: session.start_date });
+const sessionUrl = (session) => sessionKind(session) === "open" ? `/registration/${session.id}` : isEnquiryAhead(session) ? enquiryUrl(session) : (session.slug ? `/training/${session.slug}` : enquiryHref({ source: "calendar", session: session.start_date }));
+const sessionCta = (session) => sessionKind(session) === "open" ? "Register" : isEnquiryAhead(session) ? (sessionKind(session) === "full" ? "Ask about the next date" : "Enquire About This Session") : (session.slug ? "View Course Details" : "Enquire About This Session");
 
 function isUpcoming(session) {
   return session.start_date >= todayString();
@@ -75,7 +84,7 @@ function SessionList({ sessions }) {
             <div>
               <h3>{session.title}</h3>
               <p>{[session.delivery_mode, session.venue].filter(Boolean).join(" · ") || "Venue to be confirmed"}</p>
-              {feeLabel(session.fee) && <p className="calendar-session-fee">{feeLabel(session.fee)}</p>}
+              {feeLabel(session) && <p className="calendar-session-fee">{feeLabel(session)}</p>}
             </div>
             <span className={`calendar-status is-${session.status}`}>{STATUS_LABELS[session.status] ?? session.status}</span>
             <strong className={seats === "Full" || session.status === "cancelled" ? "seats-complete" : "seats-available"}>{seats ?? "Seats to be confirmed"}</strong>

@@ -28,9 +28,9 @@ const allItems = NAV.flatMap((group) => group.items);
 assert.deepEqual(
   allItems.map((i) => `${i.key} ${i.href}`),
   [
-    "dashboard /admin/dashboard", "reports /admin/reports",
+    "dashboard /admin/dashboard", "reports /admin/reports", "executive /admin/executive",
     "courses /admin/courses", "trainers /admin/trainers", "schedules /admin/schedules",
-    "participants /admin/participants", "companies /admin/companies", "attendance /admin/attendance",
+    "participants /admin/participants", "companies /admin/companies", "registrations /admin/registrations", "attendance /admin/attendance",
     "assessment /admin/assessment", "assessors /admin/assessors", "legacy_import /admin/participants/legacy-import",
     "certificates /admin/certificates", "cert-templates /admin/certificates/templates",
     "sales /admin/sales", "sales_leads /admin/sales/leads", "sales_opportunities /admin/sales/opportunities",
@@ -61,7 +61,7 @@ for (const role of roles) {
   }
 }
 const editorKeys = visibleNavGroups("editor", [], false).flatMap((g) => g.items).map((i) => i.key);
-for (const adminOnly of ["users", "audit", "system", "backups", "automation", "assessors", "cert-templates"]) {
+for (const adminOnly of ["users", "audit", "system", "backups", "automation", "assessors", "cert-templates", "registrations", "executive"]) {
   assert.ok(!editorKeys.includes(adminOnly), `editor must not see ${adminOnly}`);
 }
 assert.equal(visibleNavGroups("editor", [], true).length, 0, "access control with no grants shows no modules");

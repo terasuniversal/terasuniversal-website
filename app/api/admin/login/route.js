@@ -1,5 +1,6 @@
 ﻿import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { validatePublicSupabaseConfig } from "../../../../lib/preview-isolation";
 
 export const runtime = "nodejs";
 
@@ -17,6 +18,9 @@ export async function POST(request) {
     const password = String(body?.password || "");
     if (!email || !password) return NextResponse.json({ error: "Sila masukkan email dan kata laluan dahulu." }, { status: 400 });
     const { url, key } = getConfig();
+    // Preview isolation: no sign-in through the Production project from a non-Production deployment.
+    const projectGuard = validatePublicSupabaseConfig();
+    if (!projectGuard.ok) return NextResponse.json({ error: projectGuard.message, code: projectGuard.code }, { status: 503 });
     const authClient = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
     const { data, error } = await authClient.auth.signInWithPassword({ email, password });
     if (error || !data.session || !data.user) return NextResponse.json({ error: error?.message || "Log masuk tidak berjaya." }, { status: 401 });

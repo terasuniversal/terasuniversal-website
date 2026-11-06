@@ -198,14 +198,14 @@ export async function getPublishedSchedules(): Promise<PublicSchedule[]> {
  * reads the underlying tables. Separate cache entry from
  * getPublishedSchedules — nested unstable_cache calls are not supported.
  */
-export const getUpcomingSchedules = unstable_cache(
-  async (): Promise<PublicSchedule[]> => {
+export const getUpcomingSchedulesWithState = unstable_cache(
+  async (): Promise<{ schedules: PublicSchedule[]; error: boolean }> => {
     const supabase = getSupabaseClient();
     try {
       const { data, error } = await supabase.rpc("get_public_upcoming_schedules", { p_include_past: false });
-      if (error) return [];
+      if (error) return { schedules: [], error: true };
       const schedules = (data ?? []).map(mapSchedule).slice(0, 3);
-      return Promise.all(schedules.map(async (schedule: PublicSchedule) => {
+      const withRegistration = await Promise.all(schedules.map(async (schedule: PublicSchedule) => {
         const context = await getPublicRegistrationSchedule(schedule.id);
         return {
           ...schedule,
@@ -213,11 +213,13 @@ export const getUpcomingSchedules = unstable_cache(
           registration_available: context?.registration_available === true,
         };
       }));
+      return { schedules: withRegistration, error: false };
     } catch {
-      return [];
+      return { schedules: [], error: true };
     }
   },
-  ["public-upcoming-schedules"],
+  // New key: the cached value now carries the error flag, so it must not read entries stored in the old array shape.
+  ["public-upcoming-schedules-state"],
   { tags: ["schedules"], revalidate: 60 }
 );
 

@@ -19,6 +19,10 @@ Durable decisions for the TERAS Universal shared agent workflow.
 - Database changes are forward-only and additive by default.
 - Destructive production reset, `DROP`, `TRUNCATE`, or destructive data changes are prohibited without explicit human confirmation and the database safety workflow.
 
+## 2026-11-06 — Online registration is paid-only
+- A session is registrable online only when its confirmed fee is greater than 0. Fee 0 and NULL are enquiry-only; there is no free-registration workflow. Enforcement is server-side in `get_public_registration_schedule` and `create_public_registration`, with the public form and Admin validation mirroring it.
+- Staff CRM enrolment is a separate path and is not constrained by the online fee.
+
 ## 2026-11-05 - Premium public design kit (A3 Executive)
 
 - The public site's premium design language is Concept A3 Executive with the Refined hero mosaic on the homepage.
@@ -35,6 +39,15 @@ Durable decisions for the TERAS Universal shared agent workflow.
 - Owner accepted A3 Executive + Refined Mosaic + Hero Variant B after physical iPhone QA of Preview `3b26524` (hero 5 of 5 PASS). Design and local development are approved; PR, merge, deployment and database changes are not.
 - `3b26524` is the visual reference for the homepage. The inner-page templates extend `components/premium` minimally (statement hero, section heading, course cards, facts, CTA band, recognition block, empty state) and do not repeat the two hero photographs on unrelated pages.
 
+## 2026-11-06 - Session price and availability presentation
+- Session fees are shown only from the authoritative schedule record as `RM x,xxx per participant`; null or zero is an enquiry state, never a free session. Registration is offered only when the server flag `registration_available` is true. Full sessions offer an enquiry ("Ask about the next date"), with no waiting-list workflow.
+
+## 2026-11-06 - Register state follows the registration and payment contract
+- A public session shows Register only when the server flag `registration_available` is true, the status is not full, the fee is a positive amount and a seat remains. A zero fee is an enquiry state, because the payment provider cannot bill RM 0. The registration page, payment and database logic are unchanged.
+
+## 2026-11-06 - Fee wording for zero or NULL public session fees
+- Owner decision: a public session whose fee is zero or NULL reads "Fee to be confirmed" on every surface (homepage Upcoming training, course pages, calendar). It supersedes the earlier "Fee confirmed on enquiry" wording; the single source is `FEE_ENQUIRY_TEXT` in `lib/session-display.ts`.
+- Unchanged Production rule: fee > 0 allows paid online registration; zero and NULL are enquiry-only and never reach `/registration/<id>` as a registrable session. There is no free-registration workflow.
 ## 2026-11-06 - Training design accepted as the site-wide standard
 - Owner accepted the Training/Course templates (Preview `83ab57a`, iPhone 7 of 7). The inner-page kit in `components/premium` is the standard for the remaining public pages; Company and Services are the second template group. Design and local development only.
 

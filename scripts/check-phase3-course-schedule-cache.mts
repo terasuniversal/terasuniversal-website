@@ -17,7 +17,7 @@ assert.match(publicContent, /fee: context\?\.fee \?\? null/);
 assert.match(publicContent, /registration_available: context\?\.registration_available === true/);
 
 assert.match(calendar, /session\.fee/);
-assert.match(calendar, /RM\$\{new Intl\.NumberFormat/);
+assert.match(calendar, /formatSessionFee\(session\.fee\)/);
 assert.doesNotMatch(calendar, /courses\.fee/);
 
 console.log("Phase 3 schedule cache checks passed: mapped course paths are invalidated and calendar fees use session fee data.");

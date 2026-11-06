@@ -16,6 +16,7 @@ import CourseScheduleOptions from "../../../components/public/CourseScheduleOpti
 import RelatedIndustries from "../../../components/public/RelatedIndustries";
 import { courseCatalog, findCourse } from "../../../data/courseCatalog";
 import { getPublicCourseIdentity, getPublishedSchedulesWithState } from "../../../lib/public-content";
+import { sessionKind } from "../../../lib/session-display";
 
 export function generateStaticParams() { return courseCatalog.map(({ slug }) => ({ slug })); }
 // Only catalogue slugs exist. Rejecting others at routing time is what makes
@@ -43,9 +44,10 @@ export default async function CoursePage({ params }) {
       ? session.course_id === (course.crmCourseId || canonicalCourse.id)
       : session.slug === course.slug || session.title === course.title
   ) && session.start_date >= new Date().toISOString().slice(0, 10));
-  const hasRegistration = courseSchedules.some((session) => session.registration_available === true);
+  const hasRegistration = courseSchedules.some((session) => sessionKind(session) === "open");
   const courseId = canonicalCourse?.id || courseSchedules[0]?.course_id;
-  const scheduleHref = courseSchedules.length === 1 && hasRegistration
+  // Direct registration link only when the course has exactly one session and that session is registrable.
+  const scheduleHref = courseSchedules.length === 1 && sessionKind(courseSchedules[0]) === "open"
     ? `/registration/${courseSchedules[0].id}`
     : courseId
       ? `/calendar?courseId=${encodeURIComponent(courseId)}`
@@ -70,7 +72,7 @@ export default async function CoursePage({ params }) {
         facts={[["Duration", course.duration], ["Delivery", course.deliveryMode]]}
       />
 
-      <CourseScheduleOptions sessions={courseSchedules} loadError={scheduleLoadError} />
+      <CourseScheduleOptions sessions={courseSchedules} loadError={scheduleLoadError} courseSlug={course.slug} />
 
       <section className={kit.sec} aria-labelledby="course-details-title"><div className={`${kit.wrap} ${inner.twoCol}`}><div><span className={`${inner.eyebrow} ${inner.onLight}`}>Course Overview</span><h2 id="course-details-title">Course details</h2><p>{course.summary}</p><FactLedger facts={facts} /></div>{course.audience?.length > 0 && <aside className={inner.aside} aria-labelledby="attend-title"><span className={`${inner.eyebrow} ${inner.onLight}`}>Who Should Attend</span><h3 id="attend-title" className="sr-only">Who should attend</h3><ul>{course.audience.map((item) => <li key={item}>{item}</li>)}</ul></aside>}</div></section>
 

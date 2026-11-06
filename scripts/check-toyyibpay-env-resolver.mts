@@ -30,6 +30,12 @@ globalThis.fetch = async (url: string, opts: { body: URLSearchParams }) => {
 };
 
 function resetEnv() {
+  // Live "production" mode is only honored in the Production deployment target
+  // (see lib/preview-isolation.ts); the non-Production behavior is covered by
+  // scripts/preview-isolation-guard.test.mts. These checks exercise the
+  // resolver as Production runs it.
+  process.env.VERCEL_TARGET_ENV = "production";
+  delete process.env.VERCEL_ENV;
   delete process.env.TOYYIBPAY_ENV;
   process.env.TOYYIBPAY_USER_SECRET_KEY = "test-secret";
   process.env.TOYYIBPAY_CATEGORY_CODE = "test-category";
