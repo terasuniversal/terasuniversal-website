@@ -1,31 +1,45 @@
-import Image from "next/image";
-import ProposalWizard from "../../components/ProposalWizard";
+import ProposalRequestForm from "../../components/ProposalRequestForm";
 import Footer from "../../components/Footer";
+import CtaBand from "../../components/premium/CtaBand";
+import InnerHero from "../../components/premium/InnerHero";
 import PremiumHeader from "../../components/premium/PremiumHeader";
+import kit from "../../components/premium/premium.module.css";
+import inner from "../../components/premium/inner.module.css";
+import { companyProfile } from "../../data/companyProfile";
 
-const benefits = [
-  ["01", "Customised Solutions", "A proposal shaped around your workforce profile, operational requirements and delivery preferences."],
-  ["02", "Fast Response", "A clear starting point for discussing the scope, participants and priorities behind your request."],
-  ["03", "Industry Experience", "Practical conversations across industrial safety, technical competency, consultancy and workforce development."],
-  ["04", "Nationwide Delivery", "Flexible arrangements for organisations operating across Malaysia."],
-];
-const process = ["Submit Request", "Review", "Consultation", "Proposal", "Training Delivery"];
+const { email, phone } = companyProfile.contact;
+const phoneHref = `tel:${phone.replace(/[^\d+]/g, "")}`;
+const whatsappHref = `https://wa.me/${phone.replace(/\D/g, "")}`;
 
 export default function RequestProposalPage() {
   return (
     <>
       <PremiumHeader />
-      <main className="proposal-page">
+      <main className={`${kit.px} ${inner.page}`}>
+        <InnerHero
+          titleId="proposal-hero-title"
+          crumbs={[{ label: "Home", href: "/" }, { label: "Request a Proposal" }]}
+          eyebrow="Request a Proposal"
+          title="Tell us about your training requirements"
+          lead="Share your organisation's training requirements below. You can also contact TERAS UNIVERSAL directly using the details further down this page."
+          actions={<div className={inner.actions}><a className={kit.btn} href="#proposal-form">Start your request</a><a className={`${kit.btn} ${kit.btnLight}`} href="/training">Explore Training</a></div>}
+        />
 
-      <section className="proposal-hero" aria-labelledby="proposal-hero-title"><div className="container proposal-hero-grid"><div className="proposal-hero-copy"><span className="eyebrow">Request a Proposal</span><h1 id="proposal-hero-title">Tell Us About Your Training Requirements</h1><p>Share your organisation&apos;s training needs and our team will prepare a suitable proposal based on your workforce, operational requirements and preferred delivery method.</p><div className="hero-actions"><a className="btn btn-primary" href="https://wa.me/60195193834" target="_blank" rel="noreferrer">WhatsApp Us</a><a className="btn btn-outline" href="/training">Explore Training</a></div></div><figure className="proposal-hero-media"><Image src="/images/v2/panel-c.svg" alt="" unoptimized width={1200} height={800} priority sizes="(max-width: 920px) 100vw, 52vw" /></figure></div></section>
+        <section className={kit.sec} aria-labelledby="proposal-form-title">
+          <div className={`${kit.wrap} ${inner.formLayout} ${inner.formSolo}`}>
+            <div>
+              <h2 id="proposal-form-title" className={inner.formHeading}>Your request</h2>
+              <p className={inner.formNote}>Fields marked (required) must be completed. Everything else is optional.</p>
+              <ProposalRequestForm />
+            </div>
+          </div>
+        </section>
 
-      <section className="proposal-form-section" aria-labelledby="proposal-form-title"><div className="container"><div className="section-heading proposal-section-heading"><span className="eyebrow">Corporate Enquiry Form</span><h2 id="proposal-form-title">Help us understand your requirements.</h2><p>Complete the form and we can use the information as a starting point for the next conversation.</p></div><ProposalWizard /></div></section>
-
-      <section className="proposal-benefits-section" aria-labelledby="benefits-title"><div className="container"><div className="section-heading"><span className="eyebrow">Why Submit a Proposal Request</span><h2 id="benefits-title">A clearer route to the right arrangement.</h2></div><div className="proposal-benefits-grid">{benefits.map(([number,title,text]) => <article key={title}><span>{number}</span><h3>{title}</h3><p>{text}</p></article>)}</div></div></section>
-
-      <section className="proposal-process-section" aria-labelledby="proposal-process-title"><div className="container"><div className="section-heading"><span className="eyebrow">Our Process</span><h2 id="proposal-process-title">From request to delivery.</h2></div><div className="proposal-process-grid">{process.map((stage,index) => <article key={stage}><span>{String(index+1).padStart(2,"0")}</span><h3>{stage}</h3>{index < process.length - 1 && <b aria-hidden="true">&rarr;</b>}</article>)}</div></div></section>
-
-      <section className="proposal-assistance-section"><div className="container"><div><span className="eyebrow">Corporate Assistance</span><h2>Need Immediate Assistance?</h2></div><div className="hero-actions"><a className="btn btn-primary" href="https://wa.me/60195193834" target="_blank" rel="noreferrer">WhatsApp</a><a className="btn btn-outline" href="tel:+60195193834">Call</a><a className="btn btn-outline proposal-email-button" href="mailto:training@terasuniversal.com.my">Email</a></div></div></section>
+        <CtaBand id="proposal-contact-title" eyebrow="Prefer to talk first?" title="Reach us directly" text="You can also contact TERAS UNIVERSAL without using the form.">
+          <a className={kit.btn} href={`mailto:${email}`}>Email</a>
+          <a className={`${kit.btn} ${kit.btnLight}`} href={phoneHref}>Call</a>
+          <a className={`${kit.btn} ${kit.btnLight}`} href={whatsappHref} target="_blank" rel="noopener noreferrer">WhatsApp</a>
+        </CtaBand>
       </main>
       <Footer />
     </>

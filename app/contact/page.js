@@ -1,61 +1,54 @@
-import Image from "next/image";
 import ContactEnquiryForm from "../../components/ContactEnquiryForm";
 import Footer from "../../components/Footer";
+import FactLedger from "../../components/premium/FactLedger";
+import InnerHero from "../../components/premium/InnerHero";
 import PremiumHeader from "../../components/premium/PremiumHeader";
+import kit from "../../components/premium/premium.module.css";
+import inner from "../../components/premium/inner.module.css";
+import { companyProfile } from "../../data/companyProfile";
 
-const faqs = [
-  ["Can training be customised?", "Yes. Programme scope can be discussed around participant profiles, operational risks, organisational procedures and desired learning outcomes."],
-  ["Do you provide in-house training?", "Yes. Programmes can be arranged for a specific organisation, department, project team or workforce group."],
-  ["Can you train at our site?", "Selected programmes may be delivered onsite, subject to programme requirements, site suitability, equipment availability and safety arrangements."],
-  ["Do participants receive certificates?", "Certification or proof of completion depends on the programme structure, attendance, assessment requirements and applicable competency criteria."],
-];
-const reasons = [
-  ["01", "Fast Response", "A clear starting point for discussing your training or consultancy requirements."],
-  ["02", "Experienced Trainers", "Practical conversations shaped by industrial learning and competency development needs."],
-  ["03", "Industry Solutions", "Support across industrial safety, technical competency, consultancy and workforce development."],
-  ["04", "Nationwide Delivery", "Flexible arrangements for organisations operating across Malaysia."],
-];
+const { email, phone, address } = companyProfile.contact;
+// The map is a link the visitor chooses to open. Nothing from Google loads until they do.
+const mapHref = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+const phoneHref = `tel:${phone.replace(/[^\d+]/g, "")}`;
+// WhatsApp is the existing site-wide channel (header and footer); it uses the same number as the phone above.
+const whatsappHref = `https://wa.me/${phone.replace(/\D/g, "")}`;
 
 export default function ContactPage() {
+  const channels = [
+    ["Email", <a key="email" className={inner.channelLink} href={`mailto:${email}`}>{email}</a>],
+    ["Phone", <a key="phone" className={inner.channelLink} href={phoneHref}>{phone}</a>],
+    ["WhatsApp", <a key="wa" className={inner.channelLink} href={whatsappHref} target="_blank" rel="noopener noreferrer">Message us on WhatsApp</a>],
+    ["Address", <span key="addr">{address}</span>],
+  ];
   return (
     <>
       <PremiumHeader />
-      <main className="contact-page">
+      <main className={`${kit.px} ${inner.page}`}>
+        <InnerHero
+          titleId="contact-hero-title"
+          crumbs={[{ label: "Home", href: "/" }, { label: "Contact" }]}
+          eyebrow="Contact"
+          title="Contact TERAS UNIVERSAL"
+          lead="Send an enquiry about training or consultancy, or reach us directly. For an organisation-wide requirement, use the proposal request form."
+          actions={<div className={inner.actions}><a className={kit.btn} href="#contact-form">Send an enquiry</a><a className={`${kit.btn} ${kit.btnLight}`} href="/request-proposal">Request a Proposal</a></div>}
+        />
 
-      <section className="contact-page-hero" aria-labelledby="contact-hero-title">
-        <div className="container contact-page-hero-grid">
-          <div className="contact-page-hero-copy"><span className="eyebrow">Contact TERAS UNIVERSAL</span><h1 id="contact-hero-title">Let&apos;s Build Capability Together</h1><p>Speak with our training consultants to discuss industrial safety training, competency development, consultancy or customised workforce programmes.</p><div className="hero-actions"><a className="btn btn-primary" href="/request-proposal">Request Proposal</a><a className="btn btn-outline" href="https://wa.me/60195193834" target="_blank" rel="noreferrer">WhatsApp Us</a></div></div>
-          <figure className="contact-page-hero-media"><Image src="/images/v2/panel-a.svg" alt="" unoptimized width={1200} height={800} priority sizes="(max-width: 920px) 100vw, 52vw" /></figure>
-        </div>
-      </section>
-
-      <section className="contact-info-section" aria-label="Contact information">
-        <div className="container contact-info-grid">
-          <article><span className="contact-info-number">01</span><h2>General Enquiries</h2><dl><div><dt>Email</dt><dd><a href="mailto:training@terasuniversal.com.my">training@terasuniversal.com.my</a></dd></div><div><dt>Phone</dt><dd><a href="tel:+60195193834">+60 19-519 3834</a></dd></div></dl></article>
-          <article><span className="contact-info-number">02</span><h2>Office Address</h2><address>Lot 1961<br />Jalan Tanah Merah<br />Kg Tanah Merah Dalam<br />06000 Jitra<br />Kedah<br />Malaysia</address></article>
-          <article><span className="contact-info-number">03</span><h2>Business Hours</h2><dl><div><dt>Sunday-Friday</dt><dd>8:30 AM - 5:30 PM</dd></div><div><dt>Saturday</dt><dd>Closed</dd></div></dl></article>
-        </div>
-      </section>
-
-      <section className="contact-form-section" id="contact-form" aria-labelledby="contact-form-title">
-        <div className="container contact-form-layout"><div className="contact-form-intro"><span className="eyebrow">Start a Conversation</span><h2 id="contact-form-title">Tell us what your organisation needs.</h2><p>Share a few details and our team can begin the conversation around the right training or consultancy arrangement.</p></div><ContactEnquiryForm /></div>
-      </section>
-
-      <section className="contact-map-section" aria-labelledby="map-title"><div className="container"><div className="section-heading contact-map-heading"><span className="eyebrow">Find Us</span><h2 id="map-title">Connect with TERAS UNIVERSAL.</h2></div><div className="contact-map-card">
-  <iframe
-    title="TERAS UNIVERSAL office location"
-    src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3966.1999457607535!2d100.41016197499049!3d6.237356193750902!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x304b59ed020012fb%3A0x18b18a8d6d8a4a06!2sTeras%20Universal%20Sdn%20Bhd!5e0!3m2!1sen!2smy!4v1784774342646!5m2!1sen!2smy"
-    loading="lazy"
-    allowFullScreen
-    referrerPolicy="strict-origin-when-cross-origin"
-  />
-</div></div></section>
-
-      <section className="contact-reasons-section" aria-labelledby="reasons-title"><div className="container"><div className="section-heading"><span className="eyebrow">Why Contact TERAS</span><h2 id="reasons-title">A practical first step toward stronger capability.</h2></div><div className="contact-reasons-grid">{reasons.map(([number, title, text]) => <article key={title}><span>{number}</span><h3>{title}</h3><p>{text}</p></article>)}</div></div></section>
-
-      <section className="contact-faq-section" aria-labelledby="contact-faq-title"><div className="container"><div className="section-heading"><span className="eyebrow">Frequently Asked Questions</span><h2 id="contact-faq-title">A few quick answers before we speak.</h2></div><div className="contact-faq-list">{faqs.map(([question, answer]) => <details key={question}><summary>{question}<span aria-hidden="true">+</span></summary><p>{answer}</p></details>)}</div></div></section>
-
-      <section className="contact-page-cta"><div className="container"><div><span className="eyebrow">Corporate &amp; Custom Solutions</span><h2>Ready to Strengthen Your Workforce?</h2></div><div className="hero-actions"><a className="btn btn-gold" href="/request-proposal">Request Proposal</a><a className="btn btn-light" href="https://wa.me/60195193834" target="_blank" rel="noreferrer">WhatsApp</a></div></div></section>
+        <section className={kit.sec} id="contact-form" aria-labelledby="contact-form-title">
+          <div className={`${kit.wrap} ${inner.formLayout}`}>
+            <div>
+              <h2 id="contact-form-title" className={inner.formHeading}>Send an enquiry</h2>
+              <ContactEnquiryForm />
+            </div>
+            <aside className={inner.aside} aria-labelledby="channels-title">
+              <h3 id="channels-title">Reach us directly</h3>
+              <FactLedger facts={channels} />
+              <p className={inner.mapNote}>
+                <a className={inner.channelLink} href={mapHref} target="_blank" rel="noopener noreferrer">View this address on Google Maps<span className={inner.fieldMark}> (opens in a new tab)</span></a>
+              </p>
+            </aside>
+          </div>
+        </section>
       </main>
       <Footer />
     </>

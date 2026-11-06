@@ -1,13 +1,30 @@
 import PremiumHeader from "../../../components/premium/PremiumHeader";
 import Footer from "../../../components/Footer";
+import InnerHero from "../../../components/premium/InnerHero";
+import kit from "../../../components/premium/premium.module.css";
+import inner from "../../../components/premium/inner.module.css";
 
-export const metadata = { title: { absolute: "Proposal Request Received | TERAS UNIVERSAL" }, description: "Your TERAS UNIVERSAL proposal request has been received." };
+// Kept at this URL for compatibility with the previous flow. The page only confirms that the request was sent from the
+// form; it does not say anything about email, because whether a confirmation email goes out is not known here.
+export const metadata = {
+  title: { absolute: "Proposal Request Received | TERAS UNIVERSAL" },
+  description: "Your TERAS UNIVERSAL proposal request has been received.",
+  robots: { index: false, follow: false },
+};
 
 export default function ProposalSuccessPage() {
   return (
     <>
       <PremiumHeader />
-      <main className="proposal-success-page"><section className="proposal-success-section"><div className="container"><span className="proposal-success-icon" aria-hidden="true">✓</span><span className="eyebrow">Request Received</span><h1>Thank You for Sharing Your Requirements</h1><p>Your proposal request has been sent to our team. A confirmation email is on its way to you. We will review your requirements and follow up shortly.</p><div className="hero-actions"><a className="btn btn-gold" href="https://wa.me/60195193834" target="_blank" rel="noreferrer">WhatsApp</a><a className="btn btn-outline" href="/">Return Home</a></div></div></section>
+      <main className={`${kit.px} ${inner.page}`}>
+        <InnerHero
+          titleId="proposal-success-title"
+          crumbs={[{ label: "Home", href: "/" }, { label: "Request a Proposal", href: "/request-proposal" }, { label: "Request received" }]}
+          eyebrow="Request received"
+          title="Thank you for sharing your requirements"
+          lead="Your proposal request has been submitted to TERAS UNIVERSAL. If you need to reach us directly, the contact details are on the Contact page."
+          actions={<div className={inner.actions}><a className={kit.btn} href="/contact">Contact details</a><a className={`${kit.btn} ${kit.btnLight}`} href="/">Return home</a><a className={`${kit.btn} ${kit.btnLight}`} href="/training">Explore Training</a></div>}
+        />
       </main>
       <Footer />
     </>
