@@ -3,6 +3,7 @@ import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import type { Database } from "./database.types";
+import { assertPrivilegedSupabaseConfig, assertPublicSupabaseConfig } from "../preview-isolation";
 import { getSupabasePublishableKey, getSupabaseServiceRoleKey, getSupabaseUrl } from "./env";
 
 /**
@@ -11,6 +12,9 @@ import { getSupabasePublishableKey, getSupabaseServiceRoleKey, getSupabaseUrl } 
  * as the logged-in staff member. Never use the service-role key here.
  */
 export async function createSupabaseServerClient() {
+  // Anon/authenticated clients must not use the Production project from a
+  // non-Production deployment. Production is unchanged. See lib/preview-isolation.ts.
+  assertPublicSupabaseConfig();
   const cookieStore = await cookies();
 
   const client = createServerClient<Database>(
@@ -48,6 +52,10 @@ export async function createSupabaseServerClient() {
  * server-side). Never import this into a Client Component.
  */
 export function createSupabaseServiceClient() {
+  // Fail closed outside Production: the effective URL and service key must be
+  // verifiably (or by explicit attestation) for the one approved non-Production
+  // project. Production is returned unchanged. See lib/preview-isolation.ts.
+  assertPrivilegedSupabaseConfig();
   const client = createClient<Database>(
     getSupabaseUrl(),
     getSupabaseServiceRoleKey(),

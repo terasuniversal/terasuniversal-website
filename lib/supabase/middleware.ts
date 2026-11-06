@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import type { Database } from "./database.types";
+import { validatePublicSupabaseConfig } from "../preview-isolation";
 
 const supabasePublicKey = () => process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || "";
 
@@ -32,6 +33,14 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.redirect(url);
     }
     return response;
+  }
+
+  // Preview isolation: a non-Production deployment must not run the admin
+  // area against the Production Supabase project. Production is unchanged.
+  const publicGuard = validatePublicSupabaseConfig();
+  if (!publicGuard.ok) {
+    console.error("Supabase client blocked by preview isolation guard", { code: publicGuard.code, target: publicGuard.target });
+    return new NextResponse("This environment is not configured safely and is unavailable.", { status: 503 });
   }
 
   const supabase = createServerClient<Database>(

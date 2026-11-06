@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createSupabaseServerClient, createSupabaseServiceClient } from "../../../../lib/supabase/server";
 import { requireModuleAccess } from "../../../../lib/auth/session";
+import { outboundDecision } from "../../../../lib/preview-isolation";
 import { MODULE_CATALOG, STAFF_ROLES, type ModuleAccessLevel } from "../../../../lib/auth/rbac";
 import type { UserRole } from "../../../../lib/supabase/database.types";
 
@@ -164,6 +165,10 @@ function mapRpcError(raw: string | undefined): string {
  */
 export async function inviteStaffAction(_prev: StaffActionState, formData: FormData): Promise<StaffActionState> {
   await requireModuleAccess("users", "admin");
+  // Preview isolation: never send a real invitation email outside Production.
+  // Runs before any service-role or Auth admin call.
+  const inviteDecision = outboundDecision("staff_invite");
+  if (!inviteDecision.allowed) return { error: inviteDecision.message };
   const parsed = staffSchema.safeParse({
     full_name: formData.get("full_name"),
     email: formData.get("email"),
@@ -399,6 +404,8 @@ export async function updateStaffAction(_prev: StaffActionState, formData: FormD
  */
 export async function resendStaffInviteAction(formData: FormData): Promise<void> {
   await requireModuleAccess("users", "admin");
+  // Preview isolation: never send a real invitation email outside Production.
+  if (!outboundDecision("staff_invite").allowed) redirect("/admin/users?error=invite-disabled-non-production");
   const userId = staffUserId.safeParse(formData.get("user_id"));
   if (!userId.success) redirect("/admin/users?error=invalid-staff-account");
   const redirectTo = invitationRedirectUrl();

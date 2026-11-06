@@ -1030,3 +1030,29 @@ body:has(.teras-admin) .skip-link { display: none; }
   .ta-followup-inline button { min-height: 44px; }
 }
 
+
+/* CEO Dashboard (read-only): breakdown rows and notes. Reuses the Sales report KPI grid, intro and toolbar styles. */
+.ta-exec-dl { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 14px; margin: 0; }
+.ta-exec-row { display: contents; }
+.ta-exec-row dt { color: var(--ta-muted); font-size: 13px; overflow-wrap: anywhere; }
+.ta-exec-row dd { margin: 0; font-weight: 700; font-size: 13px; text-align: right; }
+.ta-exec-issues, .ta-exec-defs { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.55; }
+.ta-exec .ta-stat-value { overflow-wrap: anywhere; }
+
+/* Registration review queue (read-only). Reuses the Sales table/card shell; only the flag list and card grid are new. */
+.ta-reg-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.ta-reg-flags { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.ta-reg-flag { font-size: 12px; line-height: 1.4; min-width: 0; overflow-wrap: anywhere; }
+.ta-reg-flag > strong { display: block; }
+.ta-reg-flag > span { color: var(--ta-muted); }
+.ta-reg-flag-action > strong { color: var(--ta-danger); }
+.ta-reg-flag-review > strong { color: #7A5F00; }
+.ta-reg-flag-unknown > strong { color: var(--ta-muted); }
+.ta-reg .ta-table { min-width: 980px; }
+.ta-reg-card { display: grid; gap: 10px; min-width: 0; }
+.ta-reg-id { min-width: 0; overflow-wrap: anywhere; }
+.ta-reg-grid { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 7px 14px; font-size: 13px; overflow-wrap: anywhere; }
+.ta-reg-grid > span:nth-child(odd) { color: var(--ta-muted); font-weight: 600; }
+.ta-reg-attention-label { display: block; margin-bottom: 6px; color: var(--ta-muted); font-size: 12px; font-weight: 600; }
+.ta-reg .ta-card, .ta-reg .ta-sales-report-kpis > * { min-width: 0; }
+@media (max-width: 900px) { .ta-reg-kpis { grid-template-columns: minmax(0, 1fr); } .ta-reg-card .ta-lead-card-action > .ta-btn { min-height: 44px; } .ta-reg .ta-filter-date-group { flex: 1 1 100%; } }

@@ -24,19 +24,18 @@ export function formatSessionFee(fee: number | null | undefined): string | null 
 }
 
 export const FEE_UNIT = "per participant";
-export const FEE_ENQUIRY_TEXT = "Fee confirmed on enquiry";
+export const FEE_ENQUIRY_TEXT = "Fee to be confirmed";
 
 /**
- * Authoritative contract (get_public_registration_schedule, supabase/migrations/20260907135351): registration_available is true only for a
- * published, open session that has not started, whose fee is NOT NULL, with capacity greater than seats taken plus live holds. So a session
- * that is full, or has a null fee or no seat, is never registrable on the server. A fee of 0 passes that rule (the column allows
- * fee >= 0), but the payment step cannot bill RM 0 (createBill requires a positive amount), so such a registration would fail after it
- * had already held a seat.
+ * Authoritative contract (get_public_registration_schedule and create_public_registration, migration public_registration_positive_fee_only):
+ * registration_available is true only for a published, open session that has not started, whose fee is a positive amount (fee > 0),
+ * with capacity greater than seats taken plus live holds. A session that is full, or has a null or zero fee, or no seat, is never
+ * registrable on the server, and create_public_registration rejects fee <= 0 too. Online registration is paid-only; a zero or missing
+ * fee is enquiry-only and there is no free-registration workflow.
  *
- * The "open" (Register) state therefore needs the server flag AND a confirmed positive fee AND a seat (and a status other than full): exactly what the registration page
- * itself requires, plus the positive fee the payment provider requires. This never grants registration beyond the flag; it only withholds
- * the Register link where the registration flow could not complete. Any other session is "full" (server says full or no seat remains)
- * or enquiry-only.
+ * The "open" (Register) state here still requires the server flag AND a confirmed positive fee AND a seat (and a status other than full).
+ * The positive-fee check is defence in depth: it never grants registration beyond the flag, it only withholds the Register link if a
+ * stale or inconsistent record ever reached the page. Any other session is "full" (server says full or no seat remains) or enquiry-only.
  */
 export function sessionKind(session: SessionState): SessionKind {
   if (session.registration_available === true && session.status !== "full" && confirmedFee(session.fee) !== null && session.available_seats >= 1) return "open";
