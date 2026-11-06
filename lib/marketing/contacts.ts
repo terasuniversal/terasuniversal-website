@@ -21,6 +21,7 @@ export const SOURCE_LABELS: Record<MarketingContactSource, string> = {
   import: "Import",
   website: "Website",
   other: "Other",
+  free_ebook: "Free eBook",
 };
 
 export const STATUS_LABELS: Record<MarketingContactStatus, string> = {
@@ -45,6 +46,9 @@ export const EVENT_TYPE_LABELS: Record<MarketingContactEventType, string> = {
   consent_changed: "Consent changed",
   unsubscribed: "Unsubscribed",
   promoted_to_sales: "Promoted to Sales",
+  ebook_requested: "eBook requested",
+  ebook_downloaded: "eBook downloaded",
+  ebook_course_enquiry: "eBook course enquiry",
 };
 
 /** `full_name` is nullable on the live table -- a sensible display fallback for list/detail/table cells. */

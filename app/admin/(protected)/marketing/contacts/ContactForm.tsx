@@ -68,7 +68,8 @@ export function ContactForm({
             <option value="" disabled>
               Select a source
             </option>
-            {MARKETING_CONTACT_SOURCES.map((s) => (
+            {/* free_ebook contacts come only from the public /ebook form; staff cannot pick it for a new contact. */}
+            {MARKETING_CONTACT_SOURCES.filter((s) => s !== "free_ebook" || contact?.source === "free_ebook").map((s) => (
               <option key={s} value={s}>
                 {SOURCE_LABELS[s]}
               </option>
