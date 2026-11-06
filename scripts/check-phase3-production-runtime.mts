@@ -8,8 +8,9 @@ assert.equal(cleanRuntimeEnvValue("key\r\n"), "key");
 assert.equal(cleanRuntimeEnvValue("key\u0000"), "");
 
 const rateLimitSource = await readFile(new URL("../lib/rate-limit.js", import.meta.url), "utf8");
-assert.match(rateLimitSource, /cleanRuntimeEnvValue\(process\.env\.NEXT_PUBLIC_SUPABASE_URL\)/);
-assert.match(rateLimitSource, /cleanRuntimeEnvValue\(process\.env\.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY\)/);
+assert.match(rateLimitSource, /getSupabaseUrl\(\)/);
+assert.match(rateLimitSource, /getSupabaseServiceRoleKey\(\)/);
+assert.match(rateLimitSource, /cleanRuntimeEnvValue\(String\(key\)\)/);
 assert.match(rateLimitSource, /p_key: safeKey/);
 
 const publicContentSource = await readFile(new URL("../lib/public-content.ts", import.meta.url), "utf8");

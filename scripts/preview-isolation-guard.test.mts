@@ -492,7 +492,7 @@ await check("every server-side anon/auth client construction is preceded by the 
   assert.match(source("lib/supabase/server.ts").slice(source("lib/supabase/server.ts").indexOf("export async function createSupabaseServerClient")), /^[\s\S]*?assertPublicSupabaseConfig\(\)[\s\S]*?createServerClient/);
   assert.match(source("lib/supabase/middleware.ts"), /validatePublicSupabaseConfig\(\)[\s\S]*createServerClient</);
   assert.match(source("lib/supabase.js"), /assertPublicSupabaseConfig\(\);\s*return createClient/);
-  assert.match(source("lib/rate-limit.js"), /validatePublicSupabaseConfig\(\)\.ok[\s\S]*createClient\(url/);
+  assert.match(source("lib/rate-limit.js"), /validatePrivilegedSupabaseConfig\(\)\.ok[\s\S]*createSupabaseServiceClient\(\)/);
   for (const route of ["app/api/admin/reset-password/route.js"]) {
     const code = source(route);
     assert.ok(code.search(/validatePublicSupabaseConfig\(\)/) >= 0 && code.search(/validatePublicSupabaseConfig\(\)/) < code.search(/= createClient\(/), route);
