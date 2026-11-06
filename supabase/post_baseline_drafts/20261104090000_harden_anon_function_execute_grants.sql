@@ -65,6 +65,8 @@
 do $$
 declare
   -- Functions the public website calls with the anon key (pages, API routes, lib/public-content.ts, lib/rate-limit.js).
+  -- STALE ENTRY: check_public_rate_limit is no longer anon-callable after migration 20261106120000 (PR-2b). Move it to
+  -- v_service_only (and update the matching test counts) before this draft is ever run, or the post-check below will fail.
   v_keep_anon constant text[] := array[
     'begin_public_registration_payment', 'check_public_rate_limit', 'create_public_registration',
     'feedback_get_by_token', 'feedback_submit', 'get_public_registration_schedule',
