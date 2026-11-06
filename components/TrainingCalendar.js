@@ -28,9 +28,11 @@ const dateLabel = (date, options = {}) =>
 const timeLabel = (time) =>
   new Intl.DateTimeFormat("en-MY", { hour: "numeric", minute: "2-digit" }).format(new Date(`2000-01-01T${time}`));
 
-const feeLabel = (fee) => fee == null
-  ? null
-  : `RM${new Intl.NumberFormat("en-MY", { maximumFractionDigits: 2 }).format(Number(fee))} / pax`;
+// A fee of 0 is not a price: online registration is paid-only, so only a positive
+// confirmed fee is shown. Zero and missing fees show no fee line.
+const feeLabel = (fee) => typeof fee === "number" && Number.isFinite(fee) && fee > 0
+  ? `RM${new Intl.NumberFormat("en-MY", { maximumFractionDigits: 2 }).format(fee)} / pax`
+  : null;
 
 const seatsLabel = (session) => {
   if (session.status === "cancelled") return "Cancelled";

@@ -91,10 +91,12 @@ export const scheduleSchema = z
     end_time: z.string().optional().or(z.literal("")),
     // Phase 3: the public registration price belongs to the training session,
     // not the catalogue course. An empty field deliberately means NULL, which
-    // keeps the session visible but not payable online.
+    // keeps the session visible but not payable online. Zero is rejected
+    // because registration is paid-only: a session without a confirmed positive
+    // fee is an enquiry session, never a free one.
     fee: z.preprocess(
       (value) => value === "" || value === null || value === undefined ? null : value,
-      z.coerce.number().nonnegative().nullable().optional(),
+      z.coerce.number({ error: "Enter a valid fee" }).positive("Enter a fee above 0, or leave blank to confirm the fee on enquiry.").nullable().optional(),
     ),
     capacity: z.coerce.number().int().min(0).default(0),
     status: z.enum(["open", "full", "in_progress", "completed", "cancelled"]).default("open"),

@@ -18,3 +18,7 @@ Durable decisions for the TERAS Universal shared agent workflow.
 
 - Database changes are forward-only and additive by default.
 - Destructive production reset, `DROP`, `TRUNCATE`, or destructive data changes are prohibited without explicit human confirmation and the database safety workflow.
+
+## 2026-11-06 — Online registration is paid-only
+- A session is registrable online only when its confirmed fee is greater than 0. Fee 0 and NULL are enquiry-only; there is no free-registration workflow. Enforcement is server-side in `get_public_registration_schedule` and `create_public_registration`, with the public form and Admin validation mirroring it.
+- Staff CRM enrolment is a separate path and is not constrained by the online fee.

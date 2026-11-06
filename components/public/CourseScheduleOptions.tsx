@@ -3,7 +3,8 @@ import type { PublicSchedule } from "../../lib/public-content";
 
 const statusLabels: Record<string, string> = { open: "Open", full: "Full", cancelled: "Cancelled", completed: "Completed", in_progress: "In progress" };
 const formatDate = (value: string) => new Intl.DateTimeFormat("en-MY", { day: "numeric", month: "short", year: "numeric" }).format(new Date(`${value}T00:00:00`));
-const formatMoney = (value: number | null) => value == null ? "Fee to be confirmed" : new Intl.NumberFormat("en-MY", { style: "currency", currency: "MYR" }).format(value);
+// Zero is not a price: only a positive confirmed fee is shown.
+const formatMoney = (value: number | null) => typeof value === "number" && Number.isFinite(value) && value > 0 ? new Intl.NumberFormat("en-MY", { style: "currency", currency: "MYR" }).format(value) : "Fee to be confirmed";
 
 export default function CourseScheduleOptions({ sessions, loadError = false }: { sessions: PublicSchedule[]; loadError?: boolean }) {
   if (loadError) return <section className="course-schedule-options" aria-labelledby="course-schedule-title"><div className="container"><div className="section-heading"><span className="eyebrow">Upcoming Training</span><h2 id="course-schedule-title">Training dates are temporarily unavailable.</h2><p>Please try again shortly or contact TERAS for assistance.</p><a className="btn btn-outline" href="/request-proposal">Contact TERAS</a></div></div></section>;
