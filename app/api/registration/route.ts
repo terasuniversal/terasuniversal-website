@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { checkSharedRateLimit } from "../../../lib/rate-limit";
+import { checkSharedRateLimit, hashedClientId } from "../../../lib/rate-limit";
 import {
   clientIp,
   isAllowedOrigin,
@@ -12,7 +12,7 @@ export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   if (!isAllowedOrigin(request)) return NextResponse.json({ error: "Invalid request origin." }, { status: 403 });
-  if (!(await checkSharedRateLimit({ key: `registration:create:${clientIp(request)}`, windowSeconds: 60, maxAttempts: 5, failClosed: true }))) {
+  if (!(await checkSharedRateLimit({ key: `registration:create:${hashedClientId(clientIp(request))}`, windowSeconds: 60, maxAttempts: 5, failClosed: true }))) {
     return NextResponse.json({ error: "Please wait a moment before trying again." }, { status: 429 });
   }
 
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
     p_attendees: parsed.data.attendees,
   });
   if (error) {
-    console.error("Public registration creation failed", { code: error.code, message: error.message, ip: clientIp(request) });
+    console.error("Public registration creation failed", { code: error.code, message: error.message, client: hashedClientId(clientIp(request)) });
     const status = error.message.includes("capacity_exceeded") ? 409 : error.message.includes("duplicate_registration") ? 409 : 400;
     return NextResponse.json({ error: publicErrorMessage(error) }, { status });
   }

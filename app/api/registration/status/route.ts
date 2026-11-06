@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { checkSharedRateLimit } from "../../../../lib/rate-limit";
+import { checkSharedRateLimit, hashedClientId } from "../../../../lib/rate-limit";
 import {
   clientIp,
   isAllowedOrigin,
@@ -11,7 +11,7 @@ export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   if (!isAllowedOrigin(request)) return NextResponse.json({ error: "Invalid request origin." }, { status: 403 });
-  if (!(await checkSharedRateLimit({ key: `registration:status:${clientIp(request)}`, windowSeconds: 60, maxAttempts: 10, failClosed: true }))) {
+  if (!(await checkSharedRateLimit({ key: `registration:status:${hashedClientId(clientIp(request))}`, windowSeconds: 60, maxAttempts: 10, failClosed: true }))) {
     return NextResponse.json({ error: "Please wait a moment before trying again." }, { status: 429 });
   }
 
@@ -30,7 +30,7 @@ export async function POST(request: Request) {
     p_registration_secret: parsed.data.registration_secret,
   });
   if (error) {
-    console.error("Public registration status lookup failed", { code: error.code, message: error.message, ip: clientIp(request) });
+    console.error("Public registration status lookup failed", { code: error.code, message: error.message, client: hashedClientId(clientIp(request)) });
     return NextResponse.json({ error: "We could not verify that registration." }, { status: 400 });
   }
 

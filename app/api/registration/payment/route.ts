@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { checkSharedRateLimit } from "../../../../lib/rate-limit";
+import { checkSharedRateLimit, hashedClientId } from "../../../../lib/rate-limit";
 import {
   clientIp,
   isAllowedOrigin,
@@ -14,7 +14,7 @@ export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   if (!isAllowedOrigin(request)) return NextResponse.json({ error: "Invalid request origin." }, { status: 403 });
-  if (!(await checkSharedRateLimit({ key: `registration:payment:${clientIp(request)}`, windowSeconds: 60, maxAttempts: 3, failClosed: true }))) {
+  if (!(await checkSharedRateLimit({ key: `registration:payment:${hashedClientId(clientIp(request))}`, windowSeconds: 60, maxAttempts: 3, failClosed: true }))) {
     return NextResponse.json({ error: "Please wait a moment before trying again." }, { status: 429 });
   }
   if (!getToyyibpayCapability().enabled) {
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     p_provider: parsed.data.provider,
   });
   if (beginError || !attempt?.registration_reference) {
-    console.error("Public registration payment begin failed", { code: beginError?.code, message: beginError?.message, ip: clientIp(request) });
+    console.error("Public registration payment begin failed", { code: beginError?.code, message: beginError?.message, client: hashedClientId(clientIp(request)) });
     return NextResponse.json({ error: publicErrorMessage(beginError) }, { status: 400 });
   }
 
