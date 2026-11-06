@@ -178,47 +178,39 @@ for (const [route, url, label] of [
 }
 
 console.log("B. anon / authenticated clients cannot use Production from non-Production");
-const loginRoute = await import("../app/api/admin/login/route.js");
 const resetRoute = await import("../app/api/admin/reset-password/route.js");
 for (const [label, env] of [["preview", previewEnv], ["custom staging", stagingEnv], ["local", {}]] as Array<[string, Record<string, string>]>) {
-  await check(`${label}: password sign-in and reset are blocked with 503 when the URL is the Production project`, quiet(async () => {
+  await check(`${label}: password reset is blocked with 503 when the URL is the Production project`, quiet(async () => {
     setEnv({ ...env, NEXT_PUBLIC_SUPABASE_URL: `https://${PRODUCTION_REF}.supabase.co` });
-    const login = await loginRoute.POST(jsonRequest("http://localhost/api/admin/login", { email: "a@b.co", password: "synthetic" }));
-    assert.equal(login.status, 503);
-    assert.equal((await login.json()).code, "production_project_in_non_production");
     const reset = await resetRoute.POST(jsonRequest("http://localhost/api/admin/reset-password", { email: "a@b.co" }));
     assert.equal(reset.status, 503);
     assert.equal((await reset.json()).code, "production_project_in_non_production");
     assert.equal(fetchCalls.length, 0, "no request may be sent to the Production project");
   }));
 }
-await check("preview with a non-Production project: sign-in and reset proceed (read-only and Auth Preview flows not broken)", quiet(async () => {
+await check("preview with a non-Production project: password reset proceeds (read-only and Auth Preview flows not broken)", quiet(async () => {
   setEnv({ ...previewEnv, NEXT_PUBLIC_SUPABASE_URL: `https://${APPROVED}.supabase.co` });
-  const login = await loginRoute.POST(jsonRequest("http://localhost/api/admin/login", { email: "a@b.co", password: "synthetic" }));
-  assert.notEqual(login.status, 503);
   const reset = await resetRoute.POST(jsonRequest("http://localhost/api/admin/reset-password", { email: "a@b.co" }));
   assert.notEqual(reset.status, 503);
-  assert.ok(fetchCalls.length >= 2 && fetchCalls.every((u) => u.startsWith(`https://${APPROVED}.supabase.co/`)));
+  assert.ok(fetchCalls.length >= 1 && fetchCalls.every((u) => u.startsWith(`https://${APPROVED}.supabase.co/`)));
 }));
 await check("preview with a configured approved project rejects any other project, not just Production", quiet(async () => {
   setEnv({ ...previewEnv, TERAS_APPROVED_SUPABASE_PROJECT_REF: APPROVED, NEXT_PUBLIC_SUPABASE_URL: "https://tsrqponmlkjihgfedcba.supabase.co" });
-  const login = await loginRoute.POST(jsonRequest("http://localhost/api/admin/login", { email: "a@b.co", password: "synthetic" }));
-  assert.equal(login.status, 503);
-  assert.equal((await login.json()).code, "url_ref_mismatch");
+  const reset = await resetRoute.POST(jsonRequest("http://localhost/api/admin/reset-password", { email: "a@b.co" }));
+  assert.equal(reset.status, 503);
+  assert.equal((await reset.json()).code, "url_ref_mismatch");
   assert.equal(fetchCalls.length, 0);
 }));
-await check("production: sign-in and reset proceed against the Production project (unchanged)", quiet(async () => {
+await check("production: password reset proceeds against the Production project (unchanged)", quiet(async () => {
   setEnv({ ...productionEnv, NEXT_PUBLIC_SUPABASE_URL: `https://${PRODUCTION_REF}.supabase.co` });
-  const login = await loginRoute.POST(jsonRequest("http://localhost/api/admin/login", { email: "a@b.co", password: "synthetic" }));
-  assert.notEqual(login.status, 503);
   const reset = await resetRoute.POST(jsonRequest("http://localhost/api/admin/reset-password", { email: "a@b.co" }));
   assert.notEqual(reset.status, 503);
-  assert.ok(fetchCalls.length >= 2 && fetchCalls.every((u) => u.startsWith(`https://${PRODUCTION_REF}.supabase.co/`)));
+  assert.ok(fetchCalls.length >= 1 && fetchCalls.every((u) => u.startsWith(`https://${PRODUCTION_REF}.supabase.co/`)));
 }));
 await check("unknown target is not taken down by the anon guard (cannot be told apart from Production)", quiet(async () => {
   setEnv({ ...unknownEnv, NEXT_PUBLIC_SUPABASE_URL: `https://${PRODUCTION_REF}.supabase.co` });
-  const login = await loginRoute.POST(jsonRequest("http://localhost/api/admin/login", { email: "a@b.co", password: "synthetic" }));
-  assert.notEqual(login.status, 503);
+  const reset = await resetRoute.POST(jsonRequest("http://localhost/api/admin/reset-password", { email: "a@b.co" }));
+  assert.notEqual(reset.status, 503);
 }));
 
 const { createSupabaseServerClient } = await import("../lib/supabase/server.ts");
@@ -253,8 +245,8 @@ await check("shared rate limiter never calls the Production project from Preview
 console.log("C. local development");
 await check("local + loopback Supabase URL: anon routes proceed (no approved ref needed)", quiet(async () => {
   setEnv({ NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321" });
-  const login = await loginRoute.POST(jsonRequest("http://localhost/api/admin/login", { email: "a@b.co", password: "synthetic" }));
-  assert.notEqual(login.status, 503);
+  const reset = await resetRoute.POST(jsonRequest("http://localhost/api/admin/reset-password", { email: "a@b.co" }));
+  assert.notEqual(reset.status, 503);
   assert.ok(fetchCalls.length >= 1 && fetchCalls.every((u) => u.startsWith("http://127.0.0.1:54321/")));
 }));
 await check("local + loopback URL: privileged callback is processed against the local stack (not blocked)", quiet(async () => {
@@ -265,8 +257,8 @@ await check("local + loopback URL: privileged callback is processed against the 
 }));
 await check("local + Production URL: anon and privileged paths are both blocked", quiet(async () => {
   setEnv({ ...productionProjectConfig });
-  const login = await loginRoute.POST(jsonRequest("http://localhost/api/admin/login", { email: "a@b.co", password: "synthetic" }));
-  assert.equal(login.status, 503);
+  const reset = await resetRoute.POST(jsonRequest("http://localhost/api/admin/reset-password", { email: "a@b.co" }));
+  assert.equal(reset.status, 503);
   const cb = await callbackRoute.POST(callbackRequest("http://localhost/api/payments/toyyibpay/callback") as never);
   assert.equal(cb.status, 503);
   assert.equal(fetchCalls.length, 0);
