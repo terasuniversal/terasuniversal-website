@@ -49,10 +49,12 @@ export const GOLDEN_REFERENCE_OWNER_TITLES = {
  * canonical staging project, confirmed by direct read-only inspection of
  * that function's source. Do not rename this value to match any other
  * convention; the frozen database fact is authoritative.
- * "scaffold_inspector"/"working_at_height"/"professional_scaffold_erection_skills"
- * are this app's own proposed, not-yet-written-by-any-trigger contract for
- * the other three families -- inert until a real snapshot carries one of
- * them.
+ * "scaffold_inspector" and "working_at_height" are now written by the same
+ * trigger for Inspector and WAH issuances (live since 2026-11-01 and
+ * 2026-11-02, re-verified read-only on Production 2026-11-03).
+ * "professional_scaffold_erection_skills" is still this app's own proposed
+ * value: no trigger writes it, so it stays inert until a real snapshot
+ * carries it.
  */
 export type GoldenReferenceFamily =
   | "scaffold_erector"
