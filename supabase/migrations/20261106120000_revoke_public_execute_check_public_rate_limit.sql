@@ -43,6 +43,7 @@ do $$
 declare
   v_fn constant regprocedure := 'public.check_public_rate_limit(text,integer,integer)'::regprocedure;
   v_public_grants integer;
+  v_other_grants integer;
 begin
   if not has_function_privilege('service_role', v_fn, 'execute') then
     raise exception 'pr2b_postcondition_failed: service_role lost EXECUTE' using errcode = 'P0001';
@@ -55,5 +56,13 @@ begin
   where p.oid = v_fn and a.grantee = 0;
   if v_public_grants <> 0 then
     raise exception 'pr2b_postcondition_failed: PUBLIC still holds a grant' using errcode = 'P0001';
+  end if;
+  -- No grantee may remain besides the function owner and service_role (a direct grant to any other role would survive
+  -- the REVOKE above, which only names PUBLIC, anon and authenticated).
+  select count(*) into v_other_grants
+  from pg_proc p, lateral aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+  where p.oid = v_fn and a.grantee <> p.proowner and a.grantee <> 'service_role'::regrole;
+  if v_other_grants <> 0 then
+    raise exception 'pr2b_postcondition_failed: % unexpected grantee(s) still hold a grant', v_other_grants using errcode = 'P0001';
   end if;
 end $$;

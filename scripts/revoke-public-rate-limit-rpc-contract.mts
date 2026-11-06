@@ -41,6 +41,7 @@ check("migration: asserts the final ACL (service_role yes, anon/authenticated no
   assert.match(code, /has_function_privilege\('service_role', v_fn, 'execute'\)/);
   assert.match(code, /has_function_privilege\('anon', v_fn, 'execute'\) or has_function_privilege\('authenticated', v_fn, 'execute'\)/);
   assert.match(code, /a\.grantee = 0/);
+  assert.match(code, /a\.grantee <> p\.proowner and a\.grantee <> 'service_role'::regrole/);
   assert.match(code, /pr2b_postcondition_failed/);
 });
 check("migration: one logical change (a single revoke and a single grant)", () => {
@@ -55,7 +56,7 @@ check("app: the limiter calls the RPC through the guarded service client", () =>
   assert.match(limiter, /validatePrivilegedSupabaseConfig/);
   assert.doesNotMatch(limiter, /createClient\(/);
 });
-check("app: the RPC has no other caller in application code", () => {
+check("app: the RPC has no other caller under app/, lib/ and components/", () => {
   const dirs = ["app", "lib", "components"];
   const hits: string[] = [];
   const walk = (dir: URL) => {
