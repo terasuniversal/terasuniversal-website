@@ -53,3 +53,13 @@ Durable decisions for the TERAS Universal shared agent workflow.
 
 ## 2026-11-06 - Public enquiry email on the scaffolding service page
 - The scaffolding service page uses the website training enquiry channel (`training@`), consistent with the forms, header, footer and structured data. `admin@` stays in administrative references. A role-based public contact policy is pending owner approval.
+
+## 2026-11-06 - Seven A3 pages accepted on the S2D Preview
+- Owner confirmed that all seven A3 pages inspected on the S2D Preview (`dpl_3HKuFeideHtWEZ5mEsowTx47SBoT`, commit `7308cf2`) passed visual review. This is visual acceptance only: it is not approval for Production, it does not clear any business claim, and it allows no live form submission or database change.
+
+## 2026-11-06 - Template 3 (Contact, Request Proposal) design decisions
+- J1: the seven-step Request Proposal wizard is replaced by one sectioned, mobile-first page. J2: every currently required field stays required, including training objectives; the server contract is not weakened.
+- J3: only verified channels and claims are shown. Email, phone and address come from `data/companyProfile.js`; the existing WhatsApp link stays. No response-time, operating-hours, coverage or capability claims, and no follow-up promises while the notification email is best effort.
+- J4: `companyProfile.contact.address` is the reference. The footer, the structured data on the homepage and `HomeContact` still use a different address string; reconciling them is a separate owner decision.
+- J8: the automatic Google Maps iframe is replaced by a link the visitor opens themselves.
+- Not done on purpose (S3B-2, needs database and endpoint changes with their own approval): storing enquiry or proposal consent, a privacy notice page, IP or global rate limiting, CAPTCHA, a Zod schema for the proposal route, tighter origin check, removing raw IPs from error logs.
