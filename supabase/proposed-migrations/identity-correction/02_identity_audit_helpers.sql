@@ -137,7 +137,8 @@ end $$;
 -- (identity_audit.finish_guard_transition) instead of re-anchoring whatever happens to differ.
 create or replace function identity_audit.guard_components() returns table (k text, v text)
 language sql stable security definer set search_path = pg_catalog as
-$$ select 'fn:' || f.sig, coalesce(pg_catalog.md5(pg_catalog.pg_get_functiondef(pg_catalog.to_regprocedure(f.sig))), 'MISSING')
+$$ select 'fn:' || f.sig, coalesce((select pg_catalog.md5(pg_catalog.pg_get_functiondef(p.oid)) || ':' || p.proowner::pg_catalog.regrole::pg_catalog.text || ':' || coalesce(p.proacl::pg_catalog.text, '')
+                                       from pg_catalog.pg_proc p where p.oid = pg_catalog.to_regprocedure(f.sig)), 'MISSING')
      from (values ('app.certificate_historical_update_guard()'), ('app.certificate_legacy_identity_guard()'),
                   ('app.snapshot_identity_guard()'), ('app.participant_identity_guard()'),
                   ('identity_audit.authorized(text,uuid,text,text,text)'), ('identity_audit.ledger_chain()'),
@@ -148,7 +149,10 @@ $$ select 'fn:' || f.sig, coalesce(pg_catalog.md5(pg_catalog.pg_get_functiondef(
                   ('identity_audit.guard_state_clean()'), ('identity_audit.assert_guards_clean()'),
                   ('identity_audit.finish_guard_transition(jsonb,text[],boolean,boolean)'),
                   ('identity_audit.verify_ledger()'), ('identity_audit.record_anchor()'),
-                  ('identity_audit.requests_text_guard()'), ('identity_audit.request_certificates_text_guard()')) as f(sig)
+                  ('identity_audit.requests_text_guard()'), ('identity_audit.request_certificates_text_guard()'),
+                  ('identity_audit.evidence_gate()'), ('identity_audit.external_evidence_ready()'),
+                  ('public.identity_evidence_snapshot()'), ('public.identity_evidence_ack(bigint,bigint,text,text)'),
+                  ('public.identity_evidence_heartbeat(text,bigint,text,bigint,text[])')) as f(sig)
    union all
    select 'trg:' || t.rel || '.' || t.name, coalesce((
        select x.tgenabled::text || ':' || pg_catalog.md5(pg_catalog.pg_get_triggerdef(x.oid))
@@ -162,7 +166,9 @@ $$ select 'fn:' || f.sig, coalesce(pg_catalog.md5(pg_catalog.pg_get_functiondef(
                   ('identity_audit.corrections', 'corrections_no_truncate'),
                   ('identity_audit.requests', 'requests_guard'),
                   ('identity_audit.requests', 'requests_text_guard'),
-                  ('identity_audit.request_certificates', 'request_certificates_text_guard')) as t(rel, name) $$;
+                  ('identity_audit.request_certificates', 'request_certificates_text_guard'),
+                  ('identity_audit.requests', 'requests_evidence_gate_ins'),
+                  ('identity_audit.requests', 'requests_evidence_gate_apply')) as t(rel, name) $$;
 
 create or replace function identity_audit.guard_fingerprint() returns text
 language sql stable security definer set search_path = pg_catalog as

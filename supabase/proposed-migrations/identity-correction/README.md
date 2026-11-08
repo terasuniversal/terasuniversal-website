@@ -37,9 +37,10 @@ history or eligibility records, and **without** weakening the historical immutab
 | `06_guard_participant_identity.sql` | Profile name/IC of a participant who holds certificates can no longer be edited directly. |
 | `07_identity_correction_read_and_reject.sql` | (Phase 2C) Read-only RPCs for the Super Admin screen (policy, certificate search, request list/detail, per-certificate history) and a `reject` action with status `rejected`. Never returns sealed values, fingerprints, full IC numbers or full document hashes. |
 | `08_request_text_guard.sql` | (Phase 2C-fix) Refuses IC/Passport-shaped text, and the participant's current or requested identity, in the free text a request stores (reason, document references, decision reasons, cancel/reject reasons). No callable surface. |
+| `09_external_evidence.sql` | (Phase 3A PROTOTYPE) least-privilege read-only evidence snapshot, two minimal acknowledgement writes by a separate role, and a fail-closed gate on new requests and apply. See `EXTERNAL_ANCHOR_DESIGN.md`. Needs the two NOLOGIN roles created first. |
 | `rollback/*.sql` | One rollback per migration; `01` refuses to drop evidence. |
 
-Apply order `01 → 08`. Each file has pre-checks, is idempotent and refuses a half-installed state.
+Apply order `01 → 09`. Each file has pre-checks, is idempotent and refuses a half-installed state.
 
 ## Design in one paragraph
 
@@ -168,4 +169,12 @@ and nothing is applied to staging or Production.
   from outside the application and compared with the fingerprint stored off the database at install time. `run.sh` proves it agrees
   with the internal value on a clean install and exposes a lying enumerator that `verify_ledger()` cannot see. Wiring the stored
   copy (the external anchor sink) remains an open dependency.
+
+## Phase 3A: External Audit Anchor prototype (LOCAL ONLY)
+
+Design: `EXTERNAL_ANCHOR_DESIGN.md`. Code: `scripts/identity-correction/evidence-worker/` (zero-dependency Node worker, separate
+acknowledgement program, owner tool, mocks) and the test suite `scripts/identity-correction/run-evidence.sh`
+(`bash scripts/identity-correction/run-evidence.sh`; Docker + local bare git repository; test-only keys; all external services mocked).
+**It is a prototype: no real evidence repository, timestamp authority, e-mail channel, secret or account exists, and the workflow
+must stay disabled.** The External Audit Anchor remains a mandatory prerequisite for activation.
 
