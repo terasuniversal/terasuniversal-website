@@ -55,7 +55,7 @@ create table if not exists identity_audit.requests (
   id uuid primary key default gen_random_uuid(),
   participant_id uuid not null references public.participants(id) on delete restrict,
   change_kind text not null check (change_kind in ('name', 'identity', 'combined')),
-  status text not null default 'pending' check (status in ('pending', 'applied', 'cancelled')),
+  status text not null default 'pending' check (status in ('pending', 'applied', 'cancelled', 'rejected')),
   requested_by uuid not null,
   requested_at timestamptz not null default clock_timestamp(),
   earliest_apply_at timestamptz not null,
@@ -131,6 +131,11 @@ create table if not exists identity_audit.outbox (
 );
 
 -- ---- append-only / state-machine triggers -----------------------------------------------------
+-- ledger_chain() is redefined by 02 (compute_row_hash). Create the 01 version only when none exists, so that
+-- re-running 01 on an installed system can never downgrade it (that would change the guard fingerprint).
+do $do$ begin
+  if to_regprocedure('identity_audit.ledger_chain()') is null then
+    execute $f$
 create or replace function identity_audit.ledger_chain() returns trigger
 language plpgsql set search_path = pg_catalog as $$
 declare v_prev text;
@@ -145,6 +150,9 @@ begin
       new.txid, new.applied_by, new.applied_at, new.prev_hash), 'UTF8'), 'sha256'), 'hex');
   return new;
 end $$;
+    $f$;
+  end if;
+end $do$;
 
 create or replace function identity_audit.append_only() returns trigger
 language plpgsql set search_path = pg_catalog as $$
@@ -164,7 +172,7 @@ begin
         'applied_by', 'applied_at', 'cancelled_by', 'cancelled_at', 'cancel_reason']) then
     raise exception 'identity_audit request evidence is immutable' using errcode = '42501';
   end if;
-  if new.status in ('applied', 'cancelled') and (new.new_full_name is not null or new.new_identity is not null) then
+  if new.status in ('applied', 'cancelled', 'rejected') and (new.new_full_name is not null or new.new_identity is not null) then
     raise exception 'identity_audit terminal requests must not retain the new values' using errcode = '42501';
   end if;
   return new;

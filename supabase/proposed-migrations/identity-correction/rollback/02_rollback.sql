@@ -10,9 +10,18 @@ begin
     raise exception 'rollback refused: the historical guard still references identity_audit; run the 05 rollback first';
   end if;
 end $$;
+drop function if exists identity_audit.finish_guard_transition(jsonb, text[], boolean, boolean);
+drop function if exists identity_audit.assert_guards_clean();
+drop function if exists identity_audit.guard_state_clean();
 drop function if exists identity_audit.verify_ledger();
 drop function if exists identity_audit.record_anchor();
 drop function if exists identity_audit.guard_fingerprint();
+drop function if exists identity_audit.guard_snapshot();
+drop function if exists identity_audit.guard_components();
+drop function if exists identity_audit.safe_text(text, text[]);
+drop function if exists identity_audit.text_leaks_identity(text, text[]);
+drop function if exists identity_audit.text_has_identity(text);
+drop function if exists identity_audit.fold_text(text);
 drop function if exists identity_audit.validate_identity_change(uuid, text);
 drop function if exists identity_audit.authorized(text, uuid, text, text, text);
 drop function if exists identity_audit.record(uuid, text, uuid, uuid, uuid, text, text, text, uuid);

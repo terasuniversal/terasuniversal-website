@@ -546,20 +546,442 @@ SQL
 ckre "a ledger authorisation covers only the exact old->new pair it names (a different new value is refused)" "$OUT" "Modern certificate historical fields are immutable"
 
 # ======================================================================================================
+echo "== migration 07 (read RPCs + reject) -- fresh database; 07 is applied AFTER a correction already exists"
+DB="${DB_MAIN}_d"; createdb "$DB"
+q < "$HERE/fixture.sql" >/dev/null; q < "$HERE/testdata.sql" >/dev/null
+for f in 01_identity_audit_schema.sql 02_identity_audit_helpers.sql 03_identity_correction_workflow.sql 04_guard_snapshot_identity.sql 05_guard_certificate_identity.sql 06_guard_participant_identity.sql; do apply $f >/dev/null; done
+q <<'SQL' >/dev/null
+set role migrator;
+alter table identity_audit.requests drop constraint requests_status_check;
+alter table identity_audit.requests add constraint requests_status_check check (status in ('pending', 'applied', 'cancelled'));
+create or replace function identity_audit.requests_guard() returns trigger
+language plpgsql set search_path = pg_catalog as $$
+begin
+  if tg_op = 'DELETE' then raise exception 'identity_audit.requests rows cannot be deleted' using errcode = '42501'; end if;
+  if old.status <> 'pending' then raise exception 'identity_audit request is already terminal' using errcode = '42501'; end if;
+  if (to_jsonb(new) - array['status', 'new_full_name', 'new_identity', 'second_approver', 'second_approved_at', 'applying_txid',
+        'applied_by', 'applied_at', 'cancelled_by', 'cancelled_at', 'cancel_reason'])
+     is distinct from
+     (to_jsonb(old) - array['status', 'new_full_name', 'new_identity', 'second_approver', 'second_approved_at', 'applying_txid',
+        'applied_by', 'applied_at', 'cancelled_by', 'cancelled_at', 'cancel_reason']) then
+    raise exception 'identity_audit request evidence is immutable' using errcode = '42501';
+  end if;
+  if new.status in ('applied', 'cancelled') and (new.new_full_name is not null or new.new_identity is not null) then
+    raise exception 'identity_audit terminal requests must not retain the new values' using errcode = '42501';
+  end if;
+  return new;
+end $$;
+SQL
+ck "simulated earlier install: the status check does not yet allow rejected" "$(val "select pg_get_constraintdef(oid) like '%rejected%' from pg_constraint where conname='requests_status_check' and conrelid='identity_audit.requests'::regclass")" "f"
+printf "update identity_audit.policy set sealing_public_key = \$k\$%s\$k\$, anchor_sink_configured_at=now(), notification_sink_configured_at=now(), wait_name=interval '0', wait_identity=interval '0';\n" "$PUB" | q >/dev/null
+asq authenticated "$SA" "select public.identity_correction_enable()" >/dev/null
+REQ $SA PN name "'Synthetic November Corrected'" null true r07z 1 "'correct'" null null; APPLY $SA "$RID"
+ck "before 07: one anchor exists from the applied correction" "$(val "select count(*) from identity_audit.anchors")" "1"
+OUT=$(apply 07_identity_correction_read_and_reject.sql); cknre "07 first apply has no error" "$OUT" "ERROR"
+OUT=$(apply 07_identity_correction_read_and_reject.sql); cknre "07 re-apply has no error (idempotent)" "$OUT" "ERROR"
+ck "07 records exactly one new anchor for the changed requests_guard (the re-apply adds none)" "$(val "select count(*) from identity_audit.anchors")" "2"
+ck "after 07 the ledger verifies clean (the guard fingerprint change is covered by an anchor)" "$(val "select count(*) filter (where not ok) from identity_audit.verify_ledger()")" "0"
+ck "07 adds 12 functions (6 app + 6 public)" "$(val "select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname in ('app','public') and p.proname in ('identity_correction_reject','identity_correction_policy','identity_correction_search_certificates','identity_correction_list_requests','identity_correction_get_request','identity_correction_history')")" "12"
+ck "only authenticated can execute the 12 new functions" \
+   "$(val "select count(*) filter (where has_function_privilege('authenticated',p.oid,'execute'))||'/'||count(*) filter (where has_function_privilege('anon',p.oid,'execute') or has_function_privilege('service_role',p.oid,'execute') or has_function_privilege('outsider',p.oid,'execute')) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname in ('app','public') and p.proname in ('identity_correction_reject','identity_correction_policy','identity_correction_search_certificates','identity_correction_list_requests','identity_correction_get_request','identity_correction_history')")" "12/0"
+ck "no API role can execute identity_audit.mask()" "$(val "select (has_function_privilege('authenticated','identity_audit.mask(text)','execute') or has_function_privilege('anon','identity_audit.mask(text)','execute') or has_function_privilege('service_role','identity_audit.mask(text)','execute'))::text")" "false"
+ck "the status check now allows rejected" "$(val "select pg_get_constraintdef(oid) like '%rejected%' from pg_constraint where conname='requests_status_check' and conrelid='identity_audit.requests'::regclass")" "t"
+
+echo "== 07: unauthorized callers (all six entry points)"
+for who in "$ADM" "$ED" "$SAX"; do
+  for call in "public.identity_correction_policy()" "public.identity_correction_search_certificates('SYN-CERT')" "public.identity_correction_list_requests()" \
+              "public.identity_correction_get_request('$RID'::uuid)" "public.identity_correction_history((select id from public.certificates limit 1))" \
+              "public.identity_correction_reject('$RID'::uuid,'not allowed to do this')"; do
+    OUT=$(asq authenticated "$who" "select $call"); ckre "non-Super-Admin/inactive ($who) refused: ${call%%(*}" "$OUT" "Not authorized"
+  done
+done
+OUT=$(asq authenticated "" "select public.identity_correction_policy()"); ckre "no signed-in user refused" "$OUT" "Not authorized"
+OUT=$(asq anon "" "select public.identity_correction_policy()"); ckre "anon cannot execute (permission denied)" "$OUT" "permission denied"
+OUT=$(asq service_role "" "select public.identity_correction_list_requests()"); ckre "service_role cannot execute (permission denied)" "$OUT" "permission denied"
+
+echo "== 07: read RPCs"
+OUT=$(asq authenticated "$SA" "select public.identity_correction_policy()")
+ckre "policy reports the controls as ready" "$OUT" '"controls_ready": true'
+ckre "policy never returns the key material" "$OUT" '"sealing_key_configured": true'
+cknre "policy output holds no key block" "$OUT" "BEGIN PGP"
+OUT=$(asq authenticated "$SA" "select public.identity_correction_search_certificates('SYN-CERT')")
+ckre "search finds certificates by number" "$OUT" "SYN-CERT-"
+OUT=$(asq authenticated "$SA" "select public.identity_correction_search_certificates('SYN-CERT')")
+cknre "search never returns a full identity number" "$OUT" "SYN-B-200002|SYN-A-100001|SYN-F-600007"
+ckre "search returns the masked identity" "$OUT" '\*\*\*\*0002'
+ck "search returns at most 20 rows" "$(asq authenticated "$SA" "select jsonb_array_length(public.identity_correction_search_certificates('SYN'))")" "20"
+for bad in "ab" "%%%" "__" ",()"; do
+  OUT=$(asq authenticated "$SA" "select public.identity_correction_search_certificates('$bad')"); ckre "search rejects a too-short or wildcard-only query ('$bad')" "$OUT" "IDC_QUERY_INVALID"
+done
+ck "a wildcard cannot widen a match: 'SYN-CERT-%' is sanitised and still matches only the literal text" \
+   "$(asq authenticated "$SA" "select jsonb_array_length(public.identity_correction_search_certificates('SYN-CERT-0001%'))")" "$(asq authenticated "$SA" "select jsonb_array_length(public.identity_correction_search_certificates('SYN-CERT-0001'))")"
+
+REQ $SA PB name "'Synthetic Bravo Corrected'" null true r07a 1 "'correct'" null null; RB="$RID"
+REQ $SA PF identity null "'SYN-F-600099'" true r07b 2 null "'correct'" null; RF="$RID"
+ckre "request created for PB (name)" "$RB" "^[0-9a-f-]{36}$"
+ckre "request created for PF (identity)" "$RF" "^[0-9a-f-]{36}$"
+OUT=$(asq authenticated "$SA" "select public.identity_correction_get_request('$RF'::uuid)")
+ckre "get_request: pending, identity kind" "$OUT" '"status": "pending"'
+ckre "get_request: the new identity is masked" "$OUT" '\*\*\*\*0099'
+cknre "get_request: the new identity is never returned in full" "$OUT" "SYN-F-600099"
+cknre "get_request: no old identity in full either" "$OUT" "SYN-F-600007"
+ckre "get_request: evidence hash is only a 12-character prefix" "$(asq authenticated "$SA" "select max(length(e->>'sha256_prefix')) from jsonb_array_elements(public.identity_correction_get_request('$RF'::uuid)->'evidence') e")" "^12$"
+cknre "get_request: no full evidence hash" "$OUT" "[0-9a-f]{64}"
+ck "get_request: one certificate decision listed" "$(asq authenticated "$SA" "select jsonb_array_length(public.identity_correction_get_request('$RF'::uuid)->'certificates')")" "1"
+ck "get_request: can_apply is true (waiting period 0, not stale, controls ready)" "$(asq authenticated "$SA" "select public.identity_correction_get_request('$RF'::uuid)->>'can_apply'")" "true"
+OUT=$(asq authenticated "$SA" "select public.identity_correction_get_request('$RB'::uuid)")
+ckre "get_request: the new NAME is returned (the requester typed it)" "$OUT" "Synthetic Bravo Corrected"
+OUT=$(asq authenticated "$SA" "select public.identity_correction_get_request('00000000-0000-0000-0000-00000000dead'::uuid)"); ckre "get_request: unknown id -> Request not found" "$OUT" "Request not found"
+ck "list: both pending requests are listed" "$(asq authenticated "$SA" "select jsonb_array_length(public.identity_correction_list_requests('pending'))")" "2"
+ck "list: applied filter shows the earlier PN correction only" "$(asq authenticated "$SA" "select jsonb_array_length(public.identity_correction_list_requests('applied'))")" "1"
+OUT=$(asq authenticated "$SA" "select public.identity_correction_list_requests('bogus')"); ckre "list: unknown status refused" "$OUT" "IDC_BAD_STATUS"
+ck "list: a limit of 0 is clamped to 1, not an error" "$(asq authenticated "$SA" "select jsonb_array_length(public.identity_correction_list_requests(null, 0))")" "1"
+cknre "list: no names or identity numbers in the list output" "$(asq authenticated "$SA" "select public.identity_correction_list_requests()")" "Synthetic|SYN-[A-Z]-"
+
+echo "== 07: history (who/when/which field -- never values)"
+CB=$(val "select id from public.certificates where participant_id=t.pid('PB')")
+ck "history before apply: no ledger rows, one request" "$(asq authenticated "$SA" "select jsonb_array_length(public.identity_correction_history('$CB'::uuid)->'ledger')||'/'||jsonb_array_length(public.identity_correction_history('$CB'::uuid)->'requests')")" "0/1"
+APPLY $SA "$RB"; cknre "PB request applies" "$OUT" "ERROR"
+OUT=$(asq authenticated "$SA" "select public.identity_correction_history('$CB'::uuid)")
+ckre "history after apply: ledger shows the holder_name field" "$OUT" '"field": "holder_name"'
+ckre "history after apply: the request is listed as applied" "$OUT" '"status": "applied"'
+cknre "history never returns old or new values" "$OUT" "Synthetic Bravo"
+cknre "history never returns sealed bytes or hashes" "$OUT" "row_hash|old_sealed|new_sealed|prev_hash|[0-9a-f]{64}"
+OUT=$(asq authenticated "$SA" "select public.identity_correction_history('00000000-0000-0000-0000-00000000dead'::uuid)"); ckre "history: unknown certificate -> Certificate not found" "$OUT" "Certificate not found"
+ckre "get_request after apply: new values cleared" "$(asq authenticated "$SA" "select public.identity_correction_get_request('$RB'::uuid)")" '"new_full_name": null'
+
+echo "== 07: reject"
+BEFORE_LEDGER=$(LEDGER); BEFORE_STATE=$(STATE_HASH PF)
+for who in "$ADM" "$ED" "$SAX"; do
+  OUT=$(asq authenticated "$who" "select public.identity_correction_reject('$RF'::uuid,'declined: not enough evidence')"); ckre "reject refused for non-Super-Admin/inactive ($who)" "$OUT" "Not authorized"
+done
+OUT=$(asq authenticated "$SA" "select public.identity_correction_reject('$RF'::uuid,'short')"); ckre "reject needs a reason of 10+ characters" "$OUT" "IDC_REASON_REQUIRED"
+OUT=$(asq authenticated "$SA" "select public.identity_correction_reject('00000000-0000-0000-0000-00000000dead'::uuid,'declined: not enough evidence')"); ckre "reject: unknown request" "$OUT" "Request not found"
+OUT=$(asq authenticated "$SA" "select public.identity_correction_reject('$RF'::uuid,'declined: not enough evidence')"); cknre "Super Admin can reject a pending request" "$OUT" "ERROR"
+ck "rejected: status" "$(val "select status from identity_audit.requests where id='$RF'")" "rejected"
+ck "rejected: the new identity is cleared from the request" "$(val "select (new_identity is null and new_full_name is null)::text from identity_audit.requests where id='$RF'")" "true"
+ck "rejected: closure recorded (who, when, reason)" "$(val "select (cancelled_by is not null and cancelled_at is not null and cancel_reason like 'declined%')::text from identity_audit.requests where id='$RF'")" "true"
+ck "rejected: nothing was written to the ledger" "$(LEDGER)" "$BEFORE_LEDGER"
+ck "rejected: the participant, certificates and snapshots are untouched" "$(STATE_HASH PF)" "$BEFORE_STATE"
+ck "rejected: an outbox event was queued" "$(val "select count(*) from identity_audit.outbox where kind='request_rejected' and request_id='$RF'")" "1"
+ck "rejected: an audit log row was written" "$(val "select count(*) from public.audit_logs where summary='Identity correction rejected'")" "1"
+ckre "get_request after reject: status rejected with the closure reason" "$(asq authenticated "$SA" "select public.identity_correction_get_request('$RF'::uuid)")" '"closure_reason": "declined'
+OUT=$(asq authenticated "$SA" "select public.identity_correction_apply('$RF'::uuid)"); ckre "a rejected request cannot be applied" "$OUT" "IDC_REQUEST_NOT_PENDING"
+OUT=$(asq authenticated "$SA" "select public.identity_correction_cancel('$RF'::uuid,'cancel after reject attempt')"); ckre "a rejected request cannot be cancelled" "$OUT" "IDC_REQUEST_NOT_PENDING"
+OUT=$(asq authenticated "$SA" "select public.identity_correction_reject('$RF'::uuid,'declined twice by mistake')"); ckre "a rejected request cannot be rejected again" "$OUT" "IDC_REQUEST_NOT_PENDING"
+OUT=$(asq authenticated "$SA" "select public.identity_correction_approve('$RF'::uuid)"); ckre "a rejected request cannot be approved" "$OUT" "IDC_REQUEST_NOT_PENDING"
+OUT=$(q <<< "set role migrator; update identity_audit.requests set status='pending' where id='$RF'"); ckre "a terminal request cannot be reopened, even by the owner" "$OUT" "already terminal"
+OUT=$(q <<< "set role migrator; delete from identity_audit.requests where id='$RF'"); ckre "a rejected request cannot be deleted" "$OUT" "cannot be deleted"
+REQ $SA PF identity null "'SYN-F-600098'" true r07c 2 null "'correct'" null; RF2="$RID"
+ckre "after a rejection the participant may open a new request" "$RF2" "^[0-9a-f-]{36}$"
+OUT=$(q <<< "set role migrator; update identity_audit.requests set status='rejected' where id='$RF2'"); ckre "requests_guard: a terminal status may not retain the new values (rejected)" "$OUT" "must not retain the new values"
+asq authenticated "$SA" "select public.identity_correction_cancel('$RF2'::uuid,'cleanup of the synthetic request')" >/dev/null
+ck "after the whole 07 sequence the ledger still verifies clean" "$(val "select count(*) filter (where not ok) from identity_audit.verify_ledger()")" "0"
+ck "07 changed no certificate, snapshot or profile except the one applied correction (PF unchanged)" "$(STATE_HASH PF)" "$BEFORE_STATE"
+
+# ======================================================================================================
+echo "== migration 08 (free-text guard) -- same database as 07"
+AB=$(val "select count(*) from identity_audit.anchors")
+ck "FIX 2: before 08 its four audit objects read MISSING in the fingerprint" "$(val "select count(*) from identity_audit.guard_components() where v='MISSING' and k in ('fn:identity_audit.requests_text_guard()','fn:identity_audit.request_certificates_text_guard()','trg:identity_audit.requests.requests_text_guard','trg:identity_audit.request_certificates.request_certificates_text_guard')")" "4"
+OUT=$(apply 08_request_text_guard.sql); cknre "08 first apply has no error" "$OUT" "ERROR"
+ck "FIX 2: after 08 none of its four audit objects is MISSING (they are part of the fingerprint)" "$(val "select count(*) from identity_audit.guard_components() where v='MISSING' and k in ('fn:identity_audit.requests_text_guard()','fn:identity_audit.request_certificates_text_guard()','trg:identity_audit.requests.requests_text_guard','trg:identity_audit.request_certificates.request_certificates_text_guard')")" "0"
+ck "FIX 2: 08 recorded exactly one anchor for the expected transition" "$(val "select count(*) from identity_audit.anchors")" "$((AB+1))"
+ck "FIX 2: the ledger verifies clean right after 08" "$(val "select count(*) filter (where not ok) from identity_audit.verify_ledger()")" "0"
+OUT=$(apply 08_request_text_guard.sql); cknre "08 re-apply has no error (idempotent)" "$OUT" "ERROR"
+ck "08 re-apply recorded no further anchor" "$(val "select count(*) from identity_audit.anchors")" "$((AB+1))"
+ck "no API role can execute the 08 helpers" "$(val "select (has_function_privilege('authenticated','identity_audit.text_has_identity(text)','execute') or has_function_privilege('anon','identity_audit.text_has_identity(text)','execute') or has_function_privilege('service_role','identity_audit.text_leaks_identity(text,text[])','execute'))::text")" "false"
+ck "text_has_identity: IC-shaped, passport-shaped and plain text" "$(val "select (identity_audit.text_has_identity('see 000000-00-0000 on file'))::text||'/'||(identity_audit.text_has_identity('X00000000'))::text||'/'||(identity_audit.text_has_identity('AB0000000'))::text||'/'||(identity_audit.text_has_identity('CERT-2026-000123 reviewed'))::text")" "true/true/true/false"
+LB4=$(LEDGER); PEND0=$(val "select count(*) from identity_audit.requests where status='pending'")
+REQ $SA PF identity null "'SYN-F-600096'" true t08a 2 null "'correct'" null "Synthetic reason that quotes SYN-F-600007 by mistake"
+ckre "08: a reason that contains the participant's CURRENT identity is refused" "$OUT" "IDC_TEXT_CONTAINS_IDENTITY"
+REQ $SA PF identity null "'SYN-F-600096'" true t08b 2 null "'correct'" null "Synthetic typo note, the right number is SYN-F-600096 please"
+ckre "08: a reason that contains the NEW identity is refused" "$OUT" "IDC_TEXT_CONTAINS_IDENTITY"
+REQ $SA PF identity null "'SYN-F-600096'" true t08c 2 null "'correct'" null "Synthetic note: please use 000000-00-0000 as the number"
+ckre "08: a reason shaped like an IC is refused" "$OUT" "IDC_TEXT_CONTAINS_IDENTITY"
+REQ $SA PF identity null "'SYN-F-600096'" true t08d 2 null "'correct'" null "Synthetic note: passport X00000000 was checked"
+ckre "08: a reason shaped like a passport number is refused" "$OUT" "IDC_TEXT_CONTAINS_IDENTITY"
+EV=$(val "select jsonb_set(t.ev(2,'t08e'), '{0,reference}', '\"scan of SYN-F-600007\"')"); DEC=$(val "select t.dec(t.pid('PF'), null, 'correct', null, 'synthetic decision reason')")
+OUT=$(run_as authenticated "$SA" <<SQL
+select public.identity_correction_request(t.pid('PF'), 'identity', null, 'SYN-F-600096', true, 'Synthetic test reason: document reviewed by the owner', '$EV'::jsonb, '$DEC'::jsonb);
+SQL
+)
+ckre "08: a document reference that contains the identity is refused" "$OUT" "IDC_TEXT_CONTAINS_IDENTITY"
+DECREASON="note about SYN-F-600007"; REQ $SA PF identity null "'SYN-F-600096'" true t08f 2 null "'correct'" null; unset DECREASON
+ckre "08: a per-certificate decision reason that contains the identity is refused" "$OUT" "IDC_TEXT_CONTAINS_IDENTITY"
+ck "08: every refusal rolled back completely (no request, no ledger row)" "$(val "select count(*) from identity_audit.requests where status='pending'")/$(LEDGER)" "$PEND0/$LB4"
+for variant in "000000/00/0000" "000000 - 00 - 0000" "0 0 0 0 0 0 0 0 0 0 0 0" "XY-0000000" "000 000 000 000"; do
+  REQ $SA PF identity null "'SYN-F-600096'" true t08v 2 null "'correct'" null "Synthetic note: the number written as $variant was checked"
+  ckre "FIX 4: evasive format refused by the database (variant ${#variant} chars)" "$OUT" "IDC_TEXT_CONTAINS_IDENTITY"
+done
+FW0=$(printf '\xef\xbc\x90'); FWH=$(printf '\xef\xbc\x8d'); ZW=$(printf '\xe2\x80\x8b')
+FWIC="$FW0$FW0$FW0$FW0$FW0$FW0$FWH$FW0$FW0$FWH$FW0$FW0$FW0$FW0"
+REQ $SA PF identity null "'SYN-F-600096'" true t08u1 2 null "'correct'" null "Synthetic note: the number $FWIC was checked"
+ckre "FIX 4: a FULL-WIDTH IC is refused by the database" "$OUT" "IDC_TEXT_CONTAINS_IDENTITY"
+REQ $SA PF identity null "'SYN-F-600096'" true t08u2 2 null "'correct'" null "Synthetic note: the number 00000${ZW}0000000 was checked"
+ckre "FIX 4: 12 digits split by a zero-width character are refused by the database" "$OUT" "IDC_TEXT_CONTAINS_IDENTITY"
+REQ $SA PF identity null "'SYN-F-600096'" true t08u3 2 null "'correct'" null "Synthetic note: the profile number written as ${FW0}S${FW0}Y${FW0}N is wrong"
+ckre "FIX 4: ordinary text with full-width letters/digits (no identity shape) is accepted" "$RID" "^[0-9a-f-]{36}$"
+asq authenticated "$SA" "select public.identity_correction_cancel('$RID'::uuid,'cleanup of the synthetic request')" >/dev/null
+REQ $SA PF identity null "'SYN-F-600096'" true t08h 2 null "'correct'" null "Synthetic note: dated 2026-11-07 ref 123456 for CERT-2026-000123, phone 0123456789"
+ckre "FIX 4: ordinary numbers (date, short ref, certificate number, phone) are NOT refused" "$RID" "^[0-9a-f-]{36}$"
+asq authenticated "$SA" "select public.identity_correction_cancel('$RID'::uuid,'cleanup of the synthetic request')" >/dev/null
+REQ $SA PF identity null "'SYN-F-600096'" true t08g 2 null "'correct'" null "Synthetic clean reason: the registration form shows a spelling slip"
+ckre "08: a clean request is still accepted" "$RID" "^[0-9a-f-]{36}$"; RG="$RID"
+OUT=$(asq authenticated "$SA" "select public.identity_correction_cancel('$RG'::uuid,'wrong number SYN-F-600007 here')"); ckre "08: a cancel reason that contains the identity is refused" "$OUT" "IDC_TEXT_CONTAINS_IDENTITY"
+OUT=$(asq authenticated "$SA" "select public.identity_correction_reject('$RG'::uuid,'declined; the new number SYN-F-600096 is wrong')"); ckre "08: a reject reason that contains the new identity is refused" "$OUT" "IDC_TEXT_CONTAINS_IDENTITY"
+ck "08: the refused cancel/reject left the request pending" "$(val "select status from identity_audit.requests where id='$RG'")" "pending"
+OUT=$(asq authenticated "$SA" "select public.identity_correction_cancel('$RG'::uuid,'cleanup of the synthetic request')"); cknre "08: a clean cancel reason still works" "$OUT" "ERROR"
+echo "-- FIX 2: altered or disabled protection is detected"
+ORIGFN=$(val "select pg_get_functiondef('identity_audit.requests_text_guard()'::regprocedure)")
+q <<< "set role migrator; alter table identity_audit.requests disable trigger requests_text_guard" >/dev/null
+ck "a DISABLED 08 trigger is reported by the trigger check" "$(val "select ok from identity_audit.verify_ledger() where check_name='guard_triggers_present_and_enabled'")" "f"
+ck "a DISABLED 08 trigger is reported by the fingerprint check" "$(val "select ok from identity_audit.verify_ledger() where check_name='guard_fingerprint_matches_latest_anchor'")" "f"
+q <<< "set role migrator; alter table identity_audit.requests enable trigger requests_text_guard" >/dev/null
+ck "re-enabling it clears the report" "$(val "select count(*) filter (where not ok) from identity_audit.verify_ledger()")" "0"
+q <<< "set role migrator; create or replace function identity_audit.requests_text_guard() returns trigger language plpgsql set search_path = pg_catalog as \$\$ begin return new; end \$\$" >/dev/null
+ck "an ALTERED 08 function body is reported by the fingerprint check" "$(val "select ok from identity_audit.verify_ledger() where check_name='guard_fingerprint_matches_latest_anchor'")" "f"
+OUT=$(apply 08_request_text_guard.sql); ckre "08 re-apply refuses to approve that drift" "$OUT" "IDC_GUARD_DRIFT"
+printf "set role migrator;\n%s;\n" "$ORIGFN" | q >/dev/null
+ck "restoring the exact original body clears the report" "$(val "select count(*) filter (where not ok) from identity_audit.verify_ledger()")" "0"
+q <<< "set role migrator; drop trigger requests_text_guard on identity_audit.requests" >/dev/null
+ck "a DROPPED 08 trigger is reported (its component reads MISSING)" "$(val "select ok from identity_audit.verify_ledger() where check_name='guard_fingerprint_matches_latest_anchor'")" "f"
+q <<< "set role migrator; create trigger requests_text_guard before insert or update of cancel_reason on identity_audit.requests for each row execute function identity_audit.requests_text_guard()" >/dev/null
+ck "recreating it exactly clears the report" "$(val "select count(*) filter (where not ok) from identity_audit.verify_ledger()")" "0"
+
+RQB=$(val "select count(*) from identity_audit.requests"); LGB=$(LEDGER); ANB=$(val "select count(*) from identity_audit.anchors")
+OUT=$(rollback 08_rollback.sql); cknre "08 rollback runs cleanly" "$OUT" "ERROR"
+ck "FIX 2: 08 rollback preserved every request row and ledger row" "$(val "select count(*) from identity_audit.requests")/$(LEDGER)" "$RQB/$LGB"
+ck "FIX 2: 08 rollback kept all earlier anchors and anchored the expected reverse transition" "$(val "select count(*) from identity_audit.anchors")" "$((ANB+1))"
+ck "FIX 2: the ledger verifies clean after the 08 rollback" "$(val "select count(*) filter (where not ok) from identity_audit.verify_ledger()")" "0"
+ck "08 rollback removed both triggers" "$(val "select count(*) from pg_trigger where tgname in ('requests_text_guard','request_certificates_text_guard')")" "0"
+OUT=$(apply 08_request_text_guard.sql); cknre "08 re-apply after rollback has no error" "$OUT" "ERROR"
+ck "after the 08 sequence the ledger still verifies clean" "$(val "select count(*) filter (where not ok) from identity_audit.verify_ledger()")" "0"
+
+# ======================================================================================================
+echo "== 01 re-run after 07, and 07 rollback on an installation that already has anchors -- fresh database"
+DB="${DB_MAIN}_e"; createdb "$DB"
+q < "$HERE/fixture.sql" >/dev/null; q < "$HERE/testdata.sql" >/dev/null
+for f in 01_identity_audit_schema.sql 02_identity_audit_helpers.sql 03_identity_correction_workflow.sql 04_guard_snapshot_identity.sql 05_guard_certificate_identity.sql 06_guard_participant_identity.sql 07_identity_correction_read_and_reject.sql 08_request_text_guard.sql; do apply $f >/dev/null; done
+printf "update identity_audit.policy set sealing_public_key = \$k\$%s\$k\$, anchor_sink_configured_at=now(), notification_sink_configured_at=now(), wait_name=interval '0', wait_identity=interval '0';\n" "$PUB" | q >/dev/null
+asq authenticated "$SA" "select public.identity_correction_enable()" >/dev/null
+REQ $SA PN name "'Synthetic November Corrected'" null true e1 1 "'correct'" null null; APPLY $SA "$RID"
+ck "fresh install: 01 already allows the rejected status" "$(val "select pg_get_constraintdef(oid) like '%rejected%' from pg_constraint where conname='requests_status_check' and conrelid='identity_audit.requests'::regclass")" "t"
+G0=$(val "select md5(pg_get_functiondef('identity_audit.requests_guard()'::regprocedure))"); A0=$(val "select count(*) from identity_audit.anchors")
+OUT=$(apply 01_identity_audit_schema.sql); cknre "re-running 01 AFTER 07 has no error" "$OUT" "ERROR"
+ck "re-running 01 after 07 leaves requests_guard byte-identical (cannot downgrade it)" "$(val "select md5(pg_get_functiondef('identity_audit.requests_guard()'::regprocedure))")" "$G0"
+OUT=$(apply 07_identity_correction_read_and_reject.sql); cknre "re-applying 07 after 01 has no error" "$OUT" "ERROR"
+ck "01 and 07 re-runs added no anchor on a fresh install" "$(val "select count(*) from identity_audit.anchors")" "$A0"
+ck "ledger verifies clean after the re-runs" "$(val "select count(*) filter (where not ok) from identity_audit.verify_ledger()")" "0"
+REQ $SA PB name "'Synthetic Bravo Corrected'" null true e2 1 "'correct'" null null; RE="$RID"
+asq authenticated "$SA" "select public.identity_correction_reject('$RE'::uuid,'declined: evidence is not acceptable')" >/dev/null
+ck "a rejected request exists before the 07 rollback" "$(val "select status from identity_audit.requests where id='$RE'")" "rejected"
+COMP0=$(val "select md5(string_agg(k || ':' || v, ',' order by k)) from identity_audit.guard_components()")
+OUT=$(rollback 07_rollback.sql); cknre "07 rollback runs cleanly on an installation with anchors and a rejected request" "$OUT" "ERROR"
+ck "FIX 1: the 07 rollback changed no audit component at all (nothing to re-anchor)" "$(val "select md5(string_agg(k || ':' || v, ',' order by k)) from identity_audit.guard_components()")" "$COMP0"
+ck "07 rollback removed the 12 read/reject functions" "$(val "select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname in ('app','public') and p.proname in ('identity_correction_reject','identity_correction_policy','identity_correction_search_certificates','identity_correction_list_requests','identity_correction_get_request','identity_correction_history')")" "0"
+ck "07 rollback leaves the rejected request intact (01 owns the status)" "$(val "select status from identity_audit.requests where id='$RE'")" "rejected"
+ck "07 rollback changed neither requests_guard nor the anchors" "$(val "select md5(pg_get_functiondef('identity_audit.requests_guard()'::regprocedure))")/$(val "select count(*) from identity_audit.anchors")" "$G0/$A0"
+ck "ledger verifies clean after the 07 rollback" "$(val "select count(*) filter (where not ok) from identity_audit.verify_ledger()")" "0"
+OUT=$(apply 07_identity_correction_read_and_reject.sql); cknre "07 re-apply after rollback has no error" "$OUT" "ERROR"
+
+# ======================================================================================================
+echo "== FIX 4: SQL and TypeScript detect the same identity-shaped text (shared synthetic vectors)"
+DB="${DB_MAIN}_d"
+cd "$HERE"
+NV=$(node check-text-vectors.mts ts 2>/dev/null | wc -l)
+TSBAD=$(node check-text-vectors.mts ts 2>/dev/null | awk -F'|' '$2!=$3' | wc -l)
+node check-text-vectors.mts sql 2>/dev/null > "$TMP/vec.sql"
+SQLOUT=$(q < "$TMP/vec.sql")
+SQLBAD=$(paste -d'|' <(node check-text-vectors.mts ts 2>/dev/null) <(echo "$SQLOUT") | awk -F'|' '{ if ($2 != $5) c++ } END { print c + 0 }')
+NVEXP=$(node -e "console.log(JSON.parse(require('fs').readFileSync('identity-text-vectors.json','utf8')).length)" 2>/dev/null)
+ck "vector file is not trivially small (at least 40 vectors, counted from the file itself)" "$([ "${NVEXP:-0}" -ge 40 ] && echo ok || echo "too-few:${NVEXP:-none}")" "ok"
+ck "TypeScript produced exactly one verdict per vector in the file" "$NV" "$NVEXP"
+ck "TypeScript detector matches the expected verdict on every vector" "$TSBAD" "0"
+ck "SQL detector matches the expected verdict on every vector" "$SQLBAD" "0"
+ck "SQL returned exactly one verdict per vector in the file" "$(echo "$SQLOUT" | grep -c '|')" "$NVEXP"
+cd - >/dev/null
+
+# ======================================================================================================
+echo "== FIX 1: unexpected drift is refused before anything changes -- fresh database"
+DB="${DB_MAIN}_f"; createdb "$DB"
+q < "$HERE/fixture.sql" >/dev/null; q < "$HERE/testdata.sql" >/dev/null
+for f in 01_identity_audit_schema.sql 02_identity_audit_helpers.sql 03_identity_correction_workflow.sql 04_guard_snapshot_identity.sql 05_guard_certificate_identity.sql 06_guard_participant_identity.sql; do apply $f >/dev/null; done
+printf "update identity_audit.policy set sealing_public_key = \$k\$%s\$k\$, anchor_sink_configured_at=now(), notification_sink_configured_at=now(), wait_name=interval '0', wait_identity=interval '0';\n" "$PUB" | q >/dev/null
+asq authenticated "$SA" "select public.identity_correction_enable()" >/dev/null
+REQ $SA PN name "'Synthetic November Corrected'" null true f1 1 "'correct'" null null; APPLY $SA "$RID"
+ANF=$(val "select count(*) from identity_audit.anchors")
+ORIGAO=$(val "select pg_get_functiondef('identity_audit.append_only()'::regprocedure)")
+q <<'SQL' >/dev/null
+set role migrator;
+create or replace function identity_audit.append_only() returns trigger language plpgsql set search_path = pg_catalog as $$ begin return old; end $$;
+SQL
+ck "the unrelated tampering is visible to verify_ledger()" "$(val "select ok from identity_audit.verify_ledger() where check_name='guard_fingerprint_matches_latest_anchor'")" "f"
+OUT=$(apply 07_identity_correction_read_and_reject.sql); ckre "07 refuses to run on unexpected drift" "$OUT" "IDC_GUARD_DRIFT"
+ck "07 changed nothing (none of its functions exist)" "$(val "select count(*) from pg_proc where proname in ('identity_correction_policy','identity_correction_get_request')")" "0"
+OUT=$(apply 08_request_text_guard.sql); ckre "08 refuses to run on unexpected drift" "$OUT" "IDC_GUARD_DRIFT"
+ck "08 changed nothing (no trigger, no function)" "$(val "select count(*) from pg_trigger where tgname like '%text_guard'")/$(val "select count(*) from pg_proc where proname like '%text_guard'")" "0/0"
+ck "neither refused migration recorded an anchor (the drift was NOT approved)" "$(val "select count(*) from identity_audit.anchors")" "$ANF"
+ck "the drift is still reported afterwards" "$(val "select ok from identity_audit.verify_ledger() where check_name='guard_fingerprint_matches_latest_anchor'")" "f"
+echo "-- the transition helper only anchors a verified, expected change"
+OUT=$(q <<'SQL'
+set role migrator;
+begin;
+create temporary table b as select identity_audit.guard_snapshot() as snap;
+create or replace function identity_audit.requests_guard() returns trigger language plpgsql set search_path = pg_catalog as $$ begin return new; end $$;
+select identity_audit.finish_guard_transition((select snap from b), array['fn:identity_audit.requests_guard()'], true, true);
+rollback;
+SQL
+)
+ckre "an expected change on a clean state IS anchored" "$OUT" "^anchored$"
+OUT=$(q <<'SQL'
+set role migrator;
+begin;
+create temporary table b as select identity_audit.guard_snapshot() as snap;
+create or replace function identity_audit.requests_guard() returns trigger language plpgsql set search_path = pg_catalog as $$ begin return new; end $$;
+select identity_audit.finish_guard_transition((select snap from b), array['fn:identity_audit.authorized(text,uuid,text,text,text)'], true, true);
+rollback;
+SQL
+)
+ckre "a strict transition that changed an unlisted object raises" "$OUT" "IDC_UNEXPECTED_GUARD_CHANGE"
+OUT=$(q <<'SQL'
+set role migrator;
+begin;
+create temporary table b as select identity_audit.guard_snapshot() as snap;
+create or replace function identity_audit.requests_guard() returns trigger language plpgsql set search_path = pg_catalog as $$ begin return new; end $$;
+select identity_audit.finish_guard_transition((select snap from b), '{}'::text[], true, false);
+rollback;
+SQL
+)
+ckre "a non-strict (rollback) transition with an unlisted change is NOT anchored" "$OUT" "^unanchored$"
+OUT=$(q <<'SQL'
+set role migrator;
+begin;
+create temporary table b as select identity_audit.guard_snapshot() as snap;
+create or replace function identity_audit.requests_guard() returns trigger language plpgsql set search_path = pg_catalog as $$ begin return new; end $$;
+select identity_audit.finish_guard_transition((select snap from b), array['fn:identity_audit.requests_guard()'], false, false);
+rollback;
+SQL
+)
+ckre "an expected change on a state that was NOT clean beforehand is NOT anchored" "$OUT" "^unanchored$"
+ck "none of those probes left an anchor behind" "$(val "select count(*) from identity_audit.anchors")" "$ANF"
+printf "set role migrator;\n%s;\n" "$ORIGAO" | q >/dev/null
+ck "restoring the exact original body clears the report" "$(val "select count(*) filter (where not ok) from identity_audit.verify_ledger()")" "0"
+OUT=$(apply 07_identity_correction_read_and_reject.sql); cknre "07 now installs (clean state)" "$OUT" "ERROR"
+OUT=$(apply 08_request_text_guard.sql); cknre "08 now installs (clean state)" "$OUT" "ERROR"
+ck "FIX 1: on a fresh install 07 recorded no anchor; 08 recorded exactly one" "$(val "select count(*) from identity_audit.anchors")" "$((ANF+1))"
+ck "ledger verifies clean after both" "$(val "select count(*) filter (where not ok) from identity_audit.verify_ledger()")" "0"
+echo "-- rollback of 08 on a state with unrelated drift must not approve that drift"
+q <<'SQL' >/dev/null
+set role migrator;
+create or replace function identity_audit.append_only() returns trigger language plpgsql set search_path = pg_catalog as $$ begin return old; end $$;
+SQL
+ANG=$(val "select count(*) from identity_audit.anchors")
+OUT=$(rollback 08_rollback.sql); cknre "08 rollback still runs (a rollback is never blocked)" "$OUT" "ERROR"
+ckre "08 rollback warns that it did not anchor" "$OUT" "no anchor recorded"
+ck "08 rollback on a drifted state recorded NO anchor" "$(val "select count(*) from identity_audit.anchors")" "$ANG"
+ck "the drift stays reported after the rollback" "$(val "select ok from identity_audit.verify_ledger() where check_name='guard_fingerprint_matches_latest_anchor'")" "f"
+
+# ======================================================================================================
+echo "== FIX 3: existing unsafe text -- 07 withholds it, 08 refuses to install over it (fails closed)"
+DB="${DB_MAIN}_g"; createdb "$DB"
+q < "$HERE/fixture.sql" >/dev/null; q < "$HERE/testdata.sql" >/dev/null
+for f in 01_identity_audit_schema.sql 02_identity_audit_helpers.sql 03_identity_correction_workflow.sql 04_guard_snapshot_identity.sql 05_guard_certificate_identity.sql 06_guard_participant_identity.sql 07_identity_correction_read_and_reject.sql; do apply $f >/dev/null; done
+printf "update identity_audit.policy set sealing_public_key = \$k\$%s\$k\$, anchor_sink_configured_at=now(), notification_sink_configured_at=now(), wait_name=interval '0', wait_identity=interval '0';\n" "$PUB" | q >/dev/null
+asq authenticated "$SA" "select public.identity_correction_enable()" >/dev/null
+REQ $SA PB name "'Synthetic Bravo Corrected'" null true g1 1 "'correct'" null null; RG1="$RID"
+q <<SQL >/dev/null
+set role migrator;
+alter table identity_audit.requests disable trigger requests_guard;
+update identity_audit.requests set reason = 'Legacy note that quotes SYN-B-200002 by mistake, written before the guard existed' where id = '$RG1';
+alter table identity_audit.requests enable trigger requests_guard;
+SQL
+HASH_G=$(val "select md5(reason) from identity_audit.requests where id='$RG1'"); ANG=$(val "select count(*) from identity_audit.anchors")
+ck "the legacy row really holds the unsafe text (set up through owner-level access)" "$(val "select (reason like '%SYN-B-200002%')::text from identity_audit.requests where id='$RG1'")" "true"
+OUT=$(asq authenticated "$SA" "select public.identity_correction_get_request('$RG1'::uuid)")
+ckre "07 get_request WITHHOLDS the unsafe reason" "$OUT" 'withheld'
+cknre "07 get_request never returns the identity number from that text" "$OUT" "SYN-B-200002"
+ckre "07 get_request still returns the rest of the request" "$OUT" '"status": "pending"'
+OUT=$(apply 08_request_text_guard.sql); ckre "08 refuses to install over unsafe existing text" "$OUT" "IDC_LEGACY_TEXT_UNSAFE"
+ckre "08 reports how many requests are affected" "$OUT" "1 existing request"
+cknre "08 error never echoes the identity number" "$OUT" "SYN-B-200002"
+ck "08 failed closed: none of its objects exist" "$(val "select count(*) from pg_trigger where tgname like '%text_guard'")/$(val "select count(*) from pg_proc where proname like '%text_guard'")" "0/0"
+ck "08 did not rewrite or delete the legacy evidence" "$(val "select md5(reason) from identity_audit.requests where id='$RG1'")" "$HASH_G"
+ck "08 recorded no anchor when it refused" "$(val "select count(*) from identity_audit.anchors")" "$ANG"
+ck "the audit state is still clean after the refusal" "$(val "select count(*) filter (where not ok) from identity_audit.verify_ledger()")" "0"
+
+DB="${DB_MAIN}_h"; createdb "$DB"
+q < "$HERE/fixture.sql" >/dev/null; q < "$HERE/testdata.sql" >/dev/null
+for f in 01_identity_audit_schema.sql 02_identity_audit_helpers.sql 03_identity_correction_workflow.sql 04_guard_snapshot_identity.sql 05_guard_certificate_identity.sql 06_guard_participant_identity.sql 07_identity_correction_read_and_reject.sql; do apply $f >/dev/null; done
+printf "update identity_audit.policy set sealing_public_key = \$k\$%s\$k\$, anchor_sink_configured_at=now(), notification_sink_configured_at=now(), wait_name=interval '0', wait_identity=interval '0';\n" "$PUB" | q >/dev/null
+asq authenticated "$SA" "select public.identity_correction_enable()" >/dev/null
+REQ $SA PB name "'Synthetic Bravo Corrected'" null true h1 1 "'correct'" null null; RH1="$RID"
+REQ $SA PF identity null "'SYN-F-600099'" true h2 2 null "'correct'" null; RH2="$RID"
+q <<SQL >/dev/null
+set role migrator;
+alter table identity_audit.request_certificates disable trigger request_certificates_guard;
+update identity_audit.request_certificates set decision_reason = 'legacy decision note quoting SYN-B-200002' where request_id = '$RH1';
+alter table identity_audit.request_certificates enable trigger request_certificates_guard;
+alter table identity_audit.requests disable trigger requests_guard;
+update identity_audit.requests set evidence = jsonb_set(evidence, '{0,reference}', '"legacy scan of 000000-00-0000"') where id = '$RH2';
+alter table identity_audit.requests enable trigger requests_guard;
+SQL
+OUT=$(asq authenticated "$SA" "select public.identity_correction_get_request('$RH1'::uuid)"); ckre "07 withholds an unsafe per-certificate decision reason" "$OUT" 'withheld'; cknre "... and returns no identity number from it" "$OUT" "SYN-B-200002"
+OUT=$(asq authenticated "$SA" "select public.identity_correction_get_request('$RH2'::uuid)"); ckre "07 withholds an unsafe document reference" "$OUT" 'withheld'; cknre "... and returns no IC-shaped text from it" "$OUT" "000000-00-0000"
+OUT=$(apply 08_request_text_guard.sql); ckre "08 refuses (decision reason + document reference) and counts both requests" "$OUT" "2 existing request"
+
+echo "== migration ORDER: 08 before 07, then 01 and 02 re-run -- fresh database"
+DB="${DB_MAIN}_i"; createdb "$DB"
+q < "$HERE/fixture.sql" >/dev/null; q < "$HERE/testdata.sql" >/dev/null
+for f in 01_identity_audit_schema.sql 02_identity_audit_helpers.sql 03_identity_correction_workflow.sql 04_guard_snapshot_identity.sql 05_guard_certificate_identity.sql 06_guard_participant_identity.sql 08_request_text_guard.sql 07_identity_correction_read_and_reject.sql; do OUT=$(apply $f); cknre "order 08->07: $f applies" "$OUT" "ERROR"; done
+printf "update identity_audit.policy set sealing_public_key = \$k\$%s\$k\$, anchor_sink_configured_at=now(), notification_sink_configured_at=now(), wait_name=interval '0', wait_identity=interval '0';\n" "$PUB" | q >/dev/null
+asq authenticated "$SA" "select public.identity_correction_enable()" >/dev/null
+REQ $SA PN name "'Synthetic November Corrected'" null true i1 1 "'correct'" null null "Synthetic reason quoting SYN-N-500006 by mistake"
+ckre "order 08->07: the text guard is active" "$OUT" "IDC_TEXT_CONTAINS_IDENTITY"
+REQ $SA PN name "'Synthetic November Corrected'" null true i2 1 "'correct'" null null; APPLY $SA "$RID"
+ck "order 08->07: a correction applies" "$(COLS_C PN "$(CERT_OF PN 0)" | cut -d/ -f1)" "Synthetic November Corrected"
+ck "order 08->07: the ledger verifies clean" "$(val "select count(*) filter (where not ok) from identity_audit.verify_ledger()")" "0"
+FP0=$(val "select identity_audit.guard_fingerprint()"); AN0=$(val "select count(*) from identity_audit.anchors")
+for f in 01_identity_audit_schema.sql 02_identity_audit_helpers.sql 07_identity_correction_read_and_reject.sql 08_request_text_guard.sql; do OUT=$(apply $f); cknre "order 08->07: re-running $f is clean" "$OUT" "ERROR"; done
+ck "re-running 01, 02, 07 and 08 left the guard fingerprint unchanged" "$(val "select identity_audit.guard_fingerprint()")" "$FP0"
+ck "re-running 01, 02, 07 and 08 recorded no further anchor" "$(val "select count(*) from identity_audit.anchors")" "$AN0"
+ck "the ledger still verifies clean" "$(val "select count(*) filter (where not ok) from identity_audit.verify_ledger()")" "0"
+OUT=$(asq authenticated "$SA" "select public.identity_correction_get_request('$RID'::uuid)"); ckre "07 read RPC works with 08 installed first" "$OUT" '"status": "applied"'
+
+# ======================================================================================================
+echo "== FIX 2 (limit and mitigation): the enumerator cannot vouch for itself, the external verifier can"
+DB="${DB_MAIN}_i"
+EXT() { q < "$HERE/external-verify.sql"; }
+LATEST() { val "select guard_fingerprint from identity_audit.anchors order by seq desc limit 1"; }
+ck "external verifier (no identity_audit function used) equals the internal fingerprint on a clean install" "$(EXT)" "$(val "select identity_audit.guard_fingerprint()")"
+ck "... and equals the latest anchor" "$(EXT)" "$(LATEST)"
+ck "the external script calls no identity_audit function (every mention is a quoted name, comments excluded)" "$(grep -v '^--' "$HERE/external-verify.sql" | grep -o -E "identity_audit\.[a-z_]+\(" | wc -l | tr -d ' ')" "$(grep -v '^--' "$HERE/external-verify.sql" | grep -o -E "'identity_audit\.[a-z_]+\(" | wc -l | tr -d ' ')"
+ck "enumerator, verifier and transition helpers are part of the fingerprint" "$(val "select count(*) from identity_audit.guard_components() where k in ('fn:identity_audit.guard_components()','fn:identity_audit.verify_ledger()','fn:identity_audit.finish_guard_transition(jsonb,text[],boolean,boolean)','fn:identity_audit.assert_guards_clean()','fn:identity_audit.record_anchor()') and v <> 'MISSING'")" "5"
+q <<'SQL' >/dev/null
+set role migrator;
+create table public._idc_scratch as select k, v from identity_audit.guard_components();
+create or replace function identity_audit.guard_components() returns table (k text, v text)
+language sql stable security definer set search_path = pg_catalog as $$ select s.k, s.v from public._idc_scratch s $$;
+create or replace function identity_audit.append_only() returns trigger language plpgsql set search_path = pg_catalog as $$ begin return old; end $$;
+SQL
+ck "honest limit: with a lying enumerator the INTERNAL check still reports clean" "$(val "select ok from identity_audit.verify_ledger() where check_name='guard_fingerprint_matches_latest_anchor'")" "t"
+ck "the EXTERNAL verifier exposes it (its fingerprint no longer equals the latest anchor)" "$([ "$(EXT)" = "$(LATEST)" ] && echo same || echo different)" "different"
+ck "and the internal fingerprint differs from the external one (the lie is visible by comparison)" "$([ "$(EXT)" = "$(val "select identity_audit.guard_fingerprint()")" ] && echo same || echo different)" "different"
+
+# ======================================================================================================
 echo "== rollback and re-apply on a clean database"
 DB="${DB_MAIN}_c"; createdb "$DB"
 q < "$HERE/fixture.sql" >/dev/null; q < "$HERE/testdata.sql" >/dev/null
 BASE=$(val "select md5(regexp_replace(pg_get_functiondef('app.certificate_historical_update_guard()'::regprocedure), '\s+', ' ', 'g'))")
-for f in 01_identity_audit_schema.sql 02_identity_audit_helpers.sql 03_identity_correction_workflow.sql 04_guard_snapshot_identity.sql 05_guard_certificate_identity.sql 06_guard_participant_identity.sql; do apply $f >/dev/null; done
+for f in 01_identity_audit_schema.sql 02_identity_audit_helpers.sql 03_identity_correction_workflow.sql 04_guard_snapshot_identity.sql 05_guard_certificate_identity.sql 06_guard_participant_identity.sql 07_identity_correction_read_and_reject.sql 08_request_text_guard.sql; do apply $f >/dev/null; done
 OUT=$(rollback 02_rollback.sql); ckre "02 rollback refused while guards still depend on it" "$OUT" "rollback refused"
 OUT=$(rollback 01_rollback.sql); ckre "01 rollback refused while helpers are installed" "$OUT" "rollback refused"
-for f in 06_rollback.sql 05_rollback.sql 04_rollback.sql 03_rollback.sql 02_rollback.sql; do OUT=$(rollback $f); cknre "$f runs cleanly" "$OUT" "ERROR"; done
+for f in 08_rollback.sql 07_rollback.sql 06_rollback.sql 05_rollback.sql 04_rollback.sql 03_rollback.sql 02_rollback.sql; do OUT=$(rollback $f); cknre "$f runs cleanly" "$OUT" "ERROR"; done
 ck "historical guard is back to the exact Production baseline" "$(val "select md5(regexp_replace(pg_get_functiondef('app.certificate_historical_update_guard()'::regprocedure), '\s+', ' ', 'g'))")" "$BASE"
 ck "no identity guard trigger remains" "$(val "select count(*) from pg_trigger where tgname like '%identity_guard'")" "0"
 ck "baseline behaviour is back: direct legacy update works again" "$(asq service_role "" "with u as (update public.certificates set holder_name='Synthetic Gap Probe' where participant_id=t.pid('PW') returning 1) select count(*) from u")" "1"
 OUT=$(rollback 01_rollback.sql); cknre "01 rollback runs when no evidence exists" "$OUT" "ERROR"
 ck "evidence schema is gone" "$(val "select count(*) from pg_namespace where nspname='identity_audit'")" "0"
-for f in 01_identity_audit_schema.sql 02_identity_audit_helpers.sql 03_identity_correction_workflow.sql 04_guard_snapshot_identity.sql 05_guard_certificate_identity.sql 06_guard_participant_identity.sql; do
+for f in 01_identity_audit_schema.sql 02_identity_audit_helpers.sql 03_identity_correction_workflow.sql 04_guard_snapshot_identity.sql 05_guard_certificate_identity.sql 06_guard_participant_identity.sql 07_identity_correction_read_and_reject.sql 08_request_text_guard.sql; do
   OUT=$(apply $f); cknre "re-apply after full rollback: $f" "$OUT" "ERROR"
 done
 OUT=$(rollback 05_rollback.sql); cknre "05 rollback with an applied workflow present runs cleanly" "$OUT" "ERROR"

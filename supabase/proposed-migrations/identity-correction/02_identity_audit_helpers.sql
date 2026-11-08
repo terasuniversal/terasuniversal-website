@@ -133,28 +133,45 @@ end $$;
 
 -- Fingerprint of the guard functions and the enabled state of the guard/ledger triggers. A
 -- privileged user can still change them; this makes such a change DETECTABLE against an anchor.
+-- The guard fingerprint is built from per-object components so a migration can prove WHICH objects it changed
+-- (identity_audit.finish_guard_transition) instead of re-anchoring whatever happens to differ.
+create or replace function identity_audit.guard_components() returns table (k text, v text)
+language sql stable security definer set search_path = pg_catalog as
+$$ select 'fn:' || f.sig, coalesce(pg_catalog.md5(pg_catalog.pg_get_functiondef(pg_catalog.to_regprocedure(f.sig))), 'MISSING')
+     from (values ('app.certificate_historical_update_guard()'), ('app.certificate_legacy_identity_guard()'),
+                  ('app.snapshot_identity_guard()'), ('app.participant_identity_guard()'),
+                  ('identity_audit.authorized(text,uuid,text,text,text)'), ('identity_audit.ledger_chain()'),
+                  ('identity_audit.append_only()'), ('identity_audit.requests_guard()'),
+                  ('identity_audit.text_has_identity(text)'), ('identity_audit.text_leaks_identity(text,text[])'),
+                  ('identity_audit.safe_text(text,text[])'), ('identity_audit.fold_text(text)'),
+                  ('identity_audit.guard_components()'), ('identity_audit.guard_fingerprint()'), ('identity_audit.guard_snapshot()'),
+                  ('identity_audit.guard_state_clean()'), ('identity_audit.assert_guards_clean()'),
+                  ('identity_audit.finish_guard_transition(jsonb,text[],boolean,boolean)'),
+                  ('identity_audit.verify_ledger()'), ('identity_audit.record_anchor()'),
+                  ('identity_audit.requests_text_guard()'), ('identity_audit.request_certificates_text_guard()')) as f(sig)
+   union all
+   select 'trg:' || t.rel || '.' || t.name, coalesce((
+       select x.tgenabled::text || ':' || pg_catalog.md5(pg_catalog.pg_get_triggerdef(x.oid))
+         from pg_catalog.pg_trigger x where x.tgname = t.name and x.tgrelid = pg_catalog.to_regclass(t.rel) and not x.tgisinternal), 'MISSING')
+     from (values ('public.certificates', 'trg_certificate_historical_update_guard'),
+                  ('public.certificates', 'trg_certificate_legacy_identity_guard'),
+                  ('public.certificate_issuance_snapshots', 'trg_snapshot_identity_guard'),
+                  ('public.participants', 'trg_participant_identity_guard'),
+                  ('identity_audit.corrections', 'corrections_chain'),
+                  ('identity_audit.corrections', 'corrections_append_only'),
+                  ('identity_audit.corrections', 'corrections_no_truncate'),
+                  ('identity_audit.requests', 'requests_guard'),
+                  ('identity_audit.requests', 'requests_text_guard'),
+                  ('identity_audit.request_certificates', 'request_certificates_text_guard')) as t(rel, name) $$;
+
 create or replace function identity_audit.guard_fingerprint() returns text
 language sql stable security definer set search_path = pg_catalog as
-$$ select pg_catalog.encode(pg_catalog.sha256(pg_catalog.convert_to(pg_catalog.string_agg(x, E'\n' order by x), 'UTF8')), 'hex')
-   from (
-     select 'fn:' || f.sig || ':' || coalesce(pg_catalog.md5(pg_catalog.pg_get_functiondef(pg_catalog.to_regprocedure(f.sig))), 'MISSING') as x
-       from (values ('app.certificate_historical_update_guard()'), ('app.certificate_legacy_identity_guard()'),
-                    ('app.snapshot_identity_guard()'), ('app.participant_identity_guard()'),
-                    ('identity_audit.authorized(text,uuid,text,text,text)'), ('identity_audit.ledger_chain()'),
-                    ('identity_audit.append_only()'), ('identity_audit.requests_guard()')) as f(sig)
-     union all
-     select 'trg:' || t.rel || '.' || t.name || ':' || coalesce((
-         select x.tgenabled::text || ':' || pg_catalog.md5(pg_catalog.pg_get_triggerdef(x.oid))
-           from pg_catalog.pg_trigger x where x.tgname = t.name and x.tgrelid = pg_catalog.to_regclass(t.rel) and not x.tgisinternal), 'MISSING')
-       from (values ('public.certificates', 'trg_certificate_historical_update_guard'),
-                    ('public.certificates', 'trg_certificate_legacy_identity_guard'),
-                    ('public.certificate_issuance_snapshots', 'trg_snapshot_identity_guard'),
-                    ('public.participants', 'trg_participant_identity_guard'),
-                    ('identity_audit.corrections', 'corrections_chain'),
-                    ('identity_audit.corrections', 'corrections_append_only'),
-                    ('identity_audit.corrections', 'corrections_no_truncate'),
-                    ('identity_audit.requests', 'requests_guard')) as t(rel, name)
-   ) s $$;
+$$ select pg_catalog.encode(pg_catalog.sha256(pg_catalog.convert_to(pg_catalog.string_agg(c.k || ':' || c.v, E'\n' order by c.k, c.v), 'UTF8')), 'hex')
+   from identity_audit.guard_components() c $$;
+
+create or replace function identity_audit.guard_snapshot() returns jsonb
+language sql stable security definer set search_path = pg_catalog as
+$$ select pg_catalog.jsonb_object_agg(c.k, c.v) from identity_audit.guard_components() c $$;
 
 create or replace function identity_audit.record_anchor() returns bigint
 language plpgsql security definer set search_path = pg_catalog as $$
@@ -201,13 +218,99 @@ begin
   ok := v_bad = v_anchored; detail := (v_bad - v_anchored) || ' ledger row(s) not covered by the latest anchor'; return next;
 
   check_name := 'guard_triggers_present_and_enabled';
-  select count(*) into v_bad from (values ('public.certificates', 'trg_certificate_historical_update_guard'),
-         ('public.certificates', 'trg_certificate_legacy_identity_guard'),
-         ('public.certificate_issuance_snapshots', 'trg_snapshot_identity_guard'),
-         ('public.participants', 'trg_participant_identity_guard')) as t(rel, name)
-   where not exists (select 1 from pg_catalog.pg_trigger x where x.tgname = t.name and x.tgrelid = pg_catalog.to_regclass(t.rel)
+  select count(*) into v_bad from (values ('public.certificates', 'trg_certificate_historical_update_guard', false),
+         ('public.certificates', 'trg_certificate_legacy_identity_guard', false),
+         ('public.certificate_issuance_snapshots', 'trg_snapshot_identity_guard', false),
+         ('public.participants', 'trg_participant_identity_guard', false),
+         ('identity_audit.requests', 'requests_text_guard', true),
+         ('identity_audit.request_certificates', 'request_certificates_text_guard', true)) as t(rel, name, optional)
+   where (not t.optional or pg_catalog.to_regprocedure('identity_audit.requests_text_guard()') is not null)
+     and not exists (select 1 from pg_catalog.pg_trigger x where x.tgname = t.name and x.tgrelid = pg_catalog.to_regclass(t.rel)
                         and x.tgenabled = 'O' and not x.tgisinternal);
   ok := v_bad = 0; detail := v_bad || ' guard trigger(s) missing or disabled'; return next;
+end $$;
+
+-- ---- free-text identity detection (pure; used by 07 to withhold unsafe text and by 08 to refuse it) -------------
+-- The text is FOLDED first (Unicode NFKC, invisible/format characters removed, digits of Arabic-Indic, Extended Arabic-Indic,
+-- Devanagari, Bengali, Tamil and Thai scripts mapped to 0-9), then matched. Shapes: IC (6-2-4 digits with up to 3 separator
+-- characters of any kind, or 12 contiguous digits), 12 digits each separated by 1-2 characters, 4 groups of 3 digits, and
+-- passport numbers (1 letter + 8 digits, 2 letters + 7 digits, optional hyphen). The same folding and rules, with the same
+-- test vectors, are in lib/validation/identity-text.ts. Digits of other scripts are NOT recognised (documented limit).
+-- translate() source characters, in order, ten digits each starting at: U+0660 Arabic-Indic, U+06F0 Extended Arabic-Indic,
+-- U+0966 Devanagari, U+09E6 Bengali, U+0BE6 Tamil, U+0E50 Thai. Format characters removed: U+00AD, U+180E, U+200B-U+200F,
+-- U+202A-U+202E, U+2060-U+2064, U+FEFF.
+create or replace function identity_audit.fold_text(p_text text) returns text
+language sql immutable set search_path = pg_catalog as
+$$ select translate(
+        regexp_replace(normalize(coalesce(p_text, ''), NFKC), '[\u00AD\u180E\u200B-\u200F\u202A-\u202E\u2060-\u2064\uFEFF]', '', 'g'),
+        '٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹०१२३४५६७८९০১২৩৪৫৬৭৮৯௦௧௨௩௪௫௬௭௮௯๐๑๒๓๔๕๖๗๘๙',
+        '012345678901234567890123456789012345678901234567890123456789') $$;
+
+create or replace function identity_audit.text_has_identity(p_text text) returns boolean
+language sql immutable set search_path = pg_catalog as
+$$ select coalesce(
+        identity_audit.fold_text(p_text) ~ '(^|[^0-9])\d{6}[^A-Za-z0-9]{0,3}\d{2}[^A-Za-z0-9]{0,3}\d{4}([^0-9]|$)'
+     or identity_audit.fold_text(p_text) ~ '(^|[^0-9])(\d[^A-Za-z0-9]{1,2}){11}\d([^0-9]|$)'
+     or identity_audit.fold_text(p_text) ~ '(^|[^0-9])\d{3}[^A-Za-z0-9]{1,2}\d{3}[^A-Za-z0-9]{1,2}\d{3}[^A-Za-z0-9]{1,2}\d{3}([^0-9]|$)'
+     or identity_audit.fold_text(p_text) ~ '(^|[^A-Za-z0-9])[A-Za-z]-?\d{8}([^0-9]|$)'
+     or identity_audit.fold_text(p_text) ~ '(^|[^A-Za-z0-9])[A-Za-z]{2}-?\d{7}([^0-9]|$)', false) $$;
+
+create or replace function identity_audit.text_leaks_identity(p_text text, p_identities text[]) returns boolean
+language sql immutable set search_path = pg_catalog as
+$$ select identity_audit.text_has_identity(p_text)
+        or exists (select 1 from unnest(p_identities) i
+                    where char_length(identity_audit.norm(identity_audit.fold_text(i))) >= 6
+                      and position(identity_audit.norm(identity_audit.fold_text(i)) in identity_audit.norm(identity_audit.fold_text(p_text))) > 0) $$;
+
+create or replace function identity_audit.safe_text(p_text text, p_identities text[]) returns text
+language sql immutable set search_path = pg_catalog as
+$$ select case when p_text is null then null
+               when identity_audit.text_leaks_identity(p_text, p_identities) then '[withheld: may contain an identity number]'
+               else p_text end $$;
+
+-- ---- guarded transitions (used by 07 and 08, and by their rollbacks) --------------------------------------------
+create or replace function identity_audit.guard_state_clean() returns boolean
+language sql stable security definer set search_path = pg_catalog as
+$$ select not exists (select 1 from identity_audit.verify_ledger() v where not v.ok) $$;
+
+-- Call BEFORE a migration touches a guard: refuses to build on a ledger or guard set that no longer matches the last anchor.
+create or replace function identity_audit.assert_guards_clean() returns void
+language plpgsql security definer set search_path = pg_catalog as $$
+begin
+  if not identity_audit.guard_state_clean() then
+    raise exception 'IDC_GUARD_DRIFT: the audit guards or the ledger do not match the last anchor; investigate before changing them. Nothing was changed.' using errcode = 'P0001';
+  end if;
+end $$;
+
+-- Call AFTER the change. p_expected lists the only component keys (see guard_components) the migration may have changed.
+-- Strict (install): any other change raises, which rolls the whole migration back. Not strict (rollback): never blocks,
+-- but an unexpected change, or a state that was already unclean, is NOT anchored -- it stays visible to verify_ledger().
+-- An anchor is recorded only for a verified, expected transition, and only when an anchor chain already exists.
+create or replace function identity_audit.finish_guard_transition(p_before jsonb, p_expected text[], p_was_clean boolean, p_strict boolean) returns text
+language plpgsql security definer set search_path = pg_catalog as $$
+declare v_after jsonb := identity_audit.guard_snapshot(); v_changed text[]; v_unexpected text[];
+begin
+  select coalesce(array_agg(x.k order by x.k), '{}') into v_changed from (
+    select coalesce(a.key, b.key) as k from jsonb_each_text(v_after) a full join jsonb_each_text(coalesce(p_before, '{}'::jsonb)) b on a.key = b.key
+     where a.value is distinct from b.value) x;
+  select coalesce(array_agg(c), '{}') into v_unexpected from unnest(v_changed) c where not (c = any (p_expected));
+  if cardinality(v_unexpected) > 0 then
+    if p_strict then
+      raise exception 'IDC_UNEXPECTED_GUARD_CHANGE: this migration changed audit objects it is not allowed to change (%).', array_to_string(v_unexpected, ', ') using errcode = 'P0001';
+    end if;
+    raise warning 'IDC_UNEXPECTED_GUARD_CHANGE: unexpected audit object change (%); no anchor recorded.', array_to_string(v_unexpected, ', ');
+    return 'unanchored';
+  end if;
+  if cardinality(v_changed) = 0 then return 'unchanged'; end if;
+  if not p_was_clean then
+    raise warning 'IDC_GUARD_DRIFT: the audit state was not clean before this change; no anchor recorded.';
+    return 'unanchored';
+  end if;
+  if exists (select 1 from identity_audit.anchors) then
+    perform identity_audit.record_anchor();
+    return 'anchored';
+  end if;
+  return 'no_anchor_yet';
 end $$;
 
 revoke all on all functions in schema identity_audit from public, anon, authenticated, service_role;
