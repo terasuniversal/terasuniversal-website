@@ -506,6 +506,27 @@ export const salesLeadCreateSchema = z
   });
 export type SalesLeadCreateInput = z.infer<typeof salesLeadCreateSchema>;
 
+// Contact correction of an existing lead (overlay record). Trim first, then bound, like the create schema.
+export const salesLeadContactUpdateSchema = z
+  .object({
+    contact_name: z.string().trim().min(1, "Name is required").max(120),
+    company: z.string().trim().max(160).optional().or(z.literal("")),
+    email: z.string().trim().email("Enter a valid email address").max(254).optional().or(z.literal("")),
+    phone: z.string().trim().max(40).optional().or(z.literal("")),
+  })
+  .refine((value) => !!value.email || !!value.phone, {
+    message: "Email or phone is required",
+    path: ["email"],
+  });
+export type SalesLeadContactUpdateInput = z.infer<typeof salesLeadContactUpdateSchema>;
+
+// The target and the optimistic-concurrency version travel as bound Server Action arguments,
+// which the browser controls, so they are validated like any other input.
+export const salesLeadContactTargetSchema = z.object({
+  lead_metadata_id: z.string().uuid(),
+  expected_version: z.number().int().positive().nullable(),
+});
+
 export const salesLeadAssignSchema = z.object({
   assigned_to: z.string().uuid().optional().or(z.literal("")),
 });

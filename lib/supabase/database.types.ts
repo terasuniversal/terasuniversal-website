@@ -309,6 +309,21 @@ export interface MarketingContact {
   updated_at: string;
 }
 
+/** Row shape of public.sales_lead_contact_overrides: one complete corrected contact record per lead. */
+export interface SalesLeadContactOverride {
+  id: string;
+  lead_metadata_id: string;
+  contact_name: string;
+  company: string | null;
+  email: string | null;
+  phone: string | null;
+  version: number;
+  created_by: string;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface MarketingContactEvent {
   id: string;
   contact_id: string;
