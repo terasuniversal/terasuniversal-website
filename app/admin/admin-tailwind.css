@@ -28,6 +28,7 @@
 @source "./(protected)/sales/page.tsx";
 @source "./(protected)/sales/loading.tsx";
 @source "./(protected)/sales/error.tsx";
+@source "./(protected)/sales/leads/*/LeadContactEditSheet.tsx";
 
 /* TERAS Design System tokens under shadcn's semantic names. `inline`
    makes utilities read the --ta-* variables defined on .teras-admin, so

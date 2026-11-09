@@ -16,9 +16,11 @@ const sql = read(`supabase/migrations/${file}`);
 const code = sql.split(/\r?\n/).filter((line) => !line.trim().startsWith("--")).join("\n");
 const sig = "public\\.check_public_rate_limit\\(text, integer, integer\\)";
 
-check("migration: sorts after every existing migration", () => {
+check("migration: sorts after every migration that existed when it was written", () => {
+  // Later migrations may follow it, so this pins its position relative to the last earlier one.
   const names = readdirSync(new URL("supabase/migrations/", root)).filter((n) => n.endsWith(".sql")).sort();
-  assert.equal(names[names.length - 1], file);
+  assert.equal(names.filter((n) => n === file).length, 1);
+  assert.ok(names.indexOf(file) > names.indexOf("20261106090000_public_registration_positive_fee_only.sql"));
 });
 check("migration: revokes from PUBLIC, anon and authenticated by exact signature", () => {
   assert.match(code, new RegExp(`revoke all on function ${sig} from public, anon, authenticated;`));
