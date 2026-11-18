@@ -209,6 +209,20 @@ export const participantSchema = z.object({
 export type ParticipantInput = z.infer<typeof participantSchema>;
 
 /**
+ * Dedicated full-name correction. It reuses the participant full_name rule so
+ * the two can never drift, and deliberately has no other participant field:
+ * historical imported records with an empty company or phone fail the full
+ * participantSchema, and the full edit form rewrites every column. The expected
+ * name is the value the editor saw; it is compared exactly (not trimmed) so a
+ * concurrent correction is detected instead of silently overwritten.
+ */
+export const participantNameCorrectionSchema = z.object({
+  full_name: participantSchema.shape.full_name,
+  expected_full_name: z.string().max(500),
+});
+export type ParticipantNameCorrectionInput = z.infer<typeof participantNameCorrectionSchema>;
+
+/**
  * Personal Registration from a Sales Lead — a separate individual-enrollment
  * path (not the B2B Opportunity flow). Identity/contact fields mirror the
  * participant rules; IC/Passport is the only dedupe key (the app has no

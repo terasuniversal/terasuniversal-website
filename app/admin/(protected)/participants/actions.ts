@@ -4,10 +4,12 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { requireModuleAccess, requireRole } from "../../../../lib/auth/session";
-import { participantSchema, fieldErrors } from "../../../../lib/validation/schemas";
+import { participantSchema, participantNameCorrectionSchema, fieldErrors } from "../../../../lib/validation/schemas";
 import { normalizeIdentityNumber } from "../../../../lib/identity";
+import { runParticipantNameCorrection } from "../../../../lib/participants/name-correction";
 
 export type ParticipantFormState = { errors?: Record<string, string>; message?: string };
+export type ParticipantNameCorrectionState = { errors?: Record<string, string>; message?: string; saved?: boolean };
 
 const DUPLICATE_IDENTITY_MESSAGE = "A participant with this IC/Passport number already exists.";
 
@@ -107,6 +109,37 @@ export async function updateParticipant(id: string, _prev: ParticipantFormState,
   revalidatePath("/admin/participants");
   revalidatePath(`/admin/participants/${id}`);
   redirect(`/admin/participants/${id}`);
+}
+
+/**
+ * Dedicated full-name correction: writes participants.full_name and nothing else
+ * (see lib/participants/name-correction.ts). Same guards as the full edit.
+ */
+export async function correctParticipantName(id: string, _prev: ParticipantNameCorrectionState, formData: FormData): Promise<ParticipantNameCorrectionState> {
+  const profile = await requireRole("admin");
+  await requireModuleAccess("participants");
+  const parsed = participantNameCorrectionSchema.safeParse({
+    full_name: String(formData.get("full_name") ?? ""),
+    expected_full_name: String(formData.get("expected_full_name") ?? ""),
+  });
+  if (!parsed.success) return { errors: fieldErrors(parsed.error) };
+
+  const supabase = await createSupabaseServerClient();
+  const result = await runParticipantNameCorrection(supabase, {
+    id,
+    expectedFullName: parsed.data.expected_full_name,
+    fullName: parsed.data.full_name,
+    actorId: profile.id,
+  });
+  if (!result.ok) return { message: result.message };
+  if (!result.changed) return { message: "The name is unchanged; nothing was saved." };
+  revalidatePath("/admin/participants");
+  revalidatePath(`/admin/participants/${id}`);
+  if (!result.auditLogged) {
+    console.error("participant name correction saved but audit event failed", { participantId: id });
+    return { saved: true, message: "The name was saved, but the audit log entry could not be recorded. Record this correction in the internal correction log." };
+  }
+  return { saved: true };
 }
 
 /** Soft delete — row stays in DB (deleted_at set). */
