@@ -15,11 +15,13 @@ export function QuotationActionsPanel({
   status,
   canManage,
   existingInvoiceId,
+  isExpired,
 }: {
   quotationId: string;
   status: SalesQuotationStatus;
   canManage: boolean;
   existingInvoiceId: string | null;
+  isExpired: boolean;
 }) {
   const [sentState, sentAction, sentPending] = useActionState(markQuotationSent.bind(null, quotationId), INITIAL);
   const [acceptState, acceptAction, acceptPending] = useActionState(acceptQuotationAction.bind(null, quotationId), INITIAL);
@@ -51,8 +53,19 @@ export function QuotationActionsPanel({
         </Card>
       )}
 
+      {status === "sent" && isExpired && (
+        <Card title="Expired">
+          <div className="ta-card-pad" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div className="ta-alert ta-alert-error" role="status">
+              This quotation&apos;s validity date has passed, so it cannot be accepted. Create a revision below, update its validity date, and send the revision to the client.
+            </div>
+          </div>
+        </Card>
+      )}
+
       {status === "sent" && (
         <>
+          {!isExpired && (
           <Card title="Accept">
             <form action={acceptAction} className="ta-card-pad" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {acceptState.message && <div className="ta-alert ta-alert-error">{acceptState.message}</div>}
@@ -67,6 +80,7 @@ export function QuotationActionsPanel({
               </button>
             </form>
           </Card>
+          )}
 
           <Card title="Reject">
             <form action={rejectAction} className="ta-card-pad" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -89,7 +103,7 @@ export function QuotationActionsPanel({
             <p style={{ margin: 0, fontSize: 13, color: "var(--ta-muted)" }}>
               Creates a new editable revision (same quotation number, next revision letter) and supersedes this version — this version's data is preserved, never overwritten.
             </p>
-            <button type="submit" className="ta-btn ta-btn-outline ta-btn-sm" disabled={revisionPending}>
+            <button type="submit" className={`ta-btn ${status === "sent" && isExpired ? "ta-btn-primary" : "ta-btn-outline"} ta-btn-sm`} disabled={revisionPending}>
               {revisionPending ? "Creating…" : "Create Revision"}
             </button>
           </form>

@@ -5,6 +5,7 @@ import { requireModuleAccess, requireRole } from "../../../../../lib/auth/sessio
 import { isAdmin } from "../../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, EmptyState } from "../../../../../components/admin/ui";
 import { softDeleteParticipant, restoreParticipant } from "../actions";
+import { NameCorrectionCard } from "./NameCorrectionCard";
 
 export const metadata = { title: "Participant — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
@@ -95,6 +96,8 @@ export default async function ViewParticipantPage({
               </dl>
             </div>
           </Card>
+
+          {canWrite && !isDeleted && <NameCorrectionCard participantId={id} currentFullName={p.full_name ?? ""} />}
 
           <Card title="Employment Information">
             <div className="ta-card-pad">
