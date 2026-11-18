@@ -71,6 +71,8 @@ export default async function QuotationDetailPage({ params, searchParams }: { pa
 
   const primaryAction = q.status === "draft" && canManage && !itemReadError
     ? <Link href="#quotation-editor" className="ta-btn ta-btn-primary">Edit draft</Link>
+    : q.status === "sent" && canManage && expiry === "expired"
+      ? <Link href="#quotation-primary-action" className="ta-btn ta-btn-primary">Create revision</Link>
     : q.status === "sent" && canManage
       ? <Link href="#quotation-primary-action" className="ta-btn ta-btn-primary">Review sent actions</Link>
       : q.status === "accepted" && invoiceReadError
@@ -94,6 +96,11 @@ export default async function QuotationDetailPage({ params, searchParams }: { pa
       {notice === REVISION_AUDIT_NOTICE && (
         <div className="ta-alert ta-alert-info" role="status">
           This revision was created and saved. Its entry in the activity log could not be recorded, so the timeline may be missing it.
+        </div>
+      )}
+      {q.status === "draft" && expiry === "expired" && (
+        <div className="ta-alert ta-alert-error" role="status">
+          This draft&apos;s validity date ({formatMalaysiaDate(q.valid_until)}) has already passed — a revision keeps the original date. Update the validity date before sending; an expired quotation cannot be accepted.
         </div>
       )}
       {(opportunityReadError || companyReadError) && <ReadErrorState title="Customer relationship unavailable" message="The related opportunity or company details could not be fully loaded. Retry the page to refresh the relationship context." />}
@@ -199,7 +206,7 @@ export default async function QuotationDetailPage({ params, searchParams }: { pa
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          <div id="quotation-primary-action" className="ta-quotation-primary-action"><QuotationActionsPanel quotationId={id} status={q.status} canManage={canManage && !(q.status === "accepted" && invoiceReadError)} existingInvoiceId={existingInvoice?.id ?? null} /></div>
+          <div id="quotation-primary-action" className="ta-quotation-primary-action"><QuotationActionsPanel quotationId={id} status={q.status} canManage={canManage && !(q.status === "accepted" && invoiceReadError)} existingInvoiceId={existingInvoice?.id ?? null} isExpired={expiry === "expired"} /></div>
           <Card title="Quotation Documents">
             <div className="ta-card-pad" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><Link href={`/admin/quotation-pdf/${id}`} className="ta-btn ta-btn-outline ta-btn-sm" target="_blank">Print / PDF</Link></div>
           </Card>
