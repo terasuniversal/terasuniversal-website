@@ -64,7 +64,7 @@ const organizationSchema = {
   logo: `${CANONICAL_ORIGIN}/teras-universal-logo.png`,
   email: "admin@terasuniversal.com.my",
   telephone: "+60 19-519 3834",
-  address: { "@type": "PostalAddress", streetAddress: "Lot 1961, Jalan Tanah Merah, Kg Tanah Merah Dalam", addressLocality: "Jitra", addressRegion: "Kedah", postalCode: "06000", addressCountry: "MY" },
+  address: { "@type": "PostalAddress", streetAddress: "Lot 1961, Kampung Tanah Merah, Tanah Merah Dalam", addressLocality: "Jitra", addressRegion: "Kedah", postalCode: "06000", addressCountry: "MY" },
 };
 const localBusinessSchema = {
   "@context": "https://schema.org",
@@ -75,7 +75,7 @@ const localBusinessSchema = {
   image: `${CANONICAL_ORIGIN}/opengraph-image.png`,
   email: "admin@terasuniversal.com.my",
   telephone: "+60 19-519 3834",
-  address: { "@type": "PostalAddress", streetAddress: "Lot 1961, Jalan Tanah Merah, Kg Tanah Merah Dalam", addressLocality: "Jitra", addressRegion: "Kedah", postalCode: "06000", addressCountry: "MY" },
+  address: { "@type": "PostalAddress", streetAddress: "Lot 1961, Kampung Tanah Merah, Tanah Merah Dalam", addressLocality: "Jitra", addressRegion: "Kedah", postalCode: "06000", addressCountry: "MY" },
   openingHoursSpecification: [{ "@type": "OpeningHoursSpecification", dayOfWeek: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday"], opens: "08:30", closes: "17:30" }],
 };
 const websiteSchema = {

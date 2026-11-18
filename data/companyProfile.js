@@ -17,7 +17,8 @@ export const companyProfile = {
     // Display email and phone come from data/publicContact.js (one source); form delivery is configured separately.
     email: publicContact.email,
     phone: publicContact.phone,
-    address: "Lot 1961 Kg Tanah Merah, Tanah Merah Dalam, 06000 Jitra, Kedah Darul Aman, Malaysia",
+    // W2-A: the shared public operating address (SSM company-profile spelling).
+    address: publicContact.businessAddress.oneLine,
   },
   vision: "To become a leading industrial safety training and competency assessment provider recognised by local and international industries for developing competent, skilled and safety-focused professionals.",
   mission: [

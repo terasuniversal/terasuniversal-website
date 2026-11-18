@@ -136,7 +136,9 @@ check("scope: registration and the dead verify page keep the shared footer and a
   for (const path of LEGACY) assert.equal(revertPublicFirst(path, read(path)), atHead(path), path);
 });
 check("the shared footer is untouched by this phase (blob hash recorded in the S4D-2A/2D preflight)", () => {
-  assert.equal(execFileSync("git", ["hash-object", "components/Footer.js"], { cwd: rootPath, encoding: "utf8" }).trim(), "7b63674a24674cfec55cba90e02645658e35ee5d");
+  // W2-A (owner-approved): the address edit is undone first (scripts/w2a-address-approved.mts); everything else is pinned.
+  const reverted = revertPublicFirst("components/Footer.js", readFileSync(new URL("components/Footer.js", root), "utf8"));
+  assert.equal(execFileSync("git", ["hash-object", "--stdin", "--path=components/Footer.js"], { cwd: rootPath, encoding: "utf8", input: reverted }).trim(), "7b63674a24674cfec55cba90e02645658e35ee5d");
 });
 
 console.log(failures ? `\n${failures} semakan GAGAL` : "\nSemua semakan LULUS");

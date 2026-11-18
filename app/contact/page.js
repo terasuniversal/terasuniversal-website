@@ -4,6 +4,7 @@ import ContactEnquiryForm from "../../components/ContactEnquiryForm";
 import PremiumFooter from "../../components/premium/PremiumFooter";
 import { publicBody } from "../../components/premium/fonts";
 import bridge from "../../components/premium/legacy-bridge.module.css";
+import { publicContact } from "../../data/publicContact";
 
 const faqs = [
   ["Can training be customised?", "Yes. Programme scope can be discussed around participant profiles, operational risks, organisational procedures and desired learning outcomes."],
@@ -36,7 +37,7 @@ export default function ContactPage() {
       <section className="contact-info-section" aria-label="Contact information">
         <div className="container contact-info-grid">
           <article><span className="contact-info-number">01</span><h2>General Enquiries</h2><dl><div><dt>Email</dt><dd><a href="mailto:admin@terasuniversal.com.my">admin@terasuniversal.com.my</a></dd></div><div><dt>Phone</dt><dd><a href="tel:+60195193834">+60 19-519 3834</a></dd></div></dl></article>
-          <article><span className="contact-info-number">02</span><h2>Office Address</h2><address>Lot 1961<br />Jalan Tanah Merah<br />Kg Tanah Merah Dalam<br />06000 Jitra<br />Kedah<br />Malaysia</address></article>
+          <article><span className="contact-info-number">02</span><h2>Office Address</h2><address>{publicContact.businessAddress.lines.flatMap((line, i) => (i ? [<br key={i} />, line] : [line]))}</address></article>
           <article><span className="contact-info-number">03</span><h2>Business Hours</h2><dl><div><dt>Sunday-Friday</dt><dd>8:30 AM - 5:30 PM</dd></div><div><dt>Saturday</dt><dd>Closed</dd></div></dl></article>
         </div>
       </section>

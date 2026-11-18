@@ -16,7 +16,7 @@ export default function HomeContact() {
           <a href="/request-proposal">Start a full proposal request</a>
           <a href="https://wa.me/60195193834" target="_blank" rel="noreferrer">WhatsApp 019-519 3834<span className="sr-only"> (opens in a new tab)</span></a>
           <a href={`mailto:${companyProfile.contact.email}`}>{companyProfile.contact.email}</a>
-          <small>Lot 1961, Jalan Tanah Merah, Kg Tanah Merah Dalam, 06000 Jitra, Kedah. Sunday to Friday, 8:30 am to 5:30 pm.</small>
+          <small>{companyProfile.contact.address}. Sunday to Friday, 8:30 am to 5:30 pm.</small>
         </div>
       </div>
       <div className={styles.formSlot}>

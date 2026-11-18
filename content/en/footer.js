@@ -3,6 +3,9 @@
 // once the Privacy Notice is published (lib/privacy-publication.js), so it never points at a 404.
 // Display email comes from data/publicContact.js and the tel: number from its phone value; form delivery is separate.
 // A Bahasa Melayu module (content/ms/footer.js, same keys) can be added later without touching the component.
+// Explicit extension so plain Node contract scripts can load this module as well as the Next.js bundler.
+import { publicContact } from "../../data/publicContact.js";
+
 export const footerContent = {
   homeLabel: "TERAS UNIVERSAL home",
   logoAlt: "TERAS UNIVERSAL",
@@ -58,8 +61,8 @@ export const footerContent = {
     phoneDisplay: "019-519 3834",
     websiteLabel: "Website",
     website: "www.terasuniversal.com.my",
-    // Unchanged from the existing site footer (components/Footer.js).
-    address: ["Lot 1961, Jalan Tanah Merah,", "Kg Tanah Merah Dalam,", "06000 Jitra, Kedah, Malaysia"],
+    // W2-A: the shared public operating address (data/publicContact.js), the same lines as components/Footer.js.
+    address: publicContact.businessAddress.lines,
   },
   // Same wording as the existing site footer; the year is supplied at render time (S5B-1B Round 1) instead of
   // being hard-coded, so it never goes stale. PremiumFooter passes the current year in Malaysia time.

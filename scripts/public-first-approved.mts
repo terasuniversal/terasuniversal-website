@@ -8,6 +8,8 @@
  *  poster moved out of public/, F-4 /verify secondary-text contrast, F-5 canonical origin centralised (default apex,
  *  no behaviour change), newsletter collection gated off.
  */
+import { revertW2aAddress } from "./w2a-address-approved.mts";
+
 const HOST = "https://terasuniversal.com.my";
 
 // Approved abstract panels that replaced a drone photograph (F-2), mapped back to the drone figure they replaced.
@@ -99,7 +101,10 @@ function revertCanonical(text: string): string {
     .replace(/\bCANONICAL_ORIGIN\b/g, `"${HOST}"`);
 }
 
-export function revertPublicFirst(path: string, text: string): string {
+export function revertPublicFirst(path: string, input: string): string {
+  // W2-A (owner-approved): the public-address edits are undone first (scripts/w2a-address-approved.mts), so every
+  // contract built on this function keeps proving the rest of each file is unchanged.
+  const text = revertW2aAddress(path, input);
   const crlf = text.includes("\r\n");
   const eol = (s: string) => (crlf ? s.replace(/\r?\n/g, "\r\n") : s);
   let out = PF_CANONICAL_FILES.includes(path) ? revertCanonical(text) : text;

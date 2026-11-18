@@ -40,7 +40,7 @@ export default function Footer() {
         <div>
           <h3>Contact</h3>
           <p><a href={`mailto:${email}`}>{email}</a><br /><a href="tel:+60195193834">+60 19-519 3834</a></p>
-          <p>Lot 1961, Jalan Tanah Merah,<br />Kg Tanah Merah Dalam,<br />06000 Jitra, Kedah, Malaysia</p>
+          <p>{publicContact.businessAddress.lines.flatMap((line, i) => (i ? [<br key={i} />, line] : [line]))}</p>
         </div>
       </div>
       <div className="container footer-bottom">
