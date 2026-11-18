@@ -55,8 +55,10 @@ export async function runParticipantNameCorrection(
 
   // Explicit audit event with the before/after name, because a participants audit
   // trigger is not confirmed in the live migration lineage. No IC or contact data.
+  // p_action is the audit_action enum: an unlisted label makes the RPC fail every
+  // time, so the correction is identified by entity_type, summary and metadata.
   const { error: auditError } = await supabase.rpc("log_event", {
-    p_action: "participant_name_corrected",
+    p_action: "update",
     p_entity_type: "participants",
     p_entity_id: input.id,
     p_summary: "Participant full name corrected",

@@ -153,7 +153,9 @@ await check("runtime: audit event records before/after name and actor, no IC or 
   assert.equal(s.rpcs.length, 1);
   const [fn, args] = s.rpcs[0] as [string, Record<string, unknown>];
   assert.equal(fn, "log_event");
-  assert.equal(args.p_action, "participant_name_corrected");
+  assert.equal(args.p_action, "update");
+  assert.equal(args.p_entity_type, "participants");
+  assert.equal(args.p_summary, "Participant full name corrected");
   assert.equal(args.p_entity_id, "p-1");
   assert.deepEqual(args.p_metadata, { previous_full_name: OLD, new_full_name: NEW, actor_id: "admin-1" });
   assert.doesNotMatch(JSON.stringify(args), /ic_passport|phone|address|email/);
@@ -226,6 +228,28 @@ await check("ui: card submits only the name and the expected name, and warns abo
   assert.deepEqual([...new Set([...card.matchAll(/name="([a-z_]+)"/g)].map((m) => m[1]))].sort(), ["expected_full_name", "full_name"]);
   assert.doesNotMatch(card, /ic_passport_no|company|phone/);
   assert.match(card, /Certificates already issued keep the name they were issued with/);
+});
+
+// public.audit_action labels as read from the Custom Staging catalog (eokiaehnvzbggmacifcf,
+// pg_enum, 2026-11-18). log_event(p_action audit_action, ...) rejects any other value, so
+// an unlisted label makes every audit call fail.
+const AUDIT_ACTION_LABELS = [
+  "login", "logout", "create", "update", "delete", "archive", "restore", "publish", "upload", "export", "assign", "import",
+  "staff_created", "staff_updated", "staff_activated", "staff_deactivated", "staff_role_changed", "staff_department_changed",
+  "staff_module_access_changed", "password_changed", "assessor_created", "assessor_updated", "assessor_activated",
+  "assessor_deactivated", "assessor_assigned", "assessor_unassigned", "assessor_reassigned",
+];
+
+await check("contract: every log_event p_action in the helper is a valid audit_action enum label", async () => {
+  const helper = await source("../lib/participants/name-correction.ts");
+  const actionsUsed = [...helper.matchAll(/p_action:\s*"([^"]+)"/g)].map((m) => m[1]);
+  assert.ok(actionsUsed.length > 0, "no p_action found");
+  for (const action of actionsUsed) assert.ok(AUDIT_ACTION_LABELS.includes(action), `p_action "${action}" is not an audit_action label`);
+});
+
+await check("ui: an audit failure after a save is shown with error styling, not as plain information", () => {
+  assert.match(card, /<div className="ta-alert ta-alert-error" role="alert">\{state\.message\}<\/div>/);
+  assert.doesNotMatch(card, /state\.saved \? "ta-alert-info"/);
 });
 
 console.log(`\n${passed} checks passed`);

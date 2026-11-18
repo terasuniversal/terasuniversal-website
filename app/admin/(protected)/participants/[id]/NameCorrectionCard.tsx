@@ -20,7 +20,7 @@ export function NameCorrectionCard({ participantId, currentFullName }: { partici
           Changes the participant&apos;s full name only. Certificates already issued keep the name they were issued with; replace them separately if the name on a certificate must change.
         </div>
         {state.saved && !state.message && <div className="ta-alert ta-alert-success" role="status">Full name corrected.</div>}
-        {state.message && <div className={`ta-alert ${state.saved ? "ta-alert-info" : "ta-alert-error"}`} role="status">{state.message}</div>}
+        {state.message && <div className="ta-alert ta-alert-error" role="alert">{state.message}</div>}
         <input type="hidden" name="expected_full_name" value={currentFullName} />
         <Field label="Correct full name" name="full_name" error={state.errors?.full_name} required>
           <input id="correct_full_name" name="full_name" defaultValue={currentFullName} required minLength={2} maxLength={160} autoComplete="off" />
