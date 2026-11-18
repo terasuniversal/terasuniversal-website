@@ -1,3 +1,4 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { SalesTaskRow } from "./crm";
 
 export type QuotationExpiryState = "none" | "valid" | "expiring_soon" | "expired";
@@ -45,6 +46,39 @@ export const QUOTATION_EXPIRED_ACCEPT_MESSAGE =
  */
 export function quotationAcceptExpiryBlock(validUntil: string | null, now = new Date()): string | null {
   return quotationExpiryState(validUntil, now) === "expired" ? QUOTATION_EXPIRED_ACCEPT_MESSAGE : null;
+}
+
+export type QuotationAcceptResult =
+  | { ok: true; opportunityId: string | null }
+  | { ok: false; message: string };
+
+export const QUOTATION_ACCEPT_READ_ERROR_MESSAGE =
+  "The quotation could not be loaded to confirm its validity. Reload the page and try again.";
+export const QUOTATION_ACCEPT_NOT_FOUND_MESSAGE =
+  "This quotation could not be found. Reload the page and try again.";
+
+/**
+ * Acceptance after the caller's role and module guards have passed. Every path that
+ * cannot confirm the quotation is unexpired stops before the RPC: a failed read, a
+ * missing row (which also covers a row RLS hides from this user while the
+ * SECURITY DEFINER RPC could still see it), and an expired validity date.
+ */
+export async function runQuotationAccept(supabase: SupabaseClient, quotationId: string, now = new Date()): Promise<QuotationAcceptResult> {
+  const { data: existing, error: readError } = await supabase
+    .from("sales_quotations")
+    .select("opportunity_id, valid_until")
+    .eq("id", quotationId)
+    .maybeSingle();
+  if (readError) return { ok: false, message: QUOTATION_ACCEPT_READ_ERROR_MESSAGE };
+  if (!existing) return { ok: false, message: QUOTATION_ACCEPT_NOT_FOUND_MESSAGE };
+
+  const row = existing as { opportunity_id: string | null; valid_until: string | null };
+  const expiryBlock = quotationAcceptExpiryBlock(row.valid_until, now);
+  if (expiryBlock) return { ok: false, message: expiryBlock };
+
+  const { error } = await supabase.rpc("accept_quotation", { p_quotation_id: quotationId });
+  if (error) return { ok: false, message: error.message };
+  return { ok: true, opportunityId: row.opportunity_id };
 }
 
 export function compareQuotationTasks(a: SalesTaskRow, b: SalesTaskRow): number {
