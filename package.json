@@ -37,6 +37,7 @@
     "test:sales-date-filter": "node --experimental-strip-types scripts/sales-date-filter-contract.mts",
     "test:sales-quotation-revision-order": "node --experimental-strip-types scripts/sales-quotation-revision-order-contract.mts",
     "test:sales-quotation-expiry-guard": "node --experimental-strip-types scripts/sales-quotation-expiry-guard-contract.mts",
+    "test:participant-name-correction": "node --experimental-strip-types scripts/participant-name-correction-contract.mts",
     "test:sst-revision-snapshot": "node --experimental-strip-types scripts/sst-revision-snapshot.test.mts",
     "test:sales-shared-ui": "node --experimental-strip-types scripts/sales-shared-ui-foundation-contract.mts",
     "test:sales-dashboard-attention-empty": "node --experimental-strip-types scripts/sales-dashboard-attention-empty-contract.mts",

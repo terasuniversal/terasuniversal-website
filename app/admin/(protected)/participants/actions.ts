@@ -2,12 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { createSupabaseServerClient } from "../../../../lib/supabase/server";
+import { createSupabaseServerClient, createSupabaseServiceClient } from "../../../../lib/supabase/server";
 import { requireModuleAccess, requireRole } from "../../../../lib/auth/session";
-import { participantSchema, fieldErrors } from "../../../../lib/validation/schemas";
+import { participantSchema, participantNameCorrectionSchema, fieldErrors } from "../../../../lib/validation/schemas";
 import { normalizeIdentityNumber } from "../../../../lib/identity";
+import { runParticipantNameCorrection } from "../../../../lib/participants/name-correction";
 
 export type ParticipantFormState = { errors?: Record<string, string>; message?: string };
+export type ParticipantNameCorrectionState = { errors?: Record<string, string>; message?: string; saved?: boolean };
 
 const DUPLICATE_IDENTITY_MESSAGE = "A participant with this IC/Passport number already exists.";
 
@@ -107,6 +109,49 @@ export async function updateParticipant(id: string, _prev: ParticipantFormState,
   revalidatePath("/admin/participants");
   revalidatePath(`/admin/participants/${id}`);
   redirect(`/admin/participants/${id}`);
+}
+
+/**
+ * Dedicated full-name correction: writes participants.full_name and nothing else
+ * (see lib/participants/name-correction.ts). Same guards as the full edit.
+ */
+export async function correctParticipantName(id: string, _prev: ParticipantNameCorrectionState, formData: FormData): Promise<ParticipantNameCorrectionState> {
+  const profile = await requireRole("admin");
+  await requireModuleAccess("participants");
+  const parsed = participantNameCorrectionSchema.safeParse({
+    full_name: String(formData.get("full_name") ?? ""),
+    expected_full_name: String(formData.get("expected_full_name") ?? ""),
+  });
+  if (!parsed.success) return { errors: fieldErrors(parsed.error) };
+
+  // Server-only audit client, created only after the guards and validation. If it
+  // cannot be created, nothing is changed: a correction must not go unaudited by
+  // design. The key never leaves this server action and is never logged.
+  let auditClient;
+  try {
+    auditClient = createSupabaseServiceClient();
+  } catch {
+    console.error("participant name correction: audit client unavailable", { participantId: id });
+    return { message: "The audit log is unavailable, so the name was not changed. Try again later or contact the system administrator." };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const result = await runParticipantNameCorrection(supabase, auditClient, {
+    id,
+    expectedFullName: parsed.data.expected_full_name,
+    fullName: parsed.data.full_name,
+    actorId: profile.id,
+    actorEmail: profile.email ?? null,
+  });
+  if (!result.ok) return { message: result.message };
+  if (!result.changed) return { message: "The name is unchanged; nothing was saved." };
+  revalidatePath("/admin/participants");
+  revalidatePath(`/admin/participants/${id}`);
+  if (!result.auditLogged) {
+    console.error("participant name correction saved but audit event failed", { participantId: id });
+    return { saved: true, message: "The name was saved, but the audit log entry could not be recorded. Record this correction in the internal correction log." };
+  }
+  return { saved: true };
 }
 
 /** Soft delete — row stays in DB (deleted_at set). */
