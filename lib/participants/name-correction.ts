@@ -26,7 +26,8 @@ export const NAME_CORRECTION_MESSAGES = {
  */
 export async function runParticipantNameCorrection(
   supabase: SupabaseClient,
-  input: { id: string; expectedFullName: string; fullName: string; actorId: string },
+  auditClient: SupabaseClient,
+  input: { id: string; expectedFullName: string; fullName: string; actorId: string; actorEmail: string | null },
 ): Promise<ParticipantNameCorrectionResult> {
   const fail = (code: Exclude<ParticipantNameCorrectionResult, { ok: true }>["code"]) =>
     ({ ok: false, code, message: NAME_CORRECTION_MESSAGES[code] }) as const;
@@ -53,16 +54,27 @@ export async function runParticipantNameCorrection(
   if (writeError) return fail("write_failed");
   if (!updated || (updated as unknown[]).length !== 1) return fail("stale");
 
-  // Explicit audit event with the before/after name, because a participants audit
-  // trigger is not confirmed in the live migration lineage. No IC or contact data.
-  // p_action is the audit_action enum: an unlisted label makes the RPC fail every
-  // time, so the correction is identified by entity_type, summary and metadata.
-  const { error: auditError } = await supabase.rpc("log_event", {
-    p_action: "update",
-    p_entity_type: "participants",
-    p_entity_id: input.id,
-    p_summary: "Participant full name corrected",
-    p_metadata: { previous_full_name: row.full_name, new_full_name: input.fullName, actor_id: input.actorId },
-  });
-  return { ok: true, changed: true, auditLogged: !auditError };
+  // Audit event with the before/after name (the participants trigger records the
+  // update but no values). Session clients have no EXECUTE on log_event in
+  // Production (security_remediation_pack1), so this goes through the server-only
+  // service-role client and log_event_as_service. The actor comes from the caller's
+  // verified admin profile, the entity is the row just updated, and the action is a
+  // valid audit_action label; nothing here is taken from form input except the
+  // validated new name. No IC or contact data.
+  let auditLogged = false;
+  try {
+    const { error: auditError } = await auditClient.rpc("log_event_as_service", {
+      p_actor_id: input.actorId,
+      p_actor_email: input.actorEmail,
+      p_action: "update",
+      p_entity_type: "participants",
+      p_entity_id: input.id,
+      p_summary: "Participant full name corrected",
+      p_metadata: { previous_full_name: row.full_name, new_full_name: input.fullName, actor_id: input.actorId },
+    });
+    auditLogged = !auditError;
+  } catch {
+    auditLogged = false;
+  }
+  return { ok: true, changed: true, auditLogged };
 }

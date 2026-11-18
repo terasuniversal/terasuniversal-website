@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { createSupabaseServerClient } from "../../../../lib/supabase/server";
+import { createSupabaseServerClient, createSupabaseServiceClient } from "../../../../lib/supabase/server";
 import { requireModuleAccess, requireRole } from "../../../../lib/auth/session";
 import { participantSchema, participantNameCorrectionSchema, fieldErrors } from "../../../../lib/validation/schemas";
 import { normalizeIdentityNumber } from "../../../../lib/identity";
@@ -124,12 +124,24 @@ export async function correctParticipantName(id: string, _prev: ParticipantNameC
   });
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
+  // Server-only audit client, created only after the guards and validation. If it
+  // cannot be created, nothing is changed: a correction must not go unaudited by
+  // design. The key never leaves this server action and is never logged.
+  let auditClient;
+  try {
+    auditClient = createSupabaseServiceClient();
+  } catch {
+    console.error("participant name correction: audit client unavailable", { participantId: id });
+    return { message: "The audit log is unavailable, so the name was not changed. Try again later or contact the system administrator." };
+  }
+
   const supabase = await createSupabaseServerClient();
-  const result = await runParticipantNameCorrection(supabase, {
+  const result = await runParticipantNameCorrection(supabase, auditClient, {
     id,
     expectedFullName: parsed.data.expected_full_name,
     fullName: parsed.data.full_name,
     actorId: profile.id,
+    actorEmail: profile.email ?? null,
   });
   if (!result.ok) return { message: result.message };
   if (!result.changed) return { message: "The name is unchanged; nothing was saved." };
