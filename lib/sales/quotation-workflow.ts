@@ -34,6 +34,19 @@ export function quotationExpiryState(validUntil: string | null, now = new Date()
   return validUntil <= addCalendarDays(today, 7) ? "expiring_soon" : "valid";
 }
 
+export const QUOTATION_EXPIRED_ACCEPT_MESSAGE =
+  "This quotation has expired and cannot be accepted. Create a revision, update its validity date, and send it to the client again.";
+
+/**
+ * Application-layer acceptance gate (Slice 1). It uses the same Malaysia calendar-day
+ * rule as the Expired label, so the screen and the Server Action always agree. The
+ * accept_quotation RPC does not check expiry yet, so this is not full backend
+ * enforcement: a direct RPC call by an admin is still outside this gate.
+ */
+export function quotationAcceptExpiryBlock(validUntil: string | null, now = new Date()): string | null {
+  return quotationExpiryState(validUntil, now) === "expired" ? QUOTATION_EXPIRED_ACCEPT_MESSAGE : null;
+}
+
 export function compareQuotationTasks(a: SalesTaskRow, b: SalesTaskRow): number {
   if (a.due_at === null && b.due_at !== null) return 1;
   if (a.due_at !== null && b.due_at === null) return -1;

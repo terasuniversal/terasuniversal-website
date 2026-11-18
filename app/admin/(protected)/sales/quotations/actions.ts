@@ -8,6 +8,7 @@ import { quotationHeaderSchema, quotationRejectSchema, fieldErrors, type Quotati
 import { computeQuotationTotals } from "../../../../../lib/sales/crm";
 import { canonicalizePackageSnapshot, commercialName, type CourseCommercialProfileData, type PackageIncludeSnapshot } from "../../../../../lib/sales/course-commercial";
 import { runQuotationRevision, revisionRedirectPath } from "../../../../../lib/sales/quotation-revision";
+import { quotationAcceptExpiryBlock } from "../../../../../lib/sales/quotation-workflow";
 
 export type SalesActionState = { message?: string; errors?: Record<string, string> };
 
@@ -310,7 +311,11 @@ export async function acceptQuotationAction(quotationId: string, _prev: SalesAct
   await requireRole("admin");
   await requireModuleAccess("sales_quotations");
   const supabase = await createSupabaseServerClient();
-  const { data: existing } = await supabase.from("sales_quotations").select("opportunity_id").eq("id", quotationId).maybeSingle();
+  // Fail closed: if expiry cannot be read, the acceptance is not attempted.
+  const { data: existing, error: readError } = await supabase.from("sales_quotations").select("opportunity_id, valid_until").eq("id", quotationId).maybeSingle();
+  if (readError) return { message: "The quotation could not be loaded to confirm its validity. Reload the page and try again." };
+  const expiryBlock = existing ? quotationAcceptExpiryBlock(existing.valid_until) : null;
+  if (expiryBlock) return { message: expiryBlock };
   const { error } = await supabase.rpc("accept_quotation", { p_quotation_id: quotationId });
   if (error) return { message: error.message };
 
