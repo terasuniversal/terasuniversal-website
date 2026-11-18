@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
+import { publicContact } from "../data/publicContact";
 
 export default function MobileNav({ basePath = "" }) {
   // One header panel at a time: the navigation menu or, on phones, the
@@ -59,6 +60,7 @@ export default function MobileNav({ basePath = "" }) {
     { label: "Industries", href: "/industries" },
     { label: "About TERAS", href: "/about" },
     { label: "Resources", href: "/resources" },
+    { label: "News & Articles", href: "/insights" },
     { label: "Contact", href: "/contact" },
     { label: "Training Calendar", href: "/calendar" },
     { label: "Verify Certificate", href: "/verify" },
@@ -73,7 +75,7 @@ export default function MobileNav({ basePath = "" }) {
         <div ref={contactPanelRef} id="mobile-contact" className="mobile-contact" role="group" aria-label="Contact TERAS UNIVERSAL" onKeyDown={handleContactKeyDown}>
           <a href="https://wa.me/60195193834" target="_blank" rel="noreferrer" onClick={closeMenu}><strong>WhatsApp</strong><span>Chat with our team<span className="sr-only"> (opens in a new tab)</span></span></a>
           <a href="tel:+60195193834" onClick={closeMenu}><strong>Call</strong><span>+60 19-519 3834</span></a>
-          <a href="mailto:training@terasuniversal.com.my" onClick={closeMenu}><strong>Email</strong><span>training@terasuniversal.com.my</span></a>
+          <a href={`mailto:${publicContact.email}`} onClick={closeMenu}><strong>Email</strong><span>{publicContact.email}</span></a>
         </div>
       )}
       <button ref={menuButtonRef} className={`menu-button ${open ? "is-open" : ""}`} type="button" aria-label={open ? "Close navigation menu" : "Open navigation menu"} aria-expanded={open} aria-controls="mobile-navigation" onClick={() => setPanel(open ? null : "menu")} onKeyDown={handleKeyDown}><span /><span /><span /></button>

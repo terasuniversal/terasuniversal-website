@@ -6,10 +6,13 @@ import MegaNav from "../../../components/MegaNav";
 import MobileNav from "../../../components/MobileNav";
 import PublicRegistrationFlow from "../../../components/public/PublicRegistrationFlow";
 import { getPublicRegistrationSchedule } from "../../../lib/public-content";
+import { publicRegistrationEnabled } from "../../../lib/public-registration-gate";
 
 export const dynamic = "force-dynamic";
 
 export default async function RegistrationPage({ params }: { params: Promise<{ scheduleId: string }> }) {
+  // F-1: a 404 (not a page that fails at submission) while public registration is switched off; no schedule lookup.
+  if (!publicRegistrationEnabled()) notFound();
   const { scheduleId } = await params;
   const schedule = await getPublicRegistrationSchedule(scheduleId);
   if (!schedule) notFound();

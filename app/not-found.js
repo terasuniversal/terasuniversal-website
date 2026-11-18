@@ -1,7 +1,5 @@
-import Image from "next/image";
-import MobileNav from "../components/MobileNav";
-import MegaNav from "../components/MegaNav";
-import Footer from "../components/Footer";
+import PremiumHeader from "../components/premium/PremiumHeader";
+import PremiumFooter from "../components/premium/PremiumFooter";
 
 // Sitewide 404 page (Next.js App Router convention: app/not-found.js).
 //
@@ -11,6 +9,9 @@ import Footer from "../components/Footer";
 // visitor who followed a bad link. This page keeps the full site header,
 // navigation and footer so a lost visitor never leaves the TERAS UNIVERSAL
 // look-and-feel, and gives them clear, useful next steps instead of a dead end.
+// S5B-1B Round 1: the Premium footer replaces the shared legacy footer and sits after <main>. The page-local
+// header is unchanged in this round. notFound()/unknown routes still return HTTP 404 (Next.js boundary).
+// S5B-1B Round 2: the page-local legacy header is replaced by the shared Premium header, before <main>.
 export const metadata = {
   title: "Page Not Found",
   robots: { index: false, follow: false },
@@ -26,16 +27,9 @@ const quickLinks = [
 
 export default function NotFound() {
   return (
+    <>
+    <PremiumHeader />
     <main>
-      <header className="site-header">
-        <div className="container nav-wrap">
-          <a className="brand" href="/" aria-label="TERAS UNIVERSAL home">
-            <Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL logo" width={220} height={140} priority sizes="154px" />
-          </a>
-          <MegaNav />
-          <MobileNav />
-        </div>
-      </header>
 
       <section className="notfound-section" aria-labelledby="notfound-title">
         <div className="container notfound-inner">
@@ -45,6 +39,8 @@ export default function NotFound() {
             The page you&apos;re looking for may have been moved, renamed, or no
             longer exists. Here are a few places that might help instead.
           </p>
+          {/* S5B-1B Round 2: keeps the heading order h1 > h2 > h3 for the link cards below (screen readers only). */}
+          <h2 className="sr-only">Helpful pages</h2>
           <div className="notfound-links">
             {quickLinks.map(([label, href, text]) => (
               <a className="notfound-link-card" href={href} key={href}>
@@ -57,7 +53,8 @@ export default function NotFound() {
         </div>
       </section>
 
-      <Footer />
     </main>
+    <PremiumFooter />
+    </>
   );
 }

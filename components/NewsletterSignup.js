@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import styles from "./NewsletterSignup.module.css";
 
 /**
  * Newsletter subscription form (Module 27).
  * Posts to /api/newsletter, which requires RESEND_AUDIENCE_ID to be
- * configured. If that env var is missing, submission shows a clear error
- * instead of silently failing.
+ * configured. If that env var is missing, submission shows a neutral
+ * "temporarily unavailable" error instead of silently failing.
  */
 export default function NewsletterSignup() {
   const [email, setEmail] = useState("");
@@ -38,7 +39,7 @@ export default function NewsletterSignup() {
   };
 
   if (status === "success") {
-    return <div className="newsletter-success" role="status">Thank you &mdash; please check your inbox to confirm your subscription.</div>;
+    return <div className="newsletter-success" role="status">Thank you &mdash; your subscription request has been received.</div>;
   }
 
   return (
@@ -53,6 +54,7 @@ export default function NewsletterSignup() {
         <input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} />
         <span>I agree to receive occasional training updates and industry insights from TERAS UNIVERSAL. You can unsubscribe at any time.</span>
       </label>
+      <p className={`newsletter-privacy-note ${styles.privacyNote}`}>Privacy: your email address is used only to send these updates and is held by our email delivery provider. You can unsubscribe at any time.</p>
       {status === "error" && error && <p className="newsletter-error" role="alert">{error}</p>}
     </form>
   );

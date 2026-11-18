@@ -105,8 +105,11 @@ export default function ContactForm() {
       {state.status === "success" && <p className="form-status form-status-success" aria-live="polite">{state.message}</p>}
       {state.status === "error" && <p className="form-status form-status-error" role="alert" aria-live="assertive">{state.message}</p>}
       <p className="form-note">
+        Privacy: we use these details to respond to your enquiry and keep a record of it. Sending this form does not subscribe you to marketing emails.
+      </p>
+      <p className="form-note">
         Prefer email? Contact us directly at{" "}
-        <a href="mailto:training@terasuniversal.com.my">training@terasuniversal.com.my</a>.
+        <a href="mailto:admin@terasuniversal.com.my">admin@terasuniversal.com.my</a>.
       </p>
     </form>
   );

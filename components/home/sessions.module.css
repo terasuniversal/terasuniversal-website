@@ -1,0 +1,50 @@
+/* Hybrid Premium V2 (R3) "Next public sessions": a timetable on the navy field. Public --px-* tokens from
+   components/premium/premium.module.css (.px); every selector starts with a local class. Geometry follows the approved R3
+   mockup (homepage-v2-en-r3.html, .sessions / .sess): five columns on desktop, a three-column card on tablets, a stacked
+   card on phones. */
+/* padding is set by the kit's .sec; this only overrides the global "section" padding on the same element. */
+.sessions { color: var(--px-white); }
+.head { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: var(--px-m); align-items: end; }
+/* Two classes: the kit's ".px :where(p, ol)" margin reset has one class, so a single class would lose by source order. */
+.sessions .intro { margin-top: 18px; max-width: 52ch; color: var(--px-on-navy); font-size: var(--px-lead); }
+.sessions .times { margin-top: 44px; display: grid; gap: 6px; }
+.sess { display: grid; grid-template-columns: 150px minmax(0, 1fr) 250px 170px 190px; gap: 28px; align-items: center; padding: 24px 28px; background: rgba(255, 255, 255, 0.07); }
+.d b { display: block; font-family: var(--px-font-heading); font-size: 1.875rem; font-weight: 800; line-height: 1; letter-spacing: -0.03em; color: var(--px-gold); }
+.d > span, .f, .c > span { display: block; font-size: 0.875rem; color: var(--px-on-navy); }
+.d > span { margin-top: 8px; }
+.c b { display: block; font-family: var(--px-font-heading); font-size: 1.25rem; font-weight: 700; line-height: 1.25; letter-spacing: -0.01em; color: var(--px-white); }
+.c > span { margin-top: 6px; font-size: 0.9375rem; }
+.courseLink { color: var(--px-white); text-decoration: underline; text-decoration-color: rgba(212, 175, 55, 0.7); text-decoration-thickness: 2px; text-underline-offset: 5px; }
+.courseLink:hover { text-decoration-color: var(--px-gold); }
+.f b { display: block; margin-block: 3px; font-size: 1.0625rem; font-weight: 600; color: var(--px-white); }
+.a > a { width: 100%; min-height: 48px; padding: 0 16px; }
+.empty { margin-top: 36px; max-width: 64ch; padding: 24px 28px; background: rgba(255, 255, 255, 0.07); color: var(--px-on-navy); }
+.empty strong { color: var(--px-white); }
+.foot { margin-top: 28px; display: flex; flex-wrap: wrap; gap: 8px 32px; }
+/* The kit's ".navyField .tl" (two classes) makes links white; three classes keep the primary "view all" link gold as in R3
+   whatever the stylesheet order. */
+.sessions .foot .all { color: var(--px-gold); }
+
+@media (max-width: 1200px) {
+  .sess { grid-template-columns: 130px minmax(0, 1fr) 190px 150px; }
+  .a { grid-column: 2 / -1; justify-self: start; min-width: 220px; }
+}
+/* Tablet: course and date on the left, facts underneath, action on the right. */
+@media (max-width: 960px) {
+  .head { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .sess { grid-template-columns: minmax(0, 1fr) 150px 170px; grid-template-areas: "d d a" "c c a" "f1 f2 a"; gap: 10px 24px; padding: 22px 24px; align-items: start; }
+  .sess > .d { grid-area: d; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .sess > .c { grid-area: c; }
+  .sess > .f:nth-child(3) { grid-area: f1; }
+  .sess > .f:nth-child(4) { grid-area: f2; }
+  /* grid-area alone replaces the 1200px rule's grid-column; adding "grid-column: auto" here would undo the area. */
+  .sess > .a { grid-area: a; align-self: center; justify-self: stretch; min-width: 0; }
+  .d b { font-size: 1.625rem; }
+  .d > span { margin-top: 0; }
+}
+/* Phone: one column, the action full width. */
+@media (max-width: 599px) {
+  .sessions .times { margin-top: 28px; }
+  .sess { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "d d" "c c" "f1 f2" "a a"; gap: 14px 20px; padding: 22px 20px; }
+  .sess > .a { justify-self: stretch; }
+}

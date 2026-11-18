@@ -3,6 +3,7 @@ import "./fonts/fallbacks.css";
 import Analytics from "../components/Analytics";
 import StickyCta from "../components/StickyCta";
 import localFont from "next/font/local";
+import { CANONICAL_ORIGIN } from "../lib/canonical-origin";
 
 // Self-hosted Latin subsets (SIL OFL 1.1; sources, versions and SHA-256 in app/fonts/README.md).
 // Loaded from the repository so a build never depends on Google Fonts being reachable. The
@@ -38,7 +39,7 @@ const googleSiteVerification = process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION 
 const bingVerification = process.env.NEXT_PUBLIC_BING_VERIFICATION || undefined;
 
 export const metadata = {
-  metadataBase: new URL("https://terasuniversal.com.my"),
+  metadataBase: new URL(CANONICAL_ORIGIN),
   title: { default: "TERAS UNIVERSAL SDN. BHD. | Industrial Safety Training & Technical Competency Malaysia", template: "%s | TERAS UNIVERSAL" },
   description: "TERAS UNIVERSAL SDN. BHD. provides practical industrial safety training, technical competency development, consultancy and workforce solutions for safety-critical organisations in Malaysia.",
   keywords: ["industrial safety training Malaysia", "safety training Kedah", "scaffolding training", "working at height training", "competency development", "corporate training Malaysia", "industrial safety consultancy", "HSE consultancy Malaysia", "workforce development Malaysia", "TERAS UNIVERSAL"],
@@ -47,7 +48,7 @@ export const metadata = {
   publisher: "TERAS UNIVERSAL SDN. BHD.",
   verification: { google: googleSiteVerification, other: { "msvalidate.01": bingVerification } },
   alternates: { canonical: "/" },
-  openGraph: { type: "website", locale: "en_MY", url: "https://terasuniversal.com.my", siteName: "TERAS UNIVERSAL SDN. BHD.", title: "TERAS UNIVERSAL | Building Competence. Creating Opportunities.", description: "Industrial Safety Training & Consultancy for a competent, disciplined and industry-ready workforce.", images: [{ url: "/opengraph-image.png", width: 1200, height: 630, alt: "TERAS UNIVERSAL SDN. BHD." }] },
+  openGraph: { type: "website", locale: "en_MY", url: CANONICAL_ORIGIN, siteName: "TERAS UNIVERSAL SDN. BHD.", title: "TERAS UNIVERSAL | Building Competence. Creating Opportunities.", description: "Industrial Safety Training & Consultancy for a competent, disciplined and industry-ready workforce.", images: [{ url: "/opengraph-image.png", width: 1200, height: 630, alt: "TERAS UNIVERSAL SDN. BHD." }] },
   twitter: { card: "summary_large_image", title: "TERAS UNIVERSAL | Industrial Safety Training & Consultancy", description: "Building Competence. Creating Opportunities.", images: ["/twitter-image.png"] },
   icons: { icon: [{ url: "/favicon.png", sizes: "64x64", type: "image/png" }], apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }] },
   manifest: "/manifest.webmanifest",
@@ -57,22 +58,22 @@ export const metadata = {
 const organizationSchema = {
   "@context": "https://schema.org",
   "@type": "Organization",
-  "@id": "https://terasuniversal.com.my/#organization",
+  "@id": `${CANONICAL_ORIGIN}/#organization`,
   name: "TERAS UNIVERSAL SDN. BHD.",
-  url: "https://terasuniversal.com.my",
-  logo: "https://terasuniversal.com.my/teras-universal-logo.png",
-  email: "training@terasuniversal.com.my",
+  url: CANONICAL_ORIGIN,
+  logo: `${CANONICAL_ORIGIN}/teras-universal-logo.png`,
+  email: "admin@terasuniversal.com.my",
   telephone: "+60 19-519 3834",
   address: { "@type": "PostalAddress", streetAddress: "Lot 1961, Jalan Tanah Merah, Kg Tanah Merah Dalam", addressLocality: "Jitra", addressRegion: "Kedah", postalCode: "06000", addressCountry: "MY" },
 };
 const localBusinessSchema = {
   "@context": "https://schema.org",
   "@type": "LocalBusiness",
-  "@id": "https://terasuniversal.com.my/#localbusiness",
+  "@id": `${CANONICAL_ORIGIN}/#localbusiness`,
   name: "TERAS UNIVERSAL SDN. BHD.",
-  url: "https://terasuniversal.com.my",
-  image: "https://terasuniversal.com.my/opengraph-image.png",
-  email: "training@terasuniversal.com.my",
+  url: CANONICAL_ORIGIN,
+  image: `${CANONICAL_ORIGIN}/opengraph-image.png`,
+  email: "admin@terasuniversal.com.my",
   telephone: "+60 19-519 3834",
   address: { "@type": "PostalAddress", streetAddress: "Lot 1961, Jalan Tanah Merah, Kg Tanah Merah Dalam", addressLocality: "Jitra", addressRegion: "Kedah", postalCode: "06000", addressCountry: "MY" },
   openingHoursSpecification: [{ "@type": "OpeningHoursSpecification", dayOfWeek: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday"], opens: "08:30", closes: "17:30" }],
@@ -80,10 +81,10 @@ const localBusinessSchema = {
 const websiteSchema = {
   "@context": "https://schema.org",
   "@type": "WebSite",
-  "@id": "https://terasuniversal.com.my/#website",
+  "@id": `${CANONICAL_ORIGIN}/#website`,
   name: "TERAS UNIVERSAL SDN. BHD.",
-  url: "https://terasuniversal.com.my",
-  publisher: { "@id": "https://terasuniversal.com.my/#organization" },
+  url: CANONICAL_ORIGIN,
+  publisher: { "@id": `${CANONICAL_ORIGIN}/#organization` },
   inLanguage: "en-MY",
 };
 

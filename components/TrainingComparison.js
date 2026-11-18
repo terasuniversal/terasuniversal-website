@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import kit from "./premium/premium.module.css";
+import styles from "./training/training.module.css";
 
 const MAX_SELECT = 3;
 const FIELDS = [
@@ -36,15 +38,16 @@ export default function TrainingComparison({ courses }) {
   };
 
   return (
-    <section className="training-compare-section" aria-labelledby="compare-title">
-      <div className="container">
-        <div className="section-heading training-section-heading">
-          <span className="eyebrow">Compare Programmes</span>
+    // Phase S4C: Premium V2 presentation (module classes); selection rules, fields and wording are unchanged.
+    <section className={`${kit.px} ${kit.sec} ${styles.compare}`} aria-labelledby="compare-title">
+      <div className={kit.wrap}>
+        <div className={styles.compareHead}>
+          <p className={styles.eyebrow}>Compare Programmes</p>
           <h2 id="compare-title">Not sure which level is right for your team?</h2>
           <p>Select up to {MAX_SELECT} programmes to compare duration, delivery mode, assessment and completion side by side. All figures shown are verified against the official TERAS UNIVERSAL course catalogue.</p>
         </div>
 
-        <div className="training-compare-picker" role="group" aria-label="Choose programmes to compare">
+        <div className={styles.picker} role="group" aria-label="Choose programmes to compare">
           {courses.map((course) => {
             const isOn = selected.includes(course.slug);
             const disabled = !isOn && selected.length >= MAX_SELECT;
@@ -52,7 +55,7 @@ export default function TrainingComparison({ courses }) {
               <button
                 key={course.slug}
                 type="button"
-                className={`training-compare-chip${isOn ? " is-active" : ""}`}
+                className={isOn ? styles.chipOn : ""}
                 aria-pressed={isOn}
                 disabled={disabled}
                 onClick={() => toggle(course.slug)}
@@ -64,15 +67,15 @@ export default function TrainingComparison({ courses }) {
         </div>
 
         {chosen.length > 0 ? (
-          <div className="training-compare-table-wrap">
-            <table className="training-compare-table">
+          <div className={styles.tableWrap} tabIndex={0} role="region" aria-labelledby="compare-title">
+            <table className={styles.table}>
               <thead>
                 <tr>
-                  <th scope="col" className="training-compare-rowlabel">Programme</th>
+                  <th scope="col" className={styles.rowLabel}>Programme</th>
                   {chosen.map((c) => (
                     <th scope="col" key={c.slug}>
                       {c.title}
-                      <a href={`/training/${c.slug}`} className="training-compare-viewlink">View programme &rarr;</a>
+                      <a href={`/training/${c.slug}`} className={styles.viewLink} aria-label={`View programme: ${c.title}`}>View programme &rarr;</a>
                     </th>
                   ))}
                 </tr>
@@ -80,18 +83,18 @@ export default function TrainingComparison({ courses }) {
               <tbody>
                 {FIELDS.map(({ key, label }) => (
                   <tr key={key}>
-                    <th scope="row" className="training-compare-rowlabel">{label}</th>
+                    <th scope="row" className={styles.rowLabel}>{label}</th>
                     {chosen.map((c) => (
                       <td key={c.slug}>{c[key] || "Available on request"}</td>
                     ))}
                   </tr>
                 ))}
                 <tr>
-                  <th scope="row" className="training-compare-rowlabel">Target Audience</th>
+                  <th scope="row" className={styles.rowLabel}>Target Audience</th>
                   {chosen.map((c) => (
                     <td key={c.slug}>
                       {c.audience && c.audience.length > 0 ? (
-                        <ul className="training-compare-list">
+                        <ul className={styles.compareList}>
                           {c.audience.slice(0, 4).map((a) => <li key={a}>{a}</li>)}
                         </ul>
                       ) : "Available on request"}
@@ -99,13 +102,13 @@ export default function TrainingComparison({ courses }) {
                   ))}
                 </tr>
                 <tr>
-                  <th scope="row" className="training-compare-rowlabel">Objectives</th>
+                  <th scope="row" className={styles.rowLabel}>Objectives</th>
                   {chosen.map((c) => (
                     <td key={c.slug}>
                       {c.objectives && c.objectives.length > 0 ? (
-                        <ul className="training-compare-list">
+                        <ul className={styles.compareList}>
                           {c.objectives.slice(0, 3).map((o) => <li key={o}>{o}</li>)}
-                          {c.objectives.length > 3 && <li className="training-compare-more">+{c.objectives.length - 3} more</li>}
+                          {c.objectives.length > 3 && <li className={styles.compareMore}>+{c.objectives.length - 3} more</li>}
                         </ul>
                       ) : "Available on request"}
                     </td>
@@ -115,10 +118,10 @@ export default function TrainingComparison({ courses }) {
             </table>
           </div>
         ) : (
-          <p className="training-compare-empty">Select at least one programme above to see its details.</p>
+          <p className={styles.compareEmpty}>Select at least one programme above to see its details.</p>
         )}
 
-        <p className="training-compare-note">Course information shown is limited to what has been verified in TERAS UNIVERSAL&apos;s official course catalogue. Programmes without a confirmed field show &ldquo;Available on request&rdquo; — contact our team for the latest details.</p>
+        <p className={styles.compareNote}>Course information shown is limited to what has been verified in TERAS UNIVERSAL&apos;s official course catalogue. Programmes without a confirmed field show &ldquo;Available on request&rdquo; — contact our team for the latest details.</p>
       </div>
     </section>
   );

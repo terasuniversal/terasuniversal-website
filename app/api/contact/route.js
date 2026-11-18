@@ -13,9 +13,6 @@ const CONTROL_CHARS_PATTERN = new RegExp("[\\x00-\\x1F\\x7F]", "g");
 function clean(value, maxLength) {
   return String(value == null ? "" : value).replace(CONTROL_CHARS_PATTERN, "").trim().slice(0, maxLength);
 }
-function getClientIp(request) {
-  return (request.headers.get("x-vercel-forwarded-for") || request.headers.get("x-forwarded-for") || "unknown").split(",")[0].trim();
-}
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character]));
 }
@@ -116,7 +113,7 @@ export async function POST(request) {
     }
     // Never surface raw DB error text (table/column/constraint names) to a
     // public endpoint -- generic message only, real detail server-side.
-    console.error("Contact enquiry persistence failed", { message: error.message, ip: getClientIp(request) });
+    console.error("Contact enquiry persistence failed", { message: error.message });
     return jsonError("We could not send your enquiry right now. Please try again or contact us directly.", 502);
   }
 

@@ -1,0 +1,6 @@
+/* Phase S4D-2B: utility pages (/faq, /search, /stories) under the Premium header.
+   globals.css reduces .utility-container's large top padding only when the legacy header is its direct sibling
+   (".site-header + .container.utility-container"). The Premium header sits outside <main>, so that rule no longer
+   matches; this restores the same reduced padding for these pages only, without touching globals.css.
+   Two simple selectors plus an element keep it above the one-class global rule. */
+.afterHeader > div:first-child { padding-top: clamp(40px, 6vw, 64px); }

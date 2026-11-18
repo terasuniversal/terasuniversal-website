@@ -59,7 +59,7 @@ export default async function VerifyLandingPage({ searchParams }: { searchParams
       </form>
 
       {!searched && (
-        <p style={{ color: "#98a2b3", fontSize: 12.5, textAlign: "center", margin: "6px 0 0" }}>
+        <p style={{ color: "#667085", fontSize: 12.5, textAlign: "center", margin: "6px 0 0" }}>
           Enter the certificate number (e.g. CERT-2026-000123) or the verification token, or scan the QR code on the certificate.
         </p>
       )}

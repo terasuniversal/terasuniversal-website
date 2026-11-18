@@ -1,3 +1,4 @@
+import { CANONICAL_ORIGIN } from "../../../lib/canonical-origin";
 export const metadata = {
   title: { absolute: "Scaffolding Rental & Installation | TERAS UNIVERSAL" },
   description: "Scaffolding rental, erection, dismantling, inspection and maintenance solutions for construction and industrial projects by TERAS UNIVERSAL.",
@@ -6,7 +7,7 @@ export const metadata = {
   openGraph: {
     type: "website",
     locale: "en_MY",
-    url: "https://terasuniversal.com.my/services/scaffolding",
+    url: `${CANONICAL_ORIGIN}/services/scaffolding`,
     siteName: "TERAS UNIVERSAL SDN. BHD.",
     title: "Scaffolding Rental & Installation | TERAS UNIVERSAL",
     description: "Scaffolding rental, erection, dismantling, inspection and maintenance solutions for construction and industrial projects by TERAS UNIVERSAL.",

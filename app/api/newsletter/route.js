@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { blockedOutboundBody, outboundDecision } from "../../../lib/preview-isolation";
+import { newsletterEnabled } from "../../../lib/newsletter-gate";
 
 export const runtime = "nodejs";
 
@@ -20,21 +21,26 @@ function responseError(message, status = 400) { return NextResponse.json({ error
  * Requires ONE additional environment variable that does not exist yet:
  *   RESEND_AUDIENCE_ID
  * Create an Audience in the Resend dashboard (Audiences tab) and set its ID
- * here. Until that variable is set, this endpoint responds with a clear
- * "not configured" error instead of failing silently — the same pattern
+ * here. Until that variable is set, this endpoint logs which setting is
+ * missing (server-side only) and returns a neutral 503 instead of failing silently — the same pattern
  * already used in app/api/request-proposal/route.js for its own env vars.
  */
 export async function POST(request) {
   // Preview isolation: runs before the Resend key is read or any API call is made.
   const outbound = outboundDecision("email");
   if (!outbound.allowed) return NextResponse.json(blockedOutboundBody(outbound), { status: outbound.status });
+  // Public-First launch: newsletter collection is off unless TERAS_NEWSLETTER=enabled (lib/newsletter-gate.js).
+  if (!newsletterEnabled()) return responseError("Newsletter sign-up is not available at the moment.", 503);
 
   const apiKey = process.env.RESEND_API_KEY;
   const audienceId = process.env.RESEND_AUDIENCE_ID?.trim();
   const origin = request.headers.get("origin");
   const siteOrigin = new URL(request.url).origin;
-  if (!apiKey) return responseError("Newsletter service is not configured: RESEND_API_KEY is missing.", 503);
-  if (!audienceId) return responseError("Newsletter service is not configured: RESEND_AUDIENCE_ID is missing.", 503);
+  // Which setting is missing goes to the server log only; visitors get a neutral, actionable message.
+  if (!apiKey || !audienceId) {
+    console.error("Newsletter subscription unavailable: email service not configured", { missing: !apiKey ? "RESEND_API_KEY" : "RESEND_AUDIENCE_ID" });
+    return responseError("Newsletter sign-up is temporarily unavailable. Please try again later.", 503);
+  }
   if (origin && origin !== siteOrigin && !origin.endsWith(".vercel.app")) return responseError("Invalid request origin.", 403);
 
   const ip = getClientIp(request);

@@ -1,0 +1,117 @@
+/* Hybrid Premium V2 course-detail pages (Phase S4B). Public --px-* tokens from components/premium/premium.module.css (.px);
+   every selector starts with a local class, so nothing here reaches other pages, the admin shell or certificate pages.
+   Session rows follow the training calendar (components/calendar/calendar.module.css) so the three public session lists
+   look alike; only presentation is here, every label and decision comes from lib/session-display.ts. */
+
+.eyebrow { color: var(--px-muted); font-family: var(--px-font-heading); font-size: 0.875rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+
+/* ---- hero (navy field) ---------------------------------------------------------------------- */
+/* padding-block replaces the global "section { padding: 86px 0 }" on the same element. */
+.hero { padding-block: clamp(36px, 4.5vw, 72px) clamp(48px, 6vw, 88px); }
+.heroGrid { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: clamp(28px, 4vw, 64px); align-items: center; }
+.crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; color: var(--px-on-navy); font-size: 0.875rem; }
+.crumbs a { display: inline-flex; align-items: center; min-height: 44px; color: var(--px-white); text-decoration: underline; text-decoration-color: rgba(212, 175, 55, 0.7); text-underline-offset: 4px; }
+.crumbs [aria-current] { color: var(--px-on-navy); }
+.heroEyebrow { margin-top: 18px; color: var(--px-gold); font-family: var(--px-font-heading); font-size: 0.9375rem; font-weight: 700; }
+/* Two classes so the kit's one-class heading reset never wins; on phones globals.css sizes "#main-content > main h1". */
+.hero .title { margin-top: 12px; color: var(--px-white); font-size: clamp(2.5rem, 1.5rem + 3.4vw, 4.5rem); line-height: 1.02; }
+.hero .summary { margin-top: 20px; max-width: 60ch; color: var(--px-on-navy); font-size: var(--px-lead); }
+.keyFacts { margin-top: 28px; display: flex; flex-wrap: wrap; gap: 12px 36px; }
+/* globals.css styles every "dl div" (padding, bottom border) and "dt" (11px uppercase); these fact lists set their own. */
+.keyFacts div { display: grid; gap: 2px; padding: 0; border-bottom: 0; }
+.keyFacts dt { color: var(--px-on-navy); font-size: 0.8125rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+.keyFacts dd { color: var(--px-white); font-family: var(--px-font-heading); font-size: 1.125rem; font-weight: 700; }
+.acts { margin-top: 32px; display: flex; flex-wrap: wrap; gap: 12px; }
+.acts > a { min-height: 52px; }
+.figure { margin: 0; border-bottom: 10px solid var(--px-gold); background: var(--px-navy-deep); }
+.figure img { display: block; width: 100%; height: auto; }
+
+/* ---- generic content sections -------------------------------------------------------------- */
+.section h2 { margin-top: 10px; }
+.section .sectionText { margin-top: 14px; max-width: 64ch; color: var(--px-muted); }
+.overviewGrid { display: grid; grid-template-columns: minmax(0, 8fr) minmax(0, 4fr); gap: clamp(28px, 4vw, 64px); align-items: start; }
+.overview .summary { margin-top: 18px; max-width: 64ch; font-size: var(--px-lead); }
+.factGrid { margin-top: 32px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.factGrid div { padding: 20px 22px; border-bottom: 0; border-left: 4px solid var(--px-gold); background: var(--px-tone); }
+.factGrid dt { color: var(--px-muted); font-family: var(--px-font-heading); font-size: 0.8125rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+.factGrid dd { margin-top: 6px; color: var(--px-navy); font-weight: 600; }
+.audience { padding: 28px; background: var(--px-navy); color: var(--px-white); }
+.audience .eyebrow { color: var(--px-on-navy); }
+.audience ul { margin-top: 14px; display: grid; gap: 10px; }
+.audience li { position: relative; padding-left: 22px; }
+.audience li::before { content: ""; position: absolute; left: 0; top: 0.6em; width: 10px; height: 2px; background: var(--px-gold); }
+.numbered { margin-top: 32px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; counter-reset: item; }
+.numbered li { display: grid; gap: 10px; align-content: start; padding: 24px; background: var(--px-white); counter-increment: item; }
+.tone .numbered li { background: var(--px-white); }
+.plain .numbered li { background: var(--px-tone); }
+.numbered li::before { content: counter(item, decimal-leading-zero); color: var(--px-navy); font-family: var(--px-font-heading); font-size: 1.5rem; font-weight: 800; letter-spacing: -0.03em; }
+.numbered li span { color: var(--px-navy); font-family: var(--px-font-heading); font-size: 1.0625rem; font-weight: 700; line-height: 1.35; }
+.checklist { margin-top: 28px; display: grid; gap: 8px; max-width: 72ch; }
+.checklist li { position: relative; padding: 16px 20px 16px 52px; background: var(--px-white); color: var(--px-ink); }
+.checklist li::before { content: ""; position: absolute; left: 22px; top: 22px; width: 12px; height: 7px; border: solid var(--px-navy); border-width: 0 0 3px 3px; transform: rotate(-45deg); }
+
+/* ---- public sessions (same row language as the calendar) -------------------------------------- */
+.sessions { padding-block: clamp(48px, 6vw, 96px); }
+.sessions h2 { margin-top: 10px; }
+.sessions .sectionText { margin-top: 12px; max-width: 64ch; color: var(--px-muted); }
+.sessions .sessionList { margin-top: 32px; display: grid; gap: 8px; }
+.session { display: grid; grid-template-columns: 220px minmax(0, 1fr) 180px 240px; gap: 28px; align-items: center; padding: 22px 28px; border-left: 6px solid var(--px-gold); background: var(--px-white); }
+.closed { border-left-color: var(--px-tone-2); }
+.date b { display: block; color: var(--px-navy); font-family: var(--px-font-heading); font-size: 1.75rem; font-weight: 800; line-height: 1; letter-spacing: -0.03em; }
+.date span { display: block; margin-top: 8px; color: var(--px-muted); font-size: 0.875rem; }
+.sessions .fact { color: var(--px-muted); font-size: 0.875rem; }
+.fact b { display: block; margin-block: 3px; color: var(--px-navy); font-size: 1.0625rem; font-weight: 600; }
+.action { display: grid; gap: 10px; justify-items: stretch; }
+.action > a { min-height: 48px; padding: 0 16px; }
+.pill { justify-self: start; padding: 4px 10px; font-size: 0.8125rem; font-weight: 700; line-height: 1.3; background: var(--px-tone-2); color: var(--px-navy); }
+/* Status colours chosen for at least 4.5:1 (S4B; the legacy globals.css "Full" pill was 4.34:1 and the course-card
+   "Cancelled" pill 4.23:1). The same values as the training calendar. */
+.pill_open { background: #e3f1e4; color: #1b5e20; }
+.pill_full { background: #fdf0d3; color: #6e4300; }
+.pill_enquiry { background: #e7edf3; color: #0b3a63; }
+.pill_cancelled { background: #fbe3e1; color: #8c1d18; }
+.pill_completed, .pill_in_progress { background: #eceff3; color: #3d4a5c; }
+.btnLine { background: transparent; border-color: var(--px-navy); color: var(--px-navy); }
+.btnLine:hover { background: var(--px-navy); border-color: var(--px-navy); color: var(--px-white); }
+.state { display: grid; justify-items: start; gap: 12px; max-width: 68ch; padding: 28px 32px; border-left: 6px solid var(--px-gold); background: var(--px-white); }
+.state p:not(.eyebrow) { color: var(--px-ink); }
+
+/* ---- closing call to action (navy) ------------------------------------------------------------- */
+.final { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 24px 48px; }
+.finalEyebrow { color: var(--px-gold); font-family: var(--px-font-heading); font-size: 0.875rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+.final h2 { margin-top: 10px; }
+.final .finalText { margin-top: 12px; max-width: 58ch; color: var(--px-on-navy); font-size: var(--px-lead); }
+
+/* ---- related industries and courses ------------------------------------------------------------- */
+.cards { margin-top: 32px; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; }
+.card { position: relative; display: flex; flex-direction: column; gap: 10px; padding: 24px; border-top: 4px solid var(--px-gold); background: var(--px-white); }
+.plain .card { background: var(--px-tone); }
+.card h3 { font-size: 1.25rem; }
+.cardLink { color: var(--px-navy); text-decoration: none; }
+/* The title link covers the card, so the card is one target and the "more" line is not a second link. */
+.cardLink::after { content: ""; position: absolute; inset: 0; }
+.card:has(.cardLink:focus-visible) { outline: 3px solid var(--px-navy); outline-offset: 3px; box-shadow: 0 0 0 6px var(--px-gold); }
+.card .cardText { color: var(--px-ink); font-size: 0.9375rem; }
+.card .cardMeta { color: var(--px-muted); font-size: 0.875rem; }
+.cardMore { margin-top: auto; color: var(--px-navy); font-family: var(--px-font-heading); font-size: 0.9375rem; font-weight: 700; text-decoration: underline; text-decoration-color: var(--px-gold); text-decoration-thickness: 2px; text-underline-offset: 6px; }
+
+@media (max-width: 1279px) {
+  .session { grid-template-columns: 200px minmax(0, 1fr) 160px; }
+  .action { grid-column: 1 / -1; grid-template-columns: auto minmax(200px, 260px); justify-content: start; align-items: center; }
+}
+@media (max-width: 960px) {
+  .heroGrid, .overviewGrid, .final { grid-template-columns: minmax(0, 1fr); }
+  .figure { max-width: 520px; }
+  .numbered { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .session { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px 24px; padding: 22px 24px; align-items: start; }
+  .date { grid-column: 1 / -1; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .date span { margin-top: 0; }
+}
+@media (max-width: 599px) {
+  .factGrid, .numbered { grid-template-columns: minmax(0, 1fr); }
+  .acts > a { flex: 1 1 100%; }
+  .session { padding: 20px; }
+  .action { grid-template-columns: minmax(0, 1fr); }
+  .checklist li { padding-left: 46px; }
+  .checklist li::before { left: 18px; }
+}

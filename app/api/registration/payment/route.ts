@@ -9,10 +9,14 @@ import {
 import { createBill, inactivateBill, ringgitStringToSen, getToyyibpayCapability } from "../../../../lib/payments/toyyibpay";
 import { canonicalSiteOrigin } from "../../../../lib/site-origin";
 import { createSupabaseServerClient, createSupabaseServiceClient } from "../../../../lib/supabase/server";
+import { publicRegistrationEnabled, REGISTRATION_DISABLED_MESSAGE } from "../../../../lib/public-registration-gate";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
+  // F-1: no new payment attempt and no ToyyibPay bill while public registration is switched off. Checked before the
+  // database and before ToyyibPay; callbacks for payments started earlier are separate routes and are not affected.
+  if (!publicRegistrationEnabled()) return NextResponse.json({ error: REGISTRATION_DISABLED_MESSAGE }, { status: 503 });
   if (!isAllowedOrigin(request)) return NextResponse.json({ error: "Invalid request origin." }, { status: 403 });
   if (!(await checkSharedRateLimit({ key: `registration:payment:${hashedClientId(clientIp(request))}`, windowSeconds: 60, maxAttempts: 3, failClosed: true }))) {
     return NextResponse.json({ error: "Please wait a moment before trying again." }, { status: 429 });

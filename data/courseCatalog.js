@@ -21,7 +21,9 @@ export const courseCatalog = [
     assessment: wah.assessment_methods.join(", "),
     objectives: wah.learning_outcomes,
     modules: wah.coverage_items,
-    related: ["Scaffolding Competency", "Safety Passport"],
+    // S6: "Scaffolding Competency" matched no course title, so the link was silently dropped; it now names the entry
+    // course of the scaffolding pathway by slug, like every other entry.
+    related: ["basic-scaffolder-level-1", "safety-passport"],
   },
   { slug: "confined-space-safety", title: "Confined Space Safety", category: "Industrial Safety", summary: "Understand confined-space hazards, entry principles, control measures and emergency readiness.", image: "/images/v2/panel-b.svg", audience: ["Entry teams", "Standby personnel", "Supervisors"], duration: "Course duration to be confirmed based on scope", modules: ["Confined-space hazards", "Roles and responsibilities", "Entry controls and permits", "Atmospheric awareness", "Emergency preparedness"], related: ["Working at Height", "Safety Passport"] },
   { slug: "safety-passport", title: "Safety Passport", category: "Industrial Safety", summary: "Strengthen essential safety responsibilities, hazard recognition and workplace control awareness.", image: "/images/v2/panel-c.svg", audience: ["New starters", "Contractors", "Industry personnel"], duration: "Course duration to be confirmed based on scope", modules: ["Safety responsibilities", "Hazard recognition", "Workplace controls", "Incident prevention", "Knowledge review"], related: ["Working at Height", "Confined Space Safety"] },

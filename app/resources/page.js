@@ -1,7 +1,8 @@
-import Image from "next/image";
-import MobileNav from "../../components/MobileNav";
-import MegaNav from "../../components/MegaNav";
-import Footer from "../../components/Footer";
+import PremiumHeader from "../../components/premium/PremiumHeader";
+import PremiumFooter from "../../components/premium/PremiumFooter";
+import { socialMetadata } from "../../lib/social-metadata";
+import { publicBody } from "../../components/premium/fonts";
+import bridge from "../../components/premium/legacy-bridge.module.css";
 
 const resourceGroups = [
   {
@@ -30,18 +31,15 @@ const resourceGroups = [
   },
 ];
 
-export const metadata = { title: "Resources", description: "TERAS UNIVERSAL corporate resources, course information, training calendar and enquiry pathways.", alternates: { canonical: "/resources" } };
+export const metadata = { title: "Resources", description: "TERAS UNIVERSAL corporate resources, course information, training calendar and enquiry pathways.", alternates: { canonical: "/resources" }, ...socialMetadata({ title: "Resources | TERAS UNIVERSAL", description: "TERAS UNIVERSAL corporate resources, course information, training calendar and enquiry pathways.", path: "/resources" }) };
 
+// Phase S4D-2B: the shared Premium header replaces the page's own legacy header and, as on the other Premium
+// pages, sits before <main> rather than inside it. Everything inside <main> is unchanged.
 export default function ResourcesPage() {
   return (
-    <main className="resources-page">
-      <header className="site-header">
-        <div className="container nav-wrap">
-          <a className="brand" href="/" aria-label="TERAS UNIVERSAL home"><Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL logo" width={220} height={140} priority sizes="154px" /></a>
-          <MegaNav />
-          <MobileNav basePath="/" />
-        </div>
-      </header>
+    <>
+    <PremiumHeader />
+    <main className={`resources-page ${bridge.page} ${publicBody.variable}`}>
 
       <section className="resources-hero"><div className="container"><span className="eyebrow">Resources Centre</span><h1>Useful information for better training decisions.</h1><p className="utility-lead">Access corporate information and training resources, or speak with our team when you need a tailored recommendation.</p></div></section>
 
@@ -65,8 +63,9 @@ export default function ResourcesPage() {
       ))}
 
       <section className="services-cta"><div className="container"><div><span className="eyebrow">Need Something Specific?</span><h2>Talk to Our Team Directly</h2></div><div className="hero-actions"><a className="btn btn-gold" href="/request-proposal">Request Proposal</a><a className="btn btn-light" href="https://wa.me/60195193834" target="_blank" rel="noreferrer">WhatsApp Us</a></div></div></section>
-
-      <Footer />
     </main>
+
+      <PremiumFooter />
+    </>
   );
 }

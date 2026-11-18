@@ -1,17 +1,23 @@
-import Image from "next/image";
-import MobileNav from "../../../components/MobileNav";
-import MegaNav from "../../../components/MegaNav";
-import Footer from "../../../components/Footer";
+import PremiumHeader from "../../../components/premium/PremiumHeader";
+import PremiumFooter from "../../../components/premium/PremiumFooter";
 import CorporateTrainingCta from "../../../components/public/CorporateTrainingCta";
 import BreadcrumbJsonLd from "../../../components/public/BreadcrumbJsonLd";
 import DeliveryOptions from "../../../components/public/DeliveryOptions";
 import IndustrySolutions from "../../../components/public/IndustrySolutions";
 import { industries, findIndustry } from "../../../data/industries";
 import { courseCatalog } from "../../../data/courseCatalog";
+import { socialMetadata } from "../../../lib/social-metadata";
+import { publicBody } from "../../../components/premium/fonts";
+import bridge from "../../../components/premium/legacy-bridge.module.css";
 
 export function generateStaticParams() { return industries.map(({ slug }) => ({ slug })); }
-export async function generateMetadata({ params }) { const { slug } = await params; const industry = findIndustry(slug); return industry ? { title: `${industry.name} Training Solutions`, description: industry.summary, alternates: { canonical: `/industries/${industry.slug}` }, openGraph: { title: `${industry.name} Training Solutions | TERAS UNIVERSAL`, description: industry.summary, url: `/industries/${industry.slug}` } } : { title: "Industry Solutions" }; }
+// S5B-1B Round 3: every industry page comes from data/industries.js at build time, so unknown slugs are rejected by
+// the router with a real HTTP 404 (previously they rendered the in-page "not found" panel with HTTP 200).
+export const dynamicParams = false;
+export async function generateMetadata({ params }) { const { slug } = await params; const industry = findIndustry(slug); return industry ? { title: `${industry.name} Training Solutions`, description: industry.summary, alternates: { canonical: `/industries/${industry.slug}` }, ...socialMetadata({ title: `${industry.name} Training Solutions | TERAS UNIVERSAL`, description: industry.summary, path: `/industries/${industry.slug}` }) } : { title: "Industry Solutions" }; }
 
+// Phase S4D-2B: the shared Premium header replaces the page's own legacy header and, as on the other Premium
+// pages, sits before <main> rather than inside it. Everything inside <main> is unchanged.
 export default async function IndustryPage({ params }) {
   const { slug } = await params;
   const industry = findIndustry(slug);
@@ -20,15 +26,10 @@ export default async function IndustryPage({ params }) {
   const relevantCourses = industry.relevantCourseSlugs.map((s) => courseCatalog.find((c) => c.slug === s)).filter(Boolean);
 
   return (
-    <main className="industry-page">
+    <>
+    <PremiumHeader />
+    <main className={`industry-page ${bridge.page} ${publicBody.variable}`}>
       <BreadcrumbJsonLd items={[{ name: "Home", path: "/" }, { name: "Industries", path: "/industries" }, { name: industry.name, path: `/industries/${industry.slug}` }]} />
-      <header className="site-header">
-        <div className="container nav-wrap">
-          <a className="brand" href="/" aria-label="TERAS UNIVERSAL home"><Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL logo" width={220} height={140} priority sizes="154px" /></a>
-          <MegaNav />
-          <MobileNav basePath="/" />
-        </div>
-      </header>
 
       <section className="industry-hero"><div className="container"><nav className="course-breadcrumb" aria-label="Breadcrumb"><a href="/">Home</a><span>/</span><a href="/industries">Industries</a><span>/</span><span aria-current="page">{industry.name}</span></nav><span className="eyebrow">Corporate Solutions &middot; {industry.fullName}</span><h1>{industry.name} Training &amp; Competency Solutions</h1><p>{industry.summary}</p><div className="hero-actions"><a className="btn btn-primary" href={`/request-proposal?industry=${encodeURIComponent(industry.slug)}&source=industry-page`}>Request {industry.name} Training</a><a className="btn btn-outline" href="/corporate-training">Explore Corporate Training</a></div></div></section>
 
@@ -43,8 +44,9 @@ export default async function IndustryPage({ params }) {
       {industry.clients.length > 0 && <section className="industry-clients-section"><div className="container"><div className="section-heading"><span className="eyebrow">Among Organisations We&apos;ve Supported</span><h2>Trusted across {industry.name.toLowerCase()}.</h2></div><div className="industry-clients-grid">{industry.clients.map((client) => <span key={client}>{client}</span>)}</div></div></section>}
 
       <section className="container"><CorporateTrainingCta industry={industry.slug} source="industry-page-final" title={`Planning ${industry.name} training for your team?`} text="Share the workforce, operating context and preferred delivery arrangement so TERAS can begin the right conversation." /></section>
-
-      <Footer />
     </main>
+
+      <PremiumFooter />
+    </>
   );
 }

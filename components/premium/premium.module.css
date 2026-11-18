@@ -1,0 +1,67 @@
+/* TERAS public premium kit — foundation (Hybrid Premium V2, R3).
+   Base layer adapted from the Premium A3 kit (feat/website-premium-a3-company-services @ 55022bf); class names are kept so
+   A3 components can be adopted later without renaming. Colours are the owner-approved public brand values and are declared
+   here as --px-* tokens on .px, so they apply only inside an element that carries .px. globals.css, the admin shell, the
+   certificate pages and the attendance print layout keep their own tokens; nothing in this file reaches them.
+   Usage: <main className={`${kit.px} ${publicBody.variable}`}> with publicBody from ./fonts.js. */
+
+/* :where() keeps this root block at zero specificity, so a component module that sets its own colour, background or
+   font on the same element always wins, whatever order the stylesheets load in. */
+:where(.px) {
+  /* brand */
+  --px-navy: #0b3a63;
+  --px-gold: #d4af37;
+  --px-white: #ffffff;
+  --px-ink: #333333;
+  /* derived, used by R3 */
+  --px-navy-deep: #072a48;
+  --px-tone: #f2f5f8;
+  --px-tone-2: #e7edf3;
+  --px-muted: #555b63;
+  --px-on-navy: #cbd8e5;
+  --px-gold-hover: #e2c160;
+  /* layout and type scale */
+  --px-m: clamp(20px, 4.4vw, 64px);
+  --px-max: 1440px;
+  --px-sec: clamp(72px, 8vw, 136px);
+  --px-h2: clamp(2rem, 1.3rem + 2.2vw, 3.25rem);
+  --px-h3: clamp(1.375rem, 1.1rem + 0.9vw, 1.75rem);
+  --px-lead: clamp(1.0625rem, 1rem + 0.3vw, 1.25rem);
+  --px-font-heading: var(--font-montserrat), "Montserrat Fallback", system-ui, sans-serif;
+  --px-font-body: var(--font-public-body), "Inter Fallback", system-ui, sans-serif;
+  color: var(--px-ink);
+  font-family: var(--px-font-body);
+  font-size: 1.0625rem;
+  line-height: 1.6;
+}
+.px :where(p, h1, h2, h3, h4, ul, ol, dl, dd, figure) { margin: 0; padding: 0; }
+.px :where(ul, ol) { list-style: none; }
+.px :where(h1, h2, h3, h4) { font-family: var(--px-font-heading); font-weight: 800; letter-spacing: -0.035em; line-height: 1.05; color: var(--px-navy); }
+.px :where(h2) { font-size: var(--px-h2); }
+.px :where(h3) { font-size: var(--px-h3); letter-spacing: -0.02em; line-height: 1.15; }
+/* Focus is visible on every ground: a navy ring with a gold halo (gold alone on white is only 2.1:1). */
+.px :focus-visible { outline: 3px solid var(--px-navy); outline-offset: 3px; box-shadow: 0 0 0 6px var(--px-gold); }
+
+.wrap { width: 100%; max-width: var(--px-max); margin: 0 auto; padding-inline: var(--px-m); }
+.sec { padding-block: var(--px-sec); }
+.secFollow { padding-top: 0; }
+.secTop { padding-top: var(--px-sec); padding-bottom: 0; }
+.tone { background: var(--px-tone); }
+.navyField { background: var(--px-navy); color: var(--px-white); }
+.navyField :where(h1, h2, h3, h4) { color: var(--px-white); }
+.lead { font-size: var(--px-lead); max-width: 52ch; }
+
+/* one button system: gold primary, navy solid, outline on dark grounds; underlined text link for secondary actions */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 12px; min-height: 48px; padding: 0 24px; font-family: var(--px-font-heading); font-size: 0.9375rem; font-weight: 700; line-height: 1.2; text-align: center; text-decoration: none; border: 2px solid var(--px-gold); background: var(--px-gold); color: var(--px-navy-deep); cursor: pointer; }
+.btn:hover { background: var(--px-gold-hover); border-color: var(--px-gold-hover); }
+.btnNavy { background: var(--px-navy); border-color: var(--px-navy); color: var(--px-white); }
+.btnNavy:hover { background: var(--px-navy-deep); border-color: var(--px-navy-deep); }
+.btnLight { background: transparent; border-color: rgba(255, 255, 255, 0.85); color: var(--px-white); }
+.btnLight:hover { background: rgba(255, 255, 255, 0.1); border-color: var(--px-white); }
+.tl { display: inline-flex; align-items: center; min-height: 44px; font-family: var(--px-font-heading); font-size: 0.9375rem; font-weight: 700; color: var(--px-navy); text-decoration: underline; text-decoration-color: var(--px-gold); text-decoration-thickness: 2px; text-underline-offset: 6px; }
+.tl:hover { text-decoration-thickness: 4px; }
+.navyField .tl { color: var(--px-white); }
+
+@media (prefers-reduced-motion: reduce) {
+  .px * { scroll-behavior: auto; transition: none; animation: none; }
+}
