@@ -79,7 +79,7 @@ export default function ContactEnquiryForm() {
       {state.status === "error" && <p className="contact-form-status contact-form-status-error" role="alert" aria-live="assertive">{state.message}</p>}
       <p className="contact-form-note">
         Privacy: we use these details to respond to your enquiry and keep a record of it. Sending this form does not subscribe you to marketing emails.
-        <PrivacyNoticeLink />
+        <PrivacyNoticeLink newTab />
       </p>
       <p className="contact-form-note">
         Prefer email? Contact us directly at <a href="mailto:admin@terasuniversal.com.my">admin@terasuniversal.com.my</a>.

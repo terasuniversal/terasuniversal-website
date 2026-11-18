@@ -110,15 +110,18 @@ check("W2 K-C: a separate-consent marketing statement in both languages, and no 
   assert.doesNotMatch(ms, /tidak sekali-kali|tidak akan pernah/i);
   for (const doc of [privacyNoticeEn, privacyNoticeMs]) assert.match(doc.unpublishedVersion, /v0\.5/);
 });
-check("W2 form links: one shared component, gated on privacyPublished, new tab only where approved", () => {
+check("W2 form links: one shared component, gated on privacyPublished, opening in a new tab on all three forms", () => {
   const link = code("components/legal/PrivacyNoticeLink.js");
   assert.match(link, /^import \{ privacyPublished \} from "\.\.\/\.\.\/lib\/privacy-publication";$/m);
   assert.match(link, /if \(!privacyPublished\) return null;/);
   assert.match(link, /<a href="\/privacy" target="_blank" rel="noopener noreferrer">\s*Privacy Notice<span className="sr-only"> \(opens in a new tab\)<\/span>\s*<\/a>/);
   assert.match(link, /<a href="\/privacy">Privacy Notice<\/a>/);
   assert.doesNotMatch(link, /\/terms|\/ebook|useState|useEffect/);
-  assert.equal((read("components/ProposalWizard.js").match(/<PrivacyNoticeLink newTab \/>/g) ?? []).length, 1, "Proposal wizard: new tab (K-E)");
-  for (const path of ["components/ContactEnquiryForm.js", "components/ContactForm.js"]) assert.equal((read(path).match(/<PrivacyNoticeLink \/>/g) ?? []).length, 1, path);
+  // K-E (Proposal wizard) and the owner-approved W2 link fix (both Contact forms): new tab, so entered values survive.
+  for (const path of ["components/ProposalWizard.js", "components/ContactEnquiryForm.js", "components/ContactForm.js"]) {
+    assert.equal((read(path).match(/<PrivacyNoticeLink newTab \/>/g) ?? []).length, 1, path);
+    assert.doesNotMatch(read(path), /<PrivacyNoticeLink \/>/, `${path}: no same-tab link`);
+  }
   for (const path of ["components/ContactEnquiryForm.js", "components/ContactForm.js", "components/ProposalWizard.js"]) assert.match(read(path), /^import PrivacyNoticeLink from "\.\/legal\/PrivacyNoticeLink";$/m, path);
 });
 

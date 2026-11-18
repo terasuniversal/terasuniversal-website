@@ -10,11 +10,11 @@ const CONTACT_NOTE = "        Privacy: we use these details to respond to your e
 const EDITS: Record<string, [string, string][]> = {
   "components/ContactEnquiryForm.js": [
     [`import { useRef, useState } from "react";\n${LINK_IMPORT}`, 'import { useRef, useState } from "react";\n'],
-    [`${CONTACT_NOTE}        <PrivacyNoticeLink />\n`, CONTACT_NOTE],
+    [`${CONTACT_NOTE}        <PrivacyNoticeLink newTab />\n`, CONTACT_NOTE],
   ],
   "components/ContactForm.js": [
     [`import { useRef, useState } from "react";\n${LINK_IMPORT}`, 'import { useRef, useState } from "react";\n'],
-    [`${CONTACT_NOTE}        <PrivacyNoticeLink />\n`, CONTACT_NOTE],
+    [`${CONTACT_NOTE}        <PrivacyNoticeLink newTab />\n`, CONTACT_NOTE],
   ],
   "components/ProposalWizard.js": [
     [`import { useRouter } from "next/navigation";\n${LINK_IMPORT}`, 'import { useRouter } from "next/navigation";\n'],
