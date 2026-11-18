@@ -7,6 +7,7 @@ import { publicContact } from "../data/publicContact.js";
 import { brand, companyProfile } from "../data/companyProfile.js";
 import { revertPublicFirst, PF_CHANGED, PF_ADDED, PF_WITHHELD } from "./public-first-approved.mts";
 import { CONTRACT_BASE, changedSinceBase } from "./contract-base.mts";
+import { revertW2Privacy } from "./w2-privacy-approved.mts";
 
 // Phase S4D-2D (owner-approved): the Premium footer. components/Footer.js is also rendered by the registration page,
 // the 404 page and the dead app/verify/page.js, so the Premium footer is a separate component used only by the approved
@@ -69,10 +70,19 @@ check("links: every footer destination is an existing route (and every #anchor e
   assert.equal(new Set(hrefs).size, hrefs.length, "duplicate destination");
   assert.equal(footerContent.actions.whatsapp.href, "https://wa.me/60195193834");
 });
-check("links: no policy, eBook, placeholder or invented destination", () => {
-  // Code only: the comments in these files document that no policy page is linked.
-  const code = (content + footer).replace(/^\s*\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
+check("links: no policy, eBook, placeholder or invented destination (apart from the gated W2 Privacy Notice link)", () => {
+  // Code only: the comments in these files document that no other policy page is linked. W2 Phase 1 adds exactly one
+  // link, undone here by revertW2Privacy and proved below to render only once the Privacy Notice is published.
+  const code = (revertW2Privacy("content/en/footer.js", content) + revertW2Privacy("components/premium/PremiumFooter.js", footer)).replace(/^\s*\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
   assert.doesNotMatch(code, /privacy|terms|policy|pdpa|cookie|\/ebook|href="#"|href: "#"|"#"\]/i);
+});
+check("W2 Phase 1: the Privacy Notice link is the same-tab /privacy link and renders only while privacyPublished", () => {
+  assert.deepEqual(footerContent.privacyLink, { label: "Privacy Notice", href: "/privacy" });
+  assert.match(footer, /^import \{ privacyPublished \} from "\.\.\/\.\.\/lib\/privacy-publication";$/m);
+  assert.equal((footer.match(/privacyLink/g) ?? []).length, 2);
+  assert.match(footer, /\{privacyPublished && <p><a className=\{styles\.legal\} href=\{text\.privacyLink\.href\}>\{text\.privacyLink\.label\}<\/a><\/p>\}/);
+  assert.doesNotMatch((footer + content).replace(/^\s*\/\/.*$/gm, ""), /\/terms|\/ebook|target="_blank"[^>]*privacy/i);
+  assert.match(css, /\.bottomRow \.legal \{[^}]*min-height: 32px;/);
 });
 check("statements: only the existing copyright and AI-imagery note, no new legal or compliance claim", () => {
   const before = atHead("components/Footer.js");

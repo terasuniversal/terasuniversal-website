@@ -40,6 +40,8 @@
 .bottom { border-top: 1px solid rgba(255, 255, 255, 0.14); background: var(--px-navy-deep); }
 .bottomRow { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 32px; padding-block: 20px; font-size: 0.8125rem; }
 .bottomRow p { color: var(--px-on-navy); }
+.bottomRow .legal { display: inline-flex; align-items: center; min-height: 32px; color: var(--px-white); text-decoration: underline; text-underline-offset: 4px; }
+.bottomRow .legal:hover { color: var(--px-gold); }
 
 @media (max-width: 1279px) {
   /* Brand across two columns with Contact beside it, then the three link groups. */

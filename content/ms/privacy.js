@@ -1,5 +1,5 @@
-// Notis Privasi — Bahasa Melayu, v0.4 yang diluluskan pemilik (sumber: docs/WEBSITE-PUBLIC-FIRST-PRIVACY-K3/
-// PRIVACY-NOTICE-BM-DRAFT.md, keputusan D-05/D-06/D-09/D-14/L-01, 18 November 2026). Mesti kekal setara dengan
+// Notis Privasi — Bahasa Melayu, v0.5 yang diluluskan pemilik (asas v0.4: docs/WEBSITE-PUBLIC-FIRST-PRIVACY-K3/
+// PRIVACY-NOTICE-BM-DRAFT.md, keputusan D-05/D-06/D-09/D-14/L-01, 18 November 2026; v0.5 menambah keputusan W2 K-B dan K-C). Mesti kekal setara dengan
 // content/en/privacy.js: 12 bahagian dengan struktur blok yang sama (scripts/privacy-publication-contract.mts).
 // Penyimpanan dinyatakan sebagai prinsip umum sahaja; tempoh cadangan 24/12 bulan TIDAK dilaksanakan dan TIDAK diterbitkan.
 // Tarikh berkuat kuasa tidak ditulis di sini: halaman memaparkan PRIVACY_EFFECTIVE_DATE dalam lib/privacy-publication.js.
@@ -10,7 +10,7 @@ export const privacyNoticeMs = {
   tocLabel: "Kandungan",
   pendingLabel: "Belum diputuskan",
   effectiveLabel: "Tarikh berkuat kuasa",
-  unpublishedVersion: "Draf v0.4 · tarikh berkuat kuasa ditetapkan semasa penerbitan · belum berkuat kuasa",
+  unpublishedVersion: "Draf v0.5 · tarikh berkuat kuasa ditetapkan semasa penerbitan · belum berkuat kuasa",
   sections: [
     {
       title: "Siapa kami",
@@ -30,7 +30,7 @@ export const privacyNoticeMs = {
           "Borang hubungan: nama, syarikat, alamat e-mel, nombor telefon, jenis pertanyaan, subjek dan mesej anda, serta halaman borang dihantar.",
           "Borang Permohonan Cadangan (Request a Proposal): syarikat, nama, jawatan, e-mel perniagaan, nombor telefon, industri, kategori dan program latihan yang diminati, bilangan peserta, lokasi, bulan pilihan, julat bajet, objektif latihan dan nota.",
           "Pengesahan sijil (/verify): nombor sijil atau pautan pengesahan yang anda masukkan. Kami juga merekodkan alamat IP anda, maklumat pelayar (user-agent) dan keputusan setiap semakan dalam log pengesahan.",
-          "Data teknikal: penyedia hos kami memproses data permintaan biasa seperti alamat IP, jenis pelayar dan halaman yang anda minta. Untuk mengehadkan penghantaran borang yang berulang atau automatik, kami menyimpan bentuk berkod sehala (hash) alamat IP anda.",
+          "Data teknikal: penyedia hos kami memproses data permintaan biasa seperti alamat IP, jenis pelayar dan halaman yang anda minta. Untuk mengelakkan penghantaran berulang atau automatik, kami menyemak sama ada borang telah dihantar baru-baru ini daripada alamat e-mel yang sama.",
         ] },
         { p: "Kami tidak meminta data peribadi sensitif melalui borang ini. Sila jangan masukkannya dalam mesej anda." },
       ],
@@ -46,6 +46,7 @@ export const privacyNoticeMs = {
           "Untuk memastikan keselamatan laman web, mencegah spam dan membaiki masalah teknikal.",
         ] },
         { p: "Kami menggunakan data anda hanya untuk tujuan ini atau tujuan yang berkaitan secara langsung dengannya. Kami tidak menjual data peribadi anda." },
+        { p: "Menghantar pertanyaan atau permohonan cadangan tidak mendaftarkan anda untuk e-mel pemasaran. Kami hanya akan memasukkan anda ke dalam komunikasi pemasaran kami dengan persetujuan berasingan anda, dan anda boleh menarik balik persetujuan itu pada bila-bila masa." },
       ],
     },
     {

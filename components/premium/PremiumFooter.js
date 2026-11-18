@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { publicContact } from "../../data/publicContact";
 import { footerContent } from "../../content/en/footer";
+import { privacyPublished } from "../../lib/privacy-publication";
 import { publicBody } from "./fonts";
 import kit from "./premium.module.css";
 import styles from "./footer.module.css";
@@ -57,6 +58,7 @@ export default function PremiumFooter() {
       <div className={styles.bottom}>
         <div className={`${kit.wrap} ${styles.bottomRow}`}>
           <p>{text.copyright(year)}</p>
+          {privacyPublished && <p><a className={styles.legal} href={text.privacyLink.href}>{text.privacyLink.label}</a></p>}
           <p>{text.aiNote}</p>
         </div>
       </div>

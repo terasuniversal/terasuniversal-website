@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import PrivacyNoticeLink from "./legal/PrivacyNoticeLink";
 
 export default function ContactForm() {
   const [state, setState] = useState({ status: "idle", message: "", errors: {} });
@@ -106,6 +107,7 @@ export default function ContactForm() {
       {state.status === "error" && <p className="form-status form-status-error" role="alert" aria-live="assertive">{state.message}</p>}
       <p className="form-note">
         Privacy: we use these details to respond to your enquiry and keep a record of it. Sending this form does not subscribe you to marketing emails.
+        <PrivacyNoticeLink />
       </p>
       <p className="form-note">
         Prefer email? Contact us directly at{" "}

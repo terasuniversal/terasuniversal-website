@@ -1,5 +1,6 @@
 // English copy for the Premium footer (Phase S4D-2D). Every link points at a route that exists today (checked by
-// scripts/premium-footer-contract.mts); no policy page is linked because none exists yet, and /ebook is not published.
+// scripts/premium-footer-contract.mts); /ebook is not published, and the one policy link (privacyLink) is rendered only
+// once the Privacy Notice is published (lib/privacy-publication.js), so it never points at a 404.
 // Display email comes from data/publicContact.js and the tel: number from its phone value; form delivery is separate.
 // A Bahasa Melayu module (content/ms/footer.js, same keys) can be added later without touching the component.
 export const footerContent = {
@@ -64,4 +65,6 @@ export const footerContent = {
   // being hard-coded, so it never goes stale. PremiumFooter passes the current year in Malaysia time.
   copyright: (year) => `© ${year} TERAS UNIVERSAL SDN. BHD. All rights reserved.`,
   aiNote: "Imagery on this website includes AI-generated illustrations. The people shown are not TERAS personnel.",
+  // Public-First W2 Phase 1: shown in the bottom row only while lib/privacy-publication.js privacyPublished is true.
+  privacyLink: { label: "Privacy Notice", href: "/privacy" },
 };

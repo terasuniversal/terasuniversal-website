@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { revertPublicFirst, PF_CHANGED, PF_ADDED, PF_WITHHELD } from "./public-first-approved.mts";
+import { revertW2Privacy } from "./w2-privacy-approved.mts";
 import { CONTRACT_BASE, changedSinceBase } from "./contract-base.mts";
 
 // S5B-1B Round 4 (owner-approved, local only): Premium V2 hero and button treatment for the legacy informational
@@ -13,7 +14,8 @@ const root = new URL("../", import.meta.url);
 const rootPath = fileURLToPath(root);
 const read = (path: string) => readFileSync(new URL(path, root), "utf8").replace(/\r\n/g, "\n");
 // Public-First fixes (newsletter gate, F-5 canonical origin) are reverted before hashing pinned files.
-const sha = (path: string) => createHash("sha256").update(revertPublicFirst(path, read(path))).digest("hex");
+// W2 Phase 1 (owner-approved): the gated Privacy Notice link edits are undone first (scripts/w2-privacy-approved.mts).
+const sha = (path: string) => createHash("sha256").update(revertPublicFirst(path, revertW2Privacy(path, read(path)))).digest("hex");
 let failures = 0;
 const check = (name: string, fn: () => void) => {
   try { fn(); console.log(`LULUS ${name}`); } catch (error) { failures += 1; console.log(`GAGAL ${name} -> ${(error as Error).message.split("\n")[0]}`); }

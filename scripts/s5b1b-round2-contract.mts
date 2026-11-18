@@ -7,6 +7,7 @@ import { privacyNoticeMs } from "../content/ms/privacy.js";
 import { termsPartAEn } from "../content/en/terms.js";
 import { isUntrackedPath, sanitizeAnalyticsUrl, sanitizeReferrer } from "../lib/analytics-privacy.js";
 import { CONTRACT_BASE, changedSinceBase } from "./contract-base.mts";
+import { revertW2Privacy } from "./w2-privacy-approved.mts";
 
 // S5B-1B Round 2 (owner-approved, local only): draft legal pages (gated, noindex, not linked, BM/EN parity), form
 // privacy notes without payload changes, the proposal-success wording, the 404 header, the Insights hard 404 and
@@ -50,8 +51,10 @@ check("drafts: not in the sitemap and not linked from the footer, header, forms 
   } catch (error) {
     if ((error as { status?: number }).status !== 1) throw error; // git grep exits 1 when nothing matches
   }
-  // Only the two Privacy pages link to each other (language switch, in their content modules).
-  assert.deepEqual(out, [], out.join(", "));
+  // Only the two Privacy pages link to each other (language switch, in their content modules). W2 Phase 1: the one
+  // shared form link renders only behind the Privacy publication switch (proved in scripts/privacy-publication-contract.mts).
+  assert.deepEqual(out, ["components/legal/PrivacyNoticeLink.js"], out.join(", "));
+  assert.match(read("components/legal/PrivacyNoticeLink.js"), /if \(!privacyPublished\) return null;/);
   const switches = [privacyNoticeEn.switchLink.href, privacyNoticeMs.switchLink.href].sort();
   assert.deepEqual(switches, ["/privacy", "/privacy/ms"]);
 });
@@ -77,7 +80,7 @@ const NOTE_CONTACT = "Privacy: we use these details to respond to your enquiry a
 check("forms: privacy notes are present and contain no link to the unpublished draft", () => {
   assert.ok(read("components/ContactEnquiryForm.js").includes(NOTE_CONTACT));
   assert.ok(read("components/ContactForm.js").includes(NOTE_CONTACT));
-  assert.ok(read("components/ProposalWizard.js").includes('<p className="wizard-note">Privacy: we use these details to prepare and follow up on your proposal and keep a record of the request. Submitting this form does not subscribe you to marketing emails.</p>'));
+  assert.ok(revertW2Privacy("components/ProposalWizard.js", read("components/ProposalWizard.js")).includes('<p className="wizard-note">Privacy: we use these details to prepare and follow up on your proposal and keep a record of the request. Submitting this form does not subscribe you to marketing emails.</p>'));
   assert.ok(read("components/NewsletterSignup.js").includes("Privacy: your email address is used only to send these updates and is held by our email delivery provider. You can unsubscribe at any time."));
 });
 check("forms: apart from the approved notes (and Round 1 edits) every form component is identical to HEAD — payloads, endpoints, required fields and consent unchanged", () => {
@@ -92,7 +95,8 @@ check("forms: apart from the approved notes (and Round 1 edits) every form compo
     .replace("your subscription request has been received.", "please check your inbox to confirm your subscription.")
     .replace(' * configured. If that env var is missing, submission shows a neutral\n * "temporarily unavailable" error instead of silently failing.', " * configured. If that env var is missing, submission shows a clear error\n * instead of silently failing.");
   for (const path of ["components/ContactEnquiryForm.js", "components/ContactForm.js", "components/ProposalWizard.js", "components/NewsletterSignup.js"]) {
-    assert.equal(strip(read(path)), atHead(path), path);
+    // W2 Phase 1 (owner-approved): the gated Privacy Notice link edits are undone first (scripts/w2-privacy-approved.mts).
+    assert.equal(strip(revertW2Privacy(path, read(path))), atHead(path), path);
   }
 });
 check("proposal success: no unverified confirmation-email promise", () => {
