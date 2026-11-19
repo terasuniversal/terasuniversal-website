@@ -8,7 +8,6 @@ const resourceGroups = [
   {
     label: "Company Information",
     items: [
-      { title: "Company Profile", text: "A concise overview of TERAS UNIVERSAL, our capabilities and the industries we support.", action: "Download PDF", href: "/downloads/TERAS-UNIVERSAL-Company-Profile.pdf", note: "PDF · Corporate profile" },
       { title: "About TERAS UNIVERSAL", text: "Our story, leadership, accreditations and the values behind our training.", action: "Learn more", href: "/about", note: "Company overview" },
       { title: "Industries We Serve", text: "Explore sector-specific training solutions for Oil & Gas, Construction, Manufacturing and more.", action: "View industries", href: "/industries", note: "Corporate solutions" },
     ],

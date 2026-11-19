@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { revertPublicFirst, PF_CHANGED, PF_ADDED, PF_WITHHELD } from "./public-first-approved.mts";
 import { CONTRACT_BASE, changedSinceBase } from "./contract-base.mts";
+import { revertS2_0 } from "./r2-s2-0-approved.mts";
 
 // Phase S4D-2A (owner-approved pilot): /about, /services and /corporate-training use the shared PremiumHeader instead
 // of their own legacy header. Phase S4D-2B (owner-approved rollout) adds the eight remaining eligible content routes.
@@ -47,7 +48,9 @@ const squash = (text: string) => text.replace(/\s+/g, " ").trim();
 const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
 
 for (const path of [...PILOT, ...ROLLOUT, ...LEAD]) {
-  const page = revertPublicFirst(path, read(path)); // Public-First fixes reverted (scripts/public-first-approved.mts)
+  // Public-First fixes reverted (scripts/public-first-approved.mts). R2 S2-0 (owner-approved, 19 Nov 2026): the single
+  // named edit on app/resources/page.js (Company Profile PDF link removed) is undone first; it must be present exactly once.
+  const page = revertPublicFirst(path, revertS2_0(path, read(path)));
   const up = "../".repeat(path.split("/").length - 1);
   check(`${path}: imports the shared PremiumHeader and renders it exactly once`, () => {
     assert.match(page, new RegExp(`^import PremiumHeader from "${escape(up)}components/premium/PremiumHeader";$`, "m"));
