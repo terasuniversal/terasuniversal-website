@@ -97,7 +97,7 @@ function clean(data: any) {
 
 export async function createSchedule(_prev: ScheduleFormState, formData: FormData): Promise<ScheduleFormState> {
   const profile = await requireRole("admin"); // Editors are read-only.
-  await requireModuleAccess("schedules");
+  await requireModuleAccess("schedules", "edit");
   const parsed = scheduleSchema.safeParse(readForm(formData));
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
@@ -163,7 +163,7 @@ export async function createSchedule(_prev: ScheduleFormState, formData: FormDat
 
 export async function updateSchedule(id: string, _prev: ScheduleFormState, formData: FormData): Promise<ScheduleFormState> {
   await requireRole("admin");
-  await requireModuleAccess("schedules");
+  await requireModuleAccess("schedules", "edit");
   const parsed = scheduleSchema.safeParse(readForm(formData));
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
@@ -185,7 +185,7 @@ export async function updateSchedule(id: string, _prev: ScheduleFormState, formD
 /** Duplicate — clone core fields; reset status to open, no enrollments. */
 export async function duplicateSchedule(id: string) {
   await requireRole("admin");
-  await requireModuleAccess("schedules");
+  await requireModuleAccess("schedules", "edit");
   const supabase = await createSupabaseServerClient();
   const { data: src } = await supabase.from("course_schedules").select("*").eq("id", id).single();
   if (!src) return;
@@ -207,7 +207,7 @@ export async function duplicateSchedule(id: string) {
 
 export async function softDeleteSchedule(id: string) {
   await requireRole("admin");
-  await requireModuleAccess("schedules");
+  await requireModuleAccess("schedules", "edit");
   const supabase = await createSupabaseServerClient();
   const { data: schedule } = await supabase.from("course_schedules").select("course_id").eq("id", id).maybeSingle();
   await supabase.from("course_schedules").update({ deleted_at: new Date().toISOString() }).eq("id", id);
@@ -217,7 +217,7 @@ export async function softDeleteSchedule(id: string) {
 
 export async function restoreSchedule(id: string) {
   await requireRole("admin");
-  await requireModuleAccess("schedules");
+  await requireModuleAccess("schedules", "edit");
   const supabase = await createSupabaseServerClient();
   const { data: schedule } = await supabase.from("course_schedules").select("course_id").eq("id", id).maybeSingle();
   await supabase.from("course_schedules").update({ deleted_at: null }).eq("id", id);
@@ -260,7 +260,7 @@ export async function restoreSchedule(id: string) {
  */
 export async function assignParticipants(scheduleId: string, _prev: ScheduleFormState, formData: FormData): Promise<ScheduleFormState> {
   await requireRole("admin");
-  await requireModuleAccess("schedules");
+  await requireModuleAccess("schedules", "edit");
   const ids = formData.getAll("participant_ids").map(String).filter(Boolean);
   if (ids.length === 0) return {};
   const supabase = await createSupabaseServerClient();
@@ -347,7 +347,7 @@ export async function assignParticipants(scheduleId: string, _prev: ScheduleForm
  * history survives and the participant can be re-enrolled later. */
 export async function removeParticipant(scheduleId: string, assignmentId: string) {
   await requireRole("admin");
-  await requireModuleAccess("schedules");
+  await requireModuleAccess("schedules", "edit");
   const supabase = await createSupabaseServerClient();
 
   // Same read-only-after-merge rule as assignParticipants -- an ordinary
@@ -455,7 +455,7 @@ function conflictMessage(kind: "trainer" | "assessor", rows: { group_name: strin
  */
 export async function createGroup(scheduleId: string, _prev: GroupFormState, formData: FormData): Promise<GroupFormState> {
   await requireRole("admin");
-  await requireModuleAccess("schedules");
+  await requireModuleAccess("schedules", "edit");
   const parsed = scheduleGroupSchema.safeParse({
     name: String(formData.get("name") ?? "").trim(),
     trainer_id: String(formData.get("trainer_id") ?? "").trim(),
@@ -522,7 +522,7 @@ export async function createGroup(scheduleId: string, _prev: GroupFormState, for
  *  row from the overlap comparison. */
 export async function updateGroup(scheduleId: string, groupId: string, _prev: GroupFormState, formData: FormData): Promise<GroupFormState> {
   await requireRole("admin");
-  await requireModuleAccess("schedules");
+  await requireModuleAccess("schedules", "edit");
   const parsed = scheduleGroupSchema.safeParse({
     name: String(formData.get("name") ?? "").trim(),
     trainer_id: String(formData.get("trainer_id") ?? "").trim(),
@@ -599,7 +599,7 @@ export async function updateGroup(scheduleId: string, groupId: string, _prev: Gr
  */
 export async function removeGroup(scheduleId: string, groupId: string) {
   await requireRole("admin");
-  await requireModuleAccess("schedules");
+  await requireModuleAccess("schedules", "edit");
   const supabase = await createSupabaseServerClient();
   const { count } = await supabase
     .from("schedule_participants")
@@ -623,7 +623,7 @@ export async function removeGroup(scheduleId: string, groupId: string) {
  */
 export async function assignParticipantGroup(scheduleId: string, assignmentId: string, _prev: GroupFormState, formData: FormData): Promise<GroupFormState> {
   await requireRole("admin");
-  await requireModuleAccess("schedules");
+  await requireModuleAccess("schedules", "edit");
   const groupId = String(formData.get("schedule_group_id") ?? "").trim();
   const supabase = await createSupabaseServerClient();
 

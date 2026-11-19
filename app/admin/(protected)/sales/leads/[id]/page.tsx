@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
-import { requireRole, requireModuleAccess } from "../../../../../../lib/auth/session";
+import { requireRole, requireModuleAccess, hasModuleAccess } from "../../../../../../lib/auth/session";
 import { isAdmin, isSuperAdmin } from "../../../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, EmptyState, ReadErrorState } from "../../../../../../components/admin/ui";
 import { FollowUpBadge } from "../../../../../../components/admin/sales/FollowUpBadge";
@@ -74,7 +74,9 @@ function Detail({ label, value }: { label: string; value: any }) {
 export default async function LeadDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ attributionError?: string; attributionSaved?: string }> }) {
   const profile =   await requireRole("editor");
   await requireModuleAccess("sales_leads");
-  const canManage = isAdmin(profile.role);
+  // View access shows the lead read-only; every change on this page needs Leads edit.
+  const canEdit = await hasModuleAccess("sales_leads", "edit");
+  const canManage = isAdmin(profile.role) && canEdit;
   const superAdmin = isSuperAdmin(profile.role);
   const { id } = await params;
   const sp = await searchParams;
@@ -129,8 +131,11 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
   const lastActivityAt = (activityRows ?? []).reduce<string | null>((latest, activity) => !latest || activity.created_at > latest ? activity.created_at : latest, null);
 
   const moduleAccess = moduleAccessResult.data;
-  const modules = Array.isArray(moduleAccess) ? moduleAccess.map((m: { module_key: string }) => m.module_key) : [];
-  const canRegister = modules.includes("sales_leads") && modules.includes("participants") && modules.includes("schedules");
+  // Registration writes to all three modules, so it is offered only with edit on each (matches requireRegistrationAccess).
+  const editModules = Array.isArray(moduleAccess)
+    ? moduleAccess.filter((m: { access_level?: string }) => m.access_level === "edit" || m.access_level === "admin").map((m: { module_key: string }) => m.module_key)
+    : [];
+  const canRegister = editModules.includes("sales_leads") && editModules.includes("participants") && editModules.includes("schedules");
   const registrationEligibility = checkLeadRegistrationEligibility({ status: row.status, is_test: row.is_test });
 
   return (
@@ -172,6 +177,7 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
             {sp.attributionError && <div className="ta-alert ta-alert-error" role="alert">{sp.attributionError}</div>}
             {sp.attributionSaved && <div className="ta-alert ta-alert-success" role="status">Marketing attribution saved.</div>}
             <form action={setLeadAttribution.bind(null, id)} className="ta-form-pad">
+              <fieldset disabled={!canEdit} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
               <div className="ta-field-row">
                 <label className="ta-field">Source<select name="source" defaultValue={attribution?.source ?? ""}><option value="">Manual / No attribution</option>{LEAD_ATTRIBUTION_SOURCES.map((source) => <option key={source} value={source}>{LEAD_ATTRIBUTION_SOURCE_LABELS[source]}</option>)}</select></label>
                 <label className="ta-field">Campaign<select name="campaign_id" defaultValue={attribution?.campaign_id ?? ""}><option value="">No campaign</option>{campaignOptions.map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}</select></label>
@@ -183,7 +189,8 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
                 {(["utm_content", "utm_term"] as const).map((field) => <label key={field} className="ta-field">{field.replace("utm_", "UTM ")}<input name={field} defaultValue={attribution?.[field] ?? ""} maxLength={160} /></label>)}
               </div>
               <label className="ta-field">Notes<textarea name="notes" rows={2} defaultValue={attribution?.notes ?? ""} /></label>
-              <div><button type="submit" className="ta-btn ta-btn-outline ta-btn-sm">Save attribution</button>{attribution?.marketing_campaigns?.name && <span className="ta-muted-sub" style={{ marginLeft: 10 }}>Currently linked to {attribution.marketing_campaigns.name}</span>}</div>
+              <div>{canEdit && <button type="submit" className="ta-btn ta-btn-outline ta-btn-sm">Save attribution</button>}{attribution?.marketing_campaigns?.name && <span className="ta-muted-sub" style={{ marginLeft: canEdit ? 10 : 0 }}>Currently linked to {attribution.marketing_campaigns.name}</span>}</div>
+              </fieldset>
             </form>
           </Card>
 
@@ -216,6 +223,7 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
               priority={row.priority}
               staff={staff}
               canManage={canManage}
+              canEdit={canEdit}
               existingOpportunity={existingOpportunity ?? null}
               defaultOpportunityTitle={row.subject ?? undefined}
               isSuperAdmin={superAdmin}

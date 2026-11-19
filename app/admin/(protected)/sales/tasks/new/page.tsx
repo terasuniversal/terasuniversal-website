@@ -21,7 +21,7 @@ export default async function NewTaskPage({
   searchParams: Promise<{ leadId?: string; opportunityId?: string; quotationId?: string }>;
 }) {
   await requireRole("editor");
-  await requireModuleAccess("sales_tasks");
+  await requireModuleAccess("sales_tasks", "edit");
   const sp = await searchParams;
   const staff = await loadStaffOptions();
 

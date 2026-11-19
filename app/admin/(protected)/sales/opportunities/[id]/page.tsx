@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
-import { requireRole, requireModuleAccess } from "../../../../../../lib/auth/session";
+import { requireRole, requireModuleAccess, hasModuleAccess } from "../../../../../../lib/auth/session";
 import { isAdmin } from "../../../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, EmptyState, ReadErrorState } from "../../../../../../components/admin/ui";
 import { LeadActivityTimeline } from "../../leads/[id]/LeadActivityTimeline";
@@ -42,7 +42,16 @@ function Detail({ label, value }: { label: string; value: any }) {
 export default async function OpportunityDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const profile = await requireRole("editor");
   await requireModuleAccess("sales_opportunities");
-  const canManage = isAdmin(profile.role);
+  // Each control is gated by the module its action writes to, not by the page's own module.
+  const [canEdit, canEditQuotations, canEditTasks, canEditSchedules, canEditCompanies] = await Promise.all([
+    hasModuleAccess("sales_opportunities", "edit"),
+    hasModuleAccess("sales_quotations", "edit"),
+    hasModuleAccess("sales_tasks", "edit"),
+    hasModuleAccess("schedules", "edit"),
+    hasModuleAccess("companies", "edit"),
+  ]);
+  const admin = isAdmin(profile.role);
+  const canManage = admin && canEdit;
   const { id } = await params;
   const supabase = await createSupabaseServerClient();
 
@@ -136,7 +145,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
 
     handoffPanel = (
       <TrainingHandoffPanel
-        canManage={canManage}
+        canManage={admin && canEditSchedules}
         quotationNo={acceptedQuotation?.quotation_no ?? null}
         programme={opp.programme}
         expectedParticipants={participants}
@@ -196,6 +205,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
         <ClientOnboardingPanel
           opportunityId={opp.id}
           canManage={canManage}
+          canCreateCompany={admin && canEditCompanies}
           linkedCompany={null}
           suggested={candidateList.length === 1 ? candidateList[0] : null}
           ambiguousCount={candidateList.length}
@@ -211,6 +221,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
         <ClientOnboardingPanel
           opportunityId={opp.id}
           canManage={canManage}
+          canCreateCompany={admin && canEditCompanies}
           linkedCompany={linkedCompanyRow ?? null}
           suggested={null}
           ambiguousCount={0}
@@ -224,7 +235,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
       <PageHead
         title={opp.title}
         subtitle={`${opp.opportunity_no} — ${opp.company_name ?? "No company on file"}`}
-        action={!quotationsResult.error && canManage && opp.stage !== "won" && opp.stage !== "lost"
+        action={!quotationsResult.error && admin && canEditQuotations && opp.stage !== "won" && opp.stage !== "lost"
           ? <Link href={`/admin/sales/quotations/new?opportunityId=${opp.id}`} className="ta-btn ta-btn-primary ta-btn-sm">+ Create Quotation</Link>
           : <Link href={`/admin/sales/leads/${opp.lead_metadata_id}`} className="ta-btn ta-btn-outline">View Source Lead</Link>}
         secondaryAction={<Link href="/admin/sales/opportunities" className="ta-btn ta-btn-outline">← Back to Opportunities</Link>}
@@ -306,6 +317,8 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
             probability={opp.probability}
             staff={staff}
             canManage={canManage}
+            canEdit={canEdit}
+            canAddTask={canEditTasks}
           />
         </div>
       </div>

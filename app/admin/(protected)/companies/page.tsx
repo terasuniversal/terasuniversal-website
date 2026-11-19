@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { requireRole, requireModuleAccess } from "../../../../lib/auth/session";
+import { requireRole, requireModuleAccess, hasModuleAccess } from "../../../../lib/auth/session";
 import { isAdmin } from "../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, EmptyState, Pagination } from "../../../../components/admin/ui";
 
@@ -16,7 +16,8 @@ export default async function CompaniesPage({
 }) {
   const profile = await requireRole("editor");
   await requireModuleAccess("companies");
-  const canWrite = isAdmin(profile.role);
+  // Writes need the Admin role and this module's edit access; View keeps the page read-only.
+  const canWrite = isAdmin(profile.role) && (await hasModuleAccess("companies", "edit"));
   const sp = await searchParams;
   const page = Math.max(1, Number(sp.page ?? 1));
   const deletedView = sp.deleted === "1";

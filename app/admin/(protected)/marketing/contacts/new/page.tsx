@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export default async function NewContactPage() {
   await requireRole("editor");
-  await requireModuleAccess("marketing_contacts");
+  await requireModuleAccess("marketing_contacts", "edit");
   const [staff, campaigns] = await Promise.all([loadStaffOptions(), loadCampaignOptions()]);
 
   return (

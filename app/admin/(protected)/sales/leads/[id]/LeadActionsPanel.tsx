@@ -19,6 +19,7 @@ export function LeadActionsPanel({
   priority,
   staff,
   canManage,
+  canEdit,
   existingOpportunity,
   defaultOpportunityTitle,
   isSuperAdmin,
@@ -35,6 +36,8 @@ export function LeadActionsPanel({
   priority: SalesCrmPriority;
   staff: { id: string; full_name: string }[];
   canManage: boolean;
+  /** Leads edit access; without it the panel is read-only. */
+  canEdit: boolean;
   existingOpportunity: { id: string; opportunity_no: string } | null;
   defaultOpportunityTitle?: string;
   isSuperAdmin?: boolean;
@@ -216,6 +219,7 @@ export function LeadActionsPanel({
         </Card>
       )}
 
+      {canEdit && (
       <Card title="Add Note">
         <form action={noteAction} className="ta-card-pad ta-stack">
           {noteState.message && <div className="ta-alert ta-alert-error">{noteState.message}</div>}
@@ -227,6 +231,7 @@ export function LeadActionsPanel({
           </button>
         </form>
       </Card>
+      )}
 
       {isSuperAdmin && (
         <Card title="Test/Demo Classification">
@@ -247,7 +252,9 @@ export function LeadActionsPanel({
       {!canManage && (
         <Card title="Manage Lead">
           <div className="ta-card-pad" style={{ color: "var(--ta-muted)", fontSize: 13 }}>
-            Status, assignment and follow-up changes require Admin access. You can still add notes above.
+            {canEdit
+              ? "Status, assignment and follow-up changes require Admin access. You can still add notes above."
+              : "You have view-only access to Leads. Changes require Edit access."}
           </div>
         </Card>
       )}

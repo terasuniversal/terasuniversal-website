@@ -14,12 +14,15 @@ export function QuotationActionsPanel({
   quotationId,
   status,
   canManage,
+  canCreateInvoice,
   existingInvoiceId,
   isExpired,
 }: {
   quotationId: string;
   status: SalesQuotationStatus;
   canManage: boolean;
+  /** Admin with Invoices edit access; the invoice is written to that module. */
+  canCreateInvoice: boolean;
   existingInvoiceId: string | null;
   isExpired: boolean;
 }) {
@@ -32,7 +35,7 @@ export function QuotationActionsPanel({
   if (!canManage) {
     return (
       <Card title="Manage Quotation">
-        <div className="ta-card-pad" style={{ color: "var(--ta-muted)", fontSize: 13 }}>Status changes require Admin access.</div>
+        <div className="ta-card-pad" style={{ color: "var(--ta-muted)", fontSize: 13 }}>Status changes require Admin access with edit permission for this module.</div>
       </Card>
     );
   }
@@ -117,7 +120,7 @@ export function QuotationActionsPanel({
               <p style={{ margin: 0, fontSize: 13, color: "var(--ta-muted)" }}>An invoice already exists for this quotation.</p>
               <Link href={`/admin/invoices/${existingInvoiceId}`} className="ta-btn ta-btn-outline ta-btn-sm">View Invoice</Link>
             </div>
-          ) : canManage ? (
+          ) : canCreateInvoice ? (
             <form action={invoiceAction} className="ta-card-pad" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {invoiceState.message && <div className="ta-alert ta-alert-error">{invoiceState.message}</div>}
               <p style={{ margin: 0, fontSize: 13, color: "var(--ta-muted)" }}>
@@ -128,7 +131,7 @@ export function QuotationActionsPanel({
               </button>
             </form>
           ) : (
-            <div className="ta-card-pad" style={{ color: "var(--ta-muted)", fontSize: 13 }}>No invoice has been created yet — creating one requires Admin access.</div>
+            <div className="ta-card-pad" style={{ color: "var(--ta-muted)", fontSize: 13 }}>No invoice has been created yet — creating one requires Admin access with Invoices edit permission.</div>
           )}
         </Card>
       )}

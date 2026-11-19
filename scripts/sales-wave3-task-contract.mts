@@ -94,7 +94,7 @@ assert.equal(clampPage(queueAfterLastVisibleCompletion.page, pageCountFor(100)),
 assert.match(taskActions, /taskStatusTransition/, "Task status actions must use the existing transition helper");
 assert.match(taskActions, /taskActionReturnHref/, "Task status actions must build safe internal return paths");
 assert.match(taskActions, /requireRole\("editor"\)/, "Task actions retain the editor role gate");
-assert.match(taskActions, /requireModuleAccess\("sales_tasks"\)/, "Task actions retain the sales_tasks module gate");
+assert.match(taskActions, /requireModuleAccess\("sales_tasks", "edit"\)/, "Task actions require sales_tasks edit access");
 assert.match(taskActions, /You do not have permission to change this task/, "status action retains owner/creator/Admin authorization");
 assert.match(taskActions, /task_completed/, "Completion retains the existing activity event");
 assert.match(taskActions, /activity-warning/, "activity-write failures are surfaced after the status update");

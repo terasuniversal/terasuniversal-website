@@ -79,7 +79,7 @@ export async function createInvoiceFromQuotationAction(
   _formData: FormData
 ): Promise<InvoiceActionState> {
   await requireRole("admin");
-  await requireModuleAccess("invoices");
+  await requireModuleAccess("invoices", "edit");
   const supabase = await createSupabaseServerClient();
 
   const { data: quotation } = await supabase.from("sales_quotations").select("opportunity_id").eq("id", quotationId).maybeSingle();
@@ -103,7 +103,7 @@ export async function updateInvoiceDraft(
   formData: FormData
 ): Promise<InvoiceActionState> {
   await requireRole("admin");
-  await requireModuleAccess("invoices");
+  await requireModuleAccess("invoices", "edit");
   const parsed = invoiceDraftEditSchema.safeParse({
     invoice_date: formData.get("invoice_date") ?? "",
     due_date: formData.get("due_date") ?? "",
@@ -149,7 +149,7 @@ export async function updateInvoiceDraft(
 /** Task section 9: freezes the invoice — see issue_invoice() for the full validation this delegates to. */
 export async function issueInvoiceAction(invoiceId: string, _prev: InvoiceActionState, _formData: FormData): Promise<InvoiceActionState> {
   await requireRole("admin");
-  await requireModuleAccess("invoices");
+  await requireModuleAccess("invoices", "edit");
   const supabase = await createSupabaseServerClient();
 
   const { data: existing } = await supabase.from("invoices").select("opportunity_id, quotation_id").eq("id", invoiceId).maybeSingle();
@@ -186,7 +186,7 @@ export async function recordManualPaymentAction(
   formData: FormData
 ): Promise<InvoiceActionState> {
   await requireRole("admin");
-  await requireModuleAccess("invoices");
+  await requireModuleAccess("invoices", "edit");
   const parsed = recordManualPaymentSchema.safeParse({
     payment_provider: formData.get("payment_provider"),
     payment_method: formData.get("payment_method") ?? "",
@@ -263,7 +263,7 @@ export async function recordManualPaymentAction(
 
 export async function generateReceiptAction(formData: FormData): Promise<never> {
   await requireRole("admin");
-  await requireModuleAccess("invoices");
+  await requireModuleAccess("invoices", "edit");
   const paymentId = String(formData.get("payment_id") ?? "").trim();
   if (!/^[0-9a-f-]{36}$/i.test(paymentId)) redirect("/admin/no-access");
 
@@ -279,7 +279,7 @@ export async function generateReceiptAction(formData: FormData): Promise<never> 
 /** Task section 11: controlled cancellation — see cancel_invoice() for the exact draft/issued-only rule. */
 export async function cancelInvoiceAction(invoiceId: string, _prev: InvoiceActionState, formData: FormData): Promise<InvoiceActionState> {
   await requireRole("admin");
-  await requireModuleAccess("invoices");
+  await requireModuleAccess("invoices", "edit");
   const parsed = cancelInvoiceSchema.safeParse({ reason: formData.get("reason") ?? "" });
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 

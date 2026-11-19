@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { requireModuleAccess, requireRole } from "../../../../../lib/auth/session";
+import { requireModuleAccess, requireRole, hasModuleAccess } from "../../../../../lib/auth/session";
 import { isAdmin, canManageCertificate } from "../../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, EmptyState } from "../../../../../components/admin/ui";
 import { AssignParticipants } from "../AssignParticipants";
@@ -23,7 +23,14 @@ export default async function ScheduleDetailsPage({
 }) {
   await requireModuleAccess("schedules");
   const profile = await requireRole("editor");
-  const canWrite = isAdmin(profile.role);
+  // Writes need the Admin role and this module's edit access; View keeps the page read-only.
+  const [canEditSchedules, canAdminSchedules] = await Promise.all([
+    hasModuleAccess("schedules", "edit"),
+    hasModuleAccess("schedules", "admin"),
+  ]);
+  const canWrite = isAdmin(profile.role) && canEditSchedules;
+  // setScheduleAssessor requires schedules admin-level access, so the assessor control does too.
+  const canAssignAssessor = isAdmin(profile.role) && canAdminSchedules;
   // Certificate Generation card: only shown when the viewer can actually
   // reach /admin/certificates/generate/[scheduleId] (that route itself gates
   // on requireCertificate(true) -> canManageCertificate, i.e. admin+) --
@@ -199,7 +206,7 @@ export default async function ScheduleDetailsPage({
         </div>
 
         <div style={{ display: "grid", gap: 18 }}>
-          {canWrite && (
+          {canAssignAssessor && (
             <Card title="Primary Assessor">
               <div className="ta-card-pad">
                 <AssessorAssignment scheduleId={id} assessors={assessorOptions} currentAssessorId={currentAssessorId} />

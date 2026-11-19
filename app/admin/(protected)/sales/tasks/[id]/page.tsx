@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
-import { requireRole, requireModuleAccess } from "../../../../../../lib/auth/session";
+import { requireRole, requireModuleAccess, hasModuleAccess } from "../../../../../../lib/auth/session";
 import { isAdmin } from "../../../../../../lib/auth/rbac";
 import { PageHead, Card, Badge } from "../../../../../../components/admin/ui";
 import { TaskForm } from "../TaskForm";
@@ -23,6 +23,7 @@ export default async function TaskDetailPage({
 }) {
   const profile = await requireRole("editor");
   await requireModuleAccess("sales_tasks");
+  const canEdit = await hasModuleAccess("sales_tasks", "edit");
   const { id } = await params;
   const sp = await searchParams;
   const returnContext = normalizeTaskQueueContext(sp);
@@ -34,7 +35,7 @@ export default async function TaskDetailPage({
   if (!task) notFound();
   const t = task as SalesTaskRow;
 
-  const canManage = isAdmin(profile.role) || t.assigned_to === profile.id || t.created_by === profile.id;
+  const canManage = canEdit && (isAdmin(profile.role) || t.assigned_to === profile.id || t.created_by === profile.id);
   const staff = await loadStaffOptions();
   const staffNames = new Map(staff.map((s) => [s.id, s.full_name]));
 

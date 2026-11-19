@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { requireRole, requireModuleAccess } from "../../../../../lib/auth/session";
+import { requireRole, requireModuleAccess, hasModuleAccess } from "../../../../../lib/auth/session";
 import { PageHead, Card, Badge, EmptyState, Pagination, ListToolbar, ReadErrorState } from "../../../../../components/admin/ui";
 import { mytEndOfTodayUtc, type SalesLeadInboxRow } from "../../../../../lib/sales/crm";
 import { clampPage, normalizePage, pageCountFor, pageRange, SALES_QUEUE_PAGE_SIZE } from "../../../../../lib/sales/pagination";
@@ -96,8 +96,9 @@ export default async function FollowUpsPage({
 
   // Scheduling writes sales_lead_metadata, which only Admins may update (RLS
   // and setLeadFollowUp's requireRole("admin")), so other roles get the date
-  // read-only instead of a form that would bounce them to No Access.
-  const canSchedule = isAdmin(profile.role);
+  // read-only instead of a form that would bounce them to No Access. The save
+  // also requires Leads edit access (setLeadFollowUp), so View-only Admins get read-only too.
+  const canSchedule = isAdmin(profile.role) && (await hasModuleAccess("sales_leads", "edit"));
   const followUpControl = (l: SalesLeadInboxRow) =>
     canSchedule ? (
       <FollowUpInlineForm leadMetadataId={l.lead_metadata_id} followUpAt={l.follow_up_at} returnTo={returnTo} />

@@ -44,13 +44,14 @@ function mapRegError(error: { code?: string; message: string }): string {
 }
 
 /** Server-side guard shared by both registration actions — editor+ with
- *  sales_leads + participants + schedules module access (mirrors the RPC's
- *  own DB-enforced authorization). */
+ *  sales_leads + participants + schedules EDIT access, because registration
+ *  writes to all three. The RPC's own check only requires module access at
+ *  any level, so a direct RPC call is still governed by that weaker floor. */
 export async function requireRegistrationAccess() {
   const profile = await requireRole("editor");
-  await requireModuleAccess("sales_leads");
-  await requireModuleAccess("participants");
-  await requireModuleAccess("schedules");
+  await requireModuleAccess("sales_leads", "edit");
+  await requireModuleAccess("participants", "edit");
+  await requireModuleAccess("schedules", "edit");
   return profile;
 }
 

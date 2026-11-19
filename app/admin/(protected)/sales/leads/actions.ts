@@ -30,7 +30,7 @@ export async function createLead(
   formData: FormData,
 ): Promise<SalesActionState> {
   await requireRole("editor");
-  await requireModuleAccess("sales_leads");
+  await requireModuleAccess("sales_leads", "edit");
 
   const parsed = salesLeadCreateSchema.safeParse({
     contact_name: formData.get("contact_name"),
@@ -72,7 +72,7 @@ export async function createLead(
 
 export async function setLeadAttribution(leadMetadataId: string, formData: FormData): Promise<void> {
   const profile = await requireRole("editor");
-  await requireModuleAccess("sales_leads");
+  await requireModuleAccess("sales_leads", "edit");
   const parsed = leadAttributionSchema.safeParse({ source: formData.get("source"), campaign_id: formData.get("campaign_id") ?? "", utm_source: formData.get("utm_source") ?? "", utm_medium: formData.get("utm_medium") ?? "", utm_campaign: formData.get("utm_campaign") ?? "", utm_content: formData.get("utm_content") ?? "", utm_term: formData.get("utm_term") ?? "", notes: formData.get("notes") ?? "" });
   if (!parsed.success) redirect(`/admin/sales/leads/${leadMetadataId}?attributionError=${encodeURIComponent("Please enter valid attribution details.")}`);
   const supabase = await createSupabaseServerClient();
@@ -107,7 +107,7 @@ export async function updateLeadStatus(
   formData: FormData
 ): Promise<SalesActionState> {
   const profile = await requireRole("admin");
-  await requireModuleAccess("sales_leads");
+  await requireModuleAccess("sales_leads", "edit");
   const parsed = salesLeadStatusSchema.safeParse({
     status: formData.get("status"),
     lost_reason: formData.get("lost_reason") ?? "",
@@ -154,7 +154,7 @@ export async function assignLead(
   formData: FormData
 ): Promise<SalesActionState> {
   const profile = await requireRole("admin");
-  await requireModuleAccess("sales_leads");
+  await requireModuleAccess("sales_leads", "edit");
   const parsed = salesLeadAssignSchema.safeParse({ assigned_to: formData.get("assigned_to") ?? "" });
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
   const assignedTo = parsed.data.assigned_to || null;
@@ -184,7 +184,7 @@ export async function setLeadFollowUp(
   formData: FormData
 ): Promise<SalesActionState> {
   const profile = await requireRole("admin");
-  await requireModuleAccess("sales_leads");
+  await requireModuleAccess("sales_leads", "edit");
   const parsed = salesLeadFollowUpSchema.safeParse({
     follow_up_at: formData.get("follow_up_at") ?? "",
     priority: formData.get("priority") || undefined,
@@ -232,7 +232,7 @@ export async function updateLeadQualification(
   formData: FormData
 ): Promise<SalesActionState> {
   const profile = await requireRole("admin");
-  await requireModuleAccess("sales_leads");
+  await requireModuleAccess("sales_leads", "edit");
   const parsed = salesLeadQualificationSchema.safeParse({
     qualification_status: formData.get("qualification_status"),
     reason: formData.get("reason") ?? "",
@@ -272,7 +272,7 @@ export async function updateLeadTemperature(
   formData: FormData
 ): Promise<SalesActionState> {
   const profile = await requireRole("admin");
-  await requireModuleAccess("sales_leads");
+  await requireModuleAccess("sales_leads", "edit");
   const parsed = salesLeadTemperatureSchema.safeParse({ temperature: formData.get("temperature") ?? "" });
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
   const nextTemperature = parsed.data.temperature || null;
@@ -298,7 +298,7 @@ export async function addLeadNote(
   formData: FormData
 ): Promise<SalesActionState> {
   const profile = await requireRole("editor");
-  await requireModuleAccess("sales_leads");
+  await requireModuleAccess("sales_leads", "edit");
   const parsed = salesLeadNoteSchema.safeParse({ note: formData.get("note") });
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
@@ -326,7 +326,7 @@ export async function convertLeadToOpportunity(
   formData: FormData
 ): Promise<SalesActionState> {
   await requireRole("admin");
-  await requireModuleAccess("sales_leads");
+  await requireModuleAccess("sales_leads", "edit");
   const parsed = convertLeadToOpportunitySchema.safeParse({
     title: formData.get("title"),
     expected_close_date: formData.get("expected_close_date") ?? "",
@@ -363,7 +363,7 @@ export async function convertLeadToOpportunity(
  */
 export async function markLeadTest(leadMetadataId: string, isTest: boolean): Promise<SalesActionState> {
   const profile = await requireRole("admin");
-  await requireModuleAccess("sales_leads");
+  await requireModuleAccess("sales_leads", "edit");
   if (!isSuperAdmin(profile.role)) return { message: "Only Super Admin can change test/demo classification." };
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.rpc("mark_lead_test", { p_lead_metadata_id: leadMetadataId, p_is_test: isTest });
