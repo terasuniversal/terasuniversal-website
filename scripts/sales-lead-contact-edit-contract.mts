@@ -26,11 +26,11 @@ const before = (haystack: string, a: string, b: string) => {
 
 // ---- Migrations -------------------------------------------------------------
 const files = {
-  table: "supabase/migrations/20261108100000_sales_lead_contact_overrides.sql",
-  type: "supabase/migrations/20261108100100_sales_activity_contact_details_updated_type.sql",
-  rpc: "supabase/migrations/20261108100200_update_sales_lead_contact_rpc.sql",
-  view: "supabase/migrations/20261108100300_v_sales_lead_inbox_apply_contact_overrides.sql",
-  fix: "supabase/migrations/20261108100400_fix_sales_lead_contact_array_append.sql",
+  table: "supabase/migrations/20261119032250_sales_lead_contact_overrides.sql",
+  type: "supabase/migrations/20261119032304_sales_activity_contact_details_updated_type.sql",
+  rpc: "supabase/migrations/20261119032329_update_sales_lead_contact_rpc.sql",
+  view: "supabase/migrations/20261119032351_v_sales_lead_inbox_apply_contact_overrides.sql",
+  fix: "supabase/migrations/20261119032421_fix_sales_lead_contact_array_append.sql",
 };
 const table = noComments(read(files.table));
 const typeSql = noComments(read(files.type));
