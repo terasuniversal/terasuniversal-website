@@ -4,12 +4,11 @@ import styles from "./home.module.css";
 
 export default function Recognition() {
   const rows = accreditationRows();
-  const currentCount = rows.filter((row) => row.current).length;
   return (
     <section id="recognition" className={styles.recog} aria-labelledby="recognition-title">
       <div className={styles.axis}>
         <h2 id="recognition-title" className={styles.h2}>Approved and registered</h2>
-        <p className={styles.introLight}>Established {companyProfile.established}. Approved and registered with {currentCount} bodies.</p>
+        <p className={styles.introLight}>Established {companyProfile.established}. Company registrations and recognitions, with their current status.</p>
       </div>
       <table className={styles.table} role="table">
         <thead role="rowgroup">

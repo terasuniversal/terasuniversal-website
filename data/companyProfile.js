@@ -55,8 +55,8 @@ export const accreditations = [
     },
   },
   { org: "HRD Corp", label: "Registered Training Provider", text: "Registered with HRD Corp and approved to deliver training programmes under the Human Resources Development Fund (SBL / HRD Corp Claimable) for eligible courses." },
-  { org: "CIDB Malaysia", label: "Registered Training Provider", text: "Registered with the Construction Industry Development Board Malaysia (CIDB) as an approved training provider to deliver construction industry-related training programmes." },
-  { org: "MOF", label: "Registered Supplier", text: "Registered with the Ministry of Finance Malaysia (MOF) as an approved supplier for training, courses and development programmes for government agencies and departments." },
+  // R2 S2-0 (owner decision, 19 Nov 2026): the CIDB and MOF entries are suspended until valid official certificates
+  // are verified; the documents on file are a CIDB contractor registration and an MOF Bumiputera status certificate.
   { org: "SSM", label: "Company Registration", text: "Incorporated under the Companies Commission of Malaysia (SSM) as TERAS UNIVERSAL Sdn. Bhd. since 2012." },
 ];
 
@@ -65,7 +65,6 @@ export const leadership = [
   {
     name: "Mohd Latifi Amir Bin Abu Bakar",
     role: "Director",
-    credential: "DOSH Registration No. JKKP: KD/17/PP/03/2",
     bio: "Began his career in the scaffolding industry in 1991, working across maintenance, construction, petrochemical and offshore projects throughout Malaysia. Progressed from Scaffolder and Scaffolding Foreman to instructor at Akademi Binaan Malaysia (ABM) Wilayah Utara (2001–2006), and served as a guest trainer and assessor for government and private training institutions. Founded TERAS UNIVERSAL in 2012 to provide quality industrial safety training, competency development and consultancy services.",
   },
   {
@@ -113,8 +112,6 @@ export const confirmedFacts = [
   "Established 2012",
   "JKKP (DOSH) Recognised Training Centre (Tube Scaffolding)",
   "HRD Corp Registered Training Provider",
-  "CIDB Malaysia Registered Training Provider",
-  "MOF Registered Supplier",
   "SSM Registered Company (since 2012)",
 ];
 
@@ -124,6 +121,8 @@ export const confirmedFacts = [
 export const pendingClaims = [
   "25+ professionals",
   "G3 CIDB licence or registration",
+  "CIDB training-provider registration (suspended 19 Nov 2026 pending a valid official certificate)",
+  "MOF supplier registration (suspended 19 Nov 2026 pending a valid official certificate)",
   "70% practical / 30% theory methodology",
   "4 assessors",
   "10,000+ workers trained",
