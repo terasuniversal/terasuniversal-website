@@ -232,6 +232,16 @@ for (const [page, patterns] of UI_GATES) {
     for (const pattern of patterns) assert.match(source, pattern);
   });
 }
+check("lead detail offers Add task only with Tasks edit", () => {
+  const source = read(P + "sales/leads/[id]/page.tsx");
+  assert.match(source, /const canAddTask = await hasModuleAccess\("sales_tasks", "edit"\);/);
+  const links = [...source.matchAll(/tasks\/new\?leadId=/g)];
+  assert.ok(links.length > 0, "the Add task link is still present for Tasks editors");
+  for (const link of links) {
+    const before = source.slice(Math.max(0, link.index - 80), link.index);
+    assert.match(before, /\{canAddTask && <Link href=\{`\/admin\/sales\/$/, "every tasks/new?leadId link must be gated by canAddTask");
+  }
+});
 check("multi-line create links on marketing lists are wrapped in canEdit", () => {
   for (const page of ["marketing/contacts/page.tsx", "marketing/campaigns/page.tsx"]) {
     const source = read(P + page);

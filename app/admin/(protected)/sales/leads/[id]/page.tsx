@@ -76,6 +76,8 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
   await requireModuleAccess("sales_leads");
   // View access shows the lead read-only; every change on this page needs Leads edit.
   const canEdit = await hasModuleAccess("sales_leads", "edit");
+  // Adding a task opens /admin/sales/tasks/new, which requires Tasks edit; hide the link otherwise.
+  const canAddTask = await hasModuleAccess("sales_tasks", "edit");
   const canManage = isAdmin(profile.role) && canEdit;
   const superAdmin = isSuperAdmin(profile.role);
   const { id } = await params;
@@ -269,7 +271,7 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
               ) : (
                 <>
                   <span className="ta-muted-sub">No active next action.</span>
-                  <Link href={`/admin/sales/tasks/new?leadId=${id}`} className="ta-btn ta-btn-outline ta-btn-sm">Add task</Link>
+                  {canAddTask && <Link href={`/admin/sales/tasks/new?leadId=${id}`} className="ta-btn ta-btn-outline ta-btn-sm">Add task</Link>}
                 </>
               )}
             </div>
