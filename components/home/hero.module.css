@@ -1,58 +1,93 @@
-/* Hybrid Premium V2 (R3) homepage hero. Uses the public --px-* tokens from components/premium/premium.module.css (.px).
-   Desktop: full-bleed photograph with the text over a navy shade. Tablet and phone: the photograph first, then the text
-   on navy, so no text sits over the picture. */
+/* Hybrid Premium V2, Release 2 (S1) homepage hero, V3-R-2 illustration. Uses the public --px-* tokens from
+   components/premium/premium.module.css (.px); no colour is defined here outside those tokens and their derived shades.
+   Desktop (> 1180px): the whole 16:9 illustration sits on the right, the copy on navy on the left, and no text or button
+   ever sits over the two workers. Tablet (701–1180px): copy left, right-hand crop of the illustration right. Phone
+   (<= 700px): the 5:4 crop first, then the copy, so the primary action stays early in the first screen. */
 /* padding: 0 overrides the global "section { padding: 86px 0 }" (64px on phones), which left a white band above the photo. */
-.hero { position: relative; display: flex; align-items: flex-end; min-height: clamp(600px, calc(100svh - 120px), 820px); padding: 0; background: var(--px-navy); color: var(--px-white); }
-.media { position: absolute; inset: 0; margin: 0; overflow: hidden; }
+.hero {
+  /* Copy column reserved on the left. The illustration's first worker starts at 44.6% of its width, so the image is never
+     wider than (space right of the copy) / (1 - 0.446); 40px keeps a gap and absorbs the scrollbar inside 100vw. */
+  --hero-copy: 520px;
+  --hero-media-w: min(1230px, calc((100vw - max(0px, (100vw - var(--px-max)) / 2) - var(--px-m) - var(--hero-copy) - 40px) / 0.554));
+  position: relative; display: flex; align-items: center;
+  min-height: max(clamp(600px, calc(100svh - 120px), 820px), calc(var(--hero-media-w) / 1.7768));
+  padding: 0; background: var(--px-navy); color: var(--px-white); overflow: hidden;
+}
+/* Box with the illustration's own ratio, vertically centred and anchored right, so the picture is shown whole (no crop). */
+.media { position: absolute; top: 50%; right: 0; width: var(--hero-media-w); aspect-ratio: 1672 / 941; margin: 0; transform: translateY(-50%); overflow: hidden; }
 /* <picture> + <img> from getImageProps (no "fill"), so the box is sized here; .media sets the size at every width. */
 .media picture { display: block; width: 100%; height: 100%; }
-/* Desktop focal point (S2E-R2 spec): the group stands right of centre and the faces sit at 17–32% of the image height, so
-   62% keeps the group on narrow-tall screens (1024x768) and 32% keeps hard hats and faces on wide-short ones (1920x820). */
-.img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: 62% 32%; }
-.note { position: absolute; right: 12px; bottom: 12px; z-index: 3; padding: 4px 8px; background: rgba(7, 42, 72, 0.82); color: var(--px-white); font-size: 0.75rem; line-height: 1.3; }
-/* Left-weighted shade (S2E-R2, measured on the real composite): darkest under the copy column, still dark under the end of
-   the headline (~72% width) and lighter over the faces on the right; the vertical layer carries the CTAs. With the R1-3
-   image the gold tagline measures 6.4:1 (was 4.1–4.2:1), the headline at least 3.6:1 at its brightest pixel. */
-.shade {
-  position: absolute; inset: 0;
+.img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: 50% 50%; }
+/* Navy fade over the empty refinery and sky on the picture's left edge, and a short fade at its top and bottom edges, so
+   it melts into the navy section; it stops before the first worker (44.6%). */
+.media::after {
+  content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none;
   background:
-    linear-gradient(90deg, rgba(6, 24, 42, 0.80) 0%, rgba(6, 24, 42, 0.68) 45%, rgba(6, 24, 42, 0.48) 72%, rgba(6, 24, 42, 0.14) 100%),
-    linear-gradient(180deg, rgba(6, 24, 42, 0.20) 0%, rgba(6, 24, 42, 0.35) 50%, rgba(6, 24, 42, 0.82) 100%);
+    linear-gradient(90deg, var(--px-navy) 0%, var(--px-navy) 18%, rgba(11, 58, 99, 0.94) 30%, rgba(11, 58, 99, 0.75) 38%, rgba(11, 58, 99, 0) 44.6%),
+    linear-gradient(0deg, var(--px-navy) 0%, rgba(11, 58, 99, 0) 12%),
+    linear-gradient(180deg, rgba(11, 58, 99, 0.6) 0%, rgba(11, 58, 99, 0) 4%);
 }
+.note { position: absolute; right: 12px; bottom: 12px; z-index: 3; max-width: calc(100% - 24px); padding: 4px 8px; background: rgba(7, 42, 72, 0.82); color: var(--px-white); font-size: 0.75rem; line-height: 1.3; }
 .copy { position: relative; z-index: 2; width: 100%; padding-block: 96px 72px; }
+.copy :is(.tag, .title, .lead, .acts) { max-width: var(--hero-copy); }
 .tag { color: var(--px-gold); font-family: var(--px-font-heading); font-size: 1rem; font-weight: 700; letter-spacing: 0; }
 /* Two classes for the headline and lead: they must outrank the kit's ".px :where(h1, p)" reset (one class) regardless of
-   stylesheet order. */
-.copy .title { margin-top: 18px; color: var(--px-white); font-size: clamp(2.75rem, 6.2vw, 5.75rem); line-height: 1; }
-/* globals.css colours every "h1 span" gold; the R3 headline is white on both lines. */
+   stylesheet order. The column width lets "Empowering Industry." wrap naturally; the words are unchanged. */
+.copy .title { margin-top: 18px; color: var(--px-white); font-size: clamp(2.75rem, 4.4vw, 4rem); line-height: 1.02; }
+/* globals.css colours every "h1 span" gold; the headline is white on every line. */
 .title span { display: block; color: inherit; }
-.copy .lead { margin-top: 26px; max-width: 46ch; color: #e6edf4; font-size: 1.25rem; line-height: 1.5; }
-.acts { margin-top: 36px; display: flex; flex-wrap: wrap; gap: 14px; }
+.copy .lead { margin-top: 24px; max-width: min(var(--hero-copy), 46ch); color: #e6edf4; font-size: 1.25rem; line-height: 1.5; }
+.acts { margin-top: 32px; display: flex; flex-wrap: wrap; gap: 14px; }
 .acts > a { min-height: 52px; padding: 0 28px; font-size: 1rem; }
 /* Two classes so this outranks the kit's .tl display rule: the sessions link is for tablets and phones only. */
 .copy .next { display: none; }
 
-@media (max-width: 960px) {
-  .hero { display: block; min-height: 0; }
-  .media { position: relative; inset: auto; aspect-ratio: 16 / 9; }
-  .img { object-position: 50% 45%; }
-  .shade { display: none; }
-  .copy { padding-block: 24px 40px; }
-  .copy .title { font-size: 3.5rem; }
+/* Narrow desktops: a slimmer copy column and stacked actions, so the image can stay large without reaching the copy. */
+@media (min-width: 1181px) and (max-width: 1499px) {
+  .hero { --hero-copy: 410px; }
+  .copy .title { font-size: 3.125rem; }
+  .copy .lead { font-size: 1.125rem; }
+  .acts { flex-direction: column; align-items: flex-start; }
+}
+
+/* Tablets: split layout, copy on the left half, the right-hand crop (tablet source) filling the right half. */
+@media (min-width: 701px) and (max-width: 1180px) {
+  .hero { --hero-copy: calc(48vw - 2 * var(--px-m)); min-height: 560px; }
+  .media { top: 0; bottom: 0; left: 48%; width: auto; aspect-ratio: auto; transform: none; }
+  .img { object-position: 45% 40%; }
+  .media::after { background: linear-gradient(90deg, var(--px-navy) 0%, rgba(11, 58, 99, 0) 18%); }
+  .copy { padding-block: 48px 56px; }
+  .copy .title { font-size: clamp(2.125rem, 4.4vw, 3rem); }
+  .copy .lead { font-size: 1.0625rem; }
+  .acts { flex-direction: column; align-items: stretch; }
+  .acts > a { justify-content: center; }
   /* inline-block (not the kit's inline-flex), so the arrow below is an atomic box and the link underline skips it */
   .copy .next { display: inline-block; min-height: 44px; margin-top: 8px; line-height: 44px; color: var(--px-white); font-size: 1rem; }
   .next::after { content: "\2192"; display: inline-block; margin-left: 8px; text-decoration: none; }
 }
 
-/* Phones. globals.css sizes "#main-content > main h1" by ID at this width; the hero matches that specificity so the
-   approved R3 phone heading (31–32px, two lines) is kept. */
-@media (max-width: 590px) {
-  .media { aspect-ratio: 16 / 10; }
-  /* the phone source is already cropped to 16:10 around the trainee and instructor */
-  .img { object-position: 50% 50%; }
-  .tag { font-size: 0.875rem; }
-  :global(#main-content) .title { margin-top: 10px; font-size: clamp(31px, 7.9vw, 56px); line-height: 1.02; letter-spacing: -0.04em; text-wrap: initial; }
+/* Phones: the 5:4 crop (phone source) first, then the copy on navy, so no text sits over the picture. */
+@media (max-width: 700px) {
+  .hero { --hero-copy: none; display: block; min-height: 0; }
+  /* 5:4 where the screen is tall enough; on short or wide phones the height is capped so the primary action stays in the
+     first screen (QA: 375x667, 700x900), and the crop keeps both helmets and faces (top of the picture). */
+  /* width: 100% (not auto) so the height cap crops the picture instead of narrowing the box through the aspect ratio. */
+  .media { position: relative; top: auto; right: auto; width: 100%; aspect-ratio: 5 / 4; max-height: max(220px, calc(100svh - 410px)); transform: none; }
+  .img { object-position: 50% 20%; }
+  .media::after { background: linear-gradient(0deg, var(--px-navy) 0%, rgba(11, 58, 99, 0) 20%); }
+  .note { right: auto; left: 12px; bottom: 8px; font-size: 0.6875rem; }
+  .copy { padding-block: 12px 40px; }
+  .copy .title { margin-top: 12px; font-size: 3.5rem; }
   .copy .lead { margin-top: 14px; font-size: 1.0625rem; }
   .acts { margin-top: 20px; gap: 10px; }
   .acts > a { flex: 1 1 100%; }
+  .copy .next { display: inline-block; min-height: 44px; margin-top: 8px; line-height: 44px; color: var(--px-white); font-size: 1rem; }
+  .next::after { content: "\2192"; display: inline-block; margin-left: 8px; text-decoration: none; }
+}
+
+/* Phones. globals.css sizes "#main-content > main h1" by ID at this width; the hero matches that specificity so the
+   approved phone heading size is kept. */
+@media (max-width: 590px) {
+  .tag { font-size: 0.875rem; }
+  :global(#main-content) .title { margin-top: 10px; font-size: clamp(31px, 7.9vw, 56px); line-height: 1.02; letter-spacing: -0.04em; text-wrap: initial; }
 }

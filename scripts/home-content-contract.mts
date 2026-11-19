@@ -54,8 +54,10 @@ check("content: public-session labels present", () => {
   assert.equal(homeContent.sessions.viewAll.label, "View All Public Sessions");
   assert.equal(homeContent.hero.sessionsLink.label, "See upcoming public sessions");
 });
-check("content: corporate training CTA present", () => {
-  assert.equal(homeContent.hero.secondaryCta.label, "Corporate Training");
+check("content: hero secondary CTA is the approved Request a Proposal action (R2 S1); corporate CTA unchanged", () => {
+  assert.equal(homeContent.hero.secondaryCta.label, "Request a Proposal");
+  assert.equal(homeContent.hero.secondaryCta.href, "/request-proposal");
+  assert.equal(homeContent.hero.lead, "Professional industrial training, competency development and consultancy solutions.");
   assert.ok(homeContent.corporate.cta.href.startsWith("/request-proposal"));
 });
 check("content: no session data, fees, dates or venues are hard-coded", () => {
