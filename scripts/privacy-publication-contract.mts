@@ -1,6 +1,6 @@
 /**
  * Public-First F-6 contract: the owner-approved Privacy Notice (v0.5 since W2 Phase 1) and its own fail-closed publication switch.
- *  - /privacy and /privacy/ms publish ONLY with a valid PRIVACY_EFFECTIVE_DATE (null in the release candidate) and
+ *  - /privacy and /privacy/ms publish ONLY with a valid PRIVACY_EFFECTIVE_DATE (2026-11-19 at launch, W2 Phase 2) and
  *    never through TERAS_LEGAL_DRAFTS; /terms keeps its original draft-only gate;
  *  - the content states only owner-approved, verified facts: general retention principle (no durations), qualified
  *    Google Sheets wording, Google Maps cookies, /verify logging, admin@ as privacy contact (no DPO claim), no
@@ -26,10 +26,11 @@ const check = (name: string, fn: () => void) => {
 type Doc = typeof privacyNoticeEn;
 const text = (doc: Doc) => JSON.stringify(doc.sections);
 
-check("release candidate: the notice is NOT published (no effective date set)", () => {
-  assert.equal(PRIVACY_EFFECTIVE_DATE, null);
-  assert.equal(privacyPublished, false);
-  assert.equal(privacyEffectiveDateText("en"), null);
+check("launch (W2 Phase 2): the notice is published with the owner-approved effective date", () => {
+  assert.equal(PRIVACY_EFFECTIVE_DATE, "2026-11-19");
+  assert.equal(privacyPublished, true);
+  assert.equal(privacyEffectiveDateText("en"), "19 November 2026");
+  assert.equal(privacyEffectiveDateText("ms"), "19 November 2026");
 });
 check("the switch fails closed: only a real ISO calendar date publishes", () => {
   for (const bad of [null, undefined, "", "2026-02-30", "2026-13-01", "18/11/2026", "2026-11-18T00:00:00Z", " 2026-11-18", "true", 20261118]) assert.equal(isPrivacyEffectiveDate(bad), false, String(bad));
