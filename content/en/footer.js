@@ -1,0 +1,73 @@
+// English copy for the Premium footer (Phase S4D-2D). Every link points at a route that exists today (checked by
+// scripts/premium-footer-contract.mts); /ebook is not published, and the one policy link (privacyLink) is rendered only
+// once the Privacy Notice is published (lib/privacy-publication.js), so it never points at a 404.
+// Display email comes from data/publicContact.js and the tel: number from its phone value; form delivery is separate.
+// A Bahasa Melayu module (content/ms/footer.js, same keys) can be added later without touching the component.
+// Explicit extension so plain Node contract scripts can load this module as well as the Next.js bundler.
+import { publicContact } from "../../data/publicContact.js";
+
+export const footerContent = {
+  homeLabel: "TERAS UNIVERSAL home",
+  logoAlt: "TERAS UNIVERSAL",
+  company: "TERAS UNIVERSAL SDN. BHD.",
+  // Same wording as data/companyProfile.js brand.tagline (official slogan).
+  slogan: "Building Competence. Creating Opportunities.",
+  actions: {
+    whatsapp: { label: "WhatsApp Our Team", href: "https://wa.me/60195193834", newTab: "(opens in a new tab)" },
+    email: { label: "Send an Email" },
+  },
+  groups: [
+    {
+      id: "footer-training",
+      title: "Training",
+      links: [
+        ["Training Catalogue", "/training"],
+        ["Training Calendar", "/calendar"],
+        ["Scaffolding Training", "/training/scaffolding-competency"],
+        ["Verify Certificate", "/verify"],
+      ],
+    },
+    {
+      id: "footer-services",
+      title: "Services",
+      links: [
+        ["Industrial Safety", "/services#safety"],
+        ["Technical Competency", "/services#technical"],
+        ["Industrial Consultancy", "/services#consultancy"],
+        ["Workforce Development", "/services#workforce"],
+        ["Corporate Training", "/corporate-training"],
+      ],
+    },
+    {
+      id: "footer-company",
+      title: "Company",
+      links: [
+        ["About TERAS", "/about"],
+        ["Industries", "/industries"],
+        ["News & Articles", "/insights"],
+        ["Resources", "/resources"],
+        ["FAQ", "/faq"],
+        ["Request a Proposal", "/request-proposal"],
+        ["Contact", "/contact"],
+      ],
+    },
+  ],
+  contact: {
+    id: "footer-contact",
+    title: "Contact",
+    emailLabel: "Email",
+    phoneLabel: "Phone",
+    // Owner-confirmed display format; the tel: link uses the international number from data/publicContact.js.
+    phoneDisplay: "019-519 3834",
+    websiteLabel: "Website",
+    website: "www.terasuniversal.com.my",
+    // W2-A: the shared public operating address (data/publicContact.js), the same lines as components/Footer.js.
+    address: publicContact.businessAddress.lines,
+  },
+  // Same wording as the existing site footer; the year is supplied at render time (S5B-1B Round 1) instead of
+  // being hard-coded, so it never goes stale. PremiumFooter passes the current year in Malaysia time.
+  copyright: (year) => `© ${year} TERAS UNIVERSAL SDN. BHD. All rights reserved.`,
+  aiNote: "Imagery on this website includes AI-generated illustrations. The people shown are not TERAS personnel.",
+  // Public-First W2 Phase 1: shown in the bottom row only while lib/privacy-publication.js privacyPublished is true.
+  privacyLink: { label: "Privacy Notice", href: "/privacy" },
+};

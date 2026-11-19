@@ -1,4 +1,5 @@
-const SITE_URL = "https://terasuniversal.com.my";
+import { CANONICAL_ORIGIN } from "../../lib/canonical-origin";
+const SITE_URL = CANONICAL_ORIGIN;
 
 export default function BreadcrumbJsonLd({ items }) {
   if (!Array.isArray(items) || items.length === 0) return null;

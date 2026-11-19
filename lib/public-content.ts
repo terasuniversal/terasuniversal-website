@@ -1,6 +1,7 @@
 import { unstable_cache } from "next/cache";
 import { getSupabaseClient } from "./supabase";
 import { createSupabaseServerClient } from "./supabase/server";
+import { publicRegistrationEnabled } from "./public-registration-gate";
 
 /**
  * PUBLIC-SIDE read helpers. These let the existing public website render
@@ -117,7 +118,8 @@ export async function getPublicRegistrationSchedule(scheduleId: string): Promise
       fee: row.fee == null ? null : Number(row.fee),
       capacity: Number(row.capacity ?? 0),
       available_seats: Number(row.available_seats ?? 0),
-      registration_available: row.registration_available === true,
+      // F-1: the server kill switch can only withhold registration, never grant it.
+      registration_available: publicRegistrationEnabled() && row.registration_available === true,
     };
   } catch {
     return null;
@@ -139,7 +141,7 @@ const mapSchedule = (row: any): PublicSchedule => ({
   capacity: Number(row.capacity ?? 0),
   available_seats: Number(row.available_seats ?? 0),
   fee: row.fee == null ? null : Number(row.fee),
-  registration_available: row.registration_available === true,
+  registration_available: publicRegistrationEnabled() && row.registration_available === true,
 });
 
 /**

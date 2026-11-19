@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { publicErrorMessage } from "../lib/public-registration.ts";
 import { fieldErrors, scheduleSchema } from "../lib/validation/schemas.ts";
+import { describeSession } from "../lib/session-display.ts";
 
 // Application-side contract for the positive-fee-only registration policy:
 // fee > 0 may be registered online; fee = 0 and fee = NULL are enquiry only.
@@ -87,44 +88,64 @@ check("admin: the help text states positive-only and enquiry for a blank fee", (
 });
 
 // ---- Public fee presentation: zero is never shown as a price -----------------
-// The formatter expressions are read from the real components and evaluated here
-// (trusted repository source) so the test follows the shipped code.
+// Phase S3: the calendar, the course-page session cards and the homepage no longer carry their own fee formatters; all three
+// render describeSession() from lib/session-display.ts. The same inputs the per-component checks used before are now run
+// through that shared policy, and the components are checked to render its output. The invariants are unchanged: a
+// positive fee is shown as a price, and zero, NULL, undefined, negative, non-numeric and NaN fees never are.
 const calendar = read("components/TrainingCalendar.js");
-const feeLabelSource = /const feeLabel = (\(fee\) => [\s\S]*?);\r?\n/.exec(calendar)?.[1];
-check("presentation: calendar feeLabel is present", () => assert.ok(feeLabelSource));
-const feeLabel = (fee: unknown): string | null => new Function("Intl", `return (${feeLabelSource});`)(Intl)(fee) as string | null;
-check("presentation: calendar shows RM1,500 / pax for a positive fee", () => assert.equal(feeLabel(1500), "RM1,500 / pax"));
-check("presentation: calendar shows the minimum fee RM0.01 / pax", () => assert.equal(feeLabel(0.01), "RM0.01 / pax"));
-check("presentation: calendar keeps decimals (RM1,234.5 / pax)", () => assert.equal(feeLabel(1234.5), "RM1,234.5 / pax"));
-check("presentation: calendar hides a zero fee (no RM0)", () => assert.equal(feeLabel(0), null));
-check("presentation: calendar hides a NULL fee", () => assert.equal(feeLabel(null), null));
-check("presentation: calendar hides undefined, negative and non-numeric fees", () => {
-  assert.equal(feeLabel(undefined), null);
-  assert.equal(feeLabel(-5), null);
-  assert.equal(feeLabel("1500"), null);
-  assert.equal(feeLabel(Number.NaN), null);
+// Phase S4B: the course-page session cards moved from components/public/CourseScheduleOptions.tsx to here.
+const options = read("components/course/CourseSessions.tsx");
+const homepage = read("app/page.js");
+const sessionBase = { id: "s-1", start_date: "2026-12-01", end_date: "2026-12-02", start_time: null, venue: "TERAS Training Centre, Jitra", delivery_mode: null, status: "open", capacity: 20, available_seats: 5, fee: 1500 as number | null, registration_available: true };
+const feeText = (fee: unknown) => describeSession({ ...sessionBase, fee: fee as number | null }).feeText;
+check("presentation: calendar, course page and homepage all render the shared describeSession()", () => {
+  for (const [name, source] of [["calendar", calendar], ["course page", options], ["homepage", homepage]] as const) assert.match(source, /describeSession\(session/, name);
+  // Since S4A the calendar shows the labelled form ("Fee" + amount + unit, or "To be confirmed"), as the homepage does.
+  assert.match(calendar, /<b>\{view\.feeShort\}<\/b>\{view\.feeAmount \? view\.feeUnit : null\}/);
+  // Since S4B the course cards show the labelled form ("Fee" + amount + unit, or "To be confirmed"), as the calendar does.
+  assert.match(options, /<b>\{view\.feeShort\}<\/b>\{view\.feeAmount \? view\.feeUnit : null\}/);
+  assert.match(homepage, /feeShort: view\.feeShort/);
 });
-
-const options = read("components/public/CourseScheduleOptions.tsx");
-const moneySource = /const formatMoney = \(value: number \| null\) => ([^\r\n]+?);?\r?\n/.exec(options)?.[1];
-check("presentation: course formatMoney is present", () => assert.ok(moneySource));
-const formatMoney = (value: unknown): string => new Function("Intl", `return ((value) => ${moneySource});`)(Intl)(value) as string;
-check("presentation: course page shows MYR 1,500.00 for a positive fee", () => assert.match(formatMoney(1500), /1,500\.00/));
-check("presentation: course page shows the minimum fee MYR 0.01", () => assert.match(formatMoney(0.01), /0\.01/));
-check("presentation: course page says 'Fee to be confirmed' for zero", () => assert.equal(formatMoney(0), "Fee to be confirmed"));
-check("presentation: course page says 'Fee to be confirmed' for NULL", () => assert.equal(formatMoney(null), "Fee to be confirmed"));
-check("presentation: course page never shows 0.00 for zero or negative", () => {
-  assert.doesNotMatch(formatMoney(0), /0\.00/);
-  assert.equal(formatMoney(-1), "Fee to be confirmed");
+check("presentation: no component keeps its own fee formatter", () => {
+  assert.doesNotMatch(calendar, /const feeLabel =/);
+  assert.doesNotMatch(options, /const formatMoney =/);
+});
+check("presentation: a positive fee is shown (RM 1,500 per participant)", () => assert.equal(feeText(1500), "RM 1,500 per participant"));
+check("presentation: the minimum fee is shown (RM 0.01 per participant)", () => assert.equal(feeText(0.01), "RM 0.01 per participant"));
+check("presentation: decimals are kept (RM 1,234.50 per participant)", () => assert.equal(feeText(1234.5), "RM 1,234.50 per participant"));
+check("presentation: zero is 'Fee to be confirmed', never RM 0", () => {
+  assert.equal(feeText(0), "Fee to be confirmed");
+  assert.doesNotMatch(feeText(0), /RM\s?0/);
+});
+check("presentation: NULL is 'Fee to be confirmed'", () => assert.equal(feeText(null), "Fee to be confirmed"));
+check("presentation: undefined, negative, non-numeric and NaN fees are never a price", () => {
+  for (const fee of [undefined, -5, -1, "1500", Number.NaN]) {
+    assert.equal(feeText(fee), "Fee to be confirmed", String(fee));
+    assert.equal(describeSession({ ...sessionBase, fee: fee as number | null }).feeAmount, null, String(fee));
+  }
 });
 
 // ---- CTA stays driven by the server eligibility flag --------------------------
-check("cta: the calendar Register link still depends on registration_available only", () => {
-  assert.match(calendar, /const sessionUrl = \(session\) => session\.registration_available \?/);
-  assert.match(calendar, /const sessionCta = \(session\) => session\.registration_available \? "Register"/);
+// Register needs the server's registration_available flag; the shared policy only ever withholds it (no fee, no seat,
+// status full), never grants it. Every page takes its Register link from that policy.
+check("cta: Register (to /registration/<id>) only with the server flag", () => {
+  const open = describeSession(sessionBase).action;
+  assert.equal(open.type, "register");
+  assert.equal(open.type === "register" && open.href, "/registration/s-1");
+  for (const fee of [1500, 99999, 0.01]) assert.notEqual(describeSession({ ...sessionBase, fee, registration_available: false }).action.type, "register", String(fee));
 });
-check("cta: the course page Register link still depends on registration_available only", () => {
-  assert.match(options, /const active = session\.registration_available === true;/);
+check("cta: the server flag with a zero or NULL fee, no seat or status full is still not Register", () => {
+  for (const patch of [{ fee: 0 }, { fee: null }, { available_seats: 0 }, { status: "full" }]) assert.notEqual(describeSession({ ...sessionBase, ...patch }).action.type, "register", JSON.stringify(patch));
+});
+check("cta: calendar, course page and homepage take the Register link from the policy action", () => {
+  assert.match(calendar, /view\.action\.type === "register"/);
+  assert.match(calendar, /if \(view\.action\.type === "register"\) return view\.action\.href;/);
+  assert.match(options, /view\.action\.type === "register"\s*\?\s*<Link className=\{kit\.btn\} href=\{view\.action\.href\}/);
+  assert.match(homepage, /view\.action\.type === "register"\s*\?\s*view\.action\.href/);
+  for (const source of [calendar, options, homepage]) assert.doesNotMatch(source, /registration_available \?/);
+});
+check("cta: the course page Register buttons use the same decision", () => {
+  assert.match(read("app/training/[slug]/page.js"), /const hasRegistration = courseSchedules\.some\(\(session\) => sessionKind\(session\) === "open"\);/);
 });
 check("source data: public-content keeps the raw fee (presentation-only change)", () => {
   assert.match(read("lib/public-content.ts"), /fee: row\.fee == null \? null : Number\(row\.fee\),/);

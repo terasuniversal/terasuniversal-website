@@ -1,41 +1,97 @@
 import Image from "next/image";
-import MobileNav from "../../../components/MobileNav";
-import MegaNav from "../../../components/MegaNav";
-import Footer from "../../../components/Footer";
+import PremiumHeader from "../../../components/premium/PremiumHeader";
+import { publicBody } from "../../../components/premium/fonts";
+import kit from "../../../components/premium/premium.module.css";
+import training from "../../../components/training/training.module.css";
+import styles from "../../../components/training/scaffolding.module.css";
+import TrainingCourseCard from "../../../components/training/TrainingCourseCard";
+import EbookPromo from "../../../components/ebook/EbookPromo";
+import PremiumFooter from "../../../components/premium/PremiumFooter";
+import { scaffoldingContent } from "../../../content/en/scaffolding";
+import { courseCatalog } from "../../../data/courseCatalog";
+import { SCAFFOLDING_CATEGORY, coursesInCategory, scaffoldingPathways } from "../../../lib/training-categories";
 
-const objectives = ["Understand fundamental scaffolding terminology and components.", "Recognise common scaffolding hazards and unsafe conditions.", "Understand basic safe erection and dismantling principles.", "Apply relevant workplace safety responsibilities.", "Identify inspection and reporting considerations.", "Demonstrate improved task awareness and procedural discipline."];
-const modules = ["Introduction to Scaffolding", "Scaffold Components and Terminology", "Roles and Responsibilities", "Hazard Identification", "Safe Erection and Dismantling Principles", "Access, Platforms and Guardrails", "PPE and Fall Protection Awareness", "Basic Inspection Awareness", "Practical Demonstration", "Assessment and Programme Review"];
-const participants = ["Scaffolders", "Supervisors", "Safety personnel", "Construction workers", "Maintenance teams", "Industrial workforce personnel"];
-const delivery = [["01", "Public Programme"], ["02", "Corporate In-House"], ["03", "Onsite Training"], ["04", "Practical Assessment"]];
-const methodology = ["Need Analysis", "Theory", "Demonstration", "Guided Practical", "Assessment", "Feedback"];
-const faqs = [["Is this programme suitable for beginners?", "Selected programme arrangements may be suitable for beginners, subject to participant profiles, programme requirements and any applicable entry considerations."], ["Can training be conducted at our site?", "Selected programmes may be delivered onsite, subject to programme requirements, site suitability, equipment availability and safety arrangements."], ["Is practical training included?", "Where applicable, the programme combines theory, demonstrations, guided practical exercises and structured assessment."], ["Do participants receive a certificate?", "Certification or proof of completion is subject to attendance, programme structure, assessment requirements and applicable competency criteria."], ["Can the programme be customised?", "Training scope may be adapted according to participant profiles, operational risks, organisational procedures and desired learning outcomes."], ["How can we request a quotation?", "Submit the website enquiry form, contact TERAS UNIVERSAL through WhatsApp or email training@terasuniversal.com.my."]];
-
-export default function ScaffoldingCompetencyPage() {
+// Scaffolding Training category page (Phase S4C-1, owner Option A). The route is unchanged; it now lists the courses the
+// catalogue classifies as "Scaffolding Competency" (scripts/scaffolding-category-contract.mts proves there are exactly
+// six) in two pathways taken from the catalogue's own titles, each card linking to its existing course page. The former
+// single-"programme" content (objectives, modules, FAQ, methodology) was not in the verified catalogue and was removed;
+// the S4C-1 report lists each removal. Sessions and registration stay on the course pages and the calendar, governed by
+// the shared session policy; nothing here offers registration directly.
+export default function ScaffoldingCategoryPage() {
+  const text = scaffoldingContent;
+  const courses = coursesInCategory(courseCatalog, SCAFFOLDING_CATEGORY);
+  const pathways = scaffoldingPathways(courses);
+  const groups = [["scaffolding", pathways.scaffolding], ["inspection", pathways.inspection]].filter(([, list]) => list.length > 0);
   return (
-    <main className="course-page">
-      <header className="site-header"><div className="container nav-wrap"><a className="brand" href="/" aria-label="TERAS UNIVERSAL home"><Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL logo" width={220} height={140} priority sizes="154px" /></a><MegaNav /><MobileNav basePath="/" /></div></header>
+    <>
+      <PremiumHeader />
+      <main className={publicBody.variable}>
+        <section className={`${kit.px} ${kit.navyField} ${training.hero}`} aria-labelledby="scaffolding-title">
+          <div className={`${kit.wrap} ${training.heroGrid}`}>
+            <div>
+              <nav className={styles.crumbs} aria-label={text.breadcrumb.label}>
+                <a href="/">{text.breadcrumb.home}</a><span aria-hidden="true">/</span>
+                <a href="/training">{text.breadcrumb.training}</a><span aria-hidden="true">/</span>
+                <span aria-current="page">{text.hero.title}</span>
+              </nav>
+              <p className={training.heroEyebrow}>{SCAFFOLDING_CATEGORY}</p>
+              <h1 id="scaffolding-title" className={training.title}>{text.hero.title}</h1>
+              <p className={training.lead}>{text.hero.lead}</p>
+              <div className={training.acts}>
+                <a className={kit.btn} href={text.hero.toCourses.href}>{text.hero.toCourses.label}</a>
+                <a className={`${kit.btn} ${kit.btnLight}`} href={text.hero.toCatalogue.href}>{text.hero.toCatalogue.label}</a>
+              </div>
+            </div>
+            <figure className={styles.figure}>
+              <Image src="/images/v2/panel-b.svg" alt="" unoptimized width={1200} height={800} priority sizes="(max-width: 960px) 100vw, 40vw" />
+            </figure>
+          </div>
+        </section>
 
-      <section className="course-hero" aria-labelledby="course-hero-title"><div className="container"><nav className="course-breadcrumb" aria-label="Breadcrumb"><a href="/">Home</a><span>/</span><a href="/training">Training</a><span>/</span><span aria-current="page">Scaffolding Competency</span></nav><div className="course-hero-grid"><div className="course-hero-copy"><span className="eyebrow">Industrial Safety Training</span><h1 id="course-hero-title">Scaffolding Competency Training</h1><p>A structured training pathway designed to strengthen scaffolding knowledge, hazard awareness, safe work practices and practical task discipline.</p><div className="hero-actions"><a className="btn btn-primary" href="/contact">Request Course Information</a><a className="btn btn-outline" href="https://wa.me/60195193834" target="_blank" rel="noreferrer">WhatsApp Our Team</a></div></div><figure className="course-hero-media"><Image src="/images/v2/panel-b.svg" alt="" unoptimized width={1200} height={800} priority sizes="(max-width: 920px) 100vw, 52vw" /></figure></div></div></section>
+        <section id="scaffolding-courses" className={`${kit.px} ${kit.sec} ${kit.tone} ${training.catalogue}`} aria-labelledby="scaffolding-courses-title">
+          <div className={kit.wrap}>
+            <p className={training.eyebrow}>{text.courses.eyebrow}</p>
+            <h2 id="scaffolding-courses-title">{text.courses.title}</h2>
+            <p className={training.count}><strong>{text.courses.count(courses.length)}</strong></p>
+            {groups.map(([key, list]) => (
+              <div className={styles.pathway} key={key}>
+                <h3 id={`pathway-${key}`}>{text.courses.pathways[key].title}</h3>
+                <p className={styles.pathwayText}>{text.courses.pathways[key].text}</p>
+                <ul className={training.cards} aria-labelledby={`pathway-${key}`}>
+                  {list.map((course) => <TrainingCourseCard key={course.slug} course={course} />)}
+                </ul>
+              </div>
+            ))}
+            <p className={styles.note}>{text.courses.note}</p>
+          </div>
+        </section>
 
-      <section className="course-overview-section" aria-labelledby="overview-title"><div className="container"><div className="section-heading course-section-heading"><span className="eyebrow">Course Overview</span><h2 id="overview-title">Build Safer Scaffolding Capability</h2><p>This programme introduces essential scaffolding principles, workplace hazards, safe-use requirements and practical awareness for personnel involved in scaffolding-related activities.</p></div><div className="course-overview-grid">{[["01", "Competency-Based Learning"], ["02", "Theory and Practical Application"], ["03", "Workplace Safety Focus"], ["04", "Flexible Delivery Options"]].map(([number,title]) => <article key={title}><span>{number}</span><h3>{title}</h3></article>)}</div></div></section>
+        <section className={`${kit.px} ${kit.sec} ${styles.guidance}`} aria-labelledby="scaffolding-guidance-title">
+          <div className={kit.wrap}>
+            <p className={training.eyebrow}>{text.guidance.eyebrow}</p>
+            <h2 id="scaffolding-guidance-title">{text.guidance.title}</h2>
+            <ul className={styles.guidanceList}>{text.guidance.items.map((item) => <li key={item}>{item}</li>)}</ul>
+            <a className={kit.tl} href={text.guidance.calendar.href}>{text.guidance.calendar.label}</a>
+            <EbookPromo />
+          </div>
+        </section>
 
-      <section className="course-objectives-section" aria-labelledby="objectives-title"><div className="container course-two-column"><div><span className="eyebrow">Learning Objectives</span><h2 id="objectives-title">Participants should be able to:</h2></div><ul className="course-check-list">{objectives.map((item) => <li key={item}><span aria-hidden="true">✓</span>{item}</li>)}</ul></div></section>
-
-      <section className="course-content-section" aria-labelledby="content-title"><div className="container"><div className="section-heading course-section-heading"><span className="eyebrow">Course Content</span><h2 id="content-title">A structured learning pathway.</h2></div><div className="course-module-grid">{modules.map((module,index) => <article key={module}><span>{String(index+1).padStart(2,"0")}</span><h3>{module}</h3></article>)}</div></div></section>
-
-      <section className="course-participants-section" aria-labelledby="participants-title"><div className="container course-two-column"><div><span className="eyebrow">Suitable Participants</span><h2 id="participants-title">Relevant to teams involved in scaffolding-related work.</h2></div><ul className="course-participant-list">{participants.map((item) => <li key={item}>{item}</li>)}</ul></div></section>
-
-      <section className="course-delivery-section" aria-labelledby="delivery-title"><div className="container"><div className="section-heading course-section-heading"><span className="eyebrow">Delivery Options</span><h2 id="delivery-title">Flexible arrangements for different workforce needs.</h2></div><div className="course-delivery-grid">{delivery.map(([number,title]) => <article key={title}><span>{number}</span><h3>{title}</h3></article>)}</div><p className="course-note">Delivery arrangements are subject to programme requirements, site suitability, equipment availability and participant profiles.</p></div></section>
-
-      <section className="course-method-section" aria-labelledby="method-title"><div className="container"><div className="section-heading course-section-heading"><span className="eyebrow">Training Methodology</span><h2 id="method-title">From need analysis to feedback.</h2></div><div className="course-method-grid">{methodology.map((stage,index) => <article key={stage}><span>{String(index+1).padStart(2,"0")}</span><h3>{stage}</h3>{index < methodology.length-1 && <b aria-hidden="true">&rarr;</b>}</article>)}</div></div></section>
-
-      <section className="course-certification-section"><div className="container"><span className="eyebrow">Certification Note</span><h2>Completion is subject to programme requirements.</h2><p>Certification or proof of completion is subject to attendance, programme structure, assessment requirements and applicable competency criteria.</p></div></section>
-
-      <section className="course-faq-section" aria-labelledby="course-faq-title"><div className="container"><div className="section-heading course-section-heading"><span className="eyebrow">Frequently Asked Questions</span><h2 id="course-faq-title">Questions about this programme.</h2></div><div className="course-faq-list">{faqs.map(([question,answer]) => <details key={question}><summary>{question}<span aria-hidden="true">+</span></summary><p>{answer}</p></details>)}</div></div></section>
-
-      <section className="course-final-cta"><div className="container"><div><span className="eyebrow">Corporate Training Solutions</span><h2>Planning Scaffolding Training for Your Workforce?</h2><p>Speak with TERAS UNIVERSAL about participant requirements, delivery arrangements and a customised corporate proposal.</p></div><div className="hero-actions"><a className="btn btn-gold" href="/request-proposal">Request Proposal</a><a className="btn btn-light" href="https://wa.me/60195193834" target="_blank" rel="noreferrer">WhatsApp Our Team</a></div></div></section>
-
-      <Footer />
-    </main>
+        <section className={`${kit.px} ${kit.sec} ${kit.navyField}`} aria-labelledby="scaffolding-corporate-title">
+          <div className={`${kit.wrap} ${training.corporate}`}>
+            <div>
+              <p className={training.heroEyebrow}>{text.corporate.eyebrow}</p>
+              <h2 id="scaffolding-corporate-title">{text.corporate.title}</h2>
+              <p className={training.corporateText}>{text.corporate.text}</p>
+            </div>
+            <div className={training.acts}>
+              <a className={kit.btn} href={text.corporate.primary.href}>{text.corporate.primary.label}</a>
+              <a className={`${kit.btn} ${kit.btnLight}`} href={text.corporate.whatsapp.href} target="_blank" rel="noreferrer">{text.corporate.whatsapp.label}</a>
+              <a className={kit.tl} href={text.corporate.corporate.href}>{text.corporate.corporate.label}</a>
+            </div>
+          </div>
+        </section>
+      </main>
+        <PremiumFooter />
+    </>
   );
 }

@@ -1,7 +1,6 @@
 import Image from "next/image";
-import MobileNav from "../../components/MobileNav";
-import MegaNav from "../../components/MegaNav";
-import Footer from "../../components/Footer";
+import PremiumHeader from "../../components/premium/PremiumHeader";
+import PremiumFooter from "../../components/premium/PremiumFooter";
 import CredentialGrid from "../../components/public/CredentialGrid";
 import CorporateTrainingCta from "../../components/public/CorporateTrainingCta";
 import DeliveryOptions from "../../components/public/DeliveryOptions";
@@ -10,16 +9,20 @@ import styles from "../../components/public/public-phase-two.module.css";
 import { accreditations, confirmedFacts, leadership, partners } from "../../data/companyProfile";
 import { industries } from "../../data/industries";
 import { approvedSuccessStories, approvedTestimonials } from "../../data/successStories";
+import { socialMetadata } from "../../lib/social-metadata";
+import { publicBody } from "../../components/premium/fonts";
+import bridge from "../../components/premium/legacy-bridge.module.css";
 
-export const metadata = { title: "Corporate Training", description: "Corporate, in-house and onsite industrial safety, technical competency and workforce development solutions from TERAS UNIVERSAL.", alternates: { canonical: "/corporate-training" }, openGraph: { title: "Corporate Training | TERAS UNIVERSAL", description: "Custom industrial safety, competency and workforce development solutions for Malaysian organisations.", url: "/corporate-training" } };
+export const metadata = { title: "Corporate Training", description: "Corporate, in-house and onsite industrial safety, technical competency and workforce development solutions from TERAS UNIVERSAL.", alternates: { canonical: "/corporate-training" }, ...socialMetadata({ title: "Corporate Training | TERAS UNIVERSAL", description: "Custom industrial safety, competency and workforce development solutions for Malaysian organisations.", path: "/corporate-training" }) };
 
 const pillars = [["Industrial Safety Training", "Practical learning designed around workplace hazards, controls and safe task execution."], ["Technical Competency Development", "Structured development that connects knowledge, guided practice and job-relevant capability."], ["Competency Assessment", "Theoretical and practical evaluation according to the requirements of the programme."], ["Industrial Consultancy", "Practical advisory support for organisations reviewing operational weaknesses and improvement priorities."], ["Corporate & In-House Training", "Programme scope and delivery arrangements shaped around one organisation or workforce group."], ["Workforce Development", "Role-focused development aligned with workforce, project and operational requirements."]];
 const process = [["Understand Requirements", "Discuss workforce profile, operating environment, objectives and delivery needs."], ["Identify Capability Needs", "Clarify the relevant training, competency or assessment requirement."], ["Design the Arrangement", "Plan programme scope, delivery method, timing and practical requirements."], ["Deliver Training or Assessment", "Provide structured theory, practical learning or assessment as required."], ["Follow Up", "Record completion or certification where the programme requirements apply."]];
 
+// Phase S4D-2A pilot: the shared Premium header replaces the page's own legacy header and, as on the other Premium
+// pages, sits before <main> rather than inside it. Everything inside <main> is unchanged.
 export default function CorporateTrainingPage() {
   const director = leadership[0];
-  return <main className="corporate-training-page">
-    <header className="site-header"><div className="container nav-wrap"><a className="brand" href="/" aria-label="TERAS UNIVERSAL home"><Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL logo" width={220} height={140} priority sizes="154px" /></a><MegaNav /><MobileNav basePath="/" /></div></header>
+  return <><PremiumHeader /><main className={`corporate-training-page ${bridge.page} ${publicBody.variable}`}>
     <section className="services-hero" aria-labelledby="corporate-training-title"><div className="container services-hero-grid"><div className="services-hero-copy"><span className="eyebrow">Corporate Training</span><h1 id="corporate-training-title">Build competence around your workforce and operating realities.</h1><p>TERAS UNIVERSAL supports organisations with industrial safety training, technical competency development, consultancy and workforce solutions shaped around practical workplace needs.</p><div className="hero-actions"><a className="btn btn-primary" href="/request-proposal?source=corporate-training">Request Corporate Training</a><a className="btn btn-outline" href="https://wa.me/60195193834?text=Hi%20TERAS%2C%20saya%20ingin%20bertanya%20tentang%20latihan%20korporat." target="_blank" rel="noreferrer">Talk to TERAS</a></div></div><figure className="services-hero-media"><Image src="/images/v2/panel-b.svg" alt="" unoptimized width={1200} height={800} priority sizes="(max-width: 920px) 100vw, 52vw" /></figure></div></section>
     <section className="services-standard-section"><div className="container services-standard-grid"><div><span className="eyebrow">Corporate Capability</span><h2>Training, assessment and advice that connect with the work.</h2></div><div><p>Corporate arrangements can be shaped around workforce roles, operational requirements, participant profiles and preferred delivery methods.</p><TrustStrip facts={confirmedFacts.slice(0, 4)} /></div></div></section>
     <section className="training-programmes-section"><div className="container"><div className="section-heading"><span className="eyebrow">Corporate Solutions</span><h2>One conversation, relevant capability options.</h2><p>Start with the requirement, then build the most suitable training, assessment or advisory arrangement.</p></div><div className={styles.solutionGrid}>{pillars.map(([title, text], index) => <article key={title}><span>{String(index + 1).padStart(2, "0")}</span><h3>{title}</h3><p>{text}</p></article>)}</div></div></section>
@@ -32,6 +35,6 @@ export default function CorporateTrainingPage() {
     {approvedSuccessStories.length > 0 && <section className="training-programmes-section"><div className="container"><div className="section-heading"><span className="eyebrow">Approved Project Proof</span><h2>Selected work and outcomes.</h2></div></div></section>}
     {approvedTestimonials.length > 0 && <section className="training-programmes-section"><div className="container"><div className="section-heading"><span className="eyebrow">Approved Testimonials</span><h2>What organisations say.</h2></div></div></section>}
     <section className="container"><CorporateTrainingCta source="corporate-training-final" title="Ready to discuss your workforce requirements?" text="Share your operating context, workforce needs and preferred arrangement. TERAS will use that as the starting point for the conversation." /></section>
-    <Footer />
-  </main>;
+  </main>
+    <PremiumFooter /></>;
 }

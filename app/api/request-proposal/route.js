@@ -14,7 +14,6 @@ const CONTROL_CHARS_PATTERN = new RegExp("[\\x00-\\x1F\\x7F]", "g");
 
 function clean(value, maxLength) { return String(value == null ? "" : value).replace(CONTROL_CHARS_PATTERN, "").trim().slice(0, maxLength); }
 function escapeHtml(value) { return String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character])); }
-function getClientIp(request) { return (request.headers.get("x-vercel-forwarded-for") || request.headers.get("x-forwarded-for") || "unknown").split(",")[0].trim(); }
 function responseError(message, status = 400, extra) { return NextResponse.json({ error: message, ...extra }, { status }); }
 
 /**
@@ -148,7 +147,7 @@ export async function POST(request) {
     }
     // Nothing was saved -- this is the one case where asking the visitor to
     // retry is correct and safe (no duplicate risk, because nothing exists yet).
-    console.error("Proposal persistence failed", { message: persistError.message, ip: getClientIp(request) });
+    console.error("Proposal persistence failed", { message: persistError.message });
     return responseError("We could not send your request right now. Please try again or contact us directly.", 502, { persisted: false });
   }
 

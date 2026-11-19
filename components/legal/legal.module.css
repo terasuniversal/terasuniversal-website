@@ -1,0 +1,27 @@
+/* Draft legal pages (S5B-1B Round 2). Uses the Premium kit tokens (--px-*) only; no new colours or fonts. */
+.page { background: var(--px-white); color: var(--px-ink, #1d2b3a); font-family: var(--font-public-body, inherit); padding-block: clamp(32px, 6vw, 72px); }
+.inner { max-width: 860px; }
+.draft { margin: 0 0 20px; padding: 14px 16px; border: 2px solid var(--px-gold); border-radius: 8px; background: #fff8e1; color: var(--px-navy); font-size: 15px; line-height: 1.5; }
+.switch { margin: 0 0 16px; font-size: 16px; }
+.switch a, .toc a { color: var(--px-navy); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+.title { font-size: clamp(32px, 5vw, 48px); margin: 0 0 8px; }
+.version { margin: 0 0 24px; color: #4a5a6c; font-size: 15px; }
+.note { margin: 0 0 24px; font-size: 15px; line-height: 1.6; }
+/* display:block overrides the legacy global rules (nav { display: flex } and, below 921px, nav { display: none }). */
+.toc { display: block; margin: 0 0 32px; padding: 18px 20px; border-left: 4px solid var(--px-gold); background: var(--px-tone); }
+.tocTitle { font-size: 18px; margin: 0 0 10px; }
+.toc ol { display: grid; gap: 6px; font-size: 16px; line-height: 1.45; }
+.section { padding-block: 22px; border-top: 1px solid rgba(11, 58, 99, 0.12); scroll-margin-top: 96px; }
+.h2 { font-size: clamp(22px, 3vw, 28px); margin: 0 0 12px; }
+.section p, .list li, .table td, .table th { font-size: 16px; line-height: 1.7; }
+.section p + p, .section p + .list, .section .list + p, .section p + .tableWrap, .section .tableWrap + p { margin-top: 12px; }
+.list { display: grid; gap: 8px; padding-left: 0; }
+.tableWrap { overflow-x: auto; }
+.table { width: 100%; border-collapse: collapse; }
+.table th, .table td { padding: 10px 12px; border: 1px solid rgba(11, 58, 99, 0.16); text-align: left; vertical-align: top; }
+.table th { background: var(--px-tone); color: var(--px-navy); font-weight: 700; }
+.table thead th { background: var(--px-navy); color: var(--px-white); }
+.pending { display: inline; padding: 1px 6px; border-radius: 4px; background: #fff3cd; outline: 1px dashed #8a6d00; color: #4d3d00; }
+@media (max-width: 590px) {
+  .table th, .table td { padding: 8px; font-size: 15px; }
+}

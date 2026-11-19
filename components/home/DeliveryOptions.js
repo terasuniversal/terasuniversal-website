@@ -21,7 +21,9 @@ export default function DeliveryOptions() {
         ))}
       </div>
       <figure className={styles.wide}>
-        <Image src="/images/v2/delivery-instructor-led-male-branded.webp" alt="An instructor holds up a scaffold coupler to a classroom of eight trainees taking notes" fill loading="lazy" sizes="100vw" />
+        <Image src="/images/v2/delivery-instructor-led-male-branded.webp" alt="AI-generated illustration: an instructor holds up a scaffold coupler to a classroom of eight trainees taking notes" fill loading="lazy" sizes="100vw" />
+        {/* S5B-1B Round 3: AI disclosure (provenance: commit ca41e29, "illustrative AI imagery, not real TERAS personnel"). */}
+        <figcaption className={styles.aiNote}>AI-generated illustration for visual representation.</figcaption>
       </figure>
     </div>
   );

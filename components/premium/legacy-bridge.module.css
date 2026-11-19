@@ -1,0 +1,201 @@
+/*
+ * S5B-1B Round 3 — Hybrid Premium V2 bridge for the informational pages whose body still uses the legacy site styles
+ * (about, services, corporate training, contact, proposal, FAQ, gallery, industries, insights, resources, search,
+ * stories). Applied only as a class on those pages' own <main>, so registration, payment, certificate, feedback and
+ * admin pages are never affected, and app/globals.css is not touched.
+ *
+ * 1. Palette: the legacy rules read --navy, --blue, --blue2, --gold, --ink and --muted. Redefining them here switches
+ *    every legacy colour on these pages to the approved V2 palette (navy #0B3A63, gold #D4AF37, dark grey #333333)
+ *    without editing a single legacy rule.
+ * 2. Width: the legacy .container (max 1180px) now lines up with the Premium header and footer (max 1440px, same
+ *    side padding as --px-m).
+ * 3. Type: body copy in the Premium body face (Inter), headings stay Montserrat. Section labels keep their pill
+ *    shape (now in the V2 palette through the variables above): a plain navy label would vanish on the navy heroes.
+ */
+.page {
+  --navy: #0b3a63;
+  --blue: #0b3a63;
+  --blue2: #072a48;
+  --gold: #d4af37;
+  --ink: #333333;
+  --muted: #4f5b6a;
+  color: #333333;
+  font-family: var(--font-public-body), "Inter Fallback", system-ui, sans-serif;
+}
+.page :global(.container) {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1440px;
+  margin-inline: auto;
+  padding-inline: clamp(20px, 4.4vw, 64px);
+}
+.page :where(h1, h2, h3, h4) {
+  font-family: var(--font-montserrat), "Montserrat Fallback", system-ui, sans-serif;
+}
+.page :global(p) {
+  line-height: 1.7;
+}
+
+/* AI-image disclosure overlay for informational pages (S5B-1B Round 3). */
+.aiNote {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 2;
+  margin: 0;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: rgba(7, 42, 72, 0.85);
+  color: #ffffff;
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+/*
+ * S5B-1B Round 4 — Premium V2 hero for the nine informational heroes that still used the light legacy treatment (or,
+ * on /gallery, a dark background with dark text). Same language as the Premium /training hero: navy field, white
+ * title, gold accent, light supporting copy, gold primary button and white outline secondary button. Text, images
+ * and markup are unchanged.
+ */
+.page :global(:is(.about-hero, .services-hero, .scaffolding-hero, .contact-page-hero, .proposal-hero, .gallery-page-hero, .industries-hub-hero, .industry-hero, .resources-hero)) {
+  background: radial-gradient(circle at 86% 14%, rgba(212, 175, 55, 0.14), transparent 30%), #0b3a63;
+  color: #ffffff;
+}
+.page :global(:is(.about-hero, .services-hero, .scaffolding-hero, .contact-page-hero, .proposal-hero, .gallery-page-hero, .industries-hub-hero, .industry-hero, .resources-hero) :is(h1, h2)) {
+  color: #ffffff;
+}
+.page :global(:is(.about-hero, .services-hero, .scaffolding-hero, .contact-page-hero, .proposal-hero, .gallery-page-hero, .industries-hub-hero, .industry-hero, .resources-hero) h1 span) {
+  color: #d4af37;
+}
+/* The global navy band behind the gold tagline exists only to lift gold off the old light hero; on the navy hero it
+   shows as an offset box. :is() carries the id weight of that global rule so this override wins without !important. */
+.page:is(:global(#main-content) > main) :global(:is(.about-hero-copy, .services-hero-copy) h1 span) {
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.page :global(:is(.about-hero, .services-hero, .scaffolding-hero, .contact-page-hero, .proposal-hero, .gallery-page-hero, .industries-hub-hero, .industry-hero, .resources-hero) :is(p, li, dd, dt)) {
+  color: rgba(255, 255, 255, 0.9);
+}
+.page :global(:is(.about-hero, .services-hero, .scaffolding-hero, .contact-page-hero, .proposal-hero, .gallery-page-hero, .industries-hub-hero, .industry-hero, .resources-hero) :is(.course-breadcrumb a, .course-breadcrumb span, nav a, nav span)) {
+  color: rgba(255, 255, 255, 0.9);
+}
+.page :global(:is(.about-hero, .services-hero, .scaffolding-hero, .contact-page-hero, .proposal-hero, .gallery-page-hero, .industries-hub-hero, .industry-hero, .resources-hero) :is(.btn-primary, .btn-gold)) {
+  border-color: #d4af37;
+  background: #d4af37;
+  color: #072a48;
+}
+.page :global(:is(.about-hero, .services-hero, .scaffolding-hero, .contact-page-hero, .proposal-hero, .gallery-page-hero, .industries-hub-hero, .industry-hero, .resources-hero) :is(.btn-outline, .btn-light)) {
+  border-color: rgba(255, 255, 255, 0.85);
+  background: transparent;
+  color: #ffffff;
+}
+
+/* Round 4 — buttons in the Premium kit shape (square corners, 48px target, Montserrat 700, no lift), so the legacy
+   pages and the Premium pages share one button language. Colours still come from the variables above. */
+.page :global(.btn) {
+  min-height: 48px;
+  border-radius: 2px;
+  box-shadow: none;
+  font-weight: 700;
+}
+.page :global(.btn:hover) {
+  transform: none;
+  box-shadow: none;
+}
+
+/* Round 4 — contact form: the required marker sits beside its label text instead of on its own grid row; the
+   field and its error message still take the full width below. Field names, order and behaviour are unchanged. */
+.page :global(.contact-page-form label) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 4px;
+  row-gap: 8px;
+}
+.page :global(.contact-page-form label > :is(input, select, textarea, .form-field-error)) {
+  flex: 1 0 100%;
+  min-width: 0;
+}
+/* Round 4 accessibility — the global `.contact-page-form label > span` orange (#b86c00, 4.05:1 on white) also caught
+   the field-error span, so 12px errors lost their own red. Errors get the site's error red back (6.54:1); the
+   required marker and the "Required fields" note take the label colour, as the homepage form already does. */
+.page :global(.contact-page-form label > .form-field-error) {
+  color: #b3261e;
+}
+.page :global(:is(.contact-page-form label > span:not(.form-field-error), .contact-form-required-note span)) {
+  color: inherit;
+}
+
+/* S5C — authentic TERAS photographs replace the abstract panels and the poster of unverified provenance on four
+   bridged pages. The caption names the photograph so it is never read as one of the site's AI illustrations; it uses
+   the same overlay geometry as .aiNote. The figures that had no positioning context get one for the overlay. */
+.page :global(:is(.contact-page-hero-media, .scaffolding-hero-media, .scaffolding-poster-media)) {
+  position: relative;
+}
+/* S5C — below 920px the two portrait figures are centred with margin:auto and had no width, so their aspect-ratio
+   reserved no height before the lazy image loaded (a pre-existing shift of about 0.24 on /services at 390px). */
+.page :global(:is(.scaffolding-teaser-media, .scaffolding-poster-media)) {
+  width: 100%;
+}
+.page .photoNote {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  left: 12px;
+  z-index: 2;
+  width: fit-content;
+  margin: 0 0 0 auto;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: rgba(7, 42, 72, 0.85);
+  color: #ffffff;
+  font-size: 12px;
+  line-height: 1.3;
+  text-align: right;
+}
+
+/* S6 — "More articles" block under each article: same white card treatment as the article body, gold rule per item. */
+.page :global(.insight-more) {
+  margin-top: 28px;
+  padding: clamp(24px, 4vw, 40px);
+  border-radius: 16px;
+  background: #ffffff;
+}
+.page :global(.insight-more h2) {
+  margin: 0 0 18px;
+  color: #0b3a63;
+  font-size: 24px;
+}
+.page :global(.insight-more ul) {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.page :global(.insight-more li) {
+  padding-top: 16px;
+  border-top: 3px solid #d4af37;
+}
+.page :global(.insight-more li a) {
+  display: block;
+  margin: 8px 0;
+  color: #0b3a63;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.page :global(.insight-more li p) {
+  margin: 0;
+  color: #4f5b6a;
+  font-size: 15px;
+  line-height: 1.6;
+}
+.page :global(.insight-more-all) {
+  display: inline-block;
+  margin-top: 20px;
+  color: #0b3a63;
+  font-weight: 700;
+}

@@ -13,16 +13,7 @@ export function accreditationRows(now = Date.now()) {
     if (!recognition) return { org: entry.org, status: entry.label, current: true };
     const until = longDate(recognition.validUntil);
     return isCurrent(recognition, now)
-      ? { org: entry.org, status: `${entry.label}. Recognised training centre for ${recognition.scope}, valid until ${until}.`, current: true }
+      ? { org: entry.org, status: `Recognised training centre for ${recognition.scope}, valid until ${until}.`, current: true }
       : { org: entry.org, status: `Recognition as a training centre for ${recognition.scope} was valid until ${until}.`, current: false };
   });
-}
-
-// The hero fact names JKKP only while its recognition is current.
-export function heroFact(now = Date.now()) {
-  const jkkp = accreditations.find((entry) => entry.recognition);
-  const lead = "Industrial safety and technical competency since 2012.";
-  return jkkp && isCurrent(jkkp.recognition, now)
-    ? `${lead} Approved by JKKP, registered with HRD Corp and CIDB.`
-    : `${lead} Registered with HRD Corp and CIDB.`;
 }

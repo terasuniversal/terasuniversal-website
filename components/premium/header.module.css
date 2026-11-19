@@ -1,0 +1,101 @@
+/* Shared public header (Hybrid Premium V2, R3). Header rules adapted from the Premium A3 kit (@ 55022bf) with the public
+   --px-* tokens. Every selector starts with a local class (.top or .hdr); :global() is used only inside .hdr to restyle the
+   existing MegaNav / MobileNav markup, so nothing here reaches other headers, the admin shell or certificate pages.
+   The header is not sticky, so globals.css (body overflow) needs no change. */
+
+/* contact strip */
+.top { background: var(--px-navy-deep); color: var(--px-on-navy); font-size: 0.8125rem; }
+.top > div { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-block: 2px; }
+.topLinks { display: flex; flex-wrap: wrap; gap: 0 22px; }
+.topLinks a { display: inline-flex; align-items: center; min-height: 32px; color: var(--px-white); font-weight: 600; text-decoration: none; }
+.topLinks a:hover { color: var(--px-gold); }
+
+/* navy bar */
+.hdr { position: relative; z-index: 50; background: var(--px-navy); color: var(--px-white); border-bottom: 1px solid rgba(255, 255, 255, 0.12); }
+.hdrRow { display: flex; align-items: center; gap: 24px; min-height: 100px; }
+/* Official lockup (1184 x 847) shown whole: fixed height, width from the ratio, object-fit: contain, no chip behind it.
+   The pack file already carries about 2% clear space on every side; the link adds the rest so nothing touches the menu. */
+.logo { display: block; flex: none; padding-block: 10px; padding-right: 8px; line-height: 0; }
+/* Owner direction (S2C): a prominent lockup, 80px tall on desktop (about 112px wide at the pack's 1184 x 847 ratio);
+   54px on phones and tablets (about 75px wide), where the register, contact and menu controls share the row. */
+.logo img { display: block; height: 80px; width: auto; max-width: none; max-height: none; object-fit: contain; }
+.regCta { flex: none; }
+.ctaShort { display: none; }
+
+.hdr :global(.mega-nav) { display: flex; align-items: center; gap: 24px; margin-left: auto; font-family: var(--px-font-body); }
+.hdr :global(.mega-nav-group) { position: relative; }
+.hdr :global(.mega-nav-group) summary,
+.hdr :global(.mega-nav-verify) { display: inline-flex; align-items: center; min-height: 44px; padding: 0; color: var(--px-white); font-family: var(--px-font-body); font-size: 0.9375rem; font-weight: 600; letter-spacing: 0; text-decoration: none; border-bottom: 2px solid transparent; box-shadow: none; cursor: pointer; }
+.hdr :global(.mega-nav-group) summary::after { content: ""; width: 6px; height: 6px; margin: -3px 0 0 8px; border: solid var(--px-gold); border-width: 0 2px 2px 0; transform: rotate(45deg); font-size: 0; }
+.hdr :global(.mega-nav-group[open]) summary::after { transform: rotate(225deg); margin-top: 3px; }
+.hdr :global(.mega-nav-group) summary:hover,
+.hdr :global(.mega-nav-verify):hover { color: var(--px-white); border-bottom-color: var(--px-gold); }
+.hdr :global(.mega-nav-group) summary:global(.is-active) { color: var(--px-white); border-bottom-color: var(--px-gold); box-shadow: none; }
+.hdr :global(.mega-nav-panel) { border-radius: 0; border: 0; border-top: 3px solid var(--px-gold); box-shadow: 0 24px 54px rgba(7, 31, 66, 0.35); }
+.hdr :global(.mega-nav-panel) a { border-radius: 0; font-family: var(--px-font-body); }
+.hdr :global(.mega-nav-panel) a:hover { color: var(--px-navy); }
+/* MegaNav's own two actions are replaced by this header's actions and the WhatsApp link in the contact strip. */
+.hdr :global(.mega-nav) > :global(.nav-proposal),
+.hdr :global(.mega-nav) > :global(.nav-cta) { display: none; }
+
+/* mobile menu and contact panel: restyled for the navy header, behaviour unchanged (MobileNav) */
+.hdr :global(.menu-button),
+.hdr :global(.contact-button) { margin: 0; border: 2px solid rgba(255, 255, 255, 0.7); border-radius: 0; background: transparent; color: var(--px-white); box-shadow: none; transform: none; }
+.hdr :global(.menu-button) { display: none; width: 48px; height: 48px; min-height: 0; padding: 12px; }
+.hdr :global(.menu-button) span { background: var(--px-white); height: 2px; margin: 5px 0; border-radius: 0; }
+.hdr :global(.menu-button):hover { background: rgba(255, 255, 255, 0.1); box-shadow: none; transform: none; }
+.hdr :global(.menu-button.is-open) { border-color: var(--px-gold); }
+.hdr :global(.contact-button) { font-family: var(--px-font-heading); font-weight: 700; }
+.hdr :global(.mobile-menu) { display: none; }
+
+/* Widths measured with the 80px (112px wide) logo: the full menu fits from 1280px, with slightly tighter spacing up to
+   1365px; narrower screens use the menu button, as tablets do. */
+@media (max-width: 1365px) {
+  .hdrRow { gap: 18px; }
+  .hdr :global(.mega-nav) { gap: 18px; }
+}
+
+@media (max-width: 1279px) {
+  .hdr :global(.mega-nav) { display: none; }
+  .regCta { margin-left: auto; }
+  .hdr :global(.menu-button) { display: block; }
+  .hdr :global(.mobile-menu) {
+    position: absolute; top: 100%; left: 0; right: 0; z-index: 60; display: grid; gap: 0;
+    padding: 12px var(--px-m) 24px; background: var(--px-navy); border: 0; border-top: 1px solid rgba(255, 255, 255, 0.12); border-radius: 0; box-shadow: 0 24px 54px rgba(7, 31, 66, 0.35);
+    max-height: calc(100svh - 100px); overflow-y: auto;
+    opacity: 0; visibility: hidden; pointer-events: none; transform: translateY(-8px);
+    transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s;
+  }
+  .hdr :global(.mobile-menu.open) { opacity: 1; visibility: visible; pointer-events: auto; transform: none; }
+  .hdr :global(.mobile-menu) a { display: flex; align-items: center; min-height: 48px; padding: 0; border-radius: 0; border-bottom: 1px solid rgba(255, 255, 255, 0.12); color: var(--px-white); font-family: var(--px-font-body); font-weight: 600; }
+  .hdr :global(.mobile-menu) a:hover { background: transparent; color: var(--px-gold); }
+  .hdr :global(.mobile-menu) a:global(.is-active) { color: var(--px-gold); }
+  .hdr :global(.mobile-menu-heading) { display: grid; gap: 2px; padding: 8px 0 12px; color: var(--px-on-navy); font-size: 0.8125rem; }
+  .hdr :global(.mobile-menu-heading) span { color: var(--px-on-navy); }
+  .hdr :global(.mobile-menu-heading) strong { color: var(--px-white); font-family: var(--px-font-heading); font-size: 1.125rem; }
+  /* globals.css forces this link's text to white with !important, so the button is drawn for white text (deep navy with a
+     gold border, about 14:1) instead of gold, where white text would be about 2:1. */
+  .hdr :global(.mobile-menu) a:global(.mobile-menu-cta) { justify-content: center; margin-top: 16px; background: var(--px-navy-deep); border: 2px solid var(--px-gold); font-family: var(--px-font-heading); font-weight: 700; }
+  .hdr :global(.mobile-menu) a:global(.mobile-menu-cta):hover { background: rgba(255, 255, 255, 0.08); }
+}
+@media (max-width: 820px) {
+  .top { display: none; }
+  .hdrRow { min-height: 72px; gap: 10px; }
+  .logo { padding-block: 8px; padding-right: 4px; }
+  .logo img { height: 54px; }
+  .hdr :global(.mobile-menu) { max-height: calc(100svh - 68px); }
+  .regCta { min-height: 44px; padding: 0 16px; }
+}
+/* 590px matches globals.css, which shows MobileNav's Contact button and hides the floating sticky-cta bar at this width. */
+@media (max-width: 590px) {
+  .ctaLong { display: none; }
+  .ctaShort { display: inline; }
+  .hdr :global(.contact-button) { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; padding: 0 12px; border-radius: 0; }
+  .hdr :global(.contact-button.is-open) { border-color: var(--px-gold); box-shadow: none; }
+  .hdr :global(.mobile-contact) { top: 100%; right: 0; left: 0; padding: 8px var(--px-m) 16px; border: 0; border-top: 3px solid var(--px-gold); border-radius: 0; background: var(--px-navy); box-shadow: 0 24px 54px rgba(7, 31, 66, 0.35); }
+  .hdr :global(.mobile-contact) a { border-radius: 0; border-bottom: 1px solid rgba(255, 255, 255, 0.12); color: var(--px-white); }
+  .hdr :global(.mobile-contact) a > span { color: var(--px-on-navy); }
+  .hdr :global(.mobile-contact) a:hover,
+  .hdr :global(.mobile-contact) a:focus-visible { background: rgba(255, 255, 255, 0.08); }
+  .hdr :global(.menu-button) { width: 44px; height: 44px; padding: 10px; }
+}

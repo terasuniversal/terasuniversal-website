@@ -1,9 +1,9 @@
-import Image from "next/image";
-import MobileNav from "../../components/MobileNav";
-import MegaNav from "../../components/MegaNav";
+import PremiumHeader from "../../components/premium/PremiumHeader";
 import TrainingGallery from "../../components/TrainingGallery";
-import Footer from "../../components/Footer";
+import PremiumFooter from "../../components/premium/PremiumFooter";
 import { trainingGallery } from "../../data/trainingGallery";
+import { publicBody } from "../../components/premium/fonts";
+import bridge from "../../components/premium/legacy-bridge.module.css";
 
 export const metadata = {
   title: "Training Gallery",
@@ -12,16 +12,13 @@ export const metadata = {
   robots: { index: false, follow: true },
 };
 
+// Phase S4D-2B: the shared Premium header replaces the page's own legacy header and, as on the other Premium
+// pages, sits before <main> rather than inside it. Everything inside <main> is unchanged.
 export default function GalleryPage() {
   return (
-    <main className="gallery-page">
-      <header className="site-header">
-        <div className="container nav-wrap">
-          <a className="brand" href="/" aria-label="TERAS UNIVERSAL home"><Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL logo" width={220} height={140} priority sizes="154px" /></a>
-          <MegaNav />
-          <MobileNav basePath="/" />
-        </div>
-      </header>
+    <>
+    <PremiumHeader />
+    <main className={`gallery-page ${bridge.page} ${publicBody.variable}`}>
 
       <section className="gallery-page-hero" aria-labelledby="gallery-page-title">
         <div className="container">
@@ -35,8 +32,9 @@ export default function GalleryPage() {
           <TrainingGallery items={trainingGallery} showFullGalleryLink={false} />
         </div>
       </section>
-
-      <Footer />
     </main>
+
+      <PremiumFooter />
+    </>
   );
 }

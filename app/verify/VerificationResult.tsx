@@ -89,7 +89,7 @@ export function VerifyShell({ children }: { children: React.ReactNode }) {
         <h1 style={{ textAlign: "center", color: "#0B2C56", fontSize: 22, margin: "0 0 4px" }}>Certificate Verification</h1>
         <p style={{ textAlign: "center", color: "#667085", margin: "0 0 20px", fontSize: 13 }}>Verify a certificate issued by TERAS UNIVERSAL.</p>
         {children}
-        <p style={{ textAlign: "center", color: "#98a2b3", fontSize: 12, marginTop: 22 }}>TERAS UNIVERSAL SDN. BHD. · Building Competence. Creating Opportunities.</p>
+        <p style={{ textAlign: "center", color: "#667085", fontSize: 12, marginTop: 22 }}>TERAS UNIVERSAL SDN. BHD. · Building Competence. Creating Opportunities.</p>
       </div>
     </main>
   );

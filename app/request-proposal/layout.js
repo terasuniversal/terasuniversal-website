@@ -1,2 +1,3 @@
-export const metadata = { title: "Request a Proposal", description: "Tell TERAS UNIVERSAL about your organisation's training requirements and preferred delivery method.", alternates: { canonical: "/request-proposal" } };
+import { socialMetadata } from "../../lib/social-metadata";
+export const metadata = { title: "Request a Proposal", description: "Tell TERAS UNIVERSAL about your organisation's training requirements and preferred delivery method.", alternates: { canonical: "/request-proposal" }, ...socialMetadata({ title: "Request a Proposal | TERAS UNIVERSAL", description: "Tell TERAS UNIVERSAL about your organisation's training requirements and preferred delivery method.", path: "/request-proposal" }) };
 export default function ProposalLayout({ children }) { return children; }

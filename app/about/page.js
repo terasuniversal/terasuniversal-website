@@ -1,8 +1,9 @@
 import Image from "next/image";
-import MobileNav from "../../components/MobileNav";
-import MegaNav from "../../components/MegaNav";
-import Footer from "../../components/Footer";
+import PremiumHeader from "../../components/premium/PremiumHeader";
+import PremiumFooter from "../../components/premium/PremiumFooter";
 import { coreValues, leadership, accreditations, timeline, trainingFacilities, partners } from "../../data/companyProfile";
+import { publicBody } from "../../components/premium/fonts";
+import bridge from "../../components/premium/legacy-bridge.module.css";
 
 const reasons = [
   ["01", "Industry-focused programmes", "Training shaped around the hazards, roles and realities of industrial workplaces."],
@@ -15,16 +16,13 @@ const reasons = [
 const approach = ["Understand Needs", "Plan", "Deliver", "Assess", "Improve"];
 const industries = ["Oil & Gas", "Construction", "Manufacturing", "Marine & Offshore", "Power & Utilities", "Government & GLC"];
 
+// Phase S4D-2A pilot: the shared Premium header replaces the page's own legacy header and, as on the other Premium
+// pages, sits before <main> rather than inside it. Everything inside <main> is unchanged.
 export default function AboutPage() {
   return (
-    <main className="about-page">
-      <header className="site-header">
-        <div className="container nav-wrap">
-          <a className="brand" href="/" aria-label="TERAS UNIVERSAL home"><Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL logo" width={220} height={140} priority sizes="154px" /></a>
-          <MegaNav />
-          <MobileNav basePath="/" />
-        </div>
-      </header>
+    <>
+    <PremiumHeader />
+    <main className={`about-page ${bridge.page} ${publicBody.variable}`}>
 
       <section className="about-hero" aria-labelledby="about-hero-title">
         <div className="container about-hero-grid">
@@ -34,7 +32,7 @@ export default function AboutPage() {
             <p>TERAS UNIVERSAL delivers competency-based industrial safety training, technical competency development, consultancy and workforce capability solutions designed to help organisations operate more safely, efficiently and confidently.</p>
             <div className="hero-actions"><a className="btn btn-primary" href="/training">Explore Training</a><a className="btn btn-outline" href="/#contact">Contact Us</a></div>
           </div>
-          <figure className="about-hero-media"><Image src="/images/v2/hero-training-briefing-male-branded.webp" alt="An instructor briefing six trainees in navy workwear, white hard hats and hi-vis vests in a covered training hall" width={1800} height={1200} priority sizes="(max-width: 920px) 100vw, 52vw" /></figure>
+          <figure className="about-hero-media"><Image src="/images/v2/hero-training-briefing-male-branded.webp" alt="AI-generated illustration: an instructor briefing six trainees in navy workwear, white hard hats and hi-vis vests in a covered training hall" width={1800} height={1200} priority sizes="(max-width: 920px) 100vw, 52vw" /><figcaption className={bridge.aiNote}>AI-generated illustration for visual representation.</figcaption></figure>
         </div>
       </section>
 
@@ -161,8 +159,9 @@ export default function AboutPage() {
       <section className="about-commitment-section"><div className="container"><span className="eyebrow">Corporate Commitment</span><h2>Committed to Building Safer and More Competent Workforces</h2><p>We work with organisations that value practical capability, responsible delivery and long-term improvement. Every engagement is an opportunity to help people perform with greater understanding, discipline and confidence.</p></div></section>
 
       <section className="about-final-cta"><div className="container"><div><span className="eyebrow">Let's Work Together</span><h2>Let&apos;s Build Capability Together</h2></div><div className="hero-actions"><a className="btn btn-gold" href="/request-proposal">Request Proposal</a><a className="btn btn-light" href="/contact">Contact Us</a></div></div></section>
-
-      <Footer />
     </main>
+
+      <PremiumFooter />
+    </>
   );
 }

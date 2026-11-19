@@ -30,6 +30,8 @@ export default function SiteSearch() {
         </select>
       </div>
       <p className="search-count" aria-live="polite">{results.length} result{results.length === 1 ? "" : "s"}</p>
+      {/* S5B-1B Round 3: keeps the heading order h1 > h2 > h3 for the result cards (screen readers only). */}
+      <h2 className="sr-only">Search results</h2>
       <div className="search-results">
         {results.map(([title, description, href, type]) => <a className="search-result-card" href={href} key={href}><span>{type}</span><h3>{title}</h3><p>{description}</p><strong>Open result <span aria-hidden="true">&rarr;</span></strong></a>)}
         {!results.length && <p className="search-empty">No matching results. Try a broader search term.</p>}

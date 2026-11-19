@@ -1,0 +1,24 @@
+/* Scaffolding Training category page (Phase S4C-1). Only what training.module.css does not already provide: breadcrumb,
+   hero figure, pathway headings, guidance list and note. Public --px-* tokens; every selector starts with a local class.
+   Two classes wherever a margin or list style is set, so the kit's one-class ".px :where(p, ul, h3)" reset never wins. */
+
+.crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; color: var(--px-on-navy); font-size: 0.875rem; }
+.crumbs a { display: inline-flex; align-items: center; min-height: 44px; color: var(--px-white); text-decoration: underline; text-decoration-color: rgba(212, 175, 55, 0.7); text-underline-offset: 4px; }
+.crumbs [aria-current] { color: var(--px-on-navy); }
+.figure { margin: 0; border-bottom: 10px solid var(--px-gold); background: var(--px-navy-deep); }
+.figure img { display: block; width: 100%; height: auto; }
+
+.pathway { margin-top: 40px; }
+.pathway h3 { font-size: var(--px-h3); }
+.pathway .pathwayText { margin-top: 8px; max-width: 64ch; color: var(--px-muted); }
+.pathway + .note { margin-top: 32px; }
+.note { max-width: 72ch; padding: 16px 20px; border-left: 4px solid var(--px-gold); background: var(--px-white); color: var(--px-ink); }
+
+.guidance h2 { margin-top: 10px; }
+.guidance .guidanceList { margin-block: 24px; display: grid; gap: 8px; max-width: 72ch; }
+.guidanceList li { position: relative; padding: 16px 20px 16px 48px; background: var(--px-tone); color: var(--px-ink); }
+.guidanceList li::before { content: ""; position: absolute; left: 20px; top: 1.5em; width: 12px; height: 3px; background: var(--px-gold); }
+
+@media (max-width: 960px) {
+  .figure { max-width: 520px; }
+}
