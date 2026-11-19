@@ -83,6 +83,16 @@ const EDITS: Record<string, [string, string][]> = {
   ],
 };
 
+// Release 2 S1 (owner-approved K-DEV and Option A, 19 Nov 2026): the V3-R-2 homepage hero copy. Exactly two named lines in
+// content/en/home.js, undone here so the launch contract keeps proving the rest of the file (including the F-1
+// registerCtaClosed edit) is unchanged. Any other change to the file, or a different wording here, still fails.
+const R2_S1_EDITS: Record<string, [string, string][]> = {
+  "content/en/home.js": [
+    ['    lead: "Professional industrial training, competency development and consultancy solutions.",\n', '    lead: "Practical industrial training and workforce development for individuals and organisations.",\n'],
+    ['    secondaryCta: { label: "Request a Proposal", href: "/request-proposal" },\n', '    secondaryCta: { label: "Corporate Training", href: "/corporate-training" },\n'],
+  ],
+};
+
 // F-5: files whose literal canonical host became CANONICAL_ORIGIN.
 export const PF_CANONICAL_FILES = ["app/layout.js", "app/sitemap.js", "app/robots.js", "app/about/layout.js", "app/contact/layout.js", "app/gallery/layout.js", "app/services/layout.js", "app/services/scaffolding/layout.js", "app/training/layout.js", "app/insights/[slug]/page.js", "app/training/[slug]/page.js", "components/public/BreadcrumbJsonLd.js"];
 
@@ -108,6 +118,11 @@ export function revertPublicFirst(path: string, input: string): string {
   const crlf = text.includes("\r\n");
   const eol = (s: string) => (crlf ? s.replace(/\r?\n/g, "\r\n") : s);
   let out = PF_CANONICAL_FILES.includes(path) ? revertCanonical(text) : text;
+  for (const [now, before] of R2_S1_EDITS[path] ?? []) {
+    const from = eol(now);
+    if (!out.includes(from)) throw new Error(`release-2 S1: expected edit not found in ${path}`);
+    out = out.replace(from, eol(before));
+  }
   for (const [now, before] of EDITS[path] ?? []) {
     const from = eol(now);
     if (!out.includes(from)) throw new Error(`public-first: expected edit not found in ${path}`);

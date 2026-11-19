@@ -18,9 +18,9 @@ export const homeContent = {
 
   hero: {
     title: ["Building Skills.", "Empowering Industry."],
-    lead: "Practical industrial training and workforce development for individuals and organisations.",
+    lead: "Professional industrial training, competency development and consultancy solutions.",
     primaryCta: { label: "Explore Training Courses", href: "#programmes" },
-    secondaryCta: { label: "Corporate Training", href: "/corporate-training" },
+    secondaryCta: { label: "Request a Proposal", href: "/request-proposal" },
     sessionsLink: { label: "See upcoming public sessions", href: "#upcoming-training" },
   },
 

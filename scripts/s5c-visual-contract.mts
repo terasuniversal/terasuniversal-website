@@ -8,7 +8,7 @@ import { CONTRACT_BASE, changedSinceBase } from "./contract-base.mts";
 
 // S5C (owner-approved, local only): authentic TERAS drone photographs (October 2024, own training yard) replace the
 // abstract panels on /about and /contact and the scaffolding poster of unverified provenance on /services and
-// /services/scaffolding. The AI homepage hero R1-3 stays (new AI concepts are SME candidates only, not integrated).
+// /services/scaffolding. The AI homepage hero R1-3 stayed through S5C; Release 2 S1 replaces it with V3-R-2 (see below).
 const root = new URL("../", import.meta.url);
 const rootPath = fileURLToPath(root);
 const read = (path: string) => readFileSync(new URL(path, root), "utf8").replace(/\r\n/g, "\n");
@@ -81,14 +81,21 @@ check("poster of unverified provenance: no longer referenced by public code; fil
   const poster = existsSync(new URL("public/images/scaffolding-rental-poster-en.webp", root)) ? bytes("public/images/scaffolding-rental-poster-en.webp") : execFileSync("git", ["show", `${CONTRACT_BASE}:public/images/scaffolding-rental-poster-en.webp`], { cwd: rootPath, maxBuffer: 1 << 26 });
   assert.equal(sha(poster), "8f1a85afefc5c96fdec8d374f91365b913cf262e90c4ee394a8ce2fe83c38363");
 });
-check("homepage hero: R1-3 component and both image files unchanged; AI caption and alt kept", () => {
-  assert.equal(sha(read("components/home/HomeHero.js")), "3041d7bd49a6f9714399e421b7edcb0e46069e91b1e44bb12c08119f459a449d");
+// R2 S1 (owner K-DEV, 19 Nov 2026): the homepage hero moves to the V3-R-2 illustration (ring-corrected source SHA-256
+// 9ac58e9ad853de1470ae52fe8767bf6d91065c6e0995ceb3abe617401e7a2516; owner design approval and owner-confirmed HSE
+// approval recorded in the design workspace). The R1-3 files stay in public/ byte-identical for rollback.
+check("homepage hero: V3-R-2 component and its three image files pinned; R1-3 files kept unchanged for rollback", () => {
+  assert.equal(sha(read("components/home/HomeHero.js")), "ef17a53f1b84d4db0211ff8999e71aa996883f3c8304a6102446c9405786113b");
+  assert.equal(sha(bytes("public/images/v2/hero-v3r2-desktop.webp")), "ba7e433f953973ced051814db19fa8cbadfbd8e27bee6ac00532b9332bf330e6");
+  assert.equal(sha(bytes("public/images/v2/hero-v3r2-tablet.webp")), "7add6ad7403d0e73600cbd9886af337ace5dfbb018c4f711cee47e72e14e843a");
+  assert.equal(sha(bytes("public/images/v2/hero-v3r2-phone.webp")), "f329ecaa17486435122426cd4473b7cdad72211c1d223d9bb1b8f9659c56a0fd");
   assert.equal(sha(bytes("public/images/v2/hero-r1-3-desktop.webp")), "282015399a6e528be747c2814532a5312ff1ad1f9408e563470170b5e88290be");
   assert.equal(sha(bytes("public/images/v2/hero-r1-3-phone.webp")), "ae24036363584f8e0f49e1fe32252a411e8cefc1849864431b6b992026a3a15f");
+  assert.match(read("components/home/HomeHero.js"), /const HERO_ALT = "AI-generated illustration: [^"]+Not a TERAS-owned or client-owned facility\."/);
 });
 check("AI disclosures elsewhere unchanged: /about hero caption, homepage hero and delivery captions, footer note", () => {
   assert.ok(read("app/about/page.js").includes("<figcaption className={bridge.aiNote}>AI-generated illustration for visual representation.</figcaption>"));
-  assert.match(read("components/home/HomeHero.js"), /<figcaption className=\{styles\.note\}>AI-generated illustration<\/figcaption>/);
+  assert.match(read("components/home/HomeHero.js"), /<figcaption className=\{styles\.note\}>AI-generated illustration — not a TERAS-owned or client-owned facility<\/figcaption>/);
   assert.match(read("components/home/DeliveryOptions.js"), /AI-generated illustration for visual representation\./);
   assert.match(read("content/en/footer.js"), /AI-generated illustrations/);
 });
