@@ -9,7 +9,7 @@ import { updateTask } from "../actions";
 import { loadStaffOptions } from "../options";
 import { TaskStatusActions } from "./TaskStatusActions";
 import type { SalesTaskRow } from "../../../../../../lib/sales/crm";
-import { normalizeTaskQueueContext, taskQueueFeedbackMessage, taskQueueHref } from "../../../../../../lib/sales/task-queue";
+import { isTaskQueueWarning, normalizeTaskQueueContext, taskQueueFeedbackMessage, taskQueueHref } from "../../../../../../lib/sales/task-queue";
 
 export const metadata = { title: "Task Detail — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
@@ -58,7 +58,7 @@ export default async function TaskDetailPage({
         action={<Link href={returnHref} className="ta-btn ta-btn-outline">← Back to Tasks</Link>}
       />
       {feedbackMessage && (
-        <div className={`ta-alert ${sp.feedback === "activity-warning" ? "ta-alert-error" : "ta-alert-success"}`} role={sp.feedback === "activity-warning" ? "alert" : "status"}>
+        <div className={`ta-alert ${isTaskQueueWarning(sp.feedback) ? "ta-alert-error" : "ta-alert-success"}`} role={isTaskQueueWarning(sp.feedback) ? "alert" : "status"}>
           {feedbackMessage}
         </div>
       )}

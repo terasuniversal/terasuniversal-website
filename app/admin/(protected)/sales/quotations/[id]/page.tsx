@@ -11,6 +11,7 @@ import { LeadActivityTimeline } from "../../leads/[id]/LeadActivityTimeline";
 import { QuotationItemsEditor } from "../QuotationItemsEditor";
 import { QuotationActionsPanel } from "./QuotationActionsPanel";
 import { REVISION_AUDIT_NOTICE } from "../../../../../../lib/sales/quotation-revision";
+import { ACTIVITY_UNSAVED_NOTICE, ACTIVITY_UNSAVED_MESSAGE } from "../../../../../../lib/sales/activity-notice";
 import { updateQuotationDraft } from "../actions";
 import { loadCourseCommercialOptions, normalizePackageIncludeItems } from "../../../../../../lib/sales/course-commercial";
 
@@ -99,6 +100,9 @@ export default async function QuotationDetailPage({ params, searchParams }: { pa
         action={primaryAction}
         secondaryAction={opportunity ? <Link href={`/admin/sales/opportunities/${opportunity.id}`} className="ta-btn ta-btn-outline">← Back to Opportunity</Link> : undefined}
       />
+      {notice === ACTIVITY_UNSAVED_NOTICE && (
+        <div className="ta-alert ta-alert-info" role="status">{ACTIVITY_UNSAVED_MESSAGE}</div>
+      )}
       {notice === REVISION_AUDIT_NOTICE && (
         <div className="ta-alert ta-alert-info" role="status">
           This revision was created and saved. Its entry in the activity log could not be recorded, so the timeline may be missing it.

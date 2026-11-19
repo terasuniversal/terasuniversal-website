@@ -78,8 +78,9 @@ export async function setLeadAttribution(leadMetadataId: string, formData: FormD
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.from("sales_lead_attributions").upsert({ lead_metadata_id: leadMetadataId, source: parsed.data.source, campaign_id: parsed.data.campaign_id || null, utm_source: parsed.data.utm_source || null, utm_medium: parsed.data.utm_medium || null, utm_campaign: parsed.data.utm_campaign || null, utm_content: parsed.data.utm_content || null, utm_term: parsed.data.utm_term || null, notes: parsed.data.notes || null }, { onConflict: "lead_metadata_id" });
   if (error) redirect(`/admin/sales/leads/${leadMetadataId}?attributionError=${encodeURIComponent("Unable to save marketing attribution.")}`);
-  await logActivity(supabase, leadMetadataId, "note_added", `Marketing attribution updated by ${profile.full_name ?? "staff"}`, profile.id);
+  const logged = await logActivity(supabase, leadMetadataId, "note_added", `Marketing attribution updated by ${profile.full_name ?? "staff"}`, profile.id);
   revalidateLead(leadMetadataId);
+  if (!logged) redirect(`/admin/sales/leads/${leadMetadataId}?attributionError=${encodeURIComponent(ACTIVITY_NOT_RECORDED)}`);
   redirect(`/admin/sales/leads/${leadMetadataId}?attributionSaved=1`);
 }
 
@@ -89,6 +90,10 @@ function revalidateLead(id: string) {
   revalidatePath("/admin/sales");
 }
 
+// The change itself is already committed when the timeline write runs (separate statements, no
+// transaction), so a failed activity insert is reported as a partial success, never retried here.
+const ACTIVITY_NOT_RECORDED = "Saved, but the timeline entry could not be recorded. Refresh to check before trying again.";
+
 async function logActivity(
   supabase: any,
   leadMetadataId: string,
@@ -96,8 +101,10 @@ async function logActivity(
   note: string | null,
   actorId: string,
   metadata?: Record<string, unknown>
-) {
-  await supabase.from("sales_activity").insert({ lead_metadata_id: leadMetadataId, type, note, actor_id: actorId, ...(metadata ? { metadata } : {}) });
+): Promise<boolean> {
+  const { error } = await supabase.from("sales_activity").insert({ lead_metadata_id: leadMetadataId, type, note, actor_id: actorId, ...(metadata ? { metadata } : {}) });
+  if (error) console.error("sales lead activity insert failed", { type, code: error.code });
+  return !error;
 }
 
 /** Status transitions (incl. Mark Lost) — admin+ only, per sales_lead_metadata's RLS. Won is refused here: it is set only by accept_quotation(). */
@@ -141,9 +148,10 @@ export async function updateLeadStatus(
     status === "lost" && lost_reason
       ? `Marked lost — reason: ${LOST_REASON_LABELS[lost_reason as SalesCrmLostReason]}`
       : `Status changed to ${status.replace(/_/g, " ")}`;
-  await logActivity(supabase, leadMetadataId, activityType, note, profile.id);
+  const logged = await logActivity(supabase, leadMetadataId, activityType, note, profile.id);
 
   revalidateLead(leadMetadataId);
+  if (!logged) return { message: ACTIVITY_NOT_RECORDED, status: "error" };
   return {};
 }
 
@@ -171,9 +179,10 @@ export async function assignLead(
     const { data: assignee } = await supabase.from("profiles").select("full_name").eq("id", assignedTo).maybeSingle();
     assigneeName = assignee?.full_name || "a staff member";
   }
-  await logActivity(supabase, leadMetadataId, "assigned", `Assigned to ${assigneeName}`, profile.id);
+  const logged = await logActivity(supabase, leadMetadataId, "assigned", `Assigned to ${assigneeName}`, profile.id);
 
   revalidateLead(leadMetadataId);
+  if (!logged) return { message: ACTIVITY_NOT_RECORDED, status: "error" };
   return {};
 }
 
@@ -201,8 +210,9 @@ export async function setLeadFollowUp(
   const { error } = await supabase.from("sales_lead_metadata").update(patch).eq("id", leadMetadataId);
   if (error) return { message: "Unable to update the follow-up. Try again.", status: "error" };
 
+  let logged = true;
   if (followUpAt) {
-    await logActivity(
+    logged = await logActivity(
       supabase,
       leadMetadataId,
       "followup_scheduled",
@@ -211,10 +221,11 @@ export async function setLeadFollowUp(
     );
   }
   if (parsed.data.priority && existing?.priority && existing.priority !== parsed.data.priority) {
-    await logActivity(supabase, leadMetadataId, "priority_changed", `Priority changed to ${parsed.data.priority}`, profile.id, { old_value: existing.priority, new_value: parsed.data.priority });
+    logged = (await logActivity(supabase, leadMetadataId, "priority_changed", `Priority changed to ${parsed.data.priority}`, profile.id, { old_value: existing.priority, new_value: parsed.data.priority })) && logged;
   }
 
   revalidateLead(leadMetadataId);
+  if (!logged) return { message: ACTIVITY_NOT_RECORDED, status: "error" };
   const returnTo = formData.get("return_to");
   if (typeof returnTo === "string" && returnTo.startsWith("/admin/sales/follow-ups")) {
     const separator = returnTo.includes("?") ? "&" : "?";
@@ -261,8 +272,9 @@ export async function updateLeadQualification(
   if (error) return { message: error.message };
   const oldValue = current.qualification_status;
   const label = qualification_status === "qualified" ? QUALIFICATION_REASON_LABELS[reasonValue as keyof typeof QUALIFICATION_REASON_LABELS] : qualification_status === "unqualified" ? DISQUALIFICATION_REASON_LABELS[reasonValue as keyof typeof DISQUALIFICATION_REASON_LABELS] : null;
-  await logActivity(supabase, leadMetadataId, "qualification_changed", `Qualification changed to ${qualification_status}${label ? ` — ${label}` : ""}`, profile.id, { old_value: oldValue, new_value: qualification_status, reason: reasonValue || null });
+  const logged = await logActivity(supabase, leadMetadataId, "qualification_changed", `Qualification changed to ${qualification_status}${label ? ` — ${label}` : ""}`, profile.id, { old_value: oldValue, new_value: qualification_status, reason: reasonValue || null });
   revalidateLead(leadMetadataId);
+  if (!logged) return { message: ACTIVITY_NOT_RECORDED, status: "error" };
   return {};
 }
 
@@ -282,8 +294,9 @@ export async function updateLeadTemperature(
   if ((current.temperature ?? null) === nextTemperature) return {};
   const { error } = await supabase.from("sales_lead_metadata").update({ temperature: nextTemperature, updated_at: new Date().toISOString() }).eq("id", leadMetadataId);
   if (error) return { message: error.message };
-  await logActivity(supabase, leadMetadataId, "temperature_changed", `Temperature changed to ${nextTemperature ?? "Not set"}`, profile.id, { old_value: current.temperature, new_value: nextTemperature });
+  const logged = await logActivity(supabase, leadMetadataId, "temperature_changed", `Temperature changed to ${nextTemperature ?? "Not set"}`, profile.id, { old_value: current.temperature, new_value: nextTemperature });
   revalidateLead(leadMetadataId);
+  if (!logged) return { message: ACTIVITY_NOT_RECORDED, status: "error" };
   return {};
 }
 

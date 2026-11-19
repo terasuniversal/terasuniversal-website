@@ -79,6 +79,7 @@ async function logTaskActivity(supabase: any, taskId: string, leadMetadataId: st
     note,
     actor_id: actorId,
   });
+  if (error) console.error("sales task activity insert failed", { type, code: error.code });
   return !error;
 }
 
@@ -117,10 +118,12 @@ export async function createTask(_prev: TaskFormState, formData: FormData): Prom
   if (error) return { message: error.message };
 
   const leadMetadataId = await resolveLeadMetadataId(supabase, refs);
-  await logTaskActivity(supabase, created.id, leadMetadataId, "task_created", `Task created: ${parsed.data.title}`, profile.id, refs);
+  // The task exists now; returning to the form would invite a duplicate, so the redirect
+  // stands and carries a fixed warning when the timeline write failed.
+  const logged = await logTaskActivity(supabase, created.id, leadMetadataId, "task_created", `Task created: ${parsed.data.title}`, profile.id, refs);
 
   revalidateTasks(created.id);
-  redirect("/admin/sales/tasks");
+  redirect(logged ? "/admin/sales/tasks" : "/admin/sales/tasks?feedback=created-activity-warning");
 }
 
 export async function updateTask(taskId: string, _prev: TaskFormState, formData: FormData): Promise<TaskFormState> {

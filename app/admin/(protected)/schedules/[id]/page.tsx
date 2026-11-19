@@ -10,6 +10,7 @@ import { GroupsPanel } from "../GroupsPanel";
 import { ParticipantGroupAssignment } from "../ParticipantGroupAssignment";
 import { removeParticipant, softDeleteSchedule, duplicateSchedule } from "../actions";
 import { loadAssessorOptions, loadTrainerOptions } from "../options";
+import { ACTIVITY_UNSAVED_NOTICE, ACTIVITY_UNSAVED_MESSAGE } from "../../../../../lib/sales/activity-notice";
 
 export const metadata = { title: "Schedule Details — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
@@ -19,7 +20,7 @@ export default async function ScheduleDetailsPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ assessor_error?: string; group_error?: string }>;
+  searchParams: Promise<{ assessor_error?: string; group_error?: string; notice?: string }>;
 }) {
   await requireModuleAccess("schedules");
   const profile = await requireRole("editor");
@@ -37,7 +38,7 @@ export default async function ScheduleDetailsPage({
   // lower-privilege editors must not see a dead-end card.
   const canGenerateCertificates = canManageCertificate(profile.role);
   const { id } = await params;
-  const { assessor_error, group_error } = await searchParams;
+  const { assessor_error, group_error, notice } = await searchParams;
   const supabase = await createSupabaseServerClient();
 
   const { data: s } = await supabase.from("course_schedules").select("*, courses(course_name)").eq("id", id).single();
@@ -144,6 +145,9 @@ export default async function ScheduleDetailsPage({
         </span>
       </div>
 
+      {notice === ACTIVITY_UNSAVED_NOTICE && (
+        <div className="ta-alert ta-alert-info" role="status">{ACTIVITY_UNSAVED_MESSAGE}</div>
+      )}
       {assessor_error && (
         <div className="ta-alert ta-alert-error" style={{ marginBottom: 16 }}>
           <strong>Assessor assignment incomplete:</strong> the schedule was created/updated, but the primary

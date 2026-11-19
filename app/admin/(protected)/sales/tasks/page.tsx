@@ -7,7 +7,7 @@ import { dueDateState, mytEndOfTodayUtc, sanitizeSearchTerm, type SalesTaskRow }
 import { clampPage, normalizePage, pageCountFor, pageRange, SALES_QUEUE_PAGE_SIZE } from "../../../../../lib/sales/pagination";
 import { loadStaffOptions } from "./options";
 import { formatMalaysiaDateTime } from "../../../../../lib/date-time";
-import { normalizeTaskQueueContext, resolveTaskRelatedRecord, taskQueueFeedbackMessage, taskQueueHref, type TaskQueueContext, type TaskQueueView } from "../../../../../lib/sales/task-queue";
+import { isTaskQueueWarning, normalizeTaskQueueContext, resolveTaskRelatedRecord, taskQueueFeedbackMessage, taskQueueHref, type TaskQueueContext, type TaskQueueView } from "../../../../../lib/sales/task-queue";
 import { fetchSalesRowsInPages, isCurrentActiveTask, loadTaskArchiveState } from "../../../../../lib/sales/active-state";
 import { TaskQueueActions } from "./TaskQueueActions";
 
@@ -181,7 +181,7 @@ export default async function SalesTasksPage({
         action={canEdit ? <Link href="/admin/sales/tasks/new" className="ta-btn ta-btn-primary">+ New Task</Link> : undefined}
       />
       {feedbackMessage && (
-        <div className={`ta-alert ${sp.feedback === "activity-warning" ? "ta-alert-error" : "ta-alert-success"}`} role={sp.feedback === "activity-warning" ? "alert" : "status"}>
+        <div className={`ta-alert ${isTaskQueueWarning(sp.feedback) ? "ta-alert-error" : "ta-alert-success"}`} role={isTaskQueueWarning(sp.feedback) ? "alert" : "status"}>
           {feedbackMessage}
         </div>
       )}

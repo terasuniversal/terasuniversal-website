@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { requireRole, requireModuleAccess } from "../../../../lib/auth/session";
 import { companySchema, fieldErrors } from "../../../../lib/validation/schemas";
+import { ACTIVITY_UNSAVED_NOTICE, LINK_FAILED_NOTICE, withNotice } from "../../../../lib/sales/activity-notice";
 
 export type CompanyFormState = { errors?: Record<string, string>; message?: string };
 
@@ -79,22 +80,33 @@ export async function createCompany(_prev: CompanyFormState, formData: FormData)
       .select("lead_metadata_id")
       .eq("id", sourceOpportunityId)
       .maybeSingle();
-    await supabase
+    const opportunityPath = `/admin/sales/opportunities/${sourceOpportunityId}`;
+    // The company exists now; returning to the form would invite a duplicate, so each later
+    // failure is reported on the opportunity page through a fixed notice instead.
+    const { error: linkError } = await supabase
       .from("sales_opportunities")
       .update({ company_id: created.id, updated_at: new Date().toISOString() })
       .eq("id", sourceOpportunityId);
+    if (linkError) {
+      console.error("company handoff opportunity link failed", { code: linkError.code });
+      revalidatePath("/admin/companies");
+      redirect(withNotice(opportunityPath, LINK_FAILED_NOTICE));
+    }
+    let activityLogged = true;
     if (opp?.lead_metadata_id) {
-      await supabase.from("sales_activity").insert({
+      const { error: activityError } = await supabase.from("sales_activity").insert({
         lead_metadata_id: opp.lead_metadata_id,
         opportunity_id: sourceOpportunityId,
         type: "company_created",
         note: `Company "${parsed.data.company_name}" created and linked`,
         actor_id: profile.id,
       });
+      if (activityError) console.error("company_created activity insert failed", { code: activityError.code });
+      activityLogged = !activityError;
     }
-    revalidatePath(`/admin/sales/opportunities/${sourceOpportunityId}`);
+    revalidatePath(opportunityPath);
     revalidatePath("/admin/companies");
-    redirect(`/admin/sales/opportunities/${sourceOpportunityId}`);
+    redirect(activityLogged ? opportunityPath : withNotice(opportunityPath, ACTIVITY_UNSAVED_NOTICE));
   }
 
   revalidatePath("/admin/companies");

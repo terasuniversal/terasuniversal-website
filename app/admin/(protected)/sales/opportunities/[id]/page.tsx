@@ -20,6 +20,7 @@ import {
 import { OpportunityActionsPanel } from "./OpportunityActionsPanel";
 import { TrainingHandoffPanel } from "./TrainingHandoffPanel";
 import { ClientOnboardingPanel } from "./ClientOnboardingPanel";
+import { ACTIVITY_UNSAVED_NOTICE, ACTIVITY_UNSAVED_MESSAGE, LINK_FAILED_NOTICE, OPPORTUNITY_LINK_FAILED_MESSAGE } from "../../../../../../lib/sales/activity-notice";
 import { matchCourseByProgramme } from "../../../schedules/options";
 import type { CompanyCandidate } from "../actions";
 import type { SalesTaskRow } from "../../../../../../lib/sales/crm";
@@ -39,7 +40,7 @@ function Detail({ label, value }: { label: string; value: any }) {
   );
 }
 
-export default async function OpportunityDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function OpportunityDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ notice?: string }> }) {
   const profile = await requireRole("editor");
   await requireModuleAccess("sales_opportunities");
   // Each control is gated by the module its action writes to, not by the page's own module.
@@ -52,6 +53,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
   ]);
   const admin = isAdmin(profile.role);
   const canManage = admin && canEdit;
+  const { notice } = await searchParams;
   const { id } = await params;
   const supabase = await createSupabaseServerClient();
 
@@ -240,6 +242,9 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
           : <Link href={`/admin/sales/leads/${opp.lead_metadata_id}`} className="ta-btn ta-btn-outline">View Source Lead</Link>}
         secondaryAction={<Link href="/admin/sales/opportunities" className="ta-btn ta-btn-outline">← Back to Opportunities</Link>}
       />
+
+      {notice === ACTIVITY_UNSAVED_NOTICE && <div className="ta-alert ta-alert-info" role="status">{ACTIVITY_UNSAVED_MESSAGE}</div>}
+      {notice === LINK_FAILED_NOTICE && <div className="ta-alert ta-alert-error" role="alert">{OPPORTUNITY_LINK_FAILED_MESSAGE}</div>}
 
       <div className="ta-lead-meta">
         <Badge status={opp.stage} />

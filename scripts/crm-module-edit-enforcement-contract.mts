@@ -130,6 +130,54 @@ for (const name of ["updateLeadStatus", "assignLead", "setLeadFollowUp", "update
   check(`leads ${name} keeps requireRole("admin")`, () => assert.match(leads.get(name) ?? "", /requireRole\("admin"\)/));
 }
 
+// T10: activity writes surface their errors instead of dropping them.
+const ACTIVITY_FILES = [
+  "app/admin/(protected)/sales/leads/actions.ts",
+  "app/admin/(protected)/sales/opportunities/actions.ts",
+  "app/admin/(protected)/sales/quotations/actions.ts",
+  "app/admin/(protected)/sales/tasks/actions.ts",
+  "app/admin/(protected)/companies/actions.ts",
+  "app/admin/(protected)/schedules/actions.ts",
+  "lib/sales/quotation-revision.ts",
+];
+for (const file of ACTIVITY_FILES) {
+  const source = read(file);
+  check(`${file}: no sales_activity insert discards its result`, () => {
+    assert.doesNotMatch(source, /^\s*await supabase\s*\.from\("sales_activity"\)\s*\.insert\(/m, "insert result must be captured");
+    for (const m of source.matchAll(/(const|let)\s*\{\s*error(?::\s*(\w+))?\s*\}\s*=\s*await supabase(?:\s*\.from\("sales_activity"\))\s*\.insert\(/g)) {
+      const variable = m[2] ?? "error";
+      const after = source.slice(m.index!, m.index! + 900);
+      assert.match(after, new RegExp(`if \\(${variable}\\)|return !${variable}`), `${variable} must be checked`);
+    }
+  });
+}
+for (const file of ["app/admin/(protected)/sales/leads/actions.ts", "app/admin/(protected)/sales/opportunities/actions.ts", "app/admin/(protected)/sales/quotations/actions.ts"]) {
+  check(`${file}: logActivity reports failure to its caller`, () => {
+    const body = functionBlocks(read(file)).get("logActivity") ?? "";
+    assert.match(body, /Promise<boolean>/);
+    assert.match(body, /return !error;/);
+  });
+}
+check("lead actions that return state report a failed timeline write", () => {
+  for (const name of ["updateLeadStatus", "assignLead", "setLeadFollowUp", "updateLeadQualification", "updateLeadTemperature"]) {
+    assert.match(leads.get(name) ?? "", /if \(!logged\) return \{ message: ACTIVITY_NOT_RECORDED/, name);
+  }
+  assert.match(leads.get("setLeadAttribution") ?? "", /if \(!logged\) redirect\(/);
+});
+check("opportunity and quotation actions that return state report a failed timeline write", () => {
+  const opp = functionBlocks(read("app/admin/(protected)/sales/opportunities/actions.ts"));
+  for (const name of ["updateOpportunityStage", "assignOpportunity"]) assert.match(opp.get(name) ?? "", /if \(!logged\) return \{ message: ACTIVITY_NOT_RECORDED \}/, name);
+  const quotes = functionBlocks(read("app/admin/(protected)/sales/quotations/actions.ts"));
+  assert.match(quotes.get("markQuotationSent") ?? "", /if \(!logged\) return \{ message: ACTIVITY_NOT_RECORDED \}/);
+});
+check("activity failures are logged without note text or row data", () => {
+  for (const file of ACTIVITY_FILES.slice(0, 6)) {
+    for (const m of read(file).matchAll(/console\.error\(([^;]*activity insert failed[^;]*)\);/g)) {
+      assert.doesNotMatch(m[1], /note|metadata|message/, `${file}: only type and error code may be logged`);
+    }
+  }
+});
+
 // ---- UI: direct create/edit URLs need edit access (T2/T3) -------------------------------------
 const P = "app/admin/(protected)/";
 const EDIT_PAGES: Record<string, string> = {
@@ -191,6 +239,51 @@ check("multi-line create links on marketing lists are wrapped in canEdit", () =>
     const gated = [...source.matchAll(/canEdit \? \(\s*<Link href="\/admin\/marketing\/(contacts|campaigns)\/new"/g)].length;
     assert.equal(gated, links, `${page}: every create link must be gated`);
   }
+});
+
+// ---- Activity notices after redirects (T10) -----------------------------------------------------
+check("activity notices are fixed, data-free values", () => {
+  const lib = read("lib/sales/activity-notice.ts");
+  assert.match(lib, /ACTIVITY_UNSAVED_NOTICE = "activity-unsaved"/);
+  assert.match(lib, /LINK_FAILED_NOTICE = "link-failed"/);
+  assert.match(lib, /`\$\{path\}\$\{path\.includes\("\?"\) \? "&" : "\?"\}notice=\$\{notice\}`/);
+});
+check("createQuotation redirects with a notice when its timeline write fails", () => {
+  const body = functionBlocks(read(P + "sales/quotations/actions.ts")).get("createQuotation") ?? "";
+  assert.match(body, /const logged = await logActivity\(/);
+  assert.match(body, /redirect\(logged \? detailPath : withNotice\(detailPath, ACTIVITY_UNSAVED_NOTICE\)\)/);
+});
+check("createTask redirects with a warning when its timeline write fails", () => {
+  const body = functionBlocks(read(P + "sales/tasks/actions.ts")).get("createTask") ?? "";
+  assert.match(body, /const logged = await logTaskActivity\(/);
+  assert.match(body, /feedback=created-activity-warning/);
+  assert.match(read("lib/sales/task-queue.ts"), /"created-activity-warning": "Task created, but/);
+});
+check("createCompany handoff checks the opportunity link and the timeline write", () => {
+  const body = functionBlocks(read(P + "companies/actions.ts")).get("createCompany") ?? "";
+  assert.match(body, /if \(sourceOpportunityId\) await requireModuleAccess\("sales_opportunities", "edit"\)/);
+  assert.match(body, /const \{ error: linkError \} = await supabase\s*\.from\("sales_opportunities"\)/);
+  assert.match(body, /if \(linkError\) \{[\s\S]*?redirect\(withNotice\(opportunityPath, LINK_FAILED_NOTICE\)\)/);
+  assert.match(body, /redirect\(activityLogged \? opportunityPath : withNotice\(opportunityPath, ACTIVITY_UNSAVED_NOTICE\)\)/);
+  assert.ok(body.indexOf("linkError") < body.indexOf('from("sales_activity")'), "the timeline write runs only after a successful link");
+});
+check("createSchedule handoff redirects with a notice when its timeline write fails", () => {
+  const body = functionBlocks(read(P + "schedules/actions.ts")).get("createSchedule") ?? "";
+  assert.match(body, /redirect\(activityLogged \? schedulePath : withNotice\(schedulePath, ACTIVITY_UNSAVED_NOTICE\)\)/);
+});
+check("linkCompany reports both link and timeline failures instead of returning silently", () => {
+  const body = functionBlocks(read(P + "sales/opportunities/actions.ts")).get("linkCompany") ?? "";
+  assert.doesNotMatch(body, /if \(error\) return;/);
+  assert.match(body, /redirect\(withNotice\(opportunityPath, LINK_FAILED_NOTICE\)\)/);
+  assert.match(body, /if \(!logged\) redirect\(withNotice\(opportunityPath, ACTIVITY_UNSAVED_NOTICE\)\)/);
+});
+check("notice pages render only the fixed messages for the fixed values", () => {
+  const opp = read(P + "sales/opportunities/[id]/page.tsx");
+  assert.match(opp, /notice === ACTIVITY_UNSAVED_NOTICE && <div className="ta-alert ta-alert-info" role="status">\{ACTIVITY_UNSAVED_MESSAGE\}/);
+  assert.match(opp, /notice === LINK_FAILED_NOTICE && <div className="ta-alert ta-alert-error" role="alert">\{OPPORTUNITY_LINK_FAILED_MESSAGE\}/);
+  assert.match(read(P + "sales/quotations/[id]/page.tsx"), /notice === ACTIVITY_UNSAVED_NOTICE && \(\s*<div className="ta-alert ta-alert-info" role="status">\{ACTIVITY_UNSAVED_MESSAGE\}/);
+  assert.match(read(P + "schedules/[id]/page.tsx"), /notice === ACTIVITY_UNSAVED_NOTICE && \(\s*<div className="ta-alert ta-alert-info" role="status">\{ACTIVITY_UNSAVED_MESSAGE\}/);
+  for (const page of ["sales/tasks/page.tsx", "sales/tasks/[id]/page.tsx"]) assert.match(read(P + page), /isTaskQueueWarning\(sp\.feedback\)/);
 });
 
 if (failures) {

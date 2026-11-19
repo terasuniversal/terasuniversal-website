@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { requireModuleAccess, requireRole } from "../../../../lib/auth/session";
 import { scheduleSchema, scheduleGroupSchema, fieldErrors } from "../../../../lib/validation/schemas";
+import { ACTIVITY_UNSAVED_NOTICE, withNotice } from "../../../../lib/sales/activity-notice";
 import { courseCatalog } from "../../../../data/courseCatalog";
 
 export type ScheduleFormState = { errors?: Record<string, string>; message?: string };
@@ -140,8 +141,11 @@ export async function createSchedule(_prev: ScheduleFormState, formData: FormDat
       .select("lead_metadata_id")
       .eq("id", payload.source_opportunity_id)
       .maybeSingle();
+    let activityLogged = true;
     if (opp?.lead_metadata_id) {
-      await supabase.from("sales_activity").insert({
+      // The schedule exists now; returning to the form would invite a duplicate, so a failed
+      // timeline write is reported on the schedule page through a fixed notice instead.
+      const { error: activityError } = await supabase.from("sales_activity").insert({
         lead_metadata_id: opp.lead_metadata_id,
         opportunity_id: payload.source_opportunity_id,
         quotation_id: payload.source_quotation_id,
@@ -149,11 +153,14 @@ export async function createSchedule(_prev: ScheduleFormState, formData: FormDat
         note: `Training schedule ${created.schedule_code ?? created.id} created`,
         actor_id: profile.id,
       });
+      if (activityError) console.error("training_handoff_created activity insert failed", { code: activityError.code });
+      activityLogged = !activityError;
     }
     revalidatePath(`/admin/sales/opportunities/${payload.source_opportunity_id}`);
     revalidatePath("/admin/schedules");
     await revalidatePublicScheduleViews(supabase, [payload.course_id]);
-    redirect(`/admin/schedules/${created.id}`);
+    const schedulePath = `/admin/schedules/${created.id}`;
+    redirect(activityLogged ? schedulePath : withNotice(schedulePath, ACTIVITY_UNSAVED_NOTICE));
   }
 
   revalidatePath("/admin/schedules");
