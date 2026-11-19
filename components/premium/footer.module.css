@@ -1,0 +1,69 @@
+/* Premium public footer (Phase S4D-2D). Public --px-* tokens only; every selector starts with a local class.
+   Two classes (or a class plus an element) wherever a margin, list style, colour or focus style is set, so the kit's
+   one-class ".px :where(...)" reset and the global footer rules in globals.css never win. */
+
+.footer.footer { display: block; padding: 0; border-top: 6px solid var(--px-gold); background: var(--px-navy); color: var(--px-on-navy); font-family: var(--px-font-body); font-size: 0.9375rem; line-height: 1.6; text-align: left; }
+.grid { display: grid; grid-template-columns: minmax(260px, 1.3fr) repeat(3, minmax(150px, 1fr)) minmax(230px, 1.2fr); gap: 40px 32px; padding-block: 64px 48px; }
+
+.brand { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; }
+.logo { display: block; line-height: 0; }
+.logo img { display: block; height: 96px; width: auto; max-width: none; object-fit: contain; }
+.brand .company { margin-top: 6px; color: var(--px-white); font-family: var(--px-font-heading); font-size: 1rem; font-weight: 800; letter-spacing: 0.02em; }
+.brand .slogan { color: var(--px-gold); font-family: var(--px-font-heading); font-size: 0.9375rem; font-weight: 700; }
+.actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; }
+.actions .action { min-height: 44px; padding: 0 18px; font-size: 0.875rem; }
+
+/* globals.css styles every <nav> as the old header bar (flex row, 14px bold) and hides it below 921px. The footer's
+   link groups are <nav> elements too, so they reset that here at two-class specificity, at every width. */
+.grid .group { display: block; gap: normal; align-items: normal; font-size: inherit; font-weight: inherit; }
+.group .heading { margin-bottom: 16px; color: var(--px-gold); font-family: var(--px-font-heading); font-size: 0.8125rem; font-weight: 800; letter-spacing: 0.12em; line-height: 1.3; text-transform: uppercase; }
+/* globals.css sizes every "#main-content > main h2" up to 28px on phones, and an id selector outranks any class; the
+   footer sits inside <main> on these pages, so the heading text carries its own size on an inner span instead. */
+.heading > span { font-size: 0.8125rem; line-height: 1.3; }
+.links { display: grid; gap: 2px; }
+.links a,
+.contact a { display: inline-flex; align-items: center; min-height: 32px; color: var(--px-white); text-decoration: none; overflow-wrap: anywhere; }
+.links a:hover,
+.contact a:hover { padding-left: 0; color: var(--px-gold); text-decoration: underline; text-underline-offset: 4px; }
+/* globals.css shifts every footer link 3px on hover; the action buttons keep still too. */
+.actions .action:hover { padding-left: 18px; }
+.footer a:focus-visible { outline: 3px solid var(--px-white); outline-offset: 3px; box-shadow: 0 0 0 6px var(--px-gold); }
+
+.contact { display: grid; gap: 10px; font-style: normal; }
+.contact .label { display: block; color: var(--px-on-navy); font-size: 0.75rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+.contact span { color: var(--px-white); }
+.contact .label + a,
+.contact .label + span { display: inline-flex; min-height: 32px; align-items: center; }
+.contact .address { margin-top: 4px; }
+.address span { display: block; color: var(--px-on-navy); }
+
+.bottom { border-top: 1px solid rgba(255, 255, 255, 0.14); background: var(--px-navy-deep); }
+.bottomRow { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 32px; padding-block: 20px; font-size: 0.8125rem; }
+.bottomRow p { color: var(--px-on-navy); }
+.bottomRow .legal { display: inline-flex; align-items: center; min-height: 32px; color: var(--px-white); text-decoration: underline; text-underline-offset: 4px; }
+.bottomRow .legal:hover { color: var(--px-gold); }
+
+@media (max-width: 1279px) {
+  /* Brand across two columns with Contact beside it, then the three link groups. */
+  .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .brand { grid-column: 1 / span 2; }
+  .grid .contactGroup { grid-column: 3; grid-row: 1; }
+}
+
+@media (max-width: 820px) {
+  .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 36px 24px; padding-block: 48px 36px; }
+  .brand { grid-column: 1 / -1; }
+  .grid .contactGroup { grid-column: auto; grid-row: auto; }
+  .logo img { height: 80px; }
+  .links a,
+  .contact a,
+  .contact .label + span { min-height: 44px; }
+}
+
+@media (max-width: 590px) {
+  .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px 20px; }
+  .grid .contactGroup { grid-column: 1 / -1; }
+  .actions { width: 100%; }
+  .actions .action { flex: 1 1 100%; }
+  .bottomRow { flex-direction: column; }
+}

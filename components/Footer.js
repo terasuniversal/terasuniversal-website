@@ -1,4 +1,6 @@
 import Image from "next/image";
+// The small publicContact module, not the whole company profile: some pages that render this footer are client components.
+import { publicContact } from "../data/publicContact";
 
 // Shared site footer — Module: Consistency pass (site-organisation feedback).
 //
@@ -8,6 +10,8 @@ import Image from "next/image";
 // /contact page). This component is now the single source of truth: update
 // the address, phone number, or links here once and every page picks it up.
 export default function Footer() {
+  // Public display address from the verified company profile; contact-form delivery is configured separately.
+  const { email } = publicContact;
   return (
     <footer>
       <div className="container footer-grid">
@@ -16,7 +20,7 @@ export default function Footer() {
           <p>Building Competence. Creating Opportunities.</p>
           <div className="footer-actions">
             <a href="https://wa.me/60195193834" target="_blank" rel="noreferrer">WhatsApp us <span aria-hidden="true">&rarr;</span></a>
-            <a href="mailto:training@terasuniversal.com.my">Send an email</a>
+            <a href={`mailto:${email}`}>Send an email</a>
           </div>
         </div>
         <div>
@@ -35,8 +39,8 @@ export default function Footer() {
         </div>
         <div>
           <h3>Contact</h3>
-          <p><a href="mailto:training@terasuniversal.com.my">training@terasuniversal.com.my</a><br /><a href="tel:+60195193834">+60 19-519 3834</a></p>
-          <p>Lot 1961, Jalan Tanah Merah,<br />Kg Tanah Merah Dalam,<br />06000 Jitra, Kedah, Malaysia</p>
+          <p><a href={`mailto:${email}`}>{email}</a><br /><a href="tel:+60195193834">+60 19-519 3834</a></p>
+          <p>{publicContact.businessAddress.lines.flatMap((line, i) => (i ? [<br key={i} />, line] : [line]))}</p>
         </div>
       </div>
       <div className="container footer-bottom">

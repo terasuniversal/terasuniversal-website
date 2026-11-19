@@ -1,58 +1,49 @@
 import { courseCatalog } from "../../data/courseCatalog";
-import { workingAtHeightProgrammes } from "../../lib/working-at-height-programme";
-import ProgrammeList from "./ProgrammeList";
-import styles from "./home.module.css";
+import { homeContent } from "../../content/en/home";
+import kit from "../premium/premium.module.css";
+import home from "./home.module.css";
+import styles from "./programmes.module.css";
 
-const bySlug = (slug) => courseCatalog.find((course) => course.slug === slug);
-
-// "N Days each" only when every course in the group states the same duration.
-const eachDuration = (slugs) => {
-  const durations = [...new Set(slugs.map((slug) => bySlug(slug)?.duration).filter(Boolean))];
-  return durations.length === 1 ? `${durations[0]} each` : "";
-};
-
-const erectorSlugs = ["basic-scaffolder-level-1", "intermediate-scaffolder-level-2", "advanced-scaffolder-level-3"];
-const inspectorSlugs = ["scaffolding-inspector-basic", "scaffolding-inspector-intermediate", "scaffolding-inspector-advanced"];
-
-// No approved photograph exists for any of the three programmes, so each uses a Navy/Gold panel
-// (`panel` = programme number). A photograph needs scaffolding-trainer approval first.
-const items = [
-  {
-    // "Scaffolding Erector" is the public category label; the destination is the existing
-    // Scaffolding Competency page, which this slice does not change.
-    title: "Scaffolding Erector",
-    href: "/training/scaffolding-competency",
-    summary: "Erect, modify, inspect and dismantle scaffolding to industry standards. ",
-    facts: `Basic, Intermediate and Advanced Scaffolder · ${eachDuration(erectorSlugs)}`,
-    panel: "01",
-  },
-  {
-    title: "Scaffolding Inspector",
-    href: "/training/scaffolding-inspector-basic",
-    summary: "Inspect scaffold structures against standards and report defects and corrective actions. ",
-    facts: `Basic, Intermediate, Advanced · ${eachDuration(inspectorSlugs)}`,
-    panel: "02",
-  },
-  {
-    title: "Working at Height",
-    href: "/training/working-at-height",
-    summary: "Identify hazards, apply fall prevention and protection, and check and use PPE. ",
-    facts: workingAtHeightProgrammes.working_at_height.duration_label,
-    panel: "03",
-  },
-];
+// Hybrid Premium V2 (R3) programme cards. Titles, summaries and durations come from content/en/home.js, whose durations
+// are checked against data/courseCatalog.js by scripts/home-content-contract.mts; the level names listed on each card are
+// read from the catalogue here, so a renamed course updates the card. Links are the existing course routes.
+// No approved photograph exists for any programme yet, so each card carries the Navy/Gold panel already used on the live
+// site (decorative, hidden from assistive technology). A photograph needs publication clearance first.
+const titleFor = (slug) => courseCatalog.find((course) => course.slug === slug)?.title;
 
 export default function CoreProgrammes() {
+  const { courses } = homeContent;
   return (
-    <section id="programmes" className={styles.section} aria-labelledby="programmes-title">
+    <section id="programmes" className={`${kit.px} ${kit.sec} ${kit.tone}`} aria-labelledby="programmes-title">
       {/* Alias targets so existing links to #training and #services land on the programmes. */}
-      <span id="training" className={styles.anchor} />
-      <span id="services" className={styles.anchor} />
-      <div className={styles.axis}>
-        <h2 id="programmes-title" className={styles.h2}>Our core programmes</h2>
-        <p className={styles.intro}>Three pathways, each assessed in theory and practice.</p>
+      <span id="training" className={home.anchor} />
+      <span id="services" className={home.anchor} />
+      <div className={kit.wrap}>
+        <div className={styles.head}>
+          <h2 id="programmes-title">{courses.title}</h2>
+          <a className={kit.tl} href={courses.allLink.href}>{courses.allLink.label}</a>
+        </div>
+        <ul className={styles.cards}>
+          {courses.items.map((item, index) => {
+            const levels = item.catalogSlugs.map(titleFor).filter(Boolean);
+            const duration = item.catalogSlugs.length > 1 ? `${item.duration} each` : item.duration;
+            return (
+              <li className={styles.card} key={item.key}>
+                <div className={styles.panel} aria-hidden="true">
+                  <span className={styles.panelNo}>{String(index + 1).padStart(2, "0")}</span>
+                </div>
+                <div className={styles.body}>
+                  <h3><a className={styles.cardLink} href={item.href}>{item.title}</a></h3>
+                  <p>{item.summary}</p>
+                  {levels.length > 1 && <p className={styles.levels}>{levels.join(", ")}</p>}
+                  <p className={styles.duration}><span>Duration</span> {duration}</p>
+                  <span className={styles.more} aria-hidden="true">{courses.detailsLabel}</span>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
       </div>
-      <ProgrammeList items={items} />
     </section>
   );
 }

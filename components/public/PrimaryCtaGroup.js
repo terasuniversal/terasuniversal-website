@@ -1,7 +1,8 @@
-function whatsappUrl(message) {
-  return `https://wa.me/60195193834?text=${encodeURIComponent(message)}`;
-}
-
+// Enquiry link builder shared by the homepage, the training calendar, the course pages and the training catalogue, so
+// every enquiry URL has one format (/request-proposal?course=&session=&source=).
+// Phase S4C: the file's former default export, the PrimaryCtaGroup button group, had no caller after the S4B course page
+// moved to Premium V2 actions, so it was removed with its stylesheet (public-phase-one.module.css). The file keeps its
+// name so the existing imports of enquiryHref stay unchanged.
 export function enquiryHref({ course, source, session } = {}) {
   const params = new URLSearchParams();
   if (course) params.set("course", course);
@@ -10,16 +11,3 @@ export function enquiryHref({ course, source, session } = {}) {
   const query = params.toString();
   return query ? `/request-proposal?${query}` : "/request-proposal";
 }
-
-export default function PrimaryCtaGroup({ course, source, scheduleHref = "/calendar", className = "hero-actions", hasRegistration = false }) {
-  const courseName = course?.title;
-  const enquiry = enquiryHref({ course: course?.slug, source });
-  const message = courseName ? `Hi TERAS, saya berminat dengan ${courseName}.` : "Hi TERAS, saya ingin bertanya tentang latihan TERAS.";
-
-  return <div className={`${className} ${styles.ctaGroup}`}>
-    {course && <a className={`btn btn-primary ${styles.primaryAction}`} href={scheduleHref}>{hasRegistration ? "Register Now" : "View Upcoming Training"}</a>}
-    <a className={`btn ${course ? "btn-outline" : "btn-primary"} ${course ? styles.enquiryAction : styles.primaryAction}`} href={enquiry}>{course ? "Enquire About This Course" : "Request Corporate Training"}</a>
-    {course && <a className="btn btn-outline" href={whatsappUrl(message)} target="_blank" rel="noreferrer">WhatsApp TERAS</a>}
-  </div>;
-}
-import styles from "./public-phase-one.module.css";

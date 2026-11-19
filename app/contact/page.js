@@ -1,8 +1,10 @@
 import Image from "next/image";
-import MobileNav from "../../components/MobileNav";
-import MegaNav from "../../components/MegaNav";
+import PremiumHeader from "../../components/premium/PremiumHeader";
 import ContactEnquiryForm from "../../components/ContactEnquiryForm";
-import Footer from "../../components/Footer";
+import PremiumFooter from "../../components/premium/PremiumFooter";
+import { publicBody } from "../../components/premium/fonts";
+import bridge from "../../components/premium/legacy-bridge.module.css";
+import { publicContact } from "../../data/publicContact";
 
 const faqs = [
   ["Can training be customised?", "Yes. Programme scope can be discussed around participant profiles, operational risks, organisational procedures and desired learning outcomes."],
@@ -17,16 +19,13 @@ const reasons = [
   ["04", "Nationwide Delivery", "Flexible arrangements for organisations operating across Malaysia."],
 ];
 
+// Phase S4D-2C: the shared Premium header replaces the page's own legacy header and, as on the other Premium
+// pages, sits before <main> rather than inside it. Everything inside <main> is unchanged.
 export default function ContactPage() {
   return (
-    <main className="contact-page">
-      <header className="site-header">
-        <div className="container nav-wrap">
-          <a className="brand" href="/" aria-label="TERAS UNIVERSAL home"><Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL logo" width={220} height={140} priority sizes="154px" /></a>
-          <MegaNav />
-          <MobileNav basePath="/" />
-        </div>
-      </header>
+    <>
+    <PremiumHeader />
+    <main className={`contact-page ${bridge.page} ${publicBody.variable}`}>
 
       <section className="contact-page-hero" aria-labelledby="contact-hero-title">
         <div className="container contact-page-hero-grid">
@@ -37,8 +36,8 @@ export default function ContactPage() {
 
       <section className="contact-info-section" aria-label="Contact information">
         <div className="container contact-info-grid">
-          <article><span className="contact-info-number">01</span><h2>General Enquiries</h2><dl><div><dt>Email</dt><dd><a href="mailto:training@terasuniversal.com.my">training@terasuniversal.com.my</a></dd></div><div><dt>Phone</dt><dd><a href="tel:+60195193834">+60 19-519 3834</a></dd></div></dl></article>
-          <article><span className="contact-info-number">02</span><h2>Office Address</h2><address>Lot 1961<br />Jalan Tanah Merah<br />Kg Tanah Merah Dalam<br />06000 Jitra<br />Kedah<br />Malaysia</address></article>
+          <article><span className="contact-info-number">01</span><h2>General Enquiries</h2><dl><div><dt>Email</dt><dd><a href="mailto:admin@terasuniversal.com.my">admin@terasuniversal.com.my</a></dd></div><div><dt>Phone</dt><dd><a href="tel:+60195193834">+60 19-519 3834</a></dd></div></dl></article>
+          <article><span className="contact-info-number">02</span><h2>Office Address</h2><address>{publicContact.businessAddress.lines.flatMap((line, i) => (i ? [<br key={i} />, line] : [line]))}</address></article>
           <article><span className="contact-info-number">03</span><h2>Business Hours</h2><dl><div><dt>Sunday-Friday</dt><dd>8:30 AM - 5:30 PM</dd></div><div><dt>Saturday</dt><dd>Closed</dd></div></dl></article>
         </div>
       </section>
@@ -62,8 +61,9 @@ export default function ContactPage() {
       <section className="contact-faq-section" aria-labelledby="contact-faq-title"><div className="container"><div className="section-heading"><span className="eyebrow">Frequently Asked Questions</span><h2 id="contact-faq-title">A few quick answers before we speak.</h2></div><div className="contact-faq-list">{faqs.map(([question, answer]) => <details key={question}><summary>{question}<span aria-hidden="true">+</span></summary><p>{answer}</p></details>)}</div></div></section>
 
       <section className="contact-page-cta"><div className="container"><div><span className="eyebrow">Corporate &amp; Custom Solutions</span><h2>Ready to Strengthen Your Workforce?</h2></div><div className="hero-actions"><a className="btn btn-gold" href="/request-proposal">Request Proposal</a><a className="btn btn-light" href="https://wa.me/60195193834" target="_blank" rel="noreferrer">WhatsApp</a></div></div></section>
-
-      <Footer />
     </main>
+
+      <PremiumFooter />
+    </>
   );
 }

@@ -2,19 +2,21 @@
 
 import { useMemo, useState } from "react";
 import { enquiryHref } from "./public/PrimaryCtaGroup";
+import { describeSession } from "../lib/session-display";
+import { calendarContent } from "../content/en/calendar";
+import kit from "./premium/premium.module.css";
+import styles from "./calendar/calendar.module.css";
 
 // Data-driven training calendar. Sessions come from the live CMS
 // (course_schedules) via the parent server page — this component never
 // hardcodes dates, so nothing here can drift out of date or fabricate
 // sessions that don't exist in the source of truth.
-
-const STATUS_LABELS = {
-  open: "Open",
-  full: "Full",
-  in_progress: "In Progress",
-  completed: "Completed",
-  cancelled: "Cancelled",
-};
+// Session labels, fee text (zero and missing fees are never shown as a price), venue fallback, availability and the
+// Register / Full / Enquire action come from the shared policy in lib/session-display.ts (Phase S3), the same one the
+// homepage and the course pages use. Register is offered only when the server's registration_available flag allows it.
+// Phase S4A: Hybrid Premium V2 presentation (public kit + calendar.module.css) and copy from content/en/calendar.js; the
+// filter, view and data logic is unchanged. The page adds `courseSlug` and `duration` to each session from the catalogue
+// (CRM identity first, then the public slug), so links use the public course route.
 
 const todayString = () => {
   const now = new Date();
@@ -22,27 +24,13 @@ const todayString = () => {
   return local.toISOString().slice(0, 10);
 };
 
-const dateLabel = (date, options = {}) =>
-  new Intl.DateTimeFormat("en-MY", { day: "numeric", month: "short", year: "numeric", ...options }).format(new Date(`${date}T00:00:00`));
+const sessionCourseSlug = (session) => session.courseSlug ?? session.slug ?? undefined;
 
-const timeLabel = (time) =>
-  new Intl.DateTimeFormat("en-MY", { hour: "numeric", minute: "2-digit" }).format(new Date(`2000-01-01T${time}`));
-
-// A fee of 0 is not a price: online registration is paid-only, so only a positive
-// confirmed fee is shown. Zero and missing fees show no fee line.
-const feeLabel = (fee) => typeof fee === "number" && Number.isFinite(fee) && fee > 0
-  ? `RM${new Intl.NumberFormat("en-MY", { maximumFractionDigits: 2 }).format(fee)} / pax`
-  : null;
-
-const seatsLabel = (session) => {
-  if (session.status === "cancelled") return "Cancelled";
-  if (session.status === "full" || (session.capacity > 0 && session.available_seats <= 0)) return "Full";
-  if (session.capacity > 0) return `${session.available_seats} seats available`;
-  return null;
+const actionHref = (session, view) => {
+  if (view.action.type === "register") return view.action.href;
+  if (view.action.type === "details") return sessionCourseSlug(session) ? `/training/${sessionCourseSlug(session)}` : null;
+  return enquiryHref({ course: sessionCourseSlug(session), session: session.start_date, source: "calendar" });
 };
-
-const sessionUrl = (session) => session.registration_available ? `/registration/${session.id}` : (session.slug ? `/training/${session.slug}` : enquiryHref({ source: "calendar", session: session.start_date }));
-const sessionCta = (session) => session.registration_available ? "Register" : (session.slug ? "View Course Details" : "Enquire About This Session");
 
 function isUpcoming(session) {
   return session.start_date >= todayString();
@@ -52,44 +40,56 @@ function isLiveStatus(session) {
   return session.status !== "cancelled" && session.status !== "completed";
 }
 
-function SessionList({ sessions }) {
-  if (!sessions.length) {
-    return (
-      <div className="calendar-empty-state">
-        <strong>No sessions match this view yet.</strong>
-        <p>Public programme dates are confirmed as courses are arranged. Check back soon, or tell us your preferred timing and we will propose a plan.</p>
-        <a className="btn btn-primary" href="/request-proposal">Request a Proposal</a>
-      </div>
-    );
-  }
-
+function StateBox({ state, alert = false }) {
   return (
-    <div className="calendar-list">
-      {sessions.map((session) => {
-        const seats = seatsLabel(session);
-        return (
-          <article className="calendar-session" key={session.id}>
-            <time className="calendar-session-date" dateTime={session.start_date}>
-              <strong>{dateLabel(session.start_date)}</strong>
-              {session.end_date && session.end_date !== session.start_date && <span>– {dateLabel(session.end_date)}</span>}
-              {session.start_time && <small>{timeLabel(session.start_time)}</small>}
-            </time>
-            <div>
-              <h3>{session.title}</h3>
-              <p>{[session.delivery_mode, session.venue].filter(Boolean).join(" · ") || "Venue to be confirmed"}</p>
-              {feeLabel(session.fee) && <p className="calendar-session-fee">{feeLabel(session.fee)}</p>}
-            </div>
-            <span className={`calendar-status is-${session.status}`}>{STATUS_LABELS[session.status] ?? session.status}</span>
-            <strong className={seats === "Full" || session.status === "cancelled" ? "seats-complete" : "seats-available"}>{seats ?? "Seats to be confirmed"}</strong>
-            <a className="btn btn-outline" href={sessionUrl(session)}>{sessionCta(session)}</a>
-          </article>
-        );
-      })}
+    <div className={styles.state} role={alert ? "alert" : undefined}>
+      <strong>{state.title}</strong>
+      <p>{state.text}</p>
+      <a className={kit.btn} href={state.cta.href}>{state.cta.label}</a>
     </div>
   );
 }
 
+function SessionList({ sessions }) {
+  const text = calendarContent.tool;
+  if (!sessions.length) return <StateBox state={calendarContent.states.noMatch} />;
+
+  const today = todayString();
+  return (
+    <ol className={styles.list}>
+      {sessions.map((session) => {
+        const view = describeSession(session, { today });
+        const href = actionHref(session, view);
+        const courseSlug = sessionCourseSlug(session);
+        return (
+          <li key={session.id}>
+            <article className={`${styles.session} ${view.state === "closed" ? styles.closed : ""}`}>
+              <time className={styles.date} dateTime={session.start_date}>
+                <b>{view.dayText}</b>
+                <span>{view.dateText}{view.timeText ? ` · ${view.timeText}` : ""}</span>
+              </time>
+              <div className={styles.course}>
+                <h3>{courseSlug ? <a href={`/training/${courseSlug}`}>{session.title}</a> : session.title}</h3>
+                <p>{[session.duration, view.state !== "closed" ? view.seatsText : null].filter(Boolean).join(" · ")}</p>
+              </div>
+              <p className={styles.fact}>{text.venueLabel}<b>{view.venueText}</b></p>
+              {view.state !== "closed"
+                ? <p className={styles.fact}>{text.feeLabel}<b>{view.feeShort}</b>{view.feeAmount ? view.feeUnit : null}</p>
+                : <p className={styles.fact} aria-hidden="true" />}
+              <div className={styles.action}>
+                <span className={`${styles.pill} ${styles[`pill_${view.statusKey}`] ?? ""}`}>{view.statusLabel}</span>
+                {href && <a className={`${kit.btn} ${view.action.type === "register" ? "" : styles.btnLine}`} href={href} aria-label={`${view.action.label}: ${session.title}, ${view.dateText}`}>{view.action.label}</a>}
+              </div>
+            </article>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
 function MonthView({ sessions }) {
+  const text = calendarContent.tool;
   const anchor = new Date();
   const year = anchor.getFullYear();
   const month = anchor.getMonth();
@@ -109,17 +109,17 @@ function MonthView({ sessions }) {
   }
 
   return (
-    <div className="calendar-month-view">
-      <div className="calendar-month-heading"><strong>{monthLabel}</strong><span>Scheduled sessions are shown below.</span></div>
-      <div className="calendar-month-grid">
-        {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => <span className="calendar-day-name" key={day}>{day}</span>)}
+    <div className={styles.month}>
+      <div className={styles.viewHead}><strong>{monthLabel}</strong><span>{text.monthNote}</span></div>
+      <div className={styles.monthGrid}>
+        {text.weekdays.map((day) => <span className={styles.dayName} key={day}>{day}</span>)}
         {cells.map((cell, index) => (
-          <div className={`calendar-day ${cell && cell.matches.length ? "has-session" : ""}`} key={cell ? cell.iso : `blank-${index}`}>
+          <div className={`${styles.day} ${cell && cell.matches.length ? styles.hasSession : ""}`} key={cell ? cell.iso : `blank-${index}`}>
             {cell && (
               <>
                 <b>{cell.day}</b>
                 {cell.matches.slice(0, 2).map((match) => <small key={match.id}>{match.title}</small>)}
-                {cell.matches.length > 2 && <small className="calendar-day-more">+{cell.matches.length - 2} more</small>}
+                {cell.matches.length > 2 && <small className={styles.more}>{text.more(cell.matches.length - 2)}</small>}
               </>
             )}
           </div>
@@ -130,6 +130,7 @@ function MonthView({ sessions }) {
 }
 
 function WeekView({ sessions }) {
+  const text = calendarContent.tool;
   const upcoming = sessions.find(isUpcoming);
   const base = upcoming ? new Date(`${upcoming.start_date}T00:00:00`) : new Date();
   const dow = (base.getDay() + 6) % 7;
@@ -142,15 +143,15 @@ function WeekView({ sessions }) {
   });
 
   return (
-    <div className="calendar-week-view">
-      <div className="calendar-week-heading"><strong>Week of {weekLabel}</strong><span>Review the next scheduled delivery windows.</span></div>
-      <div className="calendar-week-grid">
+    <div className={styles.week}>
+      <div className={styles.viewHead}><strong>{text.weekPrefix} {weekLabel}</strong><span>{text.weekNote}</span></div>
+      <div className={styles.weekGrid}>
         {days.map((day) => (
           <div key={day.iso}>
             <span>{day.label}</span>
             {day.matches.length ? day.matches.map((match) => (
-              <article key={match.id}><b>{match.title}</b><small>{match.delivery_mode ?? "Training session"}</small></article>
-            )) : <em>No session</em>}
+              <article key={match.id}><b>{match.title}</b><small>{match.delivery_mode ?? text.trainingSession}</small></article>
+            )) : <em>{text.noSession}</em>}
           </div>
         ))}
       </div>
@@ -159,6 +160,7 @@ function WeekView({ sessions }) {
 }
 
 export default function TrainingCalendar({ sessions = [], courseSlug, courseId, loadError = false }) {
+  const text = calendarContent.tool;
   const [view, setView] = useState("List");
   const [filter, setFilter] = useState("Upcoming");
 
@@ -174,33 +176,34 @@ export default function TrainingCalendar({ sessions = [], courseSlug, courseId, 
   }, [courseSlug, filter, sessions]);
 
   return (
-    <section className="calendar-tool" aria-labelledby="calendar-title">
-      <div className="calendar-toolbar">
-        <div><span className="eyebrow">Training Calendar</span><h2 id="calendar-title">Plan the right learning window.</h2><p>{courseSlug ? "Showing sessions for your selected course." : "Browse scheduled public programmes and use the list as a starting point for corporate planning."}</p></div>
-        <div className="calendar-controls">
-          <label><span className="sr-only">Session status</span><select value={filter} onChange={(event) => setFilter(event.target.value)}><option>Upcoming</option><option>Completed</option><option>All</option></select></label>
-          <div className="calendar-view-tabs" role="group" aria-label="Calendar view">{["Month", "Week", "List"].map((item) => <button key={item} type="button" aria-pressed={view === item} className={view === item ? "active" : ""} onClick={() => setView(item)}>{item}</button>)}</div>
+    <section id="calendar-sessions" className={`${kit.px} ${kit.tone} ${styles.tool}`} aria-labelledby="calendar-title">
+      <div className={kit.wrap}>
+        <div className={styles.toolbar}>
+          <div>
+            <p className={styles.eyebrow}>{text.eyebrow}</p>
+            <h2 id="calendar-title">{text.title}</h2>
+            <p className={styles.toolText}>{courseSlug ? text.textCourse : text.textAll}</p>
+          </div>
+          <div className={styles.controls}>
+            <label className={styles.filter}>
+              <span>{text.filterLabel}</span>
+              <select value={filter} onChange={(event) => setFilter(event.target.value)}>{text.filters.map((option) => <option key={option}>{option}</option>)}</select>
+            </label>
+            <div className={styles.tabs} role="group" aria-label={text.viewsName}>{text.views.map((item) => <button key={item} type="button" aria-pressed={view === item} className={view === item ? styles.tabOn : ""} onClick={() => setView(item)}>{item}</button>)}</div>
+          </div>
         </div>
+        {loadError ? (
+          <StateBox state={calendarContent.states.unavailable} alert />
+        ) : sessions.length === 0 ? (
+          <StateBox state={calendarContent.states.none} />
+        ) : (
+          <>
+            {view === "Month" && <MonthView sessions={visibleSessions} />}
+            {view === "Week" && <WeekView sessions={visibleSessions} />}
+            {view === "List" && <SessionList sessions={visibleSessions} />}
+          </>
+        )}
       </div>
-      {loadError ? (
-        <div className="calendar-empty-state" role="alert">
-          <strong>Training dates are temporarily unavailable.</strong>
-          <p>Please try again shortly or contact TERAS for assistance with upcoming programmes.</p>
-          <a className="btn btn-primary" href="/request-proposal">Contact TERAS</a>
-        </div>
-      ) : sessions.length === 0 ? (
-        <div className="calendar-empty-state">
-          <strong>No training dates published yet.</strong>
-          <p>Public programme dates are confirmed as courses are arranged. Check back soon, or tell us your preferred timing and we will propose a plan.</p>
-          <a className="btn btn-primary" href="/request-proposal">Request a Proposal</a>
-        </div>
-      ) : (
-        <>
-          {view === "Month" && <MonthView sessions={visibleSessions} />}
-          {view === "Week" && <WeekView sessions={visibleSessions} />}
-          {view === "List" && <SessionList sessions={visibleSessions} />}
-        </>
-      )}
     </section>
   );
 }

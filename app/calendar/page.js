@@ -1,15 +1,57 @@
-import Image from "next/image";
-import MobileNav from "../../components/MobileNav";
-import MegaNav from "../../components/MegaNav";
-import Footer from "../../components/Footer";
+import PremiumHeader from "../../components/premium/PremiumHeader";
+import { publicBody } from "../../components/premium/fonts";
+import kit from "../../components/premium/premium.module.css";
+import styles from "../../components/calendar/calendar.module.css";
+import PremiumFooter from "../../components/premium/PremiumFooter";
 import TrainingCalendar from "../../components/TrainingCalendar";
-import LeadGenCta from "../../components/LeadGenCta";
+import { calendarContent } from "../../content/en/calendar";
+import { courseCatalog } from "../../data/courseCatalog";
 import { getPublishedSchedulesWithState } from "../../lib/public-content";
+import { publicRegistrationEnabled } from "../../lib/public-registration-gate";
+import { catalogueCourseForSession, catalogueDurationText } from "../../lib/course-session-map";
+import { socialMetadata } from "../../lib/social-metadata";
 
-export const metadata = { title: "Training Calendar", description: "Browse TERAS UNIVERSAL training programme dates and delivery options in Malaysia.", alternates: { canonical: "/calendar" } };
+export const metadata = { title: calendarContent.meta.title, description: calendarContent.meta.description, alternates: { canonical: "/calendar" }, ...socialMetadata({ title: `${calendarContent.meta.title} | TERAS UNIVERSAL`, description: calendarContent.meta.description, path: "/calendar" }) };
 
+// Hybrid Premium V2 Training Calendar (Phase S4A): the shared Premium Navy header, a navy page intro, the calendar on the
+// tone ground and a closing enquiry section. Data fetching, filters and views are unchanged (TrainingCalendar).
 export default async function CalendarPage({ searchParams }) {
-  const { schedules: sessions, error: scheduleLoadError } = await getPublishedSchedulesWithState();
+  const { schedules, error: scheduleLoadError } = await getPublishedSchedulesWithState();
   const { course, courseId } = await searchParams;
-  return <main className="utility-page"><header className="site-header"><div className="container nav-wrap"><a className="brand" href="/" aria-label="TERAS UNIVERSAL home"><Image src="/teras-universal-logo.png" alt="TERAS UNIVERSAL logo" width={220} height={140} priority sizes="154px" /></a><MegaNav /><MobileNav basePath="/" /></div></header><div className="container utility-container"><span className="eyebrow">Programme Schedule</span><h1>Training Calendar</h1><p className="utility-lead">Browse public sessions arranged through the TERAS training schedule. Where a session is open and priced, you can register online; otherwise, enquire about the next suitable date.</p><TrainingCalendar sessions={sessions} loadError={scheduleLoadError} courseSlug={typeof course === "string" ? course : undefined} courseId={typeof courseId === "string" ? courseId : undefined} /><LeadGenCta title="Don't see a suitable date?" text="We also arrange in-house and customised training windows. Let us know your preferred timing and we'll propose a plan." /></div><Footer /></main>;
+  // Catalogue course for each schedule (CRM identity first, then the public slug; lib/course-session-map.ts, shared with
+  // the homepage and course pages). Only presentation fields are added; the schedule records pass through unchanged.
+  const sessions = schedules.map((session) => {
+    const entry = catalogueCourseForSession(session, courseCatalog);
+    return { ...session, courseSlug: entry?.slug ?? null, duration: catalogueDurationText(entry) };
+  });
+  const { intro, cta } = calendarContent;
+  return (
+    <>
+      <PremiumHeader registerHref="#calendar-sessions" />
+      <main className={publicBody.variable}>
+        <section className={`${kit.px} ${kit.navyField} ${styles.intro}`} aria-labelledby="calendar-page-title">
+          <div className={kit.wrap}>
+            <p className={styles.introEyebrow}>{intro.eyebrow}</p>
+            <h1 id="calendar-page-title" className={styles.title}>{intro.title}</h1>
+            <p className={styles.lead}>{publicRegistrationEnabled() ? intro.lead : intro.leadClosed}</p>
+          </div>
+        </section>
+        <TrainingCalendar sessions={sessions} loadError={scheduleLoadError} courseSlug={typeof course === "string" ? course : undefined} courseId={typeof courseId === "string" ? courseId : undefined} />
+        <section className={`${kit.px} ${kit.sec} ${kit.navyField}`} aria-labelledby="calendar-cta-title">
+          <div className={`${kit.wrap} ${styles.cta}`}>
+            <div>
+              <h2 id="calendar-cta-title">{cta.title}</h2>
+              <p className={styles.ctaText}>{cta.text}</p>
+            </div>
+            <div className={styles.ctaActs}>
+              <a className={kit.btn} href={cta.primary.href}>{cta.primary.label}</a>
+              <a className={`${kit.btn} ${kit.btnLight}`} href={cta.whatsapp.href} target="_blank" rel="noreferrer">{cta.whatsapp.label}</a>
+              <a className={kit.tl} href={cta.corporate.href}>{cta.corporate.label}</a>
+            </div>
+          </div>
+        </section>
+      </main>
+        <PremiumFooter />
+    </>
+  );
 }

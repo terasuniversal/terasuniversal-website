@@ -7,10 +7,13 @@ import {
   publicRegistrationCreateSchema,
 } from "../../../lib/public-registration";
 import { createSupabaseServerClient } from "../../../lib/supabase/server";
+import { publicRegistrationEnabled, REGISTRATION_DISABLED_MESSAGE } from "../../../lib/public-registration-gate";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
+  // F-1: fail closed before any database call when public registration is switched off.
+  if (!publicRegistrationEnabled()) return NextResponse.json({ error: REGISTRATION_DISABLED_MESSAGE }, { status: 503 });
   if (!isAllowedOrigin(request)) return NextResponse.json({ error: "Invalid request origin." }, { status: 403 });
   if (!(await checkSharedRateLimit({ key: `registration:create:${hashedClientId(clientIp(request))}`, windowSeconds: 60, maxAttempts: 5, failClosed: true }))) {
     return NextResponse.json({ error: "Please wait a moment before trying again." }, { status: 429 });

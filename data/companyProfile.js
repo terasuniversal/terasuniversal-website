@@ -1,3 +1,6 @@
+// Explicit extension so plain Node contract scripts can load this module as well as the Next.js bundler.
+import { publicContact } from "./publicContact.js";
+
 export const brand = {
   navy: "#0B2C56",
   white: "#FFFFFF",
@@ -11,9 +14,11 @@ export const companyProfile = {
   description: "A Malaysian industrial safety training and consultancy company dedicated to developing competent, safety-conscious and industry-ready professionals across the Oil & Gas, Construction, Petrochemical, Manufacturing, Marine and Heavy Industries sectors.",
   established: 2012,
   contact: {
-    email: "training@terasuniversal.com.my",
-    phone: "+60 19-519 3834",
-    address: "Lot 1961 Kg Tanah Merah, Tanah Merah Dalam, 06000 Jitra, Kedah Darul Aman, Malaysia",
+    // Display email and phone come from data/publicContact.js (one source); form delivery is configured separately.
+    email: publicContact.email,
+    phone: publicContact.phone,
+    // W2-A: the shared public operating address (SSM company-profile spelling).
+    address: publicContact.businessAddress.oneLine,
   },
   vision: "To become a leading industrial safety training and competency assessment provider recognised by local and international industries for developing competent, skilled and safety-focused professionals.",
   mission: [
@@ -37,10 +42,13 @@ export const coreValues = [
 
 // Verified — Corporate Profile 2026 "Recognition & Accreditations".
 export const accreditations = [
-  { org: "JKKP (DOSH)", label: "Approved Training Provider", text: "Registered with the Department of Occupational Safety and Health Malaysia (JKKP) as an approved training provider to conduct occupational safety and health training programmes in accordance with the latest regulations and industry standards.",
-    // Scoped recognition from the JKKP letter dated 29 July 2026 (training centre for tube scaffold
-    // erectors, inspectors and supervisors). It carries its own expiry: the homepage states it as current
-    // only until validUntil and as historical afterwards, until a renewal letter is verified and this is updated.
+  { org: "JKKP (DOSH)", label: "Recognised Training Centre (Tube Scaffolding)", text: "Recognised by the Department of Occupational Safety and Health Malaysia (JKKP) as a training centre for tube scaffold erectors, inspectors and supervisors. This recognition covers that scope only and does not apply to other TERAS programmes.",
+    // Scoped recognition from the JKKP letter dated 29 July 2026, ref. JKKP BC 127/682/3 klt. 1(11-4)
+    // (training centre for tube scaffold erectors, inspectors and supervisors). The wording above is
+    // deliberately limited to that scope (S5B-1B Round 1): the earlier text described a general OSH
+    // training-provider approval that this letter does not establish. It carries its own expiry: the
+    // homepage states it as current only until validUntil and as historical afterwards, until a renewal
+    // letter is verified and this is updated.
     recognition: {
       scope: "tube scaffold erectors, inspectors and supervisors",
       validUntil: "2027-05-25",
@@ -103,7 +111,7 @@ export const partners = [
 // in an official TERAS UNIVERSAL document.
 export const confirmedFacts = [
   "Established 2012",
-  "JKKP (DOSH) Approved Training Provider",
+  "JKKP (DOSH) Recognised Training Centre (Tube Scaffolding)",
   "HRD Corp Registered Training Provider",
   "CIDB Malaysia Registered Training Provider",
   "MOF Registered Supplier",

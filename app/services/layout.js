@@ -1,3 +1,4 @@
+import { CANONICAL_ORIGIN } from "../../lib/canonical-origin";
 export const metadata = {
   title: { absolute: "Industrial Safety, Technical Competency & Workforce Solutions | TERAS UNIVERSAL" },
   description: "Explore TERAS UNIVERSAL industrial safety, technical competency, consultancy and workforce development services for organisations in Malaysia.",
@@ -6,7 +7,7 @@ export const metadata = {
   openGraph: {
     type: "website",
     locale: "en_MY",
-    url: "https://terasuniversal.com.my/services",
+    url: `${CANONICAL_ORIGIN}/services`,
     siteName: "TERAS UNIVERSAL SDN. BHD.",
     title: "Industrial Safety, Technical Competency & Workforce Solutions | TERAS UNIVERSAL",
     description: "Explore TERAS UNIVERSAL industrial safety, technical competency, consultancy and workforce development services for organisations in Malaysia.",

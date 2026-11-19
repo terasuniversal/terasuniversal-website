@@ -1,0 +1,118 @@
+/* Hybrid Premium V2 training catalogue (/training, Phase S4C): page, course catalogue, training finder and programme
+   comparison. Public --px-* tokens from components/premium/premium.module.css (.px); every selector starts with a local
+   class, so nothing here reaches other pages, the admin shell or certificate pages. The legacy .training-* rules in
+   globals.css no longer apply to this page because these classes replace them. */
+
+.eyebrow { color: var(--px-muted); font-family: var(--px-font-heading); font-size: 0.875rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+/* Two classes wherever a margin or list style is set: the kit's ".px :where(p, ul, ol)" reset has one class, so a single
+   class would win or lose by stylesheet order. */
+.catalogue .sectionText, .delivery .sectionText { margin-top: 14px; max-width: 64ch; color: var(--px-muted); }
+.catalogue h2, .delivery h2, .compare h2, .finder h2 { margin-top: 10px; }
+
+/* ---- hero (navy field) ---------------------------------------------------------------------- */
+/* padding-block replaces the global "section { padding: 86px 0 }" on the same element. */
+.hero { padding-block: clamp(44px, 5vw, 80px) clamp(48px, 6vw, 88px); }
+.heroGrid { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: clamp(28px, 4vw, 64px); align-items: center; }
+.slogan { color: var(--px-on-navy); font-family: var(--px-font-heading); font-size: 0.9375rem; font-weight: 600; }
+.heroEyebrow { color: var(--px-gold); font-family: var(--px-font-heading); font-size: 0.9375rem; font-weight: 700; }
+/* Two classes so the kit's one-class heading reset never wins; on phones globals.css sizes "#main-content > main h1". */
+.hero .heroEyebrow { margin-top: 14px; }
+.hero .title { margin-top: 12px; color: var(--px-white); font-size: clamp(2.375rem, 1.4rem + 3.2vw, 4.25rem); line-height: 1.04; }
+.hero .lead { margin-top: 20px; max-width: 56ch; color: var(--px-on-navy); font-size: var(--px-lead); }
+.acts { margin-top: 32px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.acts > a { min-height: 52px; }
+/* A plain list with gold markers, not boxed chips, so the strengths never look like buttons. */
+.hero .features { margin-top: 28px; display: flex; flex-wrap: wrap; gap: 8px 24px; }
+.features li { position: relative; padding-left: 16px; color: var(--px-white); font-size: 0.9375rem; font-weight: 600; }
+.features li::before { content: ""; position: absolute; left: 0; top: 0.55em; width: 7px; height: 7px; background: var(--px-gold); }
+.figure { position: relative; margin: 0; border-bottom: 10px solid var(--px-gold); background: var(--px-navy-deep); }
+.figure img { display: block; width: 100%; height: auto; aspect-ratio: 3 / 2; object-fit: cover; }
+.note { position: absolute; right: 10px; bottom: 10px; padding: 4px 8px; background: rgba(7, 42, 72, 0.86); color: var(--px-white); font-size: 0.75rem; line-height: 1.3; }
+
+/* ---- training finder ------------------------------------------------------------------------- */
+.finderHead { max-width: 64ch; }
+.finderHead > p:last-child { margin-top: 14px; color: var(--px-muted); }
+.finderGrid { margin-top: 32px; display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 8px; }
+.finderForm { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 20px; padding: 28px; background: var(--px-tone); }
+.finderForm label { display: grid; gap: 6px; color: var(--px-navy); font-family: var(--px-font-heading); font-size: 0.8125rem; font-weight: 700; }
+.finderForm select { min-height: 48px; padding: 0 12px; border: 2px solid var(--px-navy); border-radius: 0; background: var(--px-white); color: var(--px-navy); font-family: var(--px-font-body); font-size: 1rem; font-weight: 600; }
+.finderResult { display: grid; align-content: start; gap: 10px; padding: 28px; background: var(--px-navy); color: var(--px-white); }
+.finderResult .eyebrow { color: var(--px-on-navy); }
+.finderResult h3 { color: var(--px-white); }
+.finderResult ul { display: grid; gap: 8px; }
+.finderResult li { position: relative; padding-left: 22px; font-weight: 600; }
+.finderResult li::before { content: ""; position: absolute; left: 0; top: 0.65em; width: 10px; height: 2px; background: var(--px-gold); }
+.finderResult > a { justify-self: start; margin-top: 8px; }
+
+/* ---- course catalogue (tone ground) ------------------------------------------------------------ */
+.filters { margin-top: 28px; display: flex; flex-wrap: wrap; gap: 8px; }
+.filters button { min-height: 44px; padding: 0 18px; border: 2px solid var(--px-navy); background: var(--px-white); color: var(--px-navy); font-family: var(--px-font-heading); font-size: 0.9375rem; font-weight: 700; cursor: pointer; }
+.filters .filterOn { background: var(--px-navy); color: var(--px-white); }
+.catalogue .count { margin-top: 18px; color: var(--px-navy); }
+.catalogue .cards { margin-top: 20px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.card { position: relative; display: flex; flex-direction: column; background: var(--px-white); }
+.card:hover { box-shadow: 0 18px 40px rgba(7, 42, 72, 0.14); }
+/* The title link covers the whole card, so the card is one target and "View Course" is not a second link. */
+.cardLink { color: var(--px-navy); text-decoration: none; }
+.cardLink::after { content: ""; position: absolute; inset: 0; }
+.card:has(.cardLink:focus-visible) { outline: 3px solid var(--px-navy); outline-offset: 3px; box-shadow: 0 0 0 6px var(--px-gold); }
+.media { aspect-ratio: 16 / 9; overflow: hidden; border-bottom: 6px solid var(--px-gold); background: var(--px-navy); }
+.media img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.body { display: flex; flex-direction: column; gap: 10px; flex: 1; padding: 24px 24px 28px; }
+.category { color: var(--px-muted); font-size: 0.8125rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+.body h3 { font-size: 1.375rem; }
+.card .summary { color: var(--px-ink); }
+.card .meta { color: var(--px-ink); font-size: 0.9375rem; }
+.meta span { margin-right: 6px; color: var(--px-muted); font-weight: 700; }
+.more { margin-top: auto; padding-top: 6px; color: var(--px-navy); font-family: var(--px-font-heading); font-size: 0.9375rem; font-weight: 700; text-decoration: underline; text-decoration-color: var(--px-gold); text-decoration-thickness: 2px; text-underline-offset: 6px; }
+.customCard { background: var(--px-navy); }
+.customCard .cardLink, .customCard .more { color: var(--px-white); }
+.customCard .category { color: var(--px-on-navy); }
+.customCard .summary { color: var(--px-on-navy); }
+
+/* ---- programme comparison ------------------------------------------------------------------------ */
+.compareHead { max-width: 70ch; }
+.compareHead > p:last-child { margin-top: 14px; color: var(--px-muted); }
+.picker { margin-top: 28px; display: flex; flex-wrap: wrap; gap: 8px; }
+.picker button { min-height: 44px; padding: 0 16px; border: 2px solid var(--px-navy); background: var(--px-white); color: var(--px-navy); font-family: var(--px-font-body); font-size: 0.9375rem; font-weight: 600; cursor: pointer; }
+.picker .chipOn { background: var(--px-navy); color: var(--px-white); }
+.picker button:disabled { border-color: #8a96a3; color: #5c6670; cursor: not-allowed; }
+.tableWrap { margin-top: 24px; overflow-x: auto; }
+.table { width: 100%; min-width: 640px; border-collapse: collapse; background: var(--px-white); font-size: 0.9375rem; }
+.table th, .table td { padding: 14px 16px; border-bottom: 1px solid var(--px-tone-2); text-align: left; vertical-align: top; color: var(--px-ink); }
+.table thead th { background: var(--px-navy); color: var(--px-white); font-family: var(--px-font-heading); font-weight: 700; }
+.table .rowLabel { width: 180px; color: var(--px-navy); font-family: var(--px-font-heading); font-weight: 700; }
+.table thead .rowLabel { color: var(--px-white); }
+/* flex (not inline-flex) puts the link on its own line under the programme title in the header cell */
+.viewLink { display: flex; width: fit-content; align-items: center; min-height: 44px; margin-top: 4px; color: var(--px-white); font-weight: 600; text-decoration: underline; text-decoration-color: var(--px-gold); text-underline-offset: 4px; }
+.table .compareList { display: grid; gap: 4px; padding-left: 18px; list-style: disc; }
+.table .compareMore { color: var(--px-muted); list-style: none; }
+.compare .compareEmpty { margin-top: 20px; color: var(--px-muted); }
+.compare .compareNote { margin-top: 16px; max-width: 80ch; color: var(--px-muted); font-size: 0.875rem; }
+
+/* ---- delivery options ------------------------------------------------------------------------------ */
+.delivery { background: var(--px-tone); }
+.delivery .deliveryGrid { margin-top: 32px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.deliveryGrid li { display: grid; align-content: start; gap: 10px; padding: 24px; background: var(--px-white); }
+.deliveryGrid span { color: var(--px-navy); font-family: var(--px-font-heading); font-size: 1.5rem; font-weight: 800; letter-spacing: -0.03em; }
+.deliveryGrid h3 { font-size: 1.125rem; }
+.deliveryGrid p { color: var(--px-ink); font-size: 0.9375rem; }
+
+/* ---- corporate (navy) ------------------------------------------------------------------------------------ */
+.corporate { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 24px 48px; }
+.corporate .corporateText { margin-top: 12px; max-width: 58ch; color: var(--px-on-navy); font-size: var(--px-lead); }
+.corporate .acts { margin-top: 0; }
+
+@media (max-width: 1100px) {
+  .catalogue .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .delivery .deliveryGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 960px) {
+  .heroGrid, .finderGrid, .corporate { grid-template-columns: minmax(0, 1fr); }
+  .figure { max-width: 560px; }
+}
+@media (max-width: 599px) {
+  .catalogue .cards, .delivery .deliveryGrid, .finderForm { grid-template-columns: minmax(0, 1fr); }
+  .acts > a { flex: 1 1 100%; }
+  .finderForm, .finderResult { padding: 22px; }
+}

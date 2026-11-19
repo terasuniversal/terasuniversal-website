@@ -68,7 +68,9 @@ const MANAGED = [
 ];
 function setEnv(values: Record<string, string>) {
   for (const key of MANAGED) delete process.env[key];
-  Object.assign(process.env, { NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: PUBLISHABLE, NEXT_PUBLIC_SUPABASE_ANON_KEY: PUBLISHABLE, ...values });
+  // Public-First F-1: these checks exercise the limiter on the registration routes, so public registration is switched
+  // on here; scripts/public-registration-kill-switch.test.mts covers the switched-off state.
+  Object.assign(process.env, { NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: PUBLISHABLE, NEXT_PUBLIC_SUPABASE_ANON_KEY: PUBLISHABLE, TERAS_PUBLIC_REGISTRATION: "enabled", ...values });
   calls.length = 0;
   rpcAnswer = () => new Response("true", { status: 200, headers: { "content-type": "application/json" } });
 }
