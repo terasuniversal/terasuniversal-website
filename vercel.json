@@ -1,0 +1,7 @@
+{
+  "git": {
+    "deploymentEnabled": {
+      "rc/crm-sales-rc1": false
+    }
+  }
+}
