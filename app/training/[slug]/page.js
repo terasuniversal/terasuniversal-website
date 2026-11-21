@@ -9,6 +9,9 @@ import BreadcrumbJsonLd from "../../../components/public/BreadcrumbJsonLd";
 import { enquiryHref } from "../../../components/public/PrimaryCtaGroup";
 import CourseSessions from "../../../components/course/CourseSessions";
 import { courseContent } from "../../../content/en/course";
+import { coursePhoto } from "../../../lib/course-photos";
+import CourseFaq from "../../../components/course/CourseFaq";
+import CourseEnquiryPaths from "../../../components/course/CourseEnquiryPaths";
 import { courseCatalog, findCourse } from "../../../data/courseCatalog";
 import { industries } from "../../../data/industries";
 import { insights } from "../../../data/insights";
@@ -71,7 +74,7 @@ export default async function CoursePage({ params }) {
   const actions = (source) => (
     <div className={styles.acts}>
       <a className={kit.btn} href={scheduleHref}>{hasRegistration ? text.actions.register : text.actions.upcoming}</a>
-      <a className={`${kit.btn} ${kit.btnLight}`} href={enquiryHref({ course: course.slug, source })}>{text.actions.enquire}</a>
+      <a className={`${kit.btn} ${kit.btnLight}`} href="#enquire">{text.actions.enquire}</a>
       <a className={`${kit.btn} ${kit.btnLight}`} href={text.actions.whatsappHref(course.title)} target="_blank" rel="noreferrer">{text.actions.whatsapp}</a>
     </div>
   );
@@ -93,6 +96,12 @@ export default async function CoursePage({ params }) {
               </nav>
               <p className={styles.heroEyebrow}>{course.category}</p>
               <h1 id="course-title" className={styles.title}>{course.title}</h1>
+              {coursePhoto(course.slug) && (
+                <figure className={`${styles.figure} ${styles.photoMobile}`}>
+                  <div className={styles.photo}><Image className={styles.photoImg} src={coursePhoto(course.slug).src} alt={coursePhoto(course.slug).alt} fill loading="eager" sizes="(max-width: 960px) 100vw, 40vw" style={{ objectPosition: coursePhoto(course.slug).position }} /></div>
+                  <figcaption className={styles.credit}>{text.photoCredit}</figcaption>
+                </figure>
+              )}
               <p className={styles.summary}>{course.summary}</p>
               {heroFacts.length > 0 && (
                 <dl className={styles.keyFacts}>
@@ -101,9 +110,16 @@ export default async function CoursePage({ params }) {
               )}
               {actions("course-page")}
             </div>
-            <figure className={styles.figure}>
-              <Image src={course.image} alt="" unoptimized width={1200} height={800} priority sizes="(max-width: 960px) 100vw, 40vw" />
-            </figure>
+            {coursePhoto(course.slug) ? (
+              <figure className={`${styles.figure} ${styles.photoDesktop}`}>
+                <div className={styles.photo}><Image className={styles.photoImg} src={coursePhoto(course.slug).src} alt={coursePhoto(course.slug).alt} fill priority sizes="(max-width: 960px) 100vw, 40vw" style={{ objectPosition: coursePhoto(course.slug).position }} /></div>
+                <figcaption className={styles.credit}>{text.photoCredit}</figcaption>
+              </figure>
+            ) : (
+              <figure className={styles.figure}>
+                <Image src={course.image} alt="" unoptimized width={1200} height={800} priority sizes="(max-width: 960px) 100vw, 40vw" />
+              </figure>
+            )}
           </div>
         </section>
 
@@ -141,6 +157,9 @@ export default async function CoursePage({ params }) {
             </div>
           </section>
         ))}
+
+        <CourseFaq sectionClass={`${kit.px} ${kit.sec} ${styles.section} ${styles.plain}`} wrapClass={kit.wrap} />
+        <CourseEnquiryPaths course={{ slug: course.slug, title: course.title }} hasRegistration={hasRegistration} registerHref={scheduleHref} sectionClass={`${kit.px} ${kit.sec} ${kit.tone} ${styles.section} ${styles.tone}`} wrapClass={kit.wrap} primaryButton={kit.btn} lineButton={`${kit.btn} ${styles.btnLine}`} />
 
         <section className={`${kit.px} ${kit.sec} ${kit.navyField}`} aria-labelledby="course-final-title">
           <div className={`${kit.wrap} ${styles.final}`}>

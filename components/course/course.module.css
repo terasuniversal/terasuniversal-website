@@ -25,6 +25,39 @@
 .acts > a { min-height: 52px; }
 .figure { margin: 0; border-bottom: 10px solid var(--px-gold); background: var(--px-navy-deep); }
 .figure img { display: block; width: 100%; height: auto; }
+/* FT-1A-2: approved authentic photograph (lib/course-photos.js) with its credit; on phones it sits right after the title. */
+.photo { position: relative; aspect-ratio: 3 / 2; overflow: hidden; }
+.photoImg { object-fit: cover; }
+.credit { padding: 10px 14px 12px; color: var(--px-on-navy); font-size: 0.8125rem; line-height: 1.4; }
+.photoMobile { display: none; }
+/* Two classes: the kit's ".px :where(figure) { margin: 0 }" has the same one-class weight and loads after this file. */
+.figure.photoMobile { margin-top: 22px; }
+
+/* ---- FT-1A-2: published FAQs and the three enquiry routes ------------------------------------------ */
+.faq { margin-top: 28px; max-width: 72ch; }
+.faqItem { border-top: 1px solid var(--px-tone-2); }
+.faqItem:last-child { border-bottom: 1px solid var(--px-tone-2); }
+.faqItem summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 56px; padding: 12px 0; cursor: pointer; list-style: none; color: var(--px-navy); font-family: var(--px-font-heading); font-size: 1.0625rem; font-weight: 700; }
+.faqItem summary::-webkit-details-marker { display: none; }
+/* Open/closed indicator (the native marker is hidden by display: flex). */
+.faqItem summary::after { content: "+"; flex: 0 0 auto; color: var(--px-gold); font-size: 1.5rem; line-height: 1; }
+.faqItem[open] summary::after { content: "\2212"; }
+.faqItem summary:focus-visible { outline: 3px solid var(--px-navy); outline-offset: 3px; }
+.faqItem p { padding-bottom: 18px; max-width: 64ch; color: var(--px-ink); }
+.faqAll { display: inline-flex; align-items: center; min-height: 44px; margin-top: 18px; color: var(--px-navy); font-weight: 700; text-decoration: underline; text-decoration-color: var(--px-gold); text-decoration-thickness: 2px; text-underline-offset: 6px; }
+/* The spacing sits on a wrapper: the global list reset on <main> lists outranks a one-class margin or padding. */
+.pathsWrap { margin-top: 32px; }
+.paths { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.path { display: flex; flex-direction: column; gap: 10px; padding: 24px; border-top: 4px solid var(--px-gold); background: var(--px-white); }
+.path h3 { font-size: 1.25rem; }
+.path .pathText { color: var(--px-ink); }
+.path .pathNote { color: var(--px-muted); font-size: 0.875rem; }
+.path > a { margin-top: auto; align-self: flex-start; min-height: 48px; }
+.pathOff { background: var(--px-tone); }
+/* Two classes so the outline style wins over the kit's one-class gold .btn, which loads after this file. */
+.path .btnLine, .sticky .btnLine { background: var(--px-white); border-color: var(--px-navy); color: var(--px-navy); }
+.path .btnLine:hover, .sticky .btnLine:hover { background: var(--px-navy); border-color: var(--px-navy); color: var(--px-white); }
+.sticky { display: none; }
 
 /* ---- generic content sections -------------------------------------------------------------- */
 .section h2 { margin-top: 10px; }
@@ -102,6 +135,13 @@
 @media (max-width: 960px) {
   .heroGrid, .overviewGrid, .final { grid-template-columns: minmax(0, 1fr); }
   .figure { max-width: 520px; }
+  .photoMobile { display: block; }
+  .photoDesktop { display: none; }
+  .paths { grid-template-columns: minmax(0, 1fr); }
+  /* Phone quick-enquiry bar: hidden by CourseEnquiryPaths while its section or the footer is visible. */
+  .sticky { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; display: flex; gap: 8px; padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); background: var(--px-white); box-shadow: 0 -6px 18px rgba(7, 42, 72, 0.18); }
+  .sticky > a { flex: 1 1 0; min-height: 48px; }
+  .sticky.stickyHidden { display: none; }
   .numbered { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .session { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px 24px; padding: 22px 24px; align-items: start; }
   .date { grid-column: 1 / -1; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }

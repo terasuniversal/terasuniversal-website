@@ -93,6 +93,36 @@ const R2_S1_EDITS: Record<string, [string, string][]> = {
   ],
 };
 
+// FT-1A-2 (owner-approved, 21 Nov 2026): the course-page enhancement, five named edits E1-E5. Undone first and each must
+// be present exactly, so every contract built on revertPublicFirst keeps proving the rest of the file is unchanged
+// (the pre-Public-First BEFORE hash in public-first-launch-contract.mts is not modified).
+const FT1A_EDITS: Record<string, [string, string][]> = {
+  "app/training/[slug]/page.js": [
+    // E1: imports: course-photos, CourseFaq, CourseEnquiryPaths
+    ["import { courseContent } from \"../../../content/en/course\";\nimport { coursePhoto } from \"../../../lib/course-photos\";\nimport CourseFaq from \"../../../components/course/CourseFaq\";\nimport CourseEnquiryPaths from \"../../../components/course/CourseEnquiryPaths\";\n", "import { courseContent } from \"../../../content/en/course\";\n"],
+    // E2: hero: approved photograph right after the title on phones
+    ["              <h1 id=\"course-title\" className={styles.title}>{course.title}</h1>\n              {coursePhoto(course.slug) && (\n                <figure className={`${styles.figure} ${styles.photoMobile}`}>\n                  <div className={styles.photo}><Image className={styles.photoImg} src={coursePhoto(course.slug).src} alt={coursePhoto(course.slug).alt} fill loading=\"eager\" sizes=\"(max-width: 960px) 100vw, 40vw\" style={{ objectPosition: coursePhoto(course.slug).position }} /></div>\n                  <figcaption className={styles.credit}>{text.photoCredit}</figcaption>\n                </figure>\n              )}\n", "              <h1 id=\"course-title\" className={styles.title}>{course.title}</h1>\n"],
+    // E3: hero figure: approved photograph, otherwise the existing panel
+    ["            {coursePhoto(course.slug) ? (\n              <figure className={`${styles.figure} ${styles.photoDesktop}`}>\n                <div className={styles.photo}><Image className={styles.photoImg} src={coursePhoto(course.slug).src} alt={coursePhoto(course.slug).alt} fill priority sizes=\"(max-width: 960px) 100vw, 40vw\" style={{ objectPosition: coursePhoto(course.slug).position }} /></div>\n                <figcaption className={styles.credit}>{text.photoCredit}</figcaption>\n              </figure>\n            ) : (\n              <figure className={styles.figure}>\n                <Image src={course.image} alt=\"\" unoptimized width={1200} height={800} priority sizes=\"(max-width: 960px) 100vw, 40vw\" />\n              </figure>\n            )}\n", "            <figure className={styles.figure}>\n              <Image src={course.image} alt=\"\" unoptimized width={1200} height={800} priority sizes=\"(max-width: 960px) 100vw, 40vw\" />\n            </figure>\n"],
+    // E4: enquire action opens the page's #enquire section
+    ["      <a className={`${kit.btn} ${kit.btnLight}`} href=\"#enquire\">{text.actions.enquire}</a>\n", "      <a className={`${kit.btn} ${kit.btnLight}`} href={enquiryHref({ course: course.slug, source })}>{text.actions.enquire}</a>\n"],
+    // E5: published FAQs and the three enquiry routes before the final CTA band
+    ["        ))}\n\n        <CourseFaq sectionClass={`${kit.px} ${kit.sec} ${styles.section} ${styles.plain}`} wrapClass={kit.wrap} />\n        <CourseEnquiryPaths course={{ slug: course.slug, title: course.title }} hasRegistration={hasRegistration} registerHref={scheduleHref} sectionClass={`${kit.px} ${kit.sec} ${kit.tone} ${styles.section} ${styles.tone}`} wrapClass={kit.wrap} primaryButton={kit.btn} lineButton={`${kit.btn} ${styles.btnLine}`} />\n", "        ))}\n"],
+  ],
+};
+
+function revertFt1a(path: string, input: string): string {
+  const crlf = input.includes("\r\n");
+  const eol = (value: string) => (crlf ? value.replace(/\r?\n/g, "\r\n") : value);
+  let out = input;
+  for (const [now, before] of FT1A_EDITS[path] ?? []) {
+    const from = eol(now);
+    if (!out.includes(from)) throw new Error(`FT-1A: expected edit not found in ${path}`);
+    out = out.replace(from, () => eol(before));
+  }
+  return out;
+}
+
 // F-5: files whose literal canonical host became CANONICAL_ORIGIN.
 export const PF_CANONICAL_FILES = ["app/layout.js", "app/sitemap.js", "app/robots.js", "app/about/layout.js", "app/contact/layout.js", "app/gallery/layout.js", "app/services/layout.js", "app/services/scaffolding/layout.js", "app/training/layout.js", "app/insights/[slug]/page.js", "app/training/[slug]/page.js", "components/public/BreadcrumbJsonLd.js"];
 
@@ -114,7 +144,8 @@ function revertCanonical(text: string): string {
 export function revertPublicFirst(path: string, input: string): string {
   // W2-A (owner-approved): the public-address edits are undone first (scripts/w2a-address-approved.mts), so every
   // contract built on this function keeps proving the rest of each file is unchanged.
-  const text = revertW2aAddress(path, input);
+  // FT-1A-2 (owner-approved): the course-page edits are undone before everything else (latest change first).
+  const text = revertW2aAddress(path, revertFt1a(path, input));
   const crlf = text.includes("\r\n");
   const eol = (s: string) => (crlf ? s.replace(/\r?\n/g, "\r\n") : s);
   let out = PF_CANONICAL_FILES.includes(path) ? revertCanonical(text) : text;
