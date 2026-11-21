@@ -136,6 +136,23 @@ export function visibleNavGroups(
 }
 
 /**
+ * First module route this user may open, in sidebar order (Dashboard first), or null when none.
+ * Used for the post-login landing and the No Access page so neither sends a user to a page they cannot
+ * open. Display/navigation only: every route still enforces access server-side.
+ */
+export function firstAccessibleHref(
+  role: UserRole,
+  moduleKeys: readonly string[],
+  accessControlEnabled: boolean,
+): string | null {
+  for (const group of visibleNavGroups(role, moduleKeys, accessControlEnabled)) {
+    const first = group.items[0];
+    if (first) return first.href;
+  }
+  return null;
+}
+
+/**
  * Key of the single nav item to mark current: the longest href that equals
  * the path or is a parent segment of it. A plain prefix test would light up
  * both "Sales Dashboard" (/admin/sales) and "Leads" on /admin/sales/leads.

@@ -14,14 +14,23 @@ export function QuotationActionsPanel({
   quotationId,
   status,
   canManage,
+  canCreateInvoice,
+  hasExistingInvoice,
   existingInvoiceId,
   isExpired,
+  deniedReason,
 }: {
   quotationId: string;
   status: SalesQuotationStatus;
   canManage: boolean;
+  /** Admin with Invoices edit access; the invoice is written to that module. */
+  canCreateInvoice: boolean;
+  hasExistingInvoice: boolean;
+  /** Null when the user cannot open Invoices: the invoice exists, only the link is withheld. */
   existingInvoiceId: string | null;
   isExpired: boolean;
+  /** Exact missing requirement, computed server-side, shown when actions are unavailable. */
+  deniedReason?: string;
 }) {
   const [sentState, sentAction, sentPending] = useActionState(markQuotationSent.bind(null, quotationId), INITIAL);
   const [acceptState, acceptAction, acceptPending] = useActionState(acceptQuotationAction.bind(null, quotationId), INITIAL);
@@ -30,9 +39,21 @@ export function QuotationActionsPanel({
   const [invoiceState, invoiceAction, invoicePending] = useActionState(createInvoiceFromQuotationAction.bind(null, quotationId), INVOICE_INITIAL);
 
   if (!canManage) {
+    // An existing invoice is the relevant fact for an accepted quotation; a "creating requires…" permission message
+    // would wrongly suggest that one still has to be created (UAT F-UAT-1). The link is shown only with Invoices view.
+    if (status === "accepted" && hasExistingInvoice) {
+      return (
+        <Card title="Invoice">
+          <div className="ta-card-pad" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <p style={{ margin: 0, fontSize: 13, color: "var(--ta-muted)" }}>An invoice already exists for this quotation.</p>
+            {existingInvoiceId && <Link href={`/admin/invoices/${existingInvoiceId}`} className="ta-btn ta-btn-outline ta-btn-sm">View Invoice</Link>}
+          </div>
+        </Card>
+      );
+    }
     return (
       <Card title="Manage Quotation">
-        <div className="ta-card-pad" style={{ color: "var(--ta-muted)", fontSize: 13 }}>Status changes require Admin access.</div>
+        <div className="ta-card-pad" style={{ color: "var(--ta-muted)", fontSize: 13 }}>{deniedReason ?? "Status changes require the Admin role and Quotations Edit access."}</div>
       </Card>
     );
   }
@@ -70,11 +91,15 @@ export function QuotationActionsPanel({
             <form action={acceptAction} className="ta-card-pad" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {acceptState.message && <div className="ta-alert ta-alert-error">{acceptState.message}</div>}
               <p style={{ margin: 0, fontSize: 13, color: "var(--ta-muted)" }}>Marks this quotation accepted, the opportunity won, and the source lead won.</p>
+              {/* In-page confirmation instead of window.confirm() (UAT F-U14): accessible, and the browser blocks submit until it is ticked. */}
+              <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13, minHeight: 44 }}>
+                <input type="checkbox" name="confirm_accept" required />
+                <span>I confirm the opportunity and lead will both be marked Won.</span>
+              </label>
               <button
                 type="submit"
                 className="ta-btn ta-btn-success ta-btn-sm"
                 disabled={acceptPending}
-                onClick={(e) => { if (!confirm("Accept this quotation? The opportunity and lead will both be marked Won.")) e.preventDefault(); }}
               >
                 {acceptPending ? "Saving…" : "✅ Accept Quotation"}
               </button>
@@ -112,12 +137,12 @@ export function QuotationActionsPanel({
 
       {status === "accepted" && (
         <Card title="Invoice">
-          {existingInvoiceId ? (
+          {hasExistingInvoice ? (
             <div className="ta-card-pad" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <p style={{ margin: 0, fontSize: 13, color: "var(--ta-muted)" }}>An invoice already exists for this quotation.</p>
-              <Link href={`/admin/invoices/${existingInvoiceId}`} className="ta-btn ta-btn-outline ta-btn-sm">View Invoice</Link>
+              {existingInvoiceId && <Link href={`/admin/invoices/${existingInvoiceId}`} className="ta-btn ta-btn-outline ta-btn-sm">View Invoice</Link>}
             </div>
-          ) : canManage ? (
+          ) : canCreateInvoice ? (
             <form action={invoiceAction} className="ta-card-pad" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {invoiceState.message && <div className="ta-alert ta-alert-error">{invoiceState.message}</div>}
               <p style={{ margin: 0, fontSize: 13, color: "var(--ta-muted)" }}>
@@ -128,7 +153,7 @@ export function QuotationActionsPanel({
               </button>
             </form>
           ) : (
-            <div className="ta-card-pad" style={{ color: "var(--ta-muted)", fontSize: 13 }}>No invoice has been created yet — creating one requires Admin access.</div>
+            <div className="ta-card-pad" style={{ color: "var(--ta-muted)", fontSize: 13 }}>No invoice has been created yet — creating one requires Admin access with Invoices edit permission.</div>
           )}
         </Card>
       )}

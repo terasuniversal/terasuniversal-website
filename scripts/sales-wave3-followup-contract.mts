@@ -16,7 +16,7 @@ assert.deepEqual(parseFollowUpDateTimeLocal("not-a-date"), { valid: false });
 
 assert.match(actions, /parseFollowUpDateTimeLocal/, "follow-up saves validate datetimes before ISO conversion");
 assert.match(actions, /requireRole\("admin"\)/, "follow-up authorization remains admin-only");
-assert.match(actions, /requireModuleAccess\("sales_leads"\)/, "follow-up module access remains unchanged");
+assert.match(actions, /requireModuleAccess\("sales_leads", "edit"\)/, "follow-up saves require sales_leads edit access");
 assert.match(page, /from\("v_sales_lead_inbox"\)/, "follow-ups remain sourced from lead-level workflow records");
 assert.doesNotMatch(page, /from\("sales_tasks"\)/, "follow-ups are not merged into task rows");
 assert.match(page, /query=\{\{ view, owner \}\}/, "follow-up pagination retains view and owner");

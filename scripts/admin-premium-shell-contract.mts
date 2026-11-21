@@ -120,7 +120,10 @@ assert.ok(!/poppins/i.test(css + tailwindCss), "admin styles no longer use Poppi
 assert.ok(!/gradient/.test(css.slice(css.indexOf("/* --- Layout shell"), css.indexOf(".ta-page-head"))), "shell has no gradients");
 
 // 7. Public site isolation: Inter lives only in the admin layout; shell rules never touch global selectors.
-assert.match(adminLayout, /Inter\(\{[^}]*variable: "--font-inter"/, "admin layout loads Inter");
+// Inter is self-hosted with next/font/local since fb8f83b (Latin subset under app/fonts/inter), so accept either
+// loader as long as the admin layout defines --font-inter from the Inter files.
+assert.match(adminLayout, /(?:Inter|localFont)\(\{[\s\S]*?variable: "--font-inter"/, "admin layout loads Inter");
+assert.ok(!/localFont/.test(adminLayout) || /fonts\/inter\/inter-[^"]+\.woff2/.test(adminLayout), "self-hosted admin font is the Inter file");
 assert.match(adminLayout, /className=\{`teras-admin \$\{inter\.variable\}`\}/, "the Inter variable is scoped to .teras-admin");
 assert.ok(!/Inter/.test(rootLayout), "root layout (public site) must not load Inter");
 assert.ok(!/--ta-|\.ta-|font-inter/.test(globalsCss), "globals.css carries no admin tokens, shell classes or the admin font");

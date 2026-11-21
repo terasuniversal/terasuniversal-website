@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { requireModuleAccess } from "../../../../../lib/auth/session";
+import { requireModuleAccess, hasModuleAccess } from "../../../../../lib/auth/session";
 import { PageHead, Card, StatCard, EmptyState, Pagination } from "../../../../../components/admin/ui";
 import { sanitizeSearchTerm } from "../../../../../lib/sales/crm";
 import { CHANNEL_LABELS } from "../../../../../lib/marketing/campaigns";
@@ -19,6 +19,7 @@ export default async function CampaignsPage({
   searchParams: Promise<{ page?: string; q?: string; status?: string; channel?: string }>;
 }) {
   await requireModuleAccess("marketing_campaigns");
+  const canEdit = await hasModuleAccess("marketing_campaigns", "edit");
   const sp = await searchParams;
   const page = Math.max(1, Number(sp.page ?? 1));
   const supabase = await createSupabaseServerClient();
@@ -95,9 +96,11 @@ export default async function CampaignsPage({
         title="Campaigns"
         subtitle="Marketing campaigns across channels."
         action={
-          <Link href="/admin/marketing/campaigns/new" className="ta-btn ta-btn-primary">
-            + Create Campaign
-          </Link>
+          canEdit ? (
+            <Link href="/admin/marketing/campaigns/new" className="ta-btn ta-btn-primary">
+              + Create Campaign
+            </Link>
+          ) : undefined
         }
       />
 
@@ -150,9 +153,11 @@ export default async function CampaignsPage({
             title="No marketing campaigns yet."
             message="Create your first campaign to begin tracking marketing activity."
             action={
-              <Link href="/admin/marketing/campaigns/new" className="ta-btn ta-btn-primary">
-                Create Campaign
-              </Link>
+              canEdit ? (
+                <Link href="/admin/marketing/campaigns/new" className="ta-btn ta-btn-primary">
+                  Create Campaign
+                </Link>
+              ) : undefined
             }
           />
         )}

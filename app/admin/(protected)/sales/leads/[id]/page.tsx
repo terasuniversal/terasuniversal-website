@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
-import { requireRole, requireModuleAccess } from "../../../../../../lib/auth/session";
+import { requireRole, requireModuleAccess, hasModuleAccess } from "../../../../../../lib/auth/session";
 import { isAdmin, isSuperAdmin } from "../../../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, EmptyState, ReadErrorState } from "../../../../../../components/admin/ui";
 import { FollowUpBadge } from "../../../../../../components/admin/sales/FollowUpBadge";
@@ -12,6 +12,8 @@ import { formatMalaysiaDateTime } from "../../../../../../lib/date-time";
 import { ageLabel, daysSinceActivityLabel, qualificationLabel, temperatureLabel, QUALIFICATION_REASON_LABELS, DISQUALIFICATION_REASON_LABELS } from "../../../../../../lib/sales/qualification";
 import { checkLeadRegistrationEligibility } from "../registration-schedules";
 import { setLeadAttribution } from "../actions";
+import { LeadContactEditSheet } from "./LeadContactEditSheet";
+import { isContactEditableSource, originalContactFromSource, readLeadContactSnapshot } from "../../../../../../lib/sales/lead-contact";
 import { LEAD_ATTRIBUTION_SOURCE_LABELS, LEAD_ATTRIBUTION_SOURCES, type LeadAttributionRow } from "../../../../../../lib/marketing/crm";
 import type { MarketingContact } from "../../../../../../lib/supabase/database.types";
 
@@ -74,16 +76,25 @@ function Detail({ label, value }: { label: string; value: any }) {
 export default async function LeadDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ attributionError?: string; attributionSaved?: string }> }) {
   const profile =   await requireRole("editor");
   await requireModuleAccess("sales_leads");
-  const canManage = isAdmin(profile.role);
+  // View access shows the lead read-only; every change on this page needs Leads edit.
+  const canEdit = await hasModuleAccess("sales_leads", "edit");
+  // Adding a task opens /admin/sales/tasks/new, which requires Tasks edit; hide the link otherwise.
+  const canAddTask = await hasModuleAccess("sales_tasks", "edit");
+  const canManage = isAdmin(profile.role) && canEdit;
   const superAdmin = isSuperAdmin(profile.role);
   const { id } = await params;
   const sp = await searchParams;
   const supabase = await createSupabaseServerClient();
 
-  const { data: lead, error: leadReadError } = await supabase.from("v_sales_lead_inbox").select("*").eq("lead_metadata_id", id).maybeSingle();
-  if (leadReadError) return <><PageHead title="Lead detail" /><ReadErrorState message="Lead details could not be loaded. Retry the page." /></>;
-  if (!lead) notFound();
-  const row = lead as SalesLeadInboxRow;
+  // The contact correction is read BEFORE the lead, as two separate awaited reads (never Promise.all):
+  // the edit form's values and version then cannot pair stale values with a newer version.
+  const { lead, overlayFailed, snapshot: contactSnapshot } = await readLeadContactSnapshot<SalesLeadInboxRow>({
+    overlay: () => supabase.from("sales_lead_contact_overrides").select("version, contact_name, company, email, phone").eq("lead_metadata_id", id).maybeSingle(),
+    lead: () => supabase.from("v_sales_lead_inbox").select("*").eq("lead_metadata_id", id).maybeSingle(),
+  });
+  if (lead.error) return <><PageHead title="Lead detail" /><ReadErrorState message="Lead details could not be loaded. Retry the page." /></>;
+  if (!lead.data) notFound();
+  const row = lead.data;
 
   const [sourceResult, activityResult, attributionResult, campaignsResult, staffResult, profilesResult, opportunityResult, moduleAccessResult, nextActionResult, qualificationResult] = await Promise.all([
     row.lead_source === "enquiry"
@@ -129,9 +140,21 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
   const lastActivityAt = (activityRows ?? []).reduce<string | null>((latest, activity) => !latest || activity.created_at > latest ? activity.created_at : latest, null);
 
   const moduleAccess = moduleAccessResult.data;
-  const modules = Array.isArray(moduleAccess) ? moduleAccess.map((m: { module_key: string }) => m.module_key) : [];
-  const canRegister = modules.includes("sales_leads") && modules.includes("participants") && modules.includes("schedules");
+  // Registration writes to all three modules, so it is offered only with edit on each (matches requireRegistrationAccess).
+  const editModules = Array.isArray(moduleAccess)
+    ? moduleAccess.filter((m: { access_level?: string }) => m.access_level === "edit" || m.access_level === "admin").map((m: { module_key: string }) => m.module_key)
+    : [];
+  const canRegister = editModules.includes("sales_leads") && editModules.includes("participants") && editModules.includes("schedules");
   const registrationEligibility = checkLeadRegistrationEligibility({ status: row.status, is_test: row.is_test });
+
+  // Contact correction is offered only when the database capability exists (the overlay table is
+  // readable), the lead source supports it and this user holds module-level "edit". Anything else
+  // hides the action; the RPC enforces the same checks independently.
+  const contactEditable = isContactEditableSource(row.lead_source);
+  const editLevelResult = contactEditable ? await supabase.rpc("has_module_access_level", { p_module_key: "sales_leads", p_level: "edit" }) : null;
+  const contactEdit = contactEditable && !overlayFailed && editLevelResult?.data === true ? contactSnapshot : null;
+  const contactVersion = contactEdit?.version ?? null;
+  const originalContact = contactVersion !== null && source ? originalContactFromSource(row.lead_source, source) : null;
 
   return (
     <>
@@ -164,6 +187,20 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
                 <Detail label="Email" value={row.email ? <a href={`mailto:${row.email}`}>{row.email}</a> : null} />
                 <Detail label="Phone" value={row.phone} />
               </dl>
+              {contactVersion !== null && <p className="ta-muted-sub">Contact details corrected. The original submission is kept below.</p>}
+              {contactEdit && (
+                <LeadContactEditSheet
+                  leadMetadataId={id}
+                  expectedVersion={contactEdit.version}
+                  initial={contactEdit.initial}
+                  original={originalContact}
+                />
+              )}
+              {row.lead_source === "marketing_contact" && (
+                <p className="ta-muted-sub">
+                  Contact details for marketing leads are managed in <Link href={`/admin/marketing/contacts/${row.source_id}/edit`}>the Marketing contact record</Link>.
+                </p>
+              )}
             </div>
           </Card>
 
@@ -172,6 +209,7 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
             {sp.attributionError && <div className="ta-alert ta-alert-error" role="alert">{sp.attributionError}</div>}
             {sp.attributionSaved && <div className="ta-alert ta-alert-success" role="status">Marketing attribution saved.</div>}
             <form action={setLeadAttribution.bind(null, id)} className="ta-form-pad">
+              <fieldset disabled={!canEdit} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
               <div className="ta-field-row">
                 <label className="ta-field">Source<select name="source" defaultValue={attribution?.source ?? ""}><option value="">Manual / No attribution</option>{LEAD_ATTRIBUTION_SOURCES.map((source) => <option key={source} value={source}>{LEAD_ATTRIBUTION_SOURCE_LABELS[source]}</option>)}</select></label>
                 <label className="ta-field">Campaign<select name="campaign_id" defaultValue={attribution?.campaign_id ?? ""}><option value="">No campaign</option>{campaignOptions.map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}</select></label>
@@ -183,7 +221,8 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
                 {(["utm_content", "utm_term"] as const).map((field) => <label key={field} className="ta-field">{field.replace("utm_", "UTM ")}<input name={field} defaultValue={attribution?.[field] ?? ""} maxLength={160} /></label>)}
               </div>
               <label className="ta-field">Notes<textarea name="notes" rows={2} defaultValue={attribution?.notes ?? ""} /></label>
-              <div><button type="submit" className="ta-btn ta-btn-outline ta-btn-sm">Save attribution</button>{attribution?.marketing_campaigns?.name && <span className="ta-muted-sub" style={{ marginLeft: 10 }}>Currently linked to {attribution.marketing_campaigns.name}</span>}</div>
+              <div>{canEdit && <button type="submit" className="ta-btn ta-btn-outline ta-btn-sm">Save attribution</button>}{attribution?.marketing_campaigns?.name && <span className="ta-muted-sub" style={{ marginLeft: canEdit ? 10 : 0 }}>Currently linked to {attribution.marketing_campaigns.name}</span>}</div>
+              </fieldset>
             </form>
           </Card>
 
@@ -216,6 +255,7 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
               priority={row.priority}
               staff={staff}
               canManage={canManage}
+              canEdit={canEdit}
               existingOpportunity={existingOpportunity ?? null}
               defaultOpportunityTitle={row.subject ?? undefined}
               isSuperAdmin={superAdmin}
@@ -261,7 +301,7 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
               ) : (
                 <>
                   <span className="ta-muted-sub">No active next action.</span>
-                  <Link href={`/admin/sales/tasks/new?leadId=${id}`} className="ta-btn ta-btn-outline ta-btn-sm">Add task</Link>
+                  {canAddTask && <Link href={`/admin/sales/tasks/new?leadId=${id}`} className="ta-btn ta-btn-outline ta-btn-sm">Add task</Link>}
                 </>
               )}
             </div>

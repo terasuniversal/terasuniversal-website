@@ -1,16 +1,18 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
-import { requireRole, requireModuleAccess } from "../../../../../../lib/auth/session";
+import { requireRole, requireModuleAccess, hasModuleAccess } from "../../../../../../lib/auth/session";
 import { isAdmin } from "../../../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, EmptyState, ReadErrorState } from "../../../../../../components/admin/ui";
 import { dueDateState, revisionLabel, type SalesActivityRow, type SalesQuotationRow, type SalesQuotationItemRow, type SalesTaskRow } from "../../../../../../lib/sales/crm";
 import { formatMalaysiaDate, formatMalaysiaDateTime } from "../../../../../../lib/date-time";
 import { invoiceStatusLabel, paymentVisibilityLabel, pickNextQuotationTask, QUOTATION_EXPIRY_LABELS, quotationExpiryState } from "../../../../../../lib/sales/quotation-workflow";
+import { getQuotationInvoiceSummaries } from "../../../../../../lib/sales/invoice-summary";
 import { LeadActivityTimeline } from "../../leads/[id]/LeadActivityTimeline";
 import { QuotationItemsEditor } from "../QuotationItemsEditor";
 import { QuotationActionsPanel } from "./QuotationActionsPanel";
 import { REVISION_AUDIT_NOTICE } from "../../../../../../lib/sales/quotation-revision";
+import { ACTIVITY_UNSAVED_NOTICE, ACTIVITY_UNSAVED_MESSAGE } from "../../../../../../lib/sales/activity-notice";
 import { updateQuotationDraft } from "../actions";
 import { loadCourseCommercialOptions, normalizePackageIncludeItems } from "../../../../../../lib/sales/course-commercial";
 
@@ -20,7 +22,25 @@ export const dynamic = "force-dynamic";
 export default async function QuotationDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ notice?: string }> }) {
   const profile = await requireRole("editor");
   await requireModuleAccess("sales_quotations");
-  const canManage = isAdmin(profile.role);
+  // Quotation changes need Quotations edit; creating the invoice writes to Invoices, so it needs that module's edit.
+  const [canEditQuotations, canEditInvoices, canViewOpportunities] = await Promise.all([
+    hasModuleAccess("sales_quotations", "edit"),
+    hasModuleAccess("invoices", "edit"),
+    // Links to the opportunity are only rendered when the user can open it (UAT F-U6).
+    hasModuleAccess("sales_opportunities"),
+  ]);
+  const canManage = isAdmin(profile.role) && canEditQuotations;
+  const canCreateInvoice = isAdmin(profile.role) && canEditInvoices;
+  // Name the exact missing requirement instead of a generic message (UAT F-U9/F-U13): an Admin with
+  // Quotations edit but no Invoices edit must not be told that quotation edit access is missing.
+  const statusDeniedReason = !isAdmin(profile.role)
+    ? canEditQuotations
+      ? "Status changes require the Admin role."
+      : "Status changes require the Admin role and Quotations Edit access."
+    : "You have view-only access to Quotations. Status changes require Edit access.";
+  const invoiceDeniedReason = !isAdmin(profile.role)
+    ? "Creating an invoice requires the Admin role and Invoices Edit access."
+    : "Creating an invoice requires Invoices Edit access.";
   const { id } = await params;
   const { notice } = await searchParams;
   const supabase = await createSupabaseServerClient();
@@ -44,10 +64,10 @@ export default async function QuotationDetailPage({ params, searchParams }: { pa
   const { data: itemRows, error: itemReadError } = await supabase.from("sales_quotation_items").select("*").eq("quotation_id", id).order("sort_order");
   const items = (itemRows ?? []) as SalesQuotationItemRow[];
   const courseOptions = await loadCourseCommercialOptions(supabase);
-  const { data: existingInvoice, error: invoiceReadError } = await supabase.from("invoices").select("id, invoice_no, status, grand_total, amount_paid, balance_due, invoice_date, due_date").eq("quotation_id", id).maybeSingle();
-  const { data: paymentRows, error: paymentReadError } = existingInvoice
-    ? await supabase.from("invoice_payments").select("status, payment_provider").eq("invoice_id", existingInvoice.id)
-    : { data: [] as { status: string; payment_provider: string }[], error: null };
+  // Summary RPC, not the finance tables: Quotations users get only this quotation's invoice summary (M-S5b).
+  // invoice_id is null unless the user can open Invoices, so invoice links render only for them.
+  const { data: invoiceSummaries, error: invoiceReadError } = await getQuotationInvoiceSummaries(supabase, [id]);
+  const existingInvoice = invoiceSummaries[0] ?? null;
   const { data: taskRows, error: taskReadError } = await supabase.from("sales_tasks").select("*").eq("quotation_id", id).is("deleted_at", null).not("status", "in", "(completed,cancelled)");
   const nextTask = pickNextQuotationTask((taskRows ?? []) as SalesTaskRow[]);
   const expiry = quotationExpiryState(q.valid_until);
@@ -77,9 +97,11 @@ export default async function QuotationDetailPage({ params, searchParams }: { pa
       ? <Link href="#quotation-primary-action" className="ta-btn ta-btn-primary">Review sent actions</Link>
       : q.status === "accepted" && invoiceReadError
         ? undefined
+        : q.status === "accepted" && existingInvoice?.invoice_id
+          ? <Link href={`/admin/invoices/${existingInvoice.invoice_id}`} className="ta-btn ta-btn-primary">View invoice</Link>
         : q.status === "accepted" && existingInvoice
-          ? <Link href={`/admin/invoices/${existingInvoice.id}`} className="ta-btn ta-btn-primary">View invoice</Link>
-          : q.status === "accepted" && canManage
+          ? undefined
+          : q.status === "accepted" && canCreateInvoice
             ? <Link href="#quotation-primary-action" className="ta-btn ta-btn-primary">Create invoice</Link>
             : (q.status === "rejected" || q.status === "expired") && canManage
               ? <Link href="#quotation-primary-action" className="ta-btn ta-btn-primary">Create revision</Link>
@@ -91,8 +113,13 @@ export default async function QuotationDetailPage({ params, searchParams }: { pa
         title={`${q.quotation_no} (${revisionLabel(q.revision_no)})`}
         subtitle={opportunity ? `${opportunity.opportunity_no} — ${opportunity.company_name ?? "No company on file"}` : undefined}
         action={primaryAction}
-        secondaryAction={opportunity ? <Link href={`/admin/sales/opportunities/${opportunity.id}`} className="ta-btn ta-btn-outline">← Back to Opportunity</Link> : undefined}
+        secondaryAction={opportunity && canViewOpportunities
+          ? <Link href={`/admin/sales/opportunities/${opportunity.id}`} className="ta-btn ta-btn-outline">← Back to Opportunity</Link>
+          : <Link href="/admin/sales/quotations" className="ta-btn ta-btn-outline">← Back to Quotations</Link>}
       />
+      {notice === ACTIVITY_UNSAVED_NOTICE && (
+        <div className="ta-alert ta-alert-info" role="status">{ACTIVITY_UNSAVED_MESSAGE}</div>
+      )}
       {notice === REVISION_AUDIT_NOTICE && (
         <div className="ta-alert ta-alert-info" role="status">
           This revision was created and saved. Its entry in the activity log could not be recorded, so the timeline may be missing it.
@@ -120,7 +147,7 @@ export default async function QuotationDetailPage({ params, searchParams }: { pa
           <div><span>Status</span><strong><Badge status={q.status} /></strong></div>
           <div><span>Revision</span><strong>{revisionLabel(q.revision_no)}{q.superseded_at ? " · Superseded" : ""}</strong></div>
           <div><span>Customer</span><strong>{customer.company ?? "Customer not recorded"}</strong><small>{customer.contact ?? "Contact not recorded"}</small></div>
-          <div><span>Related Opportunity</span><strong>{opportunity ? <Link href={`/admin/sales/opportunities/${opportunity.id}`}>{opportunity.opportunity_no} →</Link> : "Opportunity not available"}</strong></div>
+          <div><span>Related Opportunity</span><strong>{opportunity ? (canViewOpportunities ? <Link href={`/admin/sales/opportunities/${opportunity.id}`}>{opportunity.opportunity_no} →</Link> : opportunity.opportunity_no) : "Opportunity not available"}</strong></div>
           <div><span>Total</span><strong>RM {Number(q.total).toLocaleString("en-MY", { minimumFractionDigits: 2 })}</strong></div>
           <div><span>Issue / Validity</span><strong>{formatMalaysiaDate(q.issue_date)} · {q.valid_until ? formatMalaysiaDate(q.valid_until) : "No expiry"}</strong><small>{QUOTATION_EXPIRY_LABELS[expiry]}</small></div>
         </div>
@@ -206,14 +233,14 @@ export default async function QuotationDetailPage({ params, searchParams }: { pa
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          <div id="quotation-primary-action" className="ta-quotation-primary-action"><QuotationActionsPanel quotationId={id} status={q.status} canManage={canManage && !(q.status === "accepted" && invoiceReadError)} existingInvoiceId={existingInvoice?.id ?? null} isExpired={expiry === "expired"} /></div>
+          <div id="quotation-primary-action" className="ta-quotation-primary-action"><QuotationActionsPanel quotationId={id} status={q.status} canManage={(q.status === "accepted" ? canCreateInvoice : canManage) && !(q.status === "accepted" && invoiceReadError)} canCreateInvoice={canCreateInvoice} hasExistingInvoice={Boolean(existingInvoice)} existingInvoiceId={existingInvoice?.invoice_id ?? null} isExpired={expiry === "expired"} deniedReason={q.status === "accepted" ? (invoiceReadError ? "Invoice status could not be loaded. Refresh the page to try again." : invoiceDeniedReason) : statusDeniedReason} /></div>
           <Card title="Quotation Documents">
             <div className="ta-card-pad" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><Link href={`/admin/quotation-pdf/${id}`} className="ta-btn ta-btn-outline ta-btn-sm" target="_blank">Print / PDF</Link></div>
           </Card>
           <Card title="Next Action">
             <div className="ta-card-pad">{taskReadError ? <ReadErrorState title="Next action unavailable" message="Quotation tasks could not be loaded. Retry the page." /> : nextTask ? <><strong>{nextTask.title}</strong><div style={{ color: nextTaskState === "overdue" ? "var(--ta-danger)" : "var(--ta-muted)", fontSize: 13, marginTop: 4 }}>{nextTask.due_at ? formatMalaysiaDateTime(nextTask.due_at) : "No due date"} · {nextTaskState === "none" ? "Not scheduled" : nextTaskState}</div><div style={{ fontSize: 12, marginTop: 4 }}>Status: {nextTask.status.replace(/_/g, " ")}</div></> : <span style={{ color: "var(--ta-muted)" }}>No active quotation task.</span>}</div>
           </Card>
-          {invoiceReadError ? <ReadErrorState title="Invoice context unavailable" message="Invoice state could not be loaded. Invoice actions are paused until the related record can be checked." /> : existingInvoice && <Card title="Invoice & Payment Summary"><div className="ta-card-pad" style={{ display: "grid", gap: 7, fontSize: 13 }}><div><strong>{existingInvoice.invoice_no}</strong> · <Badge status={existingInvoice.status} /></div><div>Total: RM {Number(existingInvoice.grand_total).toLocaleString("en-MY", { minimumFractionDigits: 2 })}</div><div>Paid: RM {Number(existingInvoice.amount_paid).toLocaleString("en-MY", { minimumFractionDigits: 2 })}</div><div>Balance due: RM {Number(existingInvoice.balance_due).toLocaleString("en-MY", { minimumFractionDigits: 2 })}</div><div>Payment: {paymentReadError ? "Payment status unavailable — retry" : paymentVisibilityLabel(existingInvoice.status, (paymentRows ?? []).map((payment: any) => payment.status))}</div><div>Issue date: {formatMalaysiaDate(existingInvoice.invoice_date)} · Due: {formatMalaysiaDate(existingInvoice.due_date)}</div><Link href={`/admin/invoices/${existingInvoice.id}`} className="ta-btn ta-btn-outline ta-btn-sm" style={{ justifySelf: "start" }}>View Invoice</Link></div></Card>}
+          {invoiceReadError ? <ReadErrorState title="Invoice context unavailable" message="Invoice state could not be loaded. Invoice actions are paused until the related record can be checked." /> : existingInvoice && <Card title="Invoice & Payment Summary"><div className="ta-card-pad" style={{ display: "grid", gap: 7, fontSize: 13 }}><div><strong>{existingInvoice.invoice_no}</strong> · <Badge status={existingInvoice.status} /></div><div>Total: RM {Number(existingInvoice.grand_total).toLocaleString("en-MY", { minimumFractionDigits: 2 })}</div><div>Paid: RM {Number(existingInvoice.amount_paid).toLocaleString("en-MY", { minimumFractionDigits: 2 })}</div><div>Balance due: RM {Number(existingInvoice.balance_due).toLocaleString("en-MY", { minimumFractionDigits: 2 })}</div><div>Payment: {paymentVisibilityLabel(existingInvoice.status, existingInvoice.payment_states.map((payment) => payment.status))}</div><div>Issue date: {formatMalaysiaDate(existingInvoice.invoice_date)} · Due: {formatMalaysiaDate(existingInvoice.due_date)}</div>{existingInvoice.invoice_id && <Link href={`/admin/invoices/${existingInvoice.invoice_id}`} className="ta-btn ta-btn-outline ta-btn-sm" style={{ justifySelf: "start" }}>View Invoice</Link>}</div></Card>}
 
         </div>
       </div>

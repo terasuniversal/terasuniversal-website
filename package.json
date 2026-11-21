@@ -33,6 +33,8 @@
     "test:sales-wave3": "node --experimental-strip-types scripts/sales-wave3-task-contract.mts && node --experimental-strip-types scripts/sales-wave3-followup-contract.mts",
     "test:admin-shadcn-foundation": "node --experimental-strip-types scripts/admin-shadcn-foundation-contract.mts",
     "test:sales-lead-won-guard": "node --experimental-strip-types scripts/sales-lead-won-guard-contract.mts",
+    "test:crm-module-edit-enforcement": "node --experimental-strip-types scripts/crm-module-edit-enforcement-contract.mts",
+    "test:sales-lead-contact-edit": "node --experimental-strip-types scripts/sales-lead-contact-edit-contract.mts",
     "test:sales-csv-export-safety": "node --experimental-strip-types scripts/sales-csv-export-safety-contract.mts",
     "test:sales-date-filter": "node --experimental-strip-types scripts/sales-date-filter-contract.mts",
     "test:sales-quotation-revision-order": "node --experimental-strip-types scripts/sales-quotation-revision-order-contract.mts",
@@ -61,7 +63,12 @@
     "test:admin-premium-shell": "node --experimental-strip-types scripts/admin-premium-shell-contract.mts",
     "test:admin-topbar-search-placeholder": "node --experimental-strip-types scripts/admin-topbar-search-placeholder-contract.mts",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "test:crm-module-rls-hardening": "node --experimental-strip-types scripts/crm-module-rls-hardening-contract.mts supabase/migrations/20261121120000_sales_crm_module_rls_hardening.sql .",
+    "test:sales-finance-rpc-authorization": "node --experimental-strip-types scripts/sales-finance-rpc-authorization-contract.mts supabase/migrations/20261121130000_sales_finance_rpc_module_authorization.sql supabase/migrations/20261121120000_sales_crm_module_rls_hardening.sql .",
+    "test:crm-rc-ux": "node --experimental-strip-types scripts/crm-rc-ux-contract.mts",
+    "test:crm-invoice-update-module": "node --experimental-strip-types scripts/crm-invoice-update-module-contract.mts",
+    "test:crm-ms5-security": "node --experimental-strip-types scripts/crm-ms5-security-contract.mts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",

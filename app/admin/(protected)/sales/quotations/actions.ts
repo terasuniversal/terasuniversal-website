@@ -9,6 +9,7 @@ import { computeQuotationTotals } from "../../../../../lib/sales/crm";
 import { canonicalizePackageSnapshot, commercialName, type CourseCommercialProfileData, type PackageIncludeSnapshot } from "../../../../../lib/sales/course-commercial";
 import { runQuotationRevision, revisionRedirectPath } from "../../../../../lib/sales/quotation-revision";
 import { runQuotationAccept } from "../../../../../lib/sales/quotation-workflow";
+import { ACTIVITY_UNSAVED_NOTICE, withNotice } from "../../../../../lib/sales/activity-notice";
 
 export type SalesActionState = { message?: string; errors?: Record<string, string> };
 
@@ -29,8 +30,14 @@ function parseItemsField(raw: FormDataEntryValue | null): unknown[] {
   }
 }
 
-async function logActivity(supabase: any, leadMetadataId: string | null, opportunityId: string, quotationId: string, type: string, note: string | null, actorId: string) {
-  await supabase.from("sales_activity").insert({ lead_metadata_id: leadMetadataId, opportunity_id: opportunityId, quotation_id: quotationId, type, note, actor_id: actorId });
+// The quotation change is already committed when the timeline write runs (no shared
+// transaction), so a failed activity insert is reported as a partial success, never retried.
+const ACTIVITY_NOT_RECORDED = "Saved, but the timeline entry could not be recorded. Refresh to check before trying again.";
+
+async function logActivity(supabase: any, leadMetadataId: string | null, opportunityId: string, quotationId: string, type: string, note: string | null, actorId: string): Promise<boolean> {
+  const { error } = await supabase.from("sales_activity").insert({ lead_metadata_id: leadMetadataId, opportunity_id: opportunityId, quotation_id: quotationId, type, note, actor_id: actorId });
+  if (error) console.error("sales quotation activity insert failed", { type, code: error.code });
+  return !error;
 }
 
 async function getLeadMetadataId(supabase: any, opportunityId: string): Promise<string | null> {
@@ -85,7 +92,7 @@ export async function createQuotation(
   formData: FormData
 ): Promise<SalesActionState> {
   const profile = await requireRole("admin");
-  await requireModuleAccess("sales_quotations");
+  await requireModuleAccess("sales_quotations", "edit");
   const parsed = quotationHeaderSchema.safeParse({
     customer_company_name: formData.get("customer_company_name") ?? "",
     customer_contact_name: formData.get("customer_contact_name") ?? "",
@@ -178,10 +185,13 @@ export async function createQuotation(
   await supabase.from("sales_opportunities").update({ stage: "quotation", updated_at: new Date().toISOString() }).eq("id", opportunityId);
 
   const leadMetadataId = await getLeadMetadataId(supabase, opportunityId);
-  await logActivity(supabase, leadMetadataId, opportunityId, quotation.id, "quotation_created", `${quotation.quotation_no} created`, profile.id);
+  // The quotation exists now; returning to the form here would invite a duplicate, so the
+  // redirect stands and carries a fixed notice when the timeline write failed.
+  const logged = await logActivity(supabase, leadMetadataId, opportunityId, quotation.id, "quotation_created", `${quotation.quotation_no} created`, profile.id);
 
   revalidateQuotation(quotation.id, opportunityId);
-  redirect(`/admin/sales/quotations/${quotation.id}`);
+  const detailPath = `/admin/sales/quotations/${quotation.id}`;
+  redirect(logged ? detailPath : withNotice(detailPath, ACTIVITY_UNSAVED_NOTICE));
 }
 
 /** Edits are only allowed while status='draft' — checked here, not just hidden in the UI. */
@@ -191,7 +201,7 @@ export async function updateQuotationDraft(
   formData: FormData
 ): Promise<SalesActionState> {
   await requireRole("admin");
-  await requireModuleAccess("sales_quotations");
+  await requireModuleAccess("sales_quotations", "edit");
   const parsed = quotationHeaderSchema.safeParse({
     customer_company_name: formData.get("customer_company_name") ?? "",
     customer_contact_name: formData.get("customer_contact_name") ?? "",
@@ -287,7 +297,7 @@ export async function updateQuotationDraft(
  */
 export async function markQuotationSent(quotationId: string, _prev: SalesActionState, _formData: FormData): Promise<SalesActionState> {
   const profile = await requireRole("admin");
-  await requireModuleAccess("sales_quotations");
+  await requireModuleAccess("sales_quotations", "edit");
   const supabase = await createSupabaseServerClient();
   const { data: existing } = await supabase.from("sales_quotations").select("status, opportunity_id, quotation_no").eq("id", quotationId).maybeSingle();
   if (!existing) return { message: "Quotation not found." };
@@ -300,16 +310,17 @@ export async function markQuotationSent(quotationId: string, _prev: SalesActionS
   if (error) return { message: error.message };
 
   const leadMetadataId = await getLeadMetadataId(supabase, existing.opportunity_id);
-  await logActivity(supabase, leadMetadataId, existing.opportunity_id, quotationId, "quotation_sent", `${existing.quotation_no} marked as sent`, profile.id);
+  const logged = await logActivity(supabase, leadMetadataId, existing.opportunity_id, quotationId, "quotation_sent", `${existing.quotation_no} marked as sent`, profile.id);
 
   revalidateQuotation(quotationId, existing.opportunity_id);
+  if (!logged) return { message: ACTIVITY_NOT_RECORDED };
   return {};
 }
 
 /** Task 11: accepted flow — delegates the whole won cascade to accept_quotation(). */
 export async function acceptQuotationAction(quotationId: string, _prev: SalesActionState, _formData: FormData): Promise<SalesActionState> {
   await requireRole("admin");
-  await requireModuleAccess("sales_quotations");
+  await requireModuleAccess("sales_quotations", "edit");
   const supabase = await createSupabaseServerClient();
   // Fail closed: a failed read, a missing row or an expired quotation never reaches the RPC.
   const result = await runQuotationAccept(supabase, quotationId);
@@ -323,7 +334,7 @@ export async function acceptQuotationAction(quotationId: string, _prev: SalesAct
 /** Task 9: rejection — does not auto-cascade the opportunity/lead (see migration comments). */
 export async function rejectQuotationAction(quotationId: string, _prev: SalesActionState, formData: FormData): Promise<SalesActionState> {
   await requireRole("admin");
-  await requireModuleAccess("sales_quotations");
+  await requireModuleAccess("sales_quotations", "edit");
   const parsed = quotationRejectSchema.safeParse({ reason: formData.get("reason") });
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
@@ -348,7 +359,7 @@ export async function rejectQuotationAction(quotationId: string, _prev: SalesAct
  */
 export async function createRevision(quotationId: string, _prev: SalesActionState, _formData: FormData): Promise<SalesActionState> {
   const profile = await requireRole("admin");
-  await requireModuleAccess("sales_quotations");
+  await requireModuleAccess("sales_quotations", "edit");
   const supabase = await createSupabaseServerClient();
 
   const result = await runQuotationRevision(supabase, { quotationId, actorId: profile.id });

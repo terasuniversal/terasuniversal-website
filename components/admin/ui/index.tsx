@@ -200,7 +200,7 @@ export function Field({
         id: childProps.id ?? id,
         required: required || childProps.required,
         "aria-invalid": error ? true : childProps["aria-invalid"],
-        "aria-describedby": [childProps["aria-describedby"], hint ? hintId : null, error ? errorId : null]
+        "aria-describedby": [childProps["aria-describedby"], hint && !error ? hintId : null, error ? errorId : null]
           .filter(Boolean)
           .join(" ") || undefined,
       })
@@ -213,7 +213,8 @@ export function Field({
         {required && <span className="ta-req" aria-hidden="true"> *</span>}
       </label>
       {control}
-      {hint && <small id={hintId} style={{ color: "var(--ta-muted)" }}>{hint}</small>}
+      {/* The error replaces the hint, so a rule such as "Email or phone is required" is never shown twice (F-UAT-2). */}
+      {hint && !error && <small id={hintId} style={{ color: "var(--ta-muted)" }}>{hint}</small>}
       {error && <span id={errorId} className="ta-error" role="alert">{error}</span>}
     </div>
   );

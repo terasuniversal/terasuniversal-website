@@ -34,7 +34,7 @@ export async function generateToyyibpayPaymentLinkAction(
   _formData: FormData
 ): Promise<ToyyibpayLinkState> {
   await requireRole("admin");
-  await requireModuleAccess("invoices");
+  await requireModuleAccess("invoices", "edit");
   const supabase = await createSupabaseServerClient();
 
   // ---------------------------------------------------------------------
@@ -192,7 +192,7 @@ export async function refreshToyyibpayStatusAction(
   _formData: FormData
 ): Promise<ToyyibpayRefreshState> {
   await requireRole("admin");
-  await requireModuleAccess("invoices");
+  await requireModuleAccess("invoices", "edit");
 
   const supabase = await createSupabaseServerClient();
   const { data: attempt, error: attemptError } = await supabase

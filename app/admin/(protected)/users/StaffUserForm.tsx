@@ -43,13 +43,19 @@ export function StaffUserForm({ profile }: { profile?: StaffFormProfile }) {
   );
   const [presetApplied, setPresetApplied] = useState(false);
 
-  function toggleModule(key: string) {
-    setSelected((current) => {
-      if (current.includes(key)) return current.filter((item) => item !== key);
-      setLevels((previous) => ({ ...previous, [key]: previous[key] ?? "view" }));
-      return [...current, key];
-    });
+  // Per-module access is chosen explicitly: None removes the module, View/Edit set its level. "Admin" is only
+  // offered where it is already saved, so this form can never grant a level that the previous form could not.
+  function setModuleLevel(key: string, value: ModuleAccessLevel | "none") {
+    if (value === "none") {
+      setSelected((current) => current.filter((item) => item !== key));
+      return;
+    }
+    setLevels((previous) => ({ ...previous, [key]: value }));
+    setSelected((current) => (current.includes(key) ? current : [...current, key]));
   }
+
+  const savedAdminKeys = new Set(profile?.moduleAccess.filter((item) => item.accessLevel === "admin").map((item) => item.moduleKey) ?? []);
+  const targetIsAdmin = role === "admin" || role === "super_admin";
 
   function applySalesPreset() {
     setDepartment(SALES_STAFF_PRESET.department);
@@ -137,17 +143,36 @@ export function StaffUserForm({ profile }: { profile?: StaffFormProfile }) {
               <>
                 <input type="hidden" name="module_access" value={JSON.stringify(selected.map((moduleKey) => ({ module_key: moduleKey, access_level: levels[moduleKey] ?? "view" })))} />
                 <div className="ta-grid cols-2">
-                  {MODULE_CATALOG.map((module) => (
-                    <label key={module.key} style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                      <input type="checkbox" name="module_key" value={module.key} checked={selected.includes(module.key)} onChange={() => toggleModule(module.key)} />
-                      <span>{module.label}{module.key === "hrdf_claims" ? " (view only for non-admin staff)" : ""}</span>
-                      <small style={{ color: "var(--ta-muted)" }}>{module.group}</small>
-                      {selected.includes(module.key) && <small style={{ color: "var(--ta-muted)", minWidth: 38 }}>{ACCESS_LEVEL_LABELS[levels[module.key] ?? "view"]}</small>}
-                    </label>
-                  ))}
+                  {MODULE_CATALOG.map((module) => {
+                    const isSelected = selected.includes(module.key);
+                    const current = isSelected ? (levels[module.key] ?? "view") : "none";
+                    const viewOnly = module.key === "hrdf_claims" && !targetIsAdmin;
+                    const selectId = `module-level-${module.key}`;
+                    return (
+                      <div key={module.key} style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "space-between" }}>
+                        {isSelected && <input type="hidden" name="module_key" value={module.key} />}
+                        <label htmlFor={selectId} style={{ display: "flex", gap: 8, alignItems: "baseline", minWidth: 0 }}>
+                          <span>{module.label}{module.key === "hrdf_claims" ? " (view only for non-admin staff)" : ""}</span>
+                          <small style={{ color: "var(--ta-muted)" }}>{module.group}</small>
+                        </label>
+                        <select
+                          id={selectId}
+                          aria-label={`${module.label} access`}
+                          value={current}
+                          onChange={(event) => setModuleLevel(module.key, event.target.value as ModuleAccessLevel | "none")}
+                          style={{ minHeight: 44, minWidth: 96 }}
+                        >
+                          <option value="none">None</option>
+                          <option value="view">{ACCESS_LEVEL_LABELS.view}</option>
+                          <option value="edit" disabled={viewOnly}>{ACCESS_LEVEL_LABELS.edit}</option>
+                          {(savedAdminKeys.has(module.key) || current === "admin") && <option value="admin">{ACCESS_LEVEL_LABELS.admin}</option>}
+                        </select>
+                      </div>
+                    );
+                  })}
                 </div>
                 <p style={{ color: "var(--ta-muted)", margin: "12px 0 0", fontSize: 13 }}>
-                  Access levels are shown for review. New custom modules default to View; existing saved levels remain unchanged unless this draft replaces the selection.
+                  Choose None, View or Edit for each module. View is strictly read-only; Edit allows changes within the role&apos;s own limits (for example, only Admins can accept quotations). Nothing is saved until you submit this form.
                 </p>
                 {customWithNoModules && (
                   <p className="ta-error" role="alert" style={{ marginTop: 10, marginBottom: 0 }}>

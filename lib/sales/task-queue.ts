@@ -2,7 +2,7 @@ import { parseMalaysiaDateTimeLocal } from "./malaysia-datetime-local.js";
 
 export const TASK_QUEUE_VIEWS = ["all", "overdue", "today", "upcoming", "completed"] as const;
 export type TaskQueueView = (typeof TASK_QUEUE_VIEWS)[number];
-export type TaskQueueFeedback = "completed" | "rescheduled" | "updated" | "activity-warning";
+export type TaskQueueFeedback = "completed" | "rescheduled" | "updated" | "activity-warning" | "created-activity-warning";
 
 export type TaskQueueContext = {
   view: TaskQueueView;
@@ -17,7 +17,12 @@ const FEEDBACK_MESSAGES: Record<TaskQueueFeedback, string> = {
   rescheduled: "Task due date updated.",
   updated: "Task changes saved.",
   "activity-warning": "Task status changed, but its activity history could not be saved. Please report this issue.",
+  "created-activity-warning": "Task created, but its entry in the activity timeline could not be saved. Please report this issue.",
 };
+
+export function isTaskQueueWarning(value: string | undefined): boolean {
+  return value === "activity-warning" || value === "created-activity-warning";
+}
 
 function valueOf(input: Readonly<Record<string, unknown>>, key: string): string | undefined {
   const value = input[key];

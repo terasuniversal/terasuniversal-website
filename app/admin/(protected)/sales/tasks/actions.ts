@@ -79,12 +79,13 @@ async function logTaskActivity(supabase: any, taskId: string, leadMetadataId: st
     note,
     actor_id: actorId,
   });
+  if (error) console.error("sales task activity insert failed", { type, code: error.code });
   return !error;
 }
 
 export async function createTask(_prev: TaskFormState, formData: FormData): Promise<TaskFormState> {
   const profile = await requireRole("editor");
-  await requireModuleAccess("sales_tasks");
+  await requireModuleAccess("sales_tasks", "edit");
   const raw = readForm(formData);
   const parsed = salesTaskSchema.safeParse(raw);
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
@@ -117,15 +118,17 @@ export async function createTask(_prev: TaskFormState, formData: FormData): Prom
   if (error) return { message: error.message };
 
   const leadMetadataId = await resolveLeadMetadataId(supabase, refs);
-  await logTaskActivity(supabase, created.id, leadMetadataId, "task_created", `Task created: ${parsed.data.title}`, profile.id, refs);
+  // The task exists now; returning to the form would invite a duplicate, so the redirect
+  // stands and carries a fixed warning when the timeline write failed.
+  const logged = await logTaskActivity(supabase, created.id, leadMetadataId, "task_created", `Task created: ${parsed.data.title}`, profile.id, refs);
 
   revalidateTasks(created.id);
-  redirect("/admin/sales/tasks");
+  redirect(logged ? "/admin/sales/tasks" : "/admin/sales/tasks?feedback=created-activity-warning");
 }
 
 export async function updateTask(taskId: string, _prev: TaskFormState, formData: FormData): Promise<TaskFormState> {
   const profile = await requireRole("editor");
-  await requireModuleAccess("sales_tasks");
+  await requireModuleAccess("sales_tasks", "edit");
 
   if (formData.get("intent") === "reschedule") {
     const rawDueAt = formData.get("due_at");
@@ -176,6 +179,18 @@ export async function updateTask(taskId: string, _prev: TaskFormState, formData:
   }
 
   const supabase = await createSupabaseServerClient();
+  // Completed and cancelled tasks are read-only until reopened through the status workflow (UAT F-UAT-3); the
+  // status filter on the update also closes the race with a concurrent completion.
+  const { data: current, error: currentError } = await supabase
+    .from("sales_tasks")
+    .select("status")
+    .eq("id", taskId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (currentError) return { message: "Task could not be loaded. Refresh and try again." };
+  if (current && current.status !== "open" && current.status !== "in_progress") {
+    return { message: "Completed or cancelled tasks are read-only. Reopen the task to edit it." };
+  }
   const { data: updated, error } = await supabase
     .from("sales_tasks")
     .update({
@@ -189,13 +204,16 @@ export async function updateTask(taskId: string, _prev: TaskFormState, formData:
       quotation_id: parsed.data.quotation_id || null,
     })
     .eq("id", taskId)
+    .in("status", ["open", "in_progress"])
     .select("id")
     .maybeSingle();
   if (error) return { message: error.message };
   if (!updated) return { message: "Task not found, or you don't have permission to edit it (only the owner or an Admin can)." };
 
   revalidateTasks(taskId);
-  redirect(taskQueueReturnHref(taskQueueContextFromForm(formData), "updated"));
+  // Edit form posts return_mode=detail: land back on this task with the "updated" notice (same pattern as the
+  // status actions); other callers keep the queue return.
+  redirect(taskActionReturnHref(formData, taskId, "updated"));
 }
 
 /**
@@ -211,7 +229,7 @@ export async function setTaskStatus(
   formData: FormData,
 ): Promise<TaskActionState> {
   const profile = await requireRole("editor");
-  await requireModuleAccess("sales_tasks");
+  await requireModuleAccess("sales_tasks", "edit");
   const supabase = await createSupabaseServerClient();
 
   const { data: task, error: readError } = await supabase
@@ -266,7 +284,7 @@ export async function setTaskStatus(
 /** Soft-delete — admin+ only, matches sales_tasks_delete RLS. Prefer cancelling a task over deleting it; this exists for genuine mistakes. */
 export async function deleteTask(taskId: string): Promise<void> {
   await requireRole("admin");
-  await requireModuleAccess("sales_tasks");
+  await requireModuleAccess("sales_tasks", "edit");
   const supabase = await createSupabaseServerClient();
   await supabase.from("sales_tasks").update({ deleted_at: new Date().toISOString() }).eq("id", taskId);
   revalidateTasks();

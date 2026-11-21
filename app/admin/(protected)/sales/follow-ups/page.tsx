@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { requireRole, requireModuleAccess } from "../../../../../lib/auth/session";
+import { requireRole, requireModuleAccess, hasModuleAccess } from "../../../../../lib/auth/session";
 import { PageHead, Card, Badge, EmptyState, Pagination, ListToolbar, ReadErrorState } from "../../../../../components/admin/ui";
 import { mytEndOfTodayUtc, type SalesLeadInboxRow } from "../../../../../lib/sales/crm";
 import { clampPage, normalizePage, pageCountFor, pageRange, SALES_QUEUE_PAGE_SIZE } from "../../../../../lib/sales/pagination";
@@ -96,8 +96,9 @@ export default async function FollowUpsPage({
 
   // Scheduling writes sales_lead_metadata, which only Admins may update (RLS
   // and setLeadFollowUp's requireRole("admin")), so other roles get the date
-  // read-only instead of a form that would bounce them to No Access.
-  const canSchedule = isAdmin(profile.role);
+  // read-only instead of a form that would bounce them to No Access. The save
+  // also requires Leads edit access (setLeadFollowUp), so View-only Admins get read-only too.
+  const canSchedule = isAdmin(profile.role) && (await hasModuleAccess("sales_leads", "edit"));
   const followUpControl = (l: SalesLeadInboxRow) =>
     canSchedule ? (
       <FollowUpInlineForm leadMetadataId={l.lead_metadata_id} followUpAt={l.follow_up_at} returnTo={returnTo} />
@@ -110,7 +111,13 @@ export default async function FollowUpsPage({
       <PageHead title="Follow-ups" subtitle="Real follow-up queue — sourced from Lead/Opportunity follow-up dates, Malaysia time." />
       {sp.feedback === "saved" && <div className="ta-alert ta-alert-success" role="status">Follow-up saved.</div>}
       {sp.feedback === "cleared" && <div className="ta-alert ta-alert-success" role="status">Follow-up cleared.</div>}
-      {!canSchedule && <div className="ta-alert ta-alert-info" role="note">Only an Admin can change follow-up dates. Open a lead to add a note or a task.</div>}
+      {!canSchedule && (
+        <div className="ta-alert ta-alert-info" role="note">
+          {isAdmin(profile.role)
+            ? "You have view-only access to Leads. Changing follow-up dates requires Leads Edit access."
+            : "Only an Admin with Leads Edit access can change follow-up dates."}
+        </div>
+      )}
 
       <ListToolbar style={{ flexWrap: "wrap" }}>
         {VIEWS.map((v) => (

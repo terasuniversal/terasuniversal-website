@@ -17,20 +17,31 @@ import {
   leadAttributionSchema,
   salesLeadQualificationSchema,
   salesLeadTemperatureSchema,
+  salesLeadContactUpdateSchema,
+  salesLeadContactTargetSchema,
 } from "../../../../../lib/validation/schemas";
 import { LOST_REASON_LABELS, type SalesCrmLostReason } from "../../../../../lib/sales/crm";
 import { DISQUALIFICATION_REASONS, DISQUALIFICATION_REASON_LABELS, QUALIFICATION_REASONS, QUALIFICATION_REASON_LABELS } from "../../../../../lib/sales/qualification";
 import { parseFollowUpDateTimeLocal } from "../../../../../lib/sales/follow-up-date";
 import { leadStatusChangeBlock } from "../../../../../lib/sales/lead-status";
+import { mapContactRpcError, type LeadContactErrorKind } from "../../../../../lib/sales/lead-contact";
 
-export type SalesActionState = { message?: string; errors?: Record<string, string>; status?: "success" | "error" };
+export type SalesActionState = {
+  message?: string;
+  errors?: Record<string, string>;
+  status?: "success" | "error";
+  /** Submitted text values echoed back on failure so the form can re-populate itself (UAT F-U11). */
+  values?: Record<string, string>;
+};
+
+const LEAD_CREATE_FIELDS = ["contact_name", "company_name", "email", "phone", "course_interest", "notes", "source_channel", "campaign_id", "attribution_notes"] as const;
 
 export async function createLead(
   _prev: SalesActionState,
   formData: FormData,
 ): Promise<SalesActionState> {
   await requireRole("editor");
-  await requireModuleAccess("sales_leads");
+  await requireModuleAccess("sales_leads", "edit");
 
   const parsed = salesLeadCreateSchema.safeParse({
     contact_name: formData.get("contact_name"),
@@ -43,7 +54,12 @@ export async function createLead(
     campaign_id: formData.get("campaign_id") ?? "",
     attribution_notes: formData.get("attribution_notes") ?? "",
   });
-  if (!parsed.success) return { errors: fieldErrors(parsed.error) };
+  // Echo only the form's own text fields (bounded by the form's maxLength), never anything server-derived.
+  const values = Object.fromEntries(LEAD_CREATE_FIELDS.map((k) => {
+    const v = formData.get(k);
+    return [k, typeof v === "string" ? v.slice(0, 3000) : ""];
+  }));
+  if (!parsed.success) return { errors: fieldErrors(parsed.error), values };
 
   const supabase = await createSupabaseServerClient();
   const { data: leadId, error } = await supabase.rpc("create_internal_sales_lead", {
@@ -59,10 +75,13 @@ export async function createLead(
   });
 
   if (error || !leadId) {
-    if (error?.message?.includes("contact_method_required")) return { message: "Enter an email address or phone number." };
-    if (error?.message?.includes("invalid_email")) return { message: "Enter a valid email address." };
-    if (error?.message?.includes("invalid_attribution_source")) return { message: "Select a valid source channel." };
-    return { message: error?.message ?? "Unable to create the lead." };
+    if (error?.message?.includes("contact_method_required")) return { message: "Enter an email address or phone number.", values };
+    if (error?.message?.includes("invalid_email")) return { message: "Enter a valid email address.", values };
+    if (error?.message?.includes("invalid_attribution_source")) return { message: "Select a valid source channel.", values };
+    // Never surface raw RPC text (UAT F-U1 / CLAUDE.md §15): authorization failures get a clear, generic message.
+    if (error?.code === "42501" || /forbidden/i.test(error?.message ?? "")) return { message: "You don't have permission to create leads.", values };
+    if (error) console.error("createLead: create_internal_sales_lead failed", { code: error.code });
+    return { message: "Unable to create the lead. Please try again.", values };
   }
 
   revalidatePath("/admin/sales/leads");
@@ -72,14 +91,15 @@ export async function createLead(
 
 export async function setLeadAttribution(leadMetadataId: string, formData: FormData): Promise<void> {
   const profile = await requireRole("editor");
-  await requireModuleAccess("sales_leads");
+  await requireModuleAccess("sales_leads", "edit");
   const parsed = leadAttributionSchema.safeParse({ source: formData.get("source"), campaign_id: formData.get("campaign_id") ?? "", utm_source: formData.get("utm_source") ?? "", utm_medium: formData.get("utm_medium") ?? "", utm_campaign: formData.get("utm_campaign") ?? "", utm_content: formData.get("utm_content") ?? "", utm_term: formData.get("utm_term") ?? "", notes: formData.get("notes") ?? "" });
   if (!parsed.success) redirect(`/admin/sales/leads/${leadMetadataId}?attributionError=${encodeURIComponent("Please enter valid attribution details.")}`);
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.from("sales_lead_attributions").upsert({ lead_metadata_id: leadMetadataId, source: parsed.data.source, campaign_id: parsed.data.campaign_id || null, utm_source: parsed.data.utm_source || null, utm_medium: parsed.data.utm_medium || null, utm_campaign: parsed.data.utm_campaign || null, utm_content: parsed.data.utm_content || null, utm_term: parsed.data.utm_term || null, notes: parsed.data.notes || null }, { onConflict: "lead_metadata_id" });
   if (error) redirect(`/admin/sales/leads/${leadMetadataId}?attributionError=${encodeURIComponent("Unable to save marketing attribution.")}`);
-  await logActivity(supabase, leadMetadataId, "note_added", `Marketing attribution updated by ${profile.full_name ?? "staff"}`, profile.id);
+  const logged = await logActivity(supabase, leadMetadataId, "note_added", `Marketing attribution updated by ${profile.full_name ?? "staff"}`, profile.id);
   revalidateLead(leadMetadataId);
+  if (!logged) redirect(`/admin/sales/leads/${leadMetadataId}?attributionError=${encodeURIComponent(ACTIVITY_NOT_RECORDED)}`);
   redirect(`/admin/sales/leads/${leadMetadataId}?attributionSaved=1`);
 }
 
@@ -89,6 +109,10 @@ function revalidateLead(id: string) {
   revalidatePath("/admin/sales");
 }
 
+// The change itself is already committed when the timeline write runs (separate statements, no
+// transaction), so a failed activity insert is reported as a partial success, never retried here.
+const ACTIVITY_NOT_RECORDED = "Saved, but the timeline entry could not be recorded. Refresh to check before trying again.";
+
 async function logActivity(
   supabase: any,
   leadMetadataId: string,
@@ -96,8 +120,10 @@ async function logActivity(
   note: string | null,
   actorId: string,
   metadata?: Record<string, unknown>
-) {
-  await supabase.from("sales_activity").insert({ lead_metadata_id: leadMetadataId, type, note, actor_id: actorId, ...(metadata ? { metadata } : {}) });
+): Promise<boolean> {
+  const { error } = await supabase.from("sales_activity").insert({ lead_metadata_id: leadMetadataId, type, note, actor_id: actorId, ...(metadata ? { metadata } : {}) });
+  if (error) console.error("sales lead activity insert failed", { type, code: error.code });
+  return !error;
 }
 
 /** Status transitions (incl. Mark Lost) — admin+ only, per sales_lead_metadata's RLS. Won is refused here: it is set only by accept_quotation(). */
@@ -107,7 +133,7 @@ export async function updateLeadStatus(
   formData: FormData
 ): Promise<SalesActionState> {
   const profile = await requireRole("admin");
-  await requireModuleAccess("sales_leads");
+  await requireModuleAccess("sales_leads", "edit");
   const parsed = salesLeadStatusSchema.safeParse({
     status: formData.get("status"),
     lost_reason: formData.get("lost_reason") ?? "",
@@ -141,9 +167,10 @@ export async function updateLeadStatus(
     status === "lost" && lost_reason
       ? `Marked lost — reason: ${LOST_REASON_LABELS[lost_reason as SalesCrmLostReason]}`
       : `Status changed to ${status.replace(/_/g, " ")}`;
-  await logActivity(supabase, leadMetadataId, activityType, note, profile.id);
+  const logged = await logActivity(supabase, leadMetadataId, activityType, note, profile.id);
 
   revalidateLead(leadMetadataId);
+  if (!logged) return { message: ACTIVITY_NOT_RECORDED, status: "error" };
   return {};
 }
 
@@ -154,7 +181,7 @@ export async function assignLead(
   formData: FormData
 ): Promise<SalesActionState> {
   const profile = await requireRole("admin");
-  await requireModuleAccess("sales_leads");
+  await requireModuleAccess("sales_leads", "edit");
   const parsed = salesLeadAssignSchema.safeParse({ assigned_to: formData.get("assigned_to") ?? "" });
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
   const assignedTo = parsed.data.assigned_to || null;
@@ -171,9 +198,10 @@ export async function assignLead(
     const { data: assignee } = await supabase.from("profiles").select("full_name").eq("id", assignedTo).maybeSingle();
     assigneeName = assignee?.full_name || "a staff member";
   }
-  await logActivity(supabase, leadMetadataId, "assigned", `Assigned to ${assigneeName}`, profile.id);
+  const logged = await logActivity(supabase, leadMetadataId, "assigned", `Assigned to ${assigneeName}`, profile.id);
 
   revalidateLead(leadMetadataId);
+  if (!logged) return { message: ACTIVITY_NOT_RECORDED, status: "error" };
   return {};
 }
 
@@ -184,7 +212,7 @@ export async function setLeadFollowUp(
   formData: FormData
 ): Promise<SalesActionState> {
   const profile = await requireRole("admin");
-  await requireModuleAccess("sales_leads");
+  await requireModuleAccess("sales_leads", "edit");
   const parsed = salesLeadFollowUpSchema.safeParse({
     follow_up_at: formData.get("follow_up_at") ?? "",
     priority: formData.get("priority") || undefined,
@@ -201,8 +229,9 @@ export async function setLeadFollowUp(
   const { error } = await supabase.from("sales_lead_metadata").update(patch).eq("id", leadMetadataId);
   if (error) return { message: "Unable to update the follow-up. Try again.", status: "error" };
 
+  let logged = true;
   if (followUpAt) {
-    await logActivity(
+    logged = await logActivity(
       supabase,
       leadMetadataId,
       "followup_scheduled",
@@ -211,10 +240,11 @@ export async function setLeadFollowUp(
     );
   }
   if (parsed.data.priority && existing?.priority && existing.priority !== parsed.data.priority) {
-    await logActivity(supabase, leadMetadataId, "priority_changed", `Priority changed to ${parsed.data.priority}`, profile.id, { old_value: existing.priority, new_value: parsed.data.priority });
+    logged = (await logActivity(supabase, leadMetadataId, "priority_changed", `Priority changed to ${parsed.data.priority}`, profile.id, { old_value: existing.priority, new_value: parsed.data.priority })) && logged;
   }
 
   revalidateLead(leadMetadataId);
+  if (!logged) return { message: ACTIVITY_NOT_RECORDED, status: "error" };
   const returnTo = formData.get("return_to");
   if (typeof returnTo === "string" && returnTo.startsWith("/admin/sales/follow-ups")) {
     const separator = returnTo.includes("?") ? "&" : "?";
@@ -232,7 +262,7 @@ export async function updateLeadQualification(
   formData: FormData
 ): Promise<SalesActionState> {
   const profile = await requireRole("admin");
-  await requireModuleAccess("sales_leads");
+  await requireModuleAccess("sales_leads", "edit");
   const parsed = salesLeadQualificationSchema.safeParse({
     qualification_status: formData.get("qualification_status"),
     reason: formData.get("reason") ?? "",
@@ -261,8 +291,9 @@ export async function updateLeadQualification(
   if (error) return { message: error.message };
   const oldValue = current.qualification_status;
   const label = qualification_status === "qualified" ? QUALIFICATION_REASON_LABELS[reasonValue as keyof typeof QUALIFICATION_REASON_LABELS] : qualification_status === "unqualified" ? DISQUALIFICATION_REASON_LABELS[reasonValue as keyof typeof DISQUALIFICATION_REASON_LABELS] : null;
-  await logActivity(supabase, leadMetadataId, "qualification_changed", `Qualification changed to ${qualification_status}${label ? ` — ${label}` : ""}`, profile.id, { old_value: oldValue, new_value: qualification_status, reason: reasonValue || null });
+  const logged = await logActivity(supabase, leadMetadataId, "qualification_changed", `Qualification changed to ${qualification_status}${label ? ` — ${label}` : ""}`, profile.id, { old_value: oldValue, new_value: qualification_status, reason: reasonValue || null });
   revalidateLead(leadMetadataId);
+  if (!logged) return { message: ACTIVITY_NOT_RECORDED, status: "error" };
   return {};
 }
 
@@ -272,7 +303,7 @@ export async function updateLeadTemperature(
   formData: FormData
 ): Promise<SalesActionState> {
   const profile = await requireRole("admin");
-  await requireModuleAccess("sales_leads");
+  await requireModuleAccess("sales_leads", "edit");
   const parsed = salesLeadTemperatureSchema.safeParse({ temperature: formData.get("temperature") ?? "" });
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
   const nextTemperature = parsed.data.temperature || null;
@@ -282,8 +313,9 @@ export async function updateLeadTemperature(
   if ((current.temperature ?? null) === nextTemperature) return {};
   const { error } = await supabase.from("sales_lead_metadata").update({ temperature: nextTemperature, updated_at: new Date().toISOString() }).eq("id", leadMetadataId);
   if (error) return { message: error.message };
-  await logActivity(supabase, leadMetadataId, "temperature_changed", `Temperature changed to ${nextTemperature ?? "Not set"}`, profile.id, { old_value: current.temperature, new_value: nextTemperature });
+  const logged = await logActivity(supabase, leadMetadataId, "temperature_changed", `Temperature changed to ${nextTemperature ?? "Not set"}`, profile.id, { old_value: current.temperature, new_value: nextTemperature });
   revalidateLead(leadMetadataId);
+  if (!logged) return { message: ACTIVITY_NOT_RECORDED, status: "error" };
   return {};
 }
 
@@ -298,7 +330,7 @@ export async function addLeadNote(
   formData: FormData
 ): Promise<SalesActionState> {
   const profile = await requireRole("editor");
-  await requireModuleAccess("sales_leads");
+  await requireModuleAccess("sales_leads", "edit");
   const parsed = salesLeadNoteSchema.safeParse({ note: formData.get("note") });
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
@@ -326,7 +358,7 @@ export async function convertLeadToOpportunity(
   formData: FormData
 ): Promise<SalesActionState> {
   await requireRole("admin");
-  await requireModuleAccess("sales_leads");
+  await requireModuleAccess("sales_leads", "edit");
   const parsed = convertLeadToOpportunitySchema.safeParse({
     title: formData.get("title"),
     expected_close_date: formData.get("expected_close_date") ?? "",
@@ -363,7 +395,7 @@ export async function convertLeadToOpportunity(
  */
 export async function markLeadTest(leadMetadataId: string, isTest: boolean): Promise<SalesActionState> {
   const profile = await requireRole("admin");
-  await requireModuleAccess("sales_leads");
+  await requireModuleAccess("sales_leads", "edit");
   if (!isSuperAdmin(profile.role)) return { message: "Only Super Admin can change test/demo classification." };
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.rpc("mark_lead_test", { p_lead_metadata_id: leadMetadataId, p_is_test: isTest });
@@ -374,4 +406,60 @@ export async function markLeadTest(leadMetadataId: string, isTest: boolean): Pro
   }
   revalidateLead(leadMetadataId);
   return {};
+}
+
+export type LeadContactActionState = SalesActionState & { kind?: LeadContactErrorKind };
+
+/**
+ * Corrects the contact details of an enquiry, proposal-request or internal lead through the
+ * update_sales_lead_contact RPC. The original submission is never modified: the RPC stores one
+ * complete corrected record per lead. The RPC repeats the role and module checks, so this
+ * guard is not the only line of defence. Errors are mapped to fixed messages and logged by
+ * code only, because the submitted values are personal data.
+ */
+export async function updateLeadContact(
+  leadMetadataId: string,
+  expectedVersion: number | null,
+  _prev: LeadContactActionState,
+  formData: FormData,
+): Promise<LeadContactActionState> {
+  await requireRole("editor");
+  await requireModuleAccess("sales_leads", "edit");
+
+  const target = salesLeadContactTargetSchema.safeParse({ lead_metadata_id: leadMetadataId, expected_version: expectedVersion });
+  if (!target.success) return { status: "error", message: "This lead could not be updated. Reload the page.", kind: "error" };
+
+  const text = (key: string) => {
+    const value = formData.get(key);
+    return typeof value === "string" ? value : "";
+  };
+  const parsed = salesLeadContactUpdateSchema.safeParse({
+    contact_name: text("contact_name"),
+    company: text("company"),
+    email: text("email"),
+    phone: text("phone"),
+  });
+  if (!parsed.success) return { status: "error", errors: fieldErrors(parsed.error), kind: "invalid" };
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("update_sales_lead_contact", {
+    p_lead_metadata_id: target.data.lead_metadata_id,
+    p_expected_version: target.data.expected_version,
+    p_contact_name: parsed.data.contact_name,
+    p_company: parsed.data.company || null,
+    p_email: parsed.data.email || null,
+    p_phone: parsed.data.phone || null,
+  });
+
+  if (error || typeof data !== "number") {
+    const mapped = mapContactRpcError(error);
+    console.error("update_sales_lead_contact failed", { code: error?.code ?? null, kind: mapped.kind });
+    return { status: "error", message: mapped.message, kind: mapped.kind };
+  }
+
+  revalidatePath(`/admin/sales/leads/${target.data.lead_metadata_id}`);
+  revalidatePath("/admin/sales/leads");
+  revalidatePath("/admin/sales/follow-ups");
+  revalidatePath("/admin/sales");
+  return { status: "success", message: "Contact details updated." };
 }

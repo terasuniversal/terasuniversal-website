@@ -43,6 +43,9 @@ export function TaskForm({
       <input type="hidden" name="quotation_id" value={linkContext?.quotationId ?? d.quotation_id ?? ""} />
       {mode === "edit" && returnContext && (
         <>
+          {/* Saving returns to this task's detail page (like the status actions) with an "updated" notice,
+              instead of re-rendering the whole queue while the button stays on "Saving…" (UAT F-U12). */}
+          <input type="hidden" name="return_mode" value="detail" />
           <input type="hidden" name="return_view" value={returnContext.view} />
           <input type="hidden" name="return_owner" value={returnContext.owner} />
           <input type="hidden" name="return_q" value={returnContext.q ?? ""} />

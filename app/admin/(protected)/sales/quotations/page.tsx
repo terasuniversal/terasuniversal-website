@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { requireRole, requireModuleAccess } from "../../../../../lib/auth/session";
+import { requireRole, requireModuleAccess, hasModuleAccess } from "../../../../../lib/auth/session";
 import { PageHead, Card, Badge, EmptyState, Pagination, ListToolbar, ReadErrorState } from "../../../../../components/admin/ui";
 import { FOLLOW_UP_STATE_LABELS, QUOTATION_STATUS_ORDER, QUOTATION_STATUS_LABELS, revisionLabel, sanitizeSearchTerm, type SalesQuotationRow, type SalesTaskRow } from "../../../../../lib/sales/crm";
 import { formatMalaysiaDate, formatMalaysiaDateTime } from "../../../../../lib/date-time";
@@ -8,6 +8,7 @@ import { dueDateState } from "../../../../../lib/sales/crm";
 import { invoiceStatusLabel, paymentVisibilityLabel, pickNextQuotationTask, QUOTATION_EXPIRY_LABELS, quotationExpiryState } from "../../../../../lib/sales/quotation-workflow";
 import { buildQuotationSearchFilter } from "../../../../../lib/sales/search";
 import { clampPage, normalizePage, pageCountFor, pageRange } from "../../../../../lib/sales/pagination";
+import { getQuotationInvoiceSummaries, type QuotationInvoiceSummary } from "../../../../../lib/sales/invoice-summary";
 
 export const metadata = { title: "Quotations — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
@@ -28,6 +29,8 @@ export default async function QuotationsPage({
 }) {
   await requireRole("editor");
   await requireModuleAccess("sales_quotations");
+  // Opportunity numbers are only links for users who can open Opportunities (UAT F-U6).
+  const canViewOpportunities = await hasModuleAccess("sales_opportunities");
   const sp = await searchParams;
   let page = normalizePage(sp.page);
   const supabase = await createSupabaseServerClient();
@@ -68,12 +71,13 @@ export default async function QuotationsPage({
   }
   const quotationRows = (rows ?? []) as (SalesQuotationRow & { sales_opportunities: { opportunity_no: string; company_name: string | null } | null })[];
   const quotationIds = quotationRows.map((row) => row.id);
-  const [{ data: taskRows, error: taskReadError }, { data: invoiceRows, error: invoiceReadError }] = quotationIds.length > 0
+  // Invoice/payment context comes from the summary RPC: Quotations users never read full finance rows (M-S5b).
+  const [{ data: taskRows, error: taskReadError }, { data: invoiceSummaries, error: invoiceReadError }] = quotationIds.length > 0
     ? await Promise.all([
         supabase.from("sales_tasks").select("*").in("quotation_id", quotationIds).is("deleted_at", null).not("status", "in", "(completed,cancelled)"),
-        supabase.from("invoices").select("id, quotation_id, invoice_no, status, grand_total, amount_paid, balance_due").in("quotation_id", quotationIds),
+        getQuotationInvoiceSummaries(supabase, quotationIds),
       ])
-    : [{ data: [], error: null }, { data: [], error: null }];
+    : [{ data: [], error: null }, { data: [] as QuotationInvoiceSummary[], error: null }];
   const tasksByQuotation = new Map<string, SalesTaskRow[]>();
   for (const task of (taskRows ?? []) as SalesTaskRow[]) {
     if (!task.quotation_id) continue;
@@ -81,32 +85,14 @@ export default async function QuotationsPage({
     list.push(task);
     tasksByQuotation.set(task.quotation_id, list);
   }
-  type InvoiceListRow = {
-    id: string;
-    quotation_id: string;
-    invoice_no: string;
-    status: string;
-    grand_total: number;
-    amount_paid: number;
-    balance_due: number;
-  };
-  const invoiceByQuotation = new Map<string, InvoiceListRow>();
-  for (const invoice of (invoiceRows ?? []) as InvoiceListRow[]) invoiceByQuotation.set(invoice.quotation_id, invoice);
-  const invoiceIds = Array.from(invoiceByQuotation.values()).map((invoice) => invoice.id).filter(Boolean);
-  const { data: paymentRows, error: paymentReadError } = invoiceIds.length > 0
-    ? await supabase.from("invoice_payments").select("invoice_id, status").in("invoice_id", invoiceIds)
-    : { data: [], error: null };
-  const paymentStatusesByInvoice = new Map<string, string[]>();
-  for (const payment of (paymentRows ?? []) as { invoice_id: string; status: string }[]) {
-    const statuses = paymentStatusesByInvoice.get(payment.invoice_id) ?? [];
-    statuses.push(payment.status);
-    paymentStatusesByInvoice.set(payment.invoice_id, statuses);
-  }
+  const invoiceByQuotation = new Map<string, QuotationInvoiceSummary>();
+  for (const invoice of invoiceSummaries) invoiceByQuotation.set(invoice.quotation_id, invoice);
+  const paymentStatuses = (invoice: QuotationInvoiceSummary) => invoice.payment_states.map((payment) => payment.status);
   const qsBase: Record<string, string> = {};
   for (const k of ["q", "status"] as const) if (sp[k]) qsBase[k] = sp[k]!;
   const filtersApplied = Object.keys(qsBase).length > 0;
   const activeFilterCount = Object.keys(qsBase).length;
-  const hasReadError = Boolean(opportunitySearchError || quotationReadError || taskReadError || invoiceReadError || paymentReadError);
+  const hasReadError = Boolean(opportunitySearchError || quotationReadError || taskReadError || invoiceReadError);
 
   return (
     <>
@@ -144,11 +130,11 @@ export default async function QuotationsPage({
                     return (
                     <tr key={q.id}>
                       <td><Link href={`/admin/sales/quotations/${q.id}`} className="ta-sales-record-link"><code style={{ fontSize: 12 }}>{q.quotation_no}</code></Link><div className="ta-lead-sub">{revisionLabel(q.revision_no)}{q.superseded_at ? " · Superseded" : ""}</div></td>
-                      <td>{q.sales_opportunities?.company_name ?? "—"}<div className="ta-lead-sub">{q.sales_opportunities?.opportunity_no ? <Link href={`/admin/sales/opportunities/${q.opportunity_id}`}>{q.sales_opportunities.opportunity_no}</Link> : "Opportunity context unavailable"}</div></td>
+                      <td>{q.sales_opportunities?.company_name ?? "—"}<div className="ta-lead-sub">{q.sales_opportunities?.opportunity_no ? (canViewOpportunities ? <Link href={`/admin/sales/opportunities/${q.opportunity_id}`}>{q.sales_opportunities.opportunity_no}</Link> : q.sales_opportunities.opportunity_no) : "Opportunity context unavailable"}</div></td>
                       <td><div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}><Badge status={q.status} />{q.superseded_at && <span className="ta-badge-pill ta-badge-muted">Superseded revision</span>}<span style={{ fontSize: 11, color: expiry === "expired" ? "var(--ta-danger)" : "var(--ta-muted)" }}>{QUOTATION_EXPIRY_LABELS[expiry]}</span></div></td>
                       <td>RM {Number(q.total).toLocaleString("en-MY", { minimumFractionDigits: 2 })}</td>
                       <td><div>Issued {formatMalaysiaDate(q.issue_date)}</div><div className="ta-lead-sub">Valid to {q.valid_until ? formatMalaysiaDate(q.valid_until) : "No expiry"}</div>{q.sent_at && <div className="ta-lead-sub">Sent {formatMalaysiaDate(q.sent_at)}</div>}</td>
-                      <td>{invoice ? <div><strong>{invoice.invoice_no}</strong><div className="ta-lead-sub">{invoiceStatusLabel(invoice.status)} · {paymentVisibilityLabel(invoice.status, paymentStatusesByInvoice.get(invoice.id) ?? [])}</div></div> : task ? <div style={{ display: "flex", flexDirection: "column", gap: 3, maxWidth: 190, overflowWrap: "anywhere" }}><strong>{task.title}</strong><span className="ta-lead-sub" style={{ color: taskState === "overdue" ? "var(--ta-danger)" : undefined }}>{task.due_at ? `${FOLLOW_UP_STATE_LABELS[taskState]} · ${formatMalaysiaDateTime(task.due_at)}` : "No due date"}</span></div> : <span className="ta-lead-sub">No invoice or active follow-up</span>}</td>
+                      <td>{invoice ? <div><strong>{invoice.invoice_no}</strong><div className="ta-lead-sub">{invoiceStatusLabel(invoice.status)} · {paymentVisibilityLabel(invoice.status, paymentStatuses(invoice))}</div></div> : task ? <div style={{ display: "flex", flexDirection: "column", gap: 3, maxWidth: 190, overflowWrap: "anywhere" }}><strong>{task.title}</strong><span className="ta-lead-sub" style={{ color: taskState === "overdue" ? "var(--ta-danger)" : undefined }}>{task.due_at ? `${FOLLOW_UP_STATE_LABELS[taskState]} · ${formatMalaysiaDateTime(task.due_at)}` : "No due date"}</span></div> : <span className="ta-lead-sub">No invoice or active follow-up</span>}</td>
                       <td style={{ textAlign: "right" }}><Link href={`/admin/sales/quotations/${q.id}`} className="ta-btn ta-btn-outline ta-btn-sm">View</Link></td>
                     </tr>
                     );
@@ -174,7 +160,7 @@ export default async function QuotationsPage({
                   </div>
                   <div className="ta-q-card-customer">
                     <strong>{q.sales_opportunities?.company_name ?? "—"}</strong>
-                    {q.sales_opportunities?.opportunity_no && <div className="ta-lead-sub"><Link href={`/admin/sales/opportunities/${q.opportunity_id}`}>{q.sales_opportunities.opportunity_no}</Link></div>}
+                    {q.sales_opportunities?.opportunity_no && <div className="ta-lead-sub">{canViewOpportunities ? <Link href={`/admin/sales/opportunities/${q.opportunity_id}`}>{q.sales_opportunities.opportunity_no}</Link> : q.sales_opportunities.opportunity_no}</div>}
                   </div>
                   <div className="ta-q-card-total">
                     <span className="ta-q-card-total-label">Total</span>
@@ -186,7 +172,7 @@ export default async function QuotationsPage({
                     <span>Issued</span><span>{formatMalaysiaDate(q.issue_date)}</span>
                     <span>Next Action</span>
                     <span style={{ overflowWrap: "anywhere", color: taskState === "overdue" ? "var(--ta-danger)" : undefined }}>{task ? `${task.title} · ${task.due_at ? `${FOLLOW_UP_STATE_LABELS[taskState]} · ${formatMalaysiaDateTime(task.due_at)}` : "No due date"}` : "No Follow-up"}</span>
-                    {invoice && <><span>Invoice</span><span>{invoice.invoice_no} · {invoiceStatusLabel(invoice.status)} · {paymentVisibilityLabel(invoice.status, paymentStatusesByInvoice.get(invoice.id) ?? [])}</span></>}
+                    {invoice && <><span>Invoice</span><span>{invoice.invoice_no} · {invoiceStatusLabel(invoice.status)} · {paymentVisibilityLabel(invoice.status, paymentStatuses(invoice))}</span></>}
                   </div>
                   <div className="ta-lead-card-action">
                     <Link href={`/admin/sales/quotations/${q.id}`} className="ta-btn ta-btn-outline ta-btn-sm" aria-label={`View quotation ${q.quotation_no}`}>View quotation →</Link>
