@@ -120,7 +120,7 @@ async function findPotentialDuplicate(
  */
 export async function createContact(_prev: ContactFormState, formData: FormData): Promise<ContactFormState> {
   const profile = await requireRole("editor");
-  await requireModuleAccess("marketing_contacts");
+  await requireModuleAccess("marketing_contacts", "edit");
   const parsed = marketingContactSchema.safeParse(readForm(formData));
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
@@ -183,7 +183,7 @@ export async function createContact(_prev: ContactFormState, formData: FormData)
  */
 export async function updateContact(id: string, _prev: ContactFormState, formData: FormData): Promise<ContactFormState> {
   const profile = await requireRole("editor");
-  await requireModuleAccess("marketing_contacts");
+  await requireModuleAccess("marketing_contacts", "edit");
   const parsed = marketingContactSchema.safeParse(readForm(formData));
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
@@ -253,7 +253,7 @@ export async function updateContact(id: string, _prev: ContactFormState, formDat
  */
 export async function updateContactConsent(id: string, _prev: ContactFormState, formData: FormData): Promise<ContactFormState> {
   const profile = await requireRole("editor");
-  await requireModuleAccess("marketing_contacts");
+  await requireModuleAccess("marketing_contacts", "edit");
   const parsed = marketingContactConsentSchema.safeParse({
     consent_status: String(formData.get("consent_status") ?? ""),
     consent_source: String(formData.get("consent_source") ?? "").trim(),
@@ -299,7 +299,7 @@ export async function updateContactConsent(id: string, _prev: ContactFormState, 
 
 export async function addContactNote(id: string, _prev: ContactFormState, formData: FormData): Promise<ContactFormState> {
   const profile = await requireRole("editor");
-  await requireModuleAccess("marketing_contacts");
+  await requireModuleAccess("marketing_contacts", "edit");
   const parsed = marketingContactNoteSchema.safeParse({ note: String(formData.get("note") ?? "") });
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
@@ -324,7 +324,7 @@ export async function addContactNote(id: string, _prev: ContactFormState, formDa
  */
 async function transitionContactStatus(id: string, allowedFrom: MarketingContactStatus[], to: MarketingContactStatus): Promise<void> {
   const profile = await requireRole("editor");
-  await requireModuleAccess("marketing_contacts");
+  await requireModuleAccess("marketing_contacts", "edit");
   const supabase = await createSupabaseServerClient();
 
   const { data: current, error: readError } = await supabase.from("marketing_contacts").select("status").eq("id", id).maybeSingle();
@@ -378,7 +378,7 @@ export async function archiveContact(id: string): Promise<void> {
  * does NOT perform any of those writes itself -- it only calls the RPC and
  * surfaces its result, matching "the RPC owns atomicity" exactly.
  *
- * Guard is requireRole("editor") + requireModuleAccess("marketing_contacts")
+ * Guard is requireRole("editor") + requireModuleAccess("marketing_contacts", "edit")
  * ONLY -- deliberately not requireModuleAccess("sales_leads") too. The RPC
  * is the explicit, deliberate handoff mechanism; requiring Sales module
  * access here would defeat its purpose and reintroduce the admin-gate the
@@ -388,7 +388,7 @@ export async function archiveContact(id: string): Promise<void> {
  */
 export async function promoteMarketingContactToSales(id: string, _prev: ContactFormState, _formData: FormData): Promise<ContactFormState> {
   await requireRole("editor");
-  await requireModuleAccess("marketing_contacts");
+  await requireModuleAccess("marketing_contacts", "edit");
   const supabase = await createSupabaseServerClient();
 
   const { error } = await supabase.rpc("promote_marketing_contact_to_sales", { p_contact_id: id });

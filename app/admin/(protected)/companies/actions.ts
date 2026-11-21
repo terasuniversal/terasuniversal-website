@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { requireRole, requireModuleAccess } from "../../../../lib/auth/session";
 import { companySchema, fieldErrors } from "../../../../lib/validation/schemas";
+import { ACTIVITY_UNSAVED_NOTICE, LINK_FAILED_NOTICE, withNotice } from "../../../../lib/sales/activity-notice";
 
 export type CompanyFormState = { errors?: Record<string, string>; message?: string };
 
@@ -40,11 +41,13 @@ export async function createCompany(_prev: CompanyFormState, formData: FormData)
   // schedules/actions.ts's identical Sales-handoff precedent — see
   // new/page.tsx's comment for why the earlier presence-only exemption on
   // source_opportunity_id was removed rather than hardened.
-  await requireModuleAccess("companies");
+  await requireModuleAccess("companies", "edit");
   const parsed = companySchema.safeParse(readForm(formData));
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
   const supabase = await createSupabaseServerClient();
   const sourceOpportunityId = String(formData.get(HANDOFF_FIELD) ?? "").trim() || null;
+  // The handoff path also links the new company onto the opportunity, which is an Opportunities write.
+  if (sourceOpportunityId) await requireModuleAccess("sales_opportunities", "edit");
 
   // Sales CRM Phase 4A duplicate safety (Task 5) — scoped to the handoff
   // path only, per instruction not to change the standalone Companies
@@ -77,22 +80,33 @@ export async function createCompany(_prev: CompanyFormState, formData: FormData)
       .select("lead_metadata_id")
       .eq("id", sourceOpportunityId)
       .maybeSingle();
-    await supabase
+    const opportunityPath = `/admin/sales/opportunities/${sourceOpportunityId}`;
+    // The company exists now; returning to the form would invite a duplicate, so each later
+    // failure is reported on the opportunity page through a fixed notice instead.
+    const { error: linkError } = await supabase
       .from("sales_opportunities")
       .update({ company_id: created.id, updated_at: new Date().toISOString() })
       .eq("id", sourceOpportunityId);
+    if (linkError) {
+      console.error("company handoff opportunity link failed", { code: linkError.code });
+      revalidatePath("/admin/companies");
+      redirect(withNotice(opportunityPath, LINK_FAILED_NOTICE));
+    }
+    let activityLogged = true;
     if (opp?.lead_metadata_id) {
-      await supabase.from("sales_activity").insert({
+      const { error: activityError } = await supabase.from("sales_activity").insert({
         lead_metadata_id: opp.lead_metadata_id,
         opportunity_id: sourceOpportunityId,
         type: "company_created",
         note: `Company "${parsed.data.company_name}" created and linked`,
         actor_id: profile.id,
       });
+      if (activityError) console.error("company_created activity insert failed", { code: activityError.code });
+      activityLogged = !activityError;
     }
-    revalidatePath(`/admin/sales/opportunities/${sourceOpportunityId}`);
+    revalidatePath(opportunityPath);
     revalidatePath("/admin/companies");
-    redirect(`/admin/sales/opportunities/${sourceOpportunityId}`);
+    redirect(activityLogged ? opportunityPath : withNotice(opportunityPath, ACTIVITY_UNSAVED_NOTICE));
   }
 
   revalidatePath("/admin/companies");
@@ -101,7 +115,7 @@ export async function createCompany(_prev: CompanyFormState, formData: FormData)
 
 export async function updateCompany(id: string, _prev: CompanyFormState, formData: FormData): Promise<CompanyFormState> {
   await requireRole("admin");
-  await requireModuleAccess("companies");
+  await requireModuleAccess("companies", "edit");
   const parsed = companySchema.safeParse(readForm(formData));
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
   const supabase = await createSupabaseServerClient();
@@ -114,7 +128,7 @@ export async function updateCompany(id: string, _prev: CompanyFormState, formDat
 
 export async function softDeleteCompany(id: string) {
   await requireRole("admin");
-  await requireModuleAccess("companies");
+  await requireModuleAccess("companies", "edit");
   const supabase = await createSupabaseServerClient();
   await supabase.from("companies").update({ deleted_at: new Date().toISOString() }).eq("id", id);
   revalidatePath("/admin/companies");
@@ -122,7 +136,7 @@ export async function softDeleteCompany(id: string) {
 
 export async function restoreCompany(id: string) {
   await requireRole("admin");
-  await requireModuleAccess("companies");
+  await requireModuleAccess("companies", "edit");
   const supabase = await createSupabaseServerClient();
   await supabase.from("companies").update({ deleted_at: null }).eq("id", id);
   revalidatePath("/admin/companies");

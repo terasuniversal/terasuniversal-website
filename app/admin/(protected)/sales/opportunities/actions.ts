@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { requireRole, requireModuleAccess } from "../../../../../lib/auth/session";
 import {
@@ -12,6 +13,7 @@ import {
   fieldErrors,
 } from "../../../../../lib/validation/schemas";
 import { sanitizeSearchTerm } from "../../../../../lib/sales/crm";
+import { ACTIVITY_UNSAVED_NOTICE, LINK_FAILED_NOTICE, withNotice } from "../../../../../lib/sales/activity-notice";
 
 export type SalesActionState = { message?: string; errors?: Record<string, string> };
 
@@ -21,8 +23,14 @@ function revalidateOpportunity(id: string) {
   revalidatePath("/admin/sales");
 }
 
-async function logActivity(supabase: any, leadMetadataId: string, opportunityId: string, type: string, note: string | null, actorId: string) {
-  await supabase.from("sales_activity").insert({ lead_metadata_id: leadMetadataId, opportunity_id: opportunityId, type, note, actor_id: actorId });
+// The opportunity change is already committed when the timeline write runs (no shared
+// transaction), so a failed activity insert is reported as a partial success, never retried.
+const ACTIVITY_NOT_RECORDED = "Saved, but the timeline entry could not be recorded. Refresh to check before trying again.";
+
+async function logActivity(supabase: any, leadMetadataId: string, opportunityId: string, type: string, note: string | null, actorId: string): Promise<boolean> {
+  const { error } = await supabase.from("sales_activity").insert({ lead_metadata_id: leadMetadataId, opportunity_id: opportunityId, type, note, actor_id: actorId });
+  if (error) console.error("sales opportunity activity insert failed", { type, code: error.code });
+  return !error;
 }
 
 async function getLeadMetadataId(supabase: any, opportunityId: string): Promise<string | null> {
@@ -37,7 +45,7 @@ export async function updateOpportunityStage(
   formData: FormData
 ): Promise<SalesActionState> {
   const profile = await requireRole("admin");
-  await requireModuleAccess("sales_opportunities");
+  await requireModuleAccess("sales_opportunities", "edit");
   const parsed = opportunityStageSchema.safeParse({ stage: formData.get("stage") });
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
   if (parsed.data.stage === "won" || parsed.data.stage === "lost") {
@@ -57,9 +65,10 @@ export async function updateOpportunityStage(
     .eq("id", opportunityId);
   if (error) return { message: error.message };
 
-  await logActivity(supabase, current.lead_metadata_id, opportunityId, "status_changed", `Stage changed to ${parsed.data.stage}`, profile.id);
+  const logged = await logActivity(supabase, current.lead_metadata_id, opportunityId, "status_changed", `Stage changed to ${parsed.data.stage}`, profile.id);
 
   revalidateOpportunity(opportunityId);
+  if (!logged) return { message: ACTIVITY_NOT_RECORDED };
   return {};
 }
 
@@ -70,7 +79,7 @@ export async function assignOpportunity(
   formData: FormData
 ): Promise<SalesActionState> {
   const profile = await requireRole("admin");
-  await requireModuleAccess("sales_opportunities");
+  await requireModuleAccess("sales_opportunities", "edit");
   const parsed = opportunityAssignSchema.safeParse({ assigned_to: formData.get("assigned_to") ?? "" });
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
   const assignedTo = parsed.data.assigned_to || null;
@@ -88,9 +97,10 @@ export async function assignOpportunity(
     const { data: assignee } = await supabase.from("profiles").select("full_name").eq("id", assignedTo).maybeSingle();
     assigneeName = assignee?.full_name || "a staff member";
   }
-  if (leadMetadataId) await logActivity(supabase, leadMetadataId, opportunityId, "assigned", `Assigned to ${assigneeName}`, profile.id);
+  const logged = leadMetadataId ? await logActivity(supabase, leadMetadataId, opportunityId, "assigned", `Assigned to ${assigneeName}`, profile.id) : true;
 
   revalidateOpportunity(opportunityId);
+  if (!logged) return { message: ACTIVITY_NOT_RECORDED };
   return {};
 }
 
@@ -101,7 +111,7 @@ export async function setOpportunityExpectedClose(
   formData: FormData
 ): Promise<SalesActionState> {
   await requireRole("admin");
-  await requireModuleAccess("sales_opportunities");
+  await requireModuleAccess("sales_opportunities", "edit");
   const parsed = opportunityExpectedCloseSchema.safeParse({
     expected_close_date: formData.get("expected_close_date") ?? "",
     probability: formData.get("probability") || null,
@@ -130,7 +140,7 @@ export async function markOpportunityLost(
   formData: FormData
 ): Promise<SalesActionState> {
   await requireRole("admin");
-  await requireModuleAccess("sales_opportunities");
+  await requireModuleAccess("sales_opportunities", "edit");
   const parsed = opportunityLostSchema.safeParse({ lost_reason: formData.get("lost_reason") });
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
@@ -153,7 +163,7 @@ export async function addOpportunityNote(
   formData: FormData
 ): Promise<SalesActionState> {
   const profile = await requireRole("editor");
-  await requireModuleAccess("sales_opportunities");
+  await requireModuleAccess("sales_opportunities", "edit");
   const parsed = salesLeadNoteSchema.safeParse({ note: formData.get("note") });
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
@@ -214,7 +224,7 @@ export async function searchCompaniesForLink(_prev: CompanyCandidate[], formData
  */
 export async function linkCompany(opportunityId: string, formData: FormData): Promise<void> {
   const profile = await requireRole("admin");
-  await requireModuleAccess("sales_opportunities");
+  await requireModuleAccess("sales_opportunities", "edit");
   const companyId = String(formData.get("company_id") ?? "").trim();
   if (!companyId) return;
 
@@ -229,10 +239,17 @@ export async function linkCompany(opportunityId: string, formData: FormData): Pr
     .from("sales_opportunities")
     .update({ company_id: companyId, updated_at: new Date().toISOString() })
     .eq("id", opportunityId);
-  if (error) return;
-
-  if (opp.lead_metadata_id) {
-    await logActivity(supabase, opp.lead_metadata_id, opportunityId, "company_linked", `Linked to company ${company.company_name}`, profile.id);
+  // A plain form action cannot return state, so failures come back to the opportunity page
+  // as fixed notices rather than as a silent no-op.
+  const opportunityPath = `/admin/sales/opportunities/${opportunityId}`;
+  if (error) {
+    console.error("opportunity company link failed", { code: error.code });
+    redirect(withNotice(opportunityPath, LINK_FAILED_NOTICE));
   }
+
+  const logged = opp.lead_metadata_id
+    ? await logActivity(supabase, opp.lead_metadata_id, opportunityId, "company_linked", `Linked to company ${company.company_name}`, profile.id)
+    : true;
   revalidateOpportunity(opportunityId);
+  if (!logged) redirect(withNotice(opportunityPath, ACTIVITY_UNSAVED_NOTICE));
 }

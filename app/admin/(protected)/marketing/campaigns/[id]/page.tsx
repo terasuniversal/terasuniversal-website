@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
-import { requireModuleAccess } from "../../../../../../lib/auth/session";
+import { requireModuleAccess, hasModuleAccess } from "../../../../../../lib/auth/session";
 import { PageHead, Card, Badge } from "../../../../../../components/admin/ui";
 import { CHANNEL_LABELS } from "../../../../../../lib/marketing/campaigns";
 import type { MarketingCampaign, MarketingCampaignStatus } from "../../../../../../lib/supabase/database.types";
@@ -51,6 +51,7 @@ const NEXT_ACTION: Record<MarketingCampaignStatus, { label: string; action: (id:
  */
 export default async function CampaignDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await requireModuleAccess("marketing_campaigns");
+  const canEdit = await hasModuleAccess("marketing_campaigns", "edit");
   const { id } = await params;
   const supabase = await createSupabaseServerClient();
 
@@ -92,16 +93,18 @@ export default async function CampaignDetailPage({ params }: { params: Promise<{
             <Link href="/admin/marketing/campaigns" className="ta-btn ta-btn-outline">
               ← Back to Campaigns
             </Link>
-            <Link href={`/admin/marketing/campaigns/${c.id}/edit`} className="ta-btn ta-btn-primary">
-              Edit Campaign
-            </Link>
+            {canEdit && (
+              <Link href={`/admin/marketing/campaigns/${c.id}/edit`} className="ta-btn ta-btn-primary">
+                Edit Campaign
+              </Link>
+            )}
           </div>
         }
       />
 
       <div className="ta-lead-meta">
         <Badge status={c.status} />
-        {nextAction && (
+        {canEdit && nextAction && (
           <form action={nextAction.action.bind(null, c.id)}>
             <button type="submit" className="ta-btn ta-btn-outline ta-btn-sm">
               {nextAction.label}

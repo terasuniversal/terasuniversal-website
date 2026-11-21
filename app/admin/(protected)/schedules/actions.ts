@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { requireModuleAccess, requireRole } from "../../../../lib/auth/session";
 import { scheduleSchema, scheduleGroupSchema, fieldErrors } from "../../../../lib/validation/schemas";
+import { ACTIVITY_UNSAVED_NOTICE, withNotice } from "../../../../lib/sales/activity-notice";
 import { courseCatalog } from "../../../../data/courseCatalog";
 
 export type ScheduleFormState = { errors?: Record<string, string>; message?: string };
@@ -97,7 +98,7 @@ function clean(data: any) {
 
 export async function createSchedule(_prev: ScheduleFormState, formData: FormData): Promise<ScheduleFormState> {
   const profile = await requireRole("admin"); // Editors are read-only.
-  await requireModuleAccess("schedules");
+  await requireModuleAccess("schedules", "edit");
   const parsed = scheduleSchema.safeParse(readForm(formData));
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
@@ -140,8 +141,11 @@ export async function createSchedule(_prev: ScheduleFormState, formData: FormDat
       .select("lead_metadata_id")
       .eq("id", payload.source_opportunity_id)
       .maybeSingle();
+    let activityLogged = true;
     if (opp?.lead_metadata_id) {
-      await supabase.from("sales_activity").insert({
+      // The schedule exists now; returning to the form would invite a duplicate, so a failed
+      // timeline write is reported on the schedule page through a fixed notice instead.
+      const { error: activityError } = await supabase.from("sales_activity").insert({
         lead_metadata_id: opp.lead_metadata_id,
         opportunity_id: payload.source_opportunity_id,
         quotation_id: payload.source_quotation_id,
@@ -149,11 +153,14 @@ export async function createSchedule(_prev: ScheduleFormState, formData: FormDat
         note: `Training schedule ${created.schedule_code ?? created.id} created`,
         actor_id: profile.id,
       });
+      if (activityError) console.error("training_handoff_created activity insert failed", { code: activityError.code });
+      activityLogged = !activityError;
     }
     revalidatePath(`/admin/sales/opportunities/${payload.source_opportunity_id}`);
     revalidatePath("/admin/schedules");
     await revalidatePublicScheduleViews(supabase, [payload.course_id]);
-    redirect(`/admin/schedules/${created.id}`);
+    const schedulePath = `/admin/schedules/${created.id}`;
+    redirect(activityLogged ? schedulePath : withNotice(schedulePath, ACTIVITY_UNSAVED_NOTICE));
   }
 
   revalidatePath("/admin/schedules");
@@ -163,7 +170,7 @@ export async function createSchedule(_prev: ScheduleFormState, formData: FormDat
 
 export async function updateSchedule(id: string, _prev: ScheduleFormState, formData: FormData): Promise<ScheduleFormState> {
   await requireRole("admin");
-  await requireModuleAccess("schedules");
+  await requireModuleAccess("schedules", "edit");
   const parsed = scheduleSchema.safeParse(readForm(formData));
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
@@ -185,7 +192,7 @@ export async function updateSchedule(id: string, _prev: ScheduleFormState, formD
 /** Duplicate — clone core fields; reset status to open, no enrollments. */
 export async function duplicateSchedule(id: string) {
   await requireRole("admin");
-  await requireModuleAccess("schedules");
+  await requireModuleAccess("schedules", "edit");
   const supabase = await createSupabaseServerClient();
   const { data: src } = await supabase.from("course_schedules").select("*").eq("id", id).single();
   if (!src) return;
@@ -207,7 +214,7 @@ export async function duplicateSchedule(id: string) {
 
 export async function softDeleteSchedule(id: string) {
   await requireRole("admin");
-  await requireModuleAccess("schedules");
+  await requireModuleAccess("schedules", "edit");
   const supabase = await createSupabaseServerClient();
   const { data: schedule } = await supabase.from("course_schedules").select("course_id").eq("id", id).maybeSingle();
   await supabase.from("course_schedules").update({ deleted_at: new Date().toISOString() }).eq("id", id);
@@ -217,7 +224,7 @@ export async function softDeleteSchedule(id: string) {
 
 export async function restoreSchedule(id: string) {
   await requireRole("admin");
-  await requireModuleAccess("schedules");
+  await requireModuleAccess("schedules", "edit");
   const supabase = await createSupabaseServerClient();
   const { data: schedule } = await supabase.from("course_schedules").select("course_id").eq("id", id).maybeSingle();
   await supabase.from("course_schedules").update({ deleted_at: null }).eq("id", id);
@@ -260,7 +267,7 @@ export async function restoreSchedule(id: string) {
  */
 export async function assignParticipants(scheduleId: string, _prev: ScheduleFormState, formData: FormData): Promise<ScheduleFormState> {
   await requireRole("admin");
-  await requireModuleAccess("schedules");
+  await requireModuleAccess("schedules", "edit");
   const ids = formData.getAll("participant_ids").map(String).filter(Boolean);
   if (ids.length === 0) return {};
   const supabase = await createSupabaseServerClient();
@@ -347,7 +354,7 @@ export async function assignParticipants(scheduleId: string, _prev: ScheduleForm
  * history survives and the participant can be re-enrolled later. */
 export async function removeParticipant(scheduleId: string, assignmentId: string) {
   await requireRole("admin");
-  await requireModuleAccess("schedules");
+  await requireModuleAccess("schedules", "edit");
   const supabase = await createSupabaseServerClient();
 
   // Same read-only-after-merge rule as assignParticipants -- an ordinary
@@ -455,7 +462,7 @@ function conflictMessage(kind: "trainer" | "assessor", rows: { group_name: strin
  */
 export async function createGroup(scheduleId: string, _prev: GroupFormState, formData: FormData): Promise<GroupFormState> {
   await requireRole("admin");
-  await requireModuleAccess("schedules");
+  await requireModuleAccess("schedules", "edit");
   const parsed = scheduleGroupSchema.safeParse({
     name: String(formData.get("name") ?? "").trim(),
     trainer_id: String(formData.get("trainer_id") ?? "").trim(),
@@ -522,7 +529,7 @@ export async function createGroup(scheduleId: string, _prev: GroupFormState, for
  *  row from the overlap comparison. */
 export async function updateGroup(scheduleId: string, groupId: string, _prev: GroupFormState, formData: FormData): Promise<GroupFormState> {
   await requireRole("admin");
-  await requireModuleAccess("schedules");
+  await requireModuleAccess("schedules", "edit");
   const parsed = scheduleGroupSchema.safeParse({
     name: String(formData.get("name") ?? "").trim(),
     trainer_id: String(formData.get("trainer_id") ?? "").trim(),
@@ -599,7 +606,7 @@ export async function updateGroup(scheduleId: string, groupId: string, _prev: Gr
  */
 export async function removeGroup(scheduleId: string, groupId: string) {
   await requireRole("admin");
-  await requireModuleAccess("schedules");
+  await requireModuleAccess("schedules", "edit");
   const supabase = await createSupabaseServerClient();
   const { count } = await supabase
     .from("schedule_participants")
@@ -623,7 +630,7 @@ export async function removeGroup(scheduleId: string, groupId: string) {
  */
 export async function assignParticipantGroup(scheduleId: string, assignmentId: string, _prev: GroupFormState, formData: FormData): Promise<GroupFormState> {
   await requireRole("admin");
-  await requireModuleAccess("schedules");
+  await requireModuleAccess("schedules", "edit");
   const groupId = String(formData.get("schedule_group_id") ?? "").trim();
   const supabase = await createSupabaseServerClient();
 

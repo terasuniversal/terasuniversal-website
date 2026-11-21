@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
-import { requireRole, requireModuleAccess } from "../../../../../../lib/auth/session";
+import { requireRole, requireModuleAccess, hasModuleAccess } from "../../../../../../lib/auth/session";
 import { isAdmin } from "../../../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, EmptyState, ReadErrorState } from "../../../../../../components/admin/ui";
 import { dueDateState, revisionLabel, type SalesActivityRow, type SalesQuotationRow, type SalesQuotationItemRow, type SalesTaskRow } from "../../../../../../lib/sales/crm";
@@ -11,6 +11,7 @@ import { LeadActivityTimeline } from "../../leads/[id]/LeadActivityTimeline";
 import { QuotationItemsEditor } from "../QuotationItemsEditor";
 import { QuotationActionsPanel } from "./QuotationActionsPanel";
 import { REVISION_AUDIT_NOTICE } from "../../../../../../lib/sales/quotation-revision";
+import { ACTIVITY_UNSAVED_NOTICE, ACTIVITY_UNSAVED_MESSAGE } from "../../../../../../lib/sales/activity-notice";
 import { updateQuotationDraft } from "../actions";
 import { loadCourseCommercialOptions, normalizePackageIncludeItems } from "../../../../../../lib/sales/course-commercial";
 
@@ -20,7 +21,13 @@ export const dynamic = "force-dynamic";
 export default async function QuotationDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ notice?: string }> }) {
   const profile = await requireRole("editor");
   await requireModuleAccess("sales_quotations");
-  const canManage = isAdmin(profile.role);
+  // Quotation changes need Quotations edit; creating the invoice writes to Invoices, so it needs that module's edit.
+  const [canEditQuotations, canEditInvoices] = await Promise.all([
+    hasModuleAccess("sales_quotations", "edit"),
+    hasModuleAccess("invoices", "edit"),
+  ]);
+  const canManage = isAdmin(profile.role) && canEditQuotations;
+  const canCreateInvoice = isAdmin(profile.role) && canEditInvoices;
   const { id } = await params;
   const { notice } = await searchParams;
   const supabase = await createSupabaseServerClient();
@@ -79,7 +86,7 @@ export default async function QuotationDetailPage({ params, searchParams }: { pa
         ? undefined
         : q.status === "accepted" && existingInvoice
           ? <Link href={`/admin/invoices/${existingInvoice.id}`} className="ta-btn ta-btn-primary">View invoice</Link>
-          : q.status === "accepted" && canManage
+          : q.status === "accepted" && canCreateInvoice
             ? <Link href="#quotation-primary-action" className="ta-btn ta-btn-primary">Create invoice</Link>
             : (q.status === "rejected" || q.status === "expired") && canManage
               ? <Link href="#quotation-primary-action" className="ta-btn ta-btn-primary">Create revision</Link>
@@ -93,6 +100,9 @@ export default async function QuotationDetailPage({ params, searchParams }: { pa
         action={primaryAction}
         secondaryAction={opportunity ? <Link href={`/admin/sales/opportunities/${opportunity.id}`} className="ta-btn ta-btn-outline">← Back to Opportunity</Link> : undefined}
       />
+      {notice === ACTIVITY_UNSAVED_NOTICE && (
+        <div className="ta-alert ta-alert-info" role="status">{ACTIVITY_UNSAVED_MESSAGE}</div>
+      )}
       {notice === REVISION_AUDIT_NOTICE && (
         <div className="ta-alert ta-alert-info" role="status">
           This revision was created and saved. Its entry in the activity log could not be recorded, so the timeline may be missing it.
@@ -206,7 +216,7 @@ export default async function QuotationDetailPage({ params, searchParams }: { pa
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          <div id="quotation-primary-action" className="ta-quotation-primary-action"><QuotationActionsPanel quotationId={id} status={q.status} canManage={canManage && !(q.status === "accepted" && invoiceReadError)} existingInvoiceId={existingInvoice?.id ?? null} isExpired={expiry === "expired"} /></div>
+          <div id="quotation-primary-action" className="ta-quotation-primary-action"><QuotationActionsPanel quotationId={id} status={q.status} canManage={(q.status === "accepted" ? canCreateInvoice : canManage) && !(q.status === "accepted" && invoiceReadError)} canCreateInvoice={canCreateInvoice} existingInvoiceId={existingInvoice?.id ?? null} isExpired={expiry === "expired"} /></div>
           <Card title="Quotation Documents">
             <div className="ta-card-pad" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><Link href={`/admin/quotation-pdf/${id}`} className="ta-btn ta-btn-outline ta-btn-sm" target="_blank">Print / PDF</Link></div>
           </Card>

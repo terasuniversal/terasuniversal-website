@@ -7,7 +7,7 @@ export const metadata = { title: "Create Lead — TERAS UNIVERSAL Admin" };
 
 export default async function NewLeadPage() {
   await requireRole("editor");
-  await requireModuleAccess("sales_leads");
+  await requireModuleAccess("sales_leads", "edit");
   const supabase = await createSupabaseServerClient();
   const { data: campaignRows } = await supabase
     .from("marketing_campaigns")

@@ -31,7 +31,7 @@ export default async function NewSchedulePage({
   }>;
 }) {
   await requireRole("admin");
-  await requireModuleAccess("schedules");
+  await requireModuleAccess("schedules", "edit");
   const sp = await searchParams;
   const [courses, settings, assessorOptions] = await Promise.all([
     loadCourseOptions(),

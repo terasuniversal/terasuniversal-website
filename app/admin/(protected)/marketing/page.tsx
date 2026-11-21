@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { requireModuleAccess } from "../../../../lib/auth/session";
+import { requireModuleAccess, hasModuleAccess } from "../../../../lib/auth/session";
 import { PageHead, Card, EmptyState, StatCard } from "../../../../components/admin/ui";
 
 export const dynamic = "force-dynamic";
 
 export default async function MarketingLandingPage() {
   await requireModuleAccess("marketing");
+  const canCreateContact = await hasModuleAccess("marketing_contacts", "edit");
   const supabase = await createSupabaseServerClient();
 
   const campaignCountQuery = supabase.from("marketing_campaigns").select("id", { count: "exact", head: true });
@@ -34,7 +35,7 @@ export default async function MarketingLandingPage() {
       <PageHead
         title="Marketing Dashboard"
         subtitle="Live overview of campaigns and pre-sales contacts."
-        action={<Link href="/admin/marketing/contacts/new" className="ta-btn ta-btn-primary">+ Create Contact</Link>}
+        action={canCreateContact ? <Link href="/admin/marketing/contacts/new" className="ta-btn ta-btn-primary">+ Create Contact</Link> : undefined}
       />
 
       {queryError ? (

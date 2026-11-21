@@ -24,6 +24,8 @@ export function OpportunityActionsPanel({
   probability,
   staff,
   canManage,
+  canEdit,
+  canAddTask,
 }: {
   opportunityId: string;
   stage: SalesOpportunityStage;
@@ -32,6 +34,10 @@ export function OpportunityActionsPanel({
   probability: number | null;
   staff: { id: string; full_name: string }[];
   canManage: boolean;
+  /** Opportunities edit access; without it notes are hidden. */
+  canEdit: boolean;
+  /** Tasks edit access, needed for the Add Task link. */
+  canAddTask: boolean;
 }) {
   const [stageState, stageAction, stagePending] = useActionState(updateOpportunityStage.bind(null, opportunityId), INITIAL);
   const [assignState, assignAction, assignPending] = useActionState(assignOpportunity.bind(null, opportunityId), INITIAL);
@@ -115,6 +121,7 @@ export function OpportunityActionsPanel({
         </Card>
       )}
 
+      {canEdit && (
       <Card title="Add Note">
         <form action={noteAction} className="ta-card-pad" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {noteState.message && <div className="ta-alert ta-alert-error">{noteState.message}</div>}
@@ -126,7 +133,9 @@ export function OpportunityActionsPanel({
           </button>
         </form>
       </Card>
+      )}
 
+      {canAddTask && (
       <Card title="Tasks">
         <div className="ta-card-pad">
           <Link href={`/admin/sales/tasks/new?opportunityId=${opportunityId}`} className="ta-btn ta-btn-outline ta-btn-sm">
@@ -134,11 +143,14 @@ export function OpportunityActionsPanel({
           </Link>
         </div>
       </Card>
+      )}
 
       {!canManage && (
         <Card title="Manage Opportunity">
           <div className="ta-card-pad" style={{ color: "var(--ta-muted)", fontSize: 13 }}>
-            Stage, assignment and outcome changes require Admin access. You can still add notes above.
+            {canEdit
+              ? "Stage, assignment and outcome changes require Admin access. You can still add notes above."
+              : "You have view-only access to Opportunities. Changes require Edit access."}
           </div>
         </Card>
       )}

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { requireRole, requireModuleAccess } from "../../../../../lib/auth/session";
+import { requireRole, requireModuleAccess, hasModuleAccess } from "../../../../../lib/auth/session";
 import { isAdmin } from "../../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, EmptyState, StatCard } from "../../../../../components/admin/ui";
 import { softDeleteCompany, restoreCompany } from "../actions";
@@ -16,7 +16,8 @@ function D({ label, value }: { label: string; value: any }) {
 export default async function CompanyProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const profile = await requireRole("editor");
   await requireModuleAccess("companies");
-  const canWrite = isAdmin(profile.role);
+  // Writes need the Admin role and this module's edit access; View keeps the page read-only.
+  const canWrite = isAdmin(profile.role) && (await hasModuleAccess("companies", "edit"));
   const { id } = await params;
   const supabase = await createSupabaseServerClient();
 

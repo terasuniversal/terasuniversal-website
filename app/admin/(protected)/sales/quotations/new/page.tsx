@@ -22,7 +22,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function NewQuotationPage({ searchParams }: { searchParams: Promise<{ opportunityId?: string }> }) {
   await requireRole("admin");
-  await requireModuleAccess("sales_quotations");
+  await requireModuleAccess("sales_quotations", "edit");
   const sp = await searchParams;
   if (!sp.opportunityId) notFound();
 

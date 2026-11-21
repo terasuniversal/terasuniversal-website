@@ -77,13 +77,13 @@ const acceptBody = bodyOf(actions, "export async function acceptQuotationAction"
 
 check("acceptQuotationAction keeps its admin and module guards first", () => {
   const role = acceptBody.indexOf('requireRole("admin")');
-  const moduleGuard = acceptBody.indexOf('requireModuleAccess("sales_quotations")');
+  const moduleGuard = acceptBody.indexOf('requireModuleAccess("sales_quotations", "edit")');
   const run = acceptBody.indexOf("runQuotationAccept(supabase, quotationId)");
   assert.ok(role >= 0 && moduleGuard > role && run > moduleGuard, "guards must run before the quotation is read");
 });
 
 check("acceptQuotationAction delegates to runQuotationAccept after its guards and never calls the RPC itself", () => {
-  const moduleGuard = acceptBody.indexOf('requireModuleAccess("sales_quotations")');
+  const moduleGuard = acceptBody.indexOf('requireModuleAccess("sales_quotations", "edit")');
   const run = acceptBody.indexOf("runQuotationAccept(supabase, quotationId)");
   assert.ok(run > moduleGuard, "acceptance must run after the guards");
   assert.match(acceptBody, /if \(!result\.ok\) return \{ message: result\.message \};/);

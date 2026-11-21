@@ -79,12 +79,13 @@ async function logTaskActivity(supabase: any, taskId: string, leadMetadataId: st
     note,
     actor_id: actorId,
   });
+  if (error) console.error("sales task activity insert failed", { type, code: error.code });
   return !error;
 }
 
 export async function createTask(_prev: TaskFormState, formData: FormData): Promise<TaskFormState> {
   const profile = await requireRole("editor");
-  await requireModuleAccess("sales_tasks");
+  await requireModuleAccess("sales_tasks", "edit");
   const raw = readForm(formData);
   const parsed = salesTaskSchema.safeParse(raw);
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
@@ -117,15 +118,17 @@ export async function createTask(_prev: TaskFormState, formData: FormData): Prom
   if (error) return { message: error.message };
 
   const leadMetadataId = await resolveLeadMetadataId(supabase, refs);
-  await logTaskActivity(supabase, created.id, leadMetadataId, "task_created", `Task created: ${parsed.data.title}`, profile.id, refs);
+  // The task exists now; returning to the form would invite a duplicate, so the redirect
+  // stands and carries a fixed warning when the timeline write failed.
+  const logged = await logTaskActivity(supabase, created.id, leadMetadataId, "task_created", `Task created: ${parsed.data.title}`, profile.id, refs);
 
   revalidateTasks(created.id);
-  redirect("/admin/sales/tasks");
+  redirect(logged ? "/admin/sales/tasks" : "/admin/sales/tasks?feedback=created-activity-warning");
 }
 
 export async function updateTask(taskId: string, _prev: TaskFormState, formData: FormData): Promise<TaskFormState> {
   const profile = await requireRole("editor");
-  await requireModuleAccess("sales_tasks");
+  await requireModuleAccess("sales_tasks", "edit");
 
   if (formData.get("intent") === "reschedule") {
     const rawDueAt = formData.get("due_at");
@@ -211,7 +214,7 @@ export async function setTaskStatus(
   formData: FormData,
 ): Promise<TaskActionState> {
   const profile = await requireRole("editor");
-  await requireModuleAccess("sales_tasks");
+  await requireModuleAccess("sales_tasks", "edit");
   const supabase = await createSupabaseServerClient();
 
   const { data: task, error: readError } = await supabase
@@ -266,7 +269,7 @@ export async function setTaskStatus(
 /** Soft-delete — admin+ only, matches sales_tasks_delete RLS. Prefer cancelling a task over deleting it; this exists for genuine mistakes. */
 export async function deleteTask(taskId: string): Promise<void> {
   await requireRole("admin");
-  await requireModuleAccess("sales_tasks");
+  await requireModuleAccess("sales_tasks", "edit");
   const supabase = await createSupabaseServerClient();
   await supabase.from("sales_tasks").update({ deleted_at: new Date().toISOString() }).eq("id", taskId);
   revalidateTasks();

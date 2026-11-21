@@ -11,7 +11,7 @@ export const metadata = { title: "Edit Schedule — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
 
 export default async function EditSchedulePage({ params }: { params: Promise<{ id: string }> }) {
-  await requireModuleAccess("schedules");
+  await requireModuleAccess("schedules", "edit");
   await requireRole("admin");
   const { id } = await params;
   const supabase = await createSupabaseServerClient();

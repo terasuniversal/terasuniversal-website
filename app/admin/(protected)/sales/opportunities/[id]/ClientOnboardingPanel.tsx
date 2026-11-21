@@ -13,12 +13,15 @@ import { CompanySearchBox } from "./CompanySearchBox";
 export function ClientOnboardingPanel({
   opportunityId,
   canManage,
+  canCreateCompany,
   linkedCompany,
   suggested,
   ambiguousCount,
 }: {
   opportunityId: string;
   canManage: boolean;
+  /** Admin with Companies edit access; creating a company writes to that module. */
+  canCreateCompany: boolean;
   linkedCompany: { id: string; company_name: string } | null;
   /** Single confident candidate (exact email or exact normalized name match), if any. */
   suggested: CompanyCandidate | null;
@@ -39,7 +42,7 @@ export function ClientOnboardingPanel({
             </Link>
           </>
         ) : !canManage ? (
-          <p style={{ margin: 0, fontSize: 12, color: "var(--ta-muted)" }}>Linking or creating a company requires Admin access.</p>
+          <p style={{ margin: 0, fontSize: 12, color: "var(--ta-muted)" }}>Linking or creating a company requires Admin access with Opportunities edit permission.</p>
         ) : (
           <>
             <div style={{ fontSize: 12.5, color: "var(--ta-muted)" }}>
@@ -82,9 +85,11 @@ export function ClientOnboardingPanel({
               </div>
             </details>
 
-            <Link href={`/admin/companies/new?opportunityId=${opportunityId}`} className="ta-btn ta-btn-outline ta-btn-sm">
-              Create Company
-            </Link>
+            {canCreateCompany && (
+              <Link href={`/admin/companies/new?opportunityId=${opportunityId}`} className="ta-btn ta-btn-outline ta-btn-sm">
+                Create Company
+              </Link>
+            )}
           </>
         )}
       </div>
