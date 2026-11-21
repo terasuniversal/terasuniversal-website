@@ -12,6 +12,8 @@ import { formatMalaysiaDateTime } from "../../../../../../lib/date-time";
 import { ageLabel, daysSinceActivityLabel, qualificationLabel, temperatureLabel, QUALIFICATION_REASON_LABELS, DISQUALIFICATION_REASON_LABELS } from "../../../../../../lib/sales/qualification";
 import { checkLeadRegistrationEligibility } from "../registration-schedules";
 import { setLeadAttribution } from "../actions";
+import { LeadContactEditSheet } from "./LeadContactEditSheet";
+import { isContactEditableSource, originalContactFromSource, readLeadContactSnapshot } from "../../../../../../lib/sales/lead-contact";
 import { LEAD_ATTRIBUTION_SOURCE_LABELS, LEAD_ATTRIBUTION_SOURCES, type LeadAttributionRow } from "../../../../../../lib/marketing/crm";
 import type { MarketingContact } from "../../../../../../lib/supabase/database.types";
 
@@ -80,10 +82,15 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
   const sp = await searchParams;
   const supabase = await createSupabaseServerClient();
 
-  const { data: lead, error: leadReadError } = await supabase.from("v_sales_lead_inbox").select("*").eq("lead_metadata_id", id).maybeSingle();
-  if (leadReadError) return <><PageHead title="Lead detail" /><ReadErrorState message="Lead details could not be loaded. Retry the page." /></>;
-  if (!lead) notFound();
-  const row = lead as SalesLeadInboxRow;
+  // The contact correction is read BEFORE the lead, as two separate awaited reads (never Promise.all):
+  // the edit form's values and version then cannot pair stale values with a newer version.
+  const { lead, overlayFailed, snapshot: contactSnapshot } = await readLeadContactSnapshot<SalesLeadInboxRow>({
+    overlay: () => supabase.from("sales_lead_contact_overrides").select("version, contact_name, company, email, phone").eq("lead_metadata_id", id).maybeSingle(),
+    lead: () => supabase.from("v_sales_lead_inbox").select("*").eq("lead_metadata_id", id).maybeSingle(),
+  });
+  if (lead.error) return <><PageHead title="Lead detail" /><ReadErrorState message="Lead details could not be loaded. Retry the page." /></>;
+  if (!lead.data) notFound();
+  const row = lead.data;
 
   const [sourceResult, activityResult, attributionResult, campaignsResult, staffResult, profilesResult, opportunityResult, moduleAccessResult, nextActionResult, qualificationResult] = await Promise.all([
     row.lead_source === "enquiry"
@@ -133,6 +140,15 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
   const canRegister = modules.includes("sales_leads") && modules.includes("participants") && modules.includes("schedules");
   const registrationEligibility = checkLeadRegistrationEligibility({ status: row.status, is_test: row.is_test });
 
+  // Contact correction is offered only when the database capability exists (the overlay table is
+  // readable), the lead source supports it and this user holds module-level "edit". Anything else
+  // hides the action; the RPC enforces the same checks independently.
+  const contactEditable = isContactEditableSource(row.lead_source);
+  const editLevelResult = contactEditable ? await supabase.rpc("has_module_access_level", { p_module_key: "sales_leads", p_level: "edit" }) : null;
+  const contactEdit = contactEditable && !overlayFailed && editLevelResult?.data === true ? contactSnapshot : null;
+  const contactVersion = contactEdit?.version ?? null;
+  const originalContact = contactVersion !== null && source ? originalContactFromSource(row.lead_source, source) : null;
+
   return (
     <>
       <PageHead
@@ -164,6 +180,20 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
                 <Detail label="Email" value={row.email ? <a href={`mailto:${row.email}`}>{row.email}</a> : null} />
                 <Detail label="Phone" value={row.phone} />
               </dl>
+              {contactVersion !== null && <p className="ta-muted-sub">Contact details corrected. The original submission is kept below.</p>}
+              {contactEdit && (
+                <LeadContactEditSheet
+                  leadMetadataId={id}
+                  expectedVersion={contactEdit.version}
+                  initial={contactEdit.initial}
+                  original={originalContact}
+                />
+              )}
+              {row.lead_source === "marketing_contact" && (
+                <p className="ta-muted-sub">
+                  Contact details for marketing leads are managed in <Link href={`/admin/marketing/contacts/${row.source_id}/edit`}>the Marketing contact record</Link>.
+                </p>
+              )}
             </div>
           </Card>
 

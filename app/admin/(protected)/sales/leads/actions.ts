@@ -17,11 +17,14 @@ import {
   leadAttributionSchema,
   salesLeadQualificationSchema,
   salesLeadTemperatureSchema,
+  salesLeadContactUpdateSchema,
+  salesLeadContactTargetSchema,
 } from "../../../../../lib/validation/schemas";
 import { LOST_REASON_LABELS, type SalesCrmLostReason } from "../../../../../lib/sales/crm";
 import { DISQUALIFICATION_REASONS, DISQUALIFICATION_REASON_LABELS, QUALIFICATION_REASONS, QUALIFICATION_REASON_LABELS } from "../../../../../lib/sales/qualification";
 import { parseFollowUpDateTimeLocal } from "../../../../../lib/sales/follow-up-date";
 import { leadStatusChangeBlock } from "../../../../../lib/sales/lead-status";
+import { mapContactRpcError, type LeadContactErrorKind } from "../../../../../lib/sales/lead-contact";
 
 export type SalesActionState = { message?: string; errors?: Record<string, string>; status?: "success" | "error" };
 
@@ -374,4 +377,60 @@ export async function markLeadTest(leadMetadataId: string, isTest: boolean): Pro
   }
   revalidateLead(leadMetadataId);
   return {};
+}
+
+export type LeadContactActionState = SalesActionState & { kind?: LeadContactErrorKind };
+
+/**
+ * Corrects the contact details of an enquiry, proposal-request or internal lead through the
+ * update_sales_lead_contact RPC. The original submission is never modified: the RPC stores one
+ * complete corrected record per lead. The RPC repeats the role and module checks, so this
+ * guard is not the only line of defence. Errors are mapped to fixed messages and logged by
+ * code only, because the submitted values are personal data.
+ */
+export async function updateLeadContact(
+  leadMetadataId: string,
+  expectedVersion: number | null,
+  _prev: LeadContactActionState,
+  formData: FormData,
+): Promise<LeadContactActionState> {
+  await requireRole("editor");
+  await requireModuleAccess("sales_leads", "edit");
+
+  const target = salesLeadContactTargetSchema.safeParse({ lead_metadata_id: leadMetadataId, expected_version: expectedVersion });
+  if (!target.success) return { status: "error", message: "This lead could not be updated. Reload the page.", kind: "error" };
+
+  const text = (key: string) => {
+    const value = formData.get(key);
+    return typeof value === "string" ? value : "";
+  };
+  const parsed = salesLeadContactUpdateSchema.safeParse({
+    contact_name: text("contact_name"),
+    company: text("company"),
+    email: text("email"),
+    phone: text("phone"),
+  });
+  if (!parsed.success) return { status: "error", errors: fieldErrors(parsed.error), kind: "invalid" };
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("update_sales_lead_contact", {
+    p_lead_metadata_id: target.data.lead_metadata_id,
+    p_expected_version: target.data.expected_version,
+    p_contact_name: parsed.data.contact_name,
+    p_company: parsed.data.company || null,
+    p_email: parsed.data.email || null,
+    p_phone: parsed.data.phone || null,
+  });
+
+  if (error || typeof data !== "number") {
+    const mapped = mapContactRpcError(error);
+    console.error("update_sales_lead_contact failed", { code: error?.code ?? null, kind: mapped.kind });
+    return { status: "error", message: mapped.message, kind: mapped.kind };
+  }
+
+  revalidatePath(`/admin/sales/leads/${target.data.lead_metadata_id}`);
+  revalidatePath("/admin/sales/leads");
+  revalidatePath("/admin/sales/follow-ups");
+  revalidatePath("/admin/sales");
+  return { status: "success", message: "Contact details updated." };
 }
