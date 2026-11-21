@@ -113,7 +113,10 @@ check("protected areas untouched by S6: registration, payments, verify, feedback
     // ToyyibPay R2/R4 callback, library and decision changes are excluded and must not appear here.
     " M app/payments/toyyibpay/return/page.tsx", "?? lib/payments/toyyibpay-return-view.ts",
     // Public-First launch fixes (owner-approved): F-1 kill switch and F-4 /verify contrast; scripts/public-first-launch-contract.mts.
-    " M app/api/registration/payment/route.ts", " M app/api/registration/route.ts", " M app/registration/[scheduleId]/page.tsx", " M app/verify/VerificationResult.tsx", " M app/verify/page.tsx"]);
+    " M app/api/registration/payment/route.ts", " M app/api/registration/route.ts", " M app/registration/[scheduleId]/page.tsx", " M app/verify/VerificationResult.tsx", " M app/verify/page.tsx",
+    // PKG-1 (owner-approved 21 Nov 2026): exactly this one new migration, which withdraws public EXECUTE from the two
+    // registration write RPCs; scripts/revoke-public-registration-rpcs-contract.mts proves its content.
+    "?? supabase/migrations/20261122100000_revoke_public_execute_registration_rpcs.sql"]);
   for (const line of changed.split("\n").filter(Boolean)) assert.ok(allowed.has(line), line);
 });
 
