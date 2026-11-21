@@ -40,8 +40,12 @@ const fixSql = noComments(read(files.fix));
 
 check("migrations: five files, ordered after every earlier migration", () => {
   const names = readdirSync(new URL("supabase/migrations/", root)).filter((n) => n.endsWith(".sql")).sort();
-  const tail = names.slice(-5);
-  assert.deepEqual(tail, Object.values(files).map((f) => f.split("/").pop()));
+  // The five files must be consecutive and in this order. Later, unrelated migrations (for example the CRM
+  // security hardening ones) may follow them; they must not be required to stay the newest files.
+  const expected = Object.values(files).map((f) => f.split("/").pop());
+  const start = names.indexOf(expected[0]);
+  assert.ok(start >= 0, "first contact-edit migration present");
+  assert.deepEqual(names.slice(start, start + 5), expected);
 });
 check("migrations: forward-only (no drop table/column, truncate, delete)", () => {
   for (const sql of [table, typeSql, rpc, view, fixSql]) assert.doesNotMatch(sql, /^\s*(drop\s+(table|column)\b|truncate\b|delete\s+from\b)/im);
