@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { writeLoginAudit } from "../../../lib/auth/loginAudit";
+import { firstAccessibleHref } from "../../../lib/admin-nav";
 import { getSupabaseServiceRoleKey } from "../../../lib/supabase/env";
 import { createSupabaseServerClient, createSupabaseServiceClient } from "../../../lib/supabase/server";
 
@@ -102,12 +103,9 @@ export async function loginAction(
       ? moduleAccess.map((m: { module_key: string }) => m.module_key)
       : [];
     if (allowed.length > 0 && !allowed.includes("dashboard")) {
-      const landing =
-        allowed.includes("sales") ? "/admin/sales"
-        : allowed.includes("sales_leads") ? "/admin/sales/leads"
-        : allowed.includes("reports") ? "/admin/reports"
-        : allowed.includes("news") ? "/admin/news"
-        : "/admin/no-access";
+      // First module the user can actually open, in sidebar order (for example Quotations-only staff land on
+      // Quotations instead of No Access). Same visibility rule as the sidebar; pages still enforce access.
+      const landing = firstAccessibleHref(profile.role, allowed, true) ?? "/admin/no-access";
       redirect(landing);
     }
   }

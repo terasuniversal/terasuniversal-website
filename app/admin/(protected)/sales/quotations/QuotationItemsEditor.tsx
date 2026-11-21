@@ -154,6 +154,12 @@ export function QuotationItemsEditor({
 
       <Card title="Customer Information">
         <div className="ta-card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {/* UAT F-U15: make the prefill explicit so staff edit the values instead of typing after them. */}
+          {(initialHeader?.customer_company_name || initialHeader?.customer_contact_name) && (
+            <p style={{ margin: 0, fontSize: 13, color: "var(--ta-muted)" }}>
+              Prefilled from the opportunity and lead. Review and edit these values; they are copied onto this quotation only.
+            </p>
+          )}
           <div className="ta-field-row">
             <Field label="Company Name" name="customer_company_name">
               <input name="customer_company_name" defaultValue={initialHeader?.customer_company_name ?? ""} maxLength={200} />

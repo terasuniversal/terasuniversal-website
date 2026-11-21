@@ -22,12 +22,24 @@ export default async function QuotationDetailPage({ params, searchParams }: { pa
   const profile = await requireRole("editor");
   await requireModuleAccess("sales_quotations");
   // Quotation changes need Quotations edit; creating the invoice writes to Invoices, so it needs that module's edit.
-  const [canEditQuotations, canEditInvoices] = await Promise.all([
+  const [canEditQuotations, canEditInvoices, canViewOpportunities] = await Promise.all([
     hasModuleAccess("sales_quotations", "edit"),
     hasModuleAccess("invoices", "edit"),
+    // Links to the opportunity are only rendered when the user can open it (UAT F-U6).
+    hasModuleAccess("sales_opportunities"),
   ]);
   const canManage = isAdmin(profile.role) && canEditQuotations;
   const canCreateInvoice = isAdmin(profile.role) && canEditInvoices;
+  // Name the exact missing requirement instead of a generic message (UAT F-U9/F-U13): an Admin with
+  // Quotations edit but no Invoices edit must not be told that quotation edit access is missing.
+  const statusDeniedReason = !isAdmin(profile.role)
+    ? canEditQuotations
+      ? "Status changes require the Admin role."
+      : "Status changes require the Admin role and Quotations Edit access."
+    : "You have view-only access to Quotations. Status changes require Edit access.";
+  const invoiceDeniedReason = !isAdmin(profile.role)
+    ? "Creating an invoice requires the Admin role and Invoices Edit access."
+    : "Creating an invoice requires Invoices Edit access.";
   const { id } = await params;
   const { notice } = await searchParams;
   const supabase = await createSupabaseServerClient();
@@ -98,7 +110,9 @@ export default async function QuotationDetailPage({ params, searchParams }: { pa
         title={`${q.quotation_no} (${revisionLabel(q.revision_no)})`}
         subtitle={opportunity ? `${opportunity.opportunity_no} — ${opportunity.company_name ?? "No company on file"}` : undefined}
         action={primaryAction}
-        secondaryAction={opportunity ? <Link href={`/admin/sales/opportunities/${opportunity.id}`} className="ta-btn ta-btn-outline">← Back to Opportunity</Link> : undefined}
+        secondaryAction={opportunity && canViewOpportunities
+          ? <Link href={`/admin/sales/opportunities/${opportunity.id}`} className="ta-btn ta-btn-outline">← Back to Opportunity</Link>
+          : <Link href="/admin/sales/quotations" className="ta-btn ta-btn-outline">← Back to Quotations</Link>}
       />
       {notice === ACTIVITY_UNSAVED_NOTICE && (
         <div className="ta-alert ta-alert-info" role="status">{ACTIVITY_UNSAVED_MESSAGE}</div>
@@ -130,7 +144,7 @@ export default async function QuotationDetailPage({ params, searchParams }: { pa
           <div><span>Status</span><strong><Badge status={q.status} /></strong></div>
           <div><span>Revision</span><strong>{revisionLabel(q.revision_no)}{q.superseded_at ? " · Superseded" : ""}</strong></div>
           <div><span>Customer</span><strong>{customer.company ?? "Customer not recorded"}</strong><small>{customer.contact ?? "Contact not recorded"}</small></div>
-          <div><span>Related Opportunity</span><strong>{opportunity ? <Link href={`/admin/sales/opportunities/${opportunity.id}`}>{opportunity.opportunity_no} →</Link> : "Opportunity not available"}</strong></div>
+          <div><span>Related Opportunity</span><strong>{opportunity ? (canViewOpportunities ? <Link href={`/admin/sales/opportunities/${opportunity.id}`}>{opportunity.opportunity_no} →</Link> : opportunity.opportunity_no) : "Opportunity not available"}</strong></div>
           <div><span>Total</span><strong>RM {Number(q.total).toLocaleString("en-MY", { minimumFractionDigits: 2 })}</strong></div>
           <div><span>Issue / Validity</span><strong>{formatMalaysiaDate(q.issue_date)} · {q.valid_until ? formatMalaysiaDate(q.valid_until) : "No expiry"}</strong><small>{QUOTATION_EXPIRY_LABELS[expiry]}</small></div>
         </div>
@@ -216,7 +230,7 @@ export default async function QuotationDetailPage({ params, searchParams }: { pa
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          <div id="quotation-primary-action" className="ta-quotation-primary-action"><QuotationActionsPanel quotationId={id} status={q.status} canManage={(q.status === "accepted" ? canCreateInvoice : canManage) && !(q.status === "accepted" && invoiceReadError)} canCreateInvoice={canCreateInvoice} existingInvoiceId={existingInvoice?.id ?? null} isExpired={expiry === "expired"} /></div>
+          <div id="quotation-primary-action" className="ta-quotation-primary-action"><QuotationActionsPanel quotationId={id} status={q.status} canManage={(q.status === "accepted" ? canCreateInvoice : canManage) && !(q.status === "accepted" && invoiceReadError)} canCreateInvoice={canCreateInvoice} existingInvoiceId={existingInvoice?.id ?? null} isExpired={expiry === "expired"} deniedReason={q.status === "accepted" ? (invoiceReadError ? "Invoice status could not be loaded. Refresh the page to try again." : invoiceDeniedReason) : statusDeniedReason} /></div>
           <Card title="Quotation Documents">
             <div className="ta-card-pad" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><Link href={`/admin/quotation-pdf/${id}`} className="ta-btn ta-btn-outline ta-btn-sm" target="_blank">Print / PDF</Link></div>
           </Card>

@@ -111,7 +111,13 @@ export default async function FollowUpsPage({
       <PageHead title="Follow-ups" subtitle="Real follow-up queue — sourced from Lead/Opportunity follow-up dates, Malaysia time." />
       {sp.feedback === "saved" && <div className="ta-alert ta-alert-success" role="status">Follow-up saved.</div>}
       {sp.feedback === "cleared" && <div className="ta-alert ta-alert-success" role="status">Follow-up cleared.</div>}
-      {!canSchedule && <div className="ta-alert ta-alert-info" role="note">Only an Admin can change follow-up dates. Open a lead to add a note or a task.</div>}
+      {!canSchedule && (
+        <div className="ta-alert ta-alert-info" role="note">
+          {isAdmin(profile.role)
+            ? "You have view-only access to Leads. Changing follow-up dates requires Leads Edit access."
+            : "Only an Admin with Leads Edit access can change follow-up dates."}
+        </div>
+      )}
 
       <ListToolbar style={{ flexWrap: "wrap" }}>
         {VIEWS.map((v) => (

@@ -248,7 +248,11 @@ check("promote keeps the locked decision: marketing_contacts edit only, not sale
 check("application callers already hold the module the wrappers require", () => {
   const leads = readFileSync(join(repoRoot, "app/admin/(protected)/sales/leads/actions.ts"), "utf8");
   const mk = readFileSync(join(repoRoot, "app/admin/(protected)/marketing/contacts/actions.ts"), "utf8");
-  const before = (t: string, rpc: string) => t.slice(Math.max(0, t.indexOf(`rpc("${rpc}"`) - 900), t.indexOf(`rpc("${rpc}"`));
+  // The guard must sit in the same Server Action as the RPC call: from that function's start to the call.
+  const before = (t: string, rpc: string) => {
+    const at = t.indexOf(`rpc("${rpc}"`);
+    return at < 0 ? "" : t.slice(Math.max(0, t.lastIndexOf("export async function", at)), at);
+  };
   assert.ok(/requireModuleAccess\("sales_leads", "edit"\)/.test(before(leads, "create_internal_sales_lead")));
   assert.ok(/requireModuleAccess\("marketing_contacts", "edit"\)/.test(before(mk, "promote_marketing_contact_to_sales")));
 });

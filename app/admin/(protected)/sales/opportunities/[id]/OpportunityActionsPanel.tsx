@@ -109,11 +109,15 @@ export function OpportunityActionsPanel({
                 {LOST_REASONS.map((r) => <option key={r} value={r}>{LOST_REASON_LABELS[r]}</option>)}
               </select>
             </Field>
+            {/* In-page confirmation instead of window.confirm() (UAT F-U14). */}
+            <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13, minHeight: 44 }}>
+              <input type="checkbox" name="confirm_lost" required />
+              <span>I confirm this opportunity and its lead will be marked Lost.</span>
+            </label>
             <button
               type="submit"
               className="ta-btn ta-btn-danger ta-btn-sm"
               disabled={lostPending}
-              onClick={(e) => { if (!confirm("Mark this opportunity as lost? The linked lead will also be marked lost.")) e.preventDefault(); }}
             >
               {lostPending ? "Saving…" : "Mark Lost"}
             </button>

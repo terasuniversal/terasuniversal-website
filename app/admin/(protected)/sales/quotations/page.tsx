@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { requireRole, requireModuleAccess } from "../../../../../lib/auth/session";
+import { requireRole, requireModuleAccess, hasModuleAccess } from "../../../../../lib/auth/session";
 import { PageHead, Card, Badge, EmptyState, Pagination, ListToolbar, ReadErrorState } from "../../../../../components/admin/ui";
 import { FOLLOW_UP_STATE_LABELS, QUOTATION_STATUS_ORDER, QUOTATION_STATUS_LABELS, revisionLabel, sanitizeSearchTerm, type SalesQuotationRow, type SalesTaskRow } from "../../../../../lib/sales/crm";
 import { formatMalaysiaDate, formatMalaysiaDateTime } from "../../../../../lib/date-time";
@@ -28,6 +28,8 @@ export default async function QuotationsPage({
 }) {
   await requireRole("editor");
   await requireModuleAccess("sales_quotations");
+  // Opportunity numbers are only links for users who can open Opportunities (UAT F-U6).
+  const canViewOpportunities = await hasModuleAccess("sales_opportunities");
   const sp = await searchParams;
   let page = normalizePage(sp.page);
   const supabase = await createSupabaseServerClient();
@@ -144,7 +146,7 @@ export default async function QuotationsPage({
                     return (
                     <tr key={q.id}>
                       <td><Link href={`/admin/sales/quotations/${q.id}`} className="ta-sales-record-link"><code style={{ fontSize: 12 }}>{q.quotation_no}</code></Link><div className="ta-lead-sub">{revisionLabel(q.revision_no)}{q.superseded_at ? " · Superseded" : ""}</div></td>
-                      <td>{q.sales_opportunities?.company_name ?? "—"}<div className="ta-lead-sub">{q.sales_opportunities?.opportunity_no ? <Link href={`/admin/sales/opportunities/${q.opportunity_id}`}>{q.sales_opportunities.opportunity_no}</Link> : "Opportunity context unavailable"}</div></td>
+                      <td>{q.sales_opportunities?.company_name ?? "—"}<div className="ta-lead-sub">{q.sales_opportunities?.opportunity_no ? (canViewOpportunities ? <Link href={`/admin/sales/opportunities/${q.opportunity_id}`}>{q.sales_opportunities.opportunity_no}</Link> : q.sales_opportunities.opportunity_no) : "Opportunity context unavailable"}</div></td>
                       <td><div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}><Badge status={q.status} />{q.superseded_at && <span className="ta-badge-pill ta-badge-muted">Superseded revision</span>}<span style={{ fontSize: 11, color: expiry === "expired" ? "var(--ta-danger)" : "var(--ta-muted)" }}>{QUOTATION_EXPIRY_LABELS[expiry]}</span></div></td>
                       <td>RM {Number(q.total).toLocaleString("en-MY", { minimumFractionDigits: 2 })}</td>
                       <td><div>Issued {formatMalaysiaDate(q.issue_date)}</div><div className="ta-lead-sub">Valid to {q.valid_until ? formatMalaysiaDate(q.valid_until) : "No expiry"}</div>{q.sent_at && <div className="ta-lead-sub">Sent {formatMalaysiaDate(q.sent_at)}</div>}</td>
@@ -174,7 +176,7 @@ export default async function QuotationsPage({
                   </div>
                   <div className="ta-q-card-customer">
                     <strong>{q.sales_opportunities?.company_name ?? "—"}</strong>
-                    {q.sales_opportunities?.opportunity_no && <div className="ta-lead-sub"><Link href={`/admin/sales/opportunities/${q.opportunity_id}`}>{q.sales_opportunities.opportunity_no}</Link></div>}
+                    {q.sales_opportunities?.opportunity_no && <div className="ta-lead-sub">{canViewOpportunities ? <Link href={`/admin/sales/opportunities/${q.opportunity_id}`}>{q.sales_opportunities.opportunity_no}</Link> : q.sales_opportunities.opportunity_no}</div>}
                   </div>
                   <div className="ta-q-card-total">
                     <span className="ta-q-card-total-label">Total</span>

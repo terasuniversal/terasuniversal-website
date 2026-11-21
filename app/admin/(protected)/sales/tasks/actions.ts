@@ -198,7 +198,9 @@ export async function updateTask(taskId: string, _prev: TaskFormState, formData:
   if (!updated) return { message: "Task not found, or you don't have permission to edit it (only the owner or an Admin can)." };
 
   revalidateTasks(taskId);
-  redirect(taskQueueReturnHref(taskQueueContextFromForm(formData), "updated"));
+  // Edit form posts return_mode=detail: land back on this task with the "updated" notice (same pattern as the
+  // status actions); other callers keep the queue return.
+  redirect(taskActionReturnHref(formData, taskId, "updated"));
 }
 
 /**

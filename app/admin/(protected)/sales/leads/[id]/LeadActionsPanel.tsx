@@ -69,7 +69,8 @@ export function LeadActionsPanel({
   const localDateTimeValue = salesDateTimeLocal(followUpAt);
 
   function quickMarkLost() {
-    if (!confirm("Mark this lead as lost? Select a reason below, then submit.")) return;
+    // No window.confirm() (UAT F-U14): this only pre-selects Lost and reveals the reason field; nothing is
+    // saved until the user picks a reason and clicks Update Status.
     // Just switch the select and reveal the reason field — the user still
     // clicks Update Status once a reason is chosen.
     setPendingStatus("lost");

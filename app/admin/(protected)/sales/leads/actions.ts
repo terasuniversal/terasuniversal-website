@@ -26,7 +26,15 @@ import { parseFollowUpDateTimeLocal } from "../../../../../lib/sales/follow-up-d
 import { leadStatusChangeBlock } from "../../../../../lib/sales/lead-status";
 import { mapContactRpcError, type LeadContactErrorKind } from "../../../../../lib/sales/lead-contact";
 
-export type SalesActionState = { message?: string; errors?: Record<string, string>; status?: "success" | "error" };
+export type SalesActionState = {
+  message?: string;
+  errors?: Record<string, string>;
+  status?: "success" | "error";
+  /** Submitted text values echoed back on failure so the form can re-populate itself (UAT F-U11). */
+  values?: Record<string, string>;
+};
+
+const LEAD_CREATE_FIELDS = ["contact_name", "company_name", "email", "phone", "course_interest", "notes", "source_channel", "campaign_id", "attribution_notes"] as const;
 
 export async function createLead(
   _prev: SalesActionState,
@@ -46,7 +54,12 @@ export async function createLead(
     campaign_id: formData.get("campaign_id") ?? "",
     attribution_notes: formData.get("attribution_notes") ?? "",
   });
-  if (!parsed.success) return { errors: fieldErrors(parsed.error) };
+  // Echo only the form's own text fields (bounded by the form's maxLength), never anything server-derived.
+  const values = Object.fromEntries(LEAD_CREATE_FIELDS.map((k) => {
+    const v = formData.get(k);
+    return [k, typeof v === "string" ? v.slice(0, 3000) : ""];
+  }));
+  if (!parsed.success) return { errors: fieldErrors(parsed.error), values };
 
   const supabase = await createSupabaseServerClient();
   const { data: leadId, error } = await supabase.rpc("create_internal_sales_lead", {
@@ -62,10 +75,13 @@ export async function createLead(
   });
 
   if (error || !leadId) {
-    if (error?.message?.includes("contact_method_required")) return { message: "Enter an email address or phone number." };
-    if (error?.message?.includes("invalid_email")) return { message: "Enter a valid email address." };
-    if (error?.message?.includes("invalid_attribution_source")) return { message: "Select a valid source channel." };
-    return { message: error?.message ?? "Unable to create the lead." };
+    if (error?.message?.includes("contact_method_required")) return { message: "Enter an email address or phone number.", values };
+    if (error?.message?.includes("invalid_email")) return { message: "Enter a valid email address.", values };
+    if (error?.message?.includes("invalid_attribution_source")) return { message: "Select a valid source channel.", values };
+    // Never surface raw RPC text (UAT F-U1 / CLAUDE.md §15): authorization failures get a clear, generic message.
+    if (error?.code === "42501" || /forbidden/i.test(error?.message ?? "")) return { message: "You don't have permission to create leads.", values };
+    if (error) console.error("createLead: create_internal_sales_lead failed", { code: error.code });
+    return { message: "Unable to create the lead. Please try again.", values };
   }
 
   revalidatePath("/admin/sales/leads");
