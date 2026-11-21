@@ -4,12 +4,13 @@
 -- app.has_min_role('editor') with no module check, so any editor (for example Quotations View only) could read every
 -- invoice, receipt and payment (customer billing details and amounts) through the Data API with their own session.
 --
--- Contract: each policy keeps its previous expression and is AND-ed with the modules of its application readers
--- (verified 2026-11-21; same read-set method as M-S4):
---   invoices          <- invoices pages/PDF (invoices), HRDF claims page (hrdf_claims), quotation list/detail
---                        (sales_quotations); executive KPIs are super_admin (always passes).
---   invoice_payments  <- invoice detail/PDF (invoices), quotation list/detail (sales_quotations).
---   receipts          <- invoice detail and receipt PDF (invoices).
+-- Contract (Owner decision 2026-11-21, Option B: least privilege): full finance rows are readable only with the
+-- Invoices module. Each policy keeps its previous expression and is AND-ed with Invoices view:
+--   invoices, invoice_payments, receipts  <- invoices pages, invoice/receipt PDFs (invoices); executive KPIs are
+--                                            super_admin (always passes).
+-- Quotation pages no longer read these tables: they call public.get_quotation_invoice_summaries (20261122095000),
+-- which returns only the summary columns for the requested quotations. The HRDF claims page uses the claim's own
+-- invoice_number_snapshot and no longer reads invoices. Neither sales_quotations nor hrdf_claims grants full rows.
 -- The ToyyibPay callback uses the service-role client (bypasses RLS) and SECURITY DEFINER finance RPCs are unaffected.
 -- Requires app.has_any_module_access (M-S4, 20261121120000). Fail-closed on any unexpected existing definition.
 -- Idempotent, forward-only. Rollback: recreate each policy as select for public using (app.has_min_role('editor')).
@@ -26,8 +27,8 @@ begin
 
   for r in
     select * from (values
-      ('invoices', 'invoices_select', array['invoices', 'hrdf_claims', 'sales_quotations']),
-      ('invoice_payments', 'invoice_payments_select', array['invoices', 'sales_quotations']),
+      ('invoices', 'invoices_select', array['invoices']),
+      ('invoice_payments', 'invoice_payments_select', array['invoices']),
       ('receipts', 'receipts_select', array['invoices'])
     ) t(tbl, pol, modules)
   loop

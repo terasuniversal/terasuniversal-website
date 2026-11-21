@@ -587,7 +587,25 @@ export interface Database {
       [key: string]: { Row: any; Insert: any; Update: any; Relationships: [] };
     };
     Views: { [key: string]: { Row: any } };
-    Functions: { [key: string]: any };
+    Functions: {
+      // M-S5b summary for Quotation screens (20261122095000). invoice_id is null without Invoices view.
+      get_quotation_invoice_summaries: {
+        Args: { p_quotation_ids: string[] };
+        Returns: {
+          quotation_id: string;
+          invoice_id: string | null;
+          invoice_no: string;
+          status: string;
+          grand_total: number;
+          amount_paid: number;
+          balance_due: number;
+          invoice_date: string;
+          due_date: string;
+          payment_states: Json;
+        }[];
+      };
+      [key: string]: any;
+    };
     Enums: {
       user_role: UserRole;
       content_status: ContentStatus;

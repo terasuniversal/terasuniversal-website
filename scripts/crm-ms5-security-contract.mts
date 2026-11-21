@@ -3,7 +3,8 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
-// M-S5 contract (a: privileges, b: finance reads, c: companies writes, d: audit reads). Static only: no database.
+// M-S5 contract (a: privileges, b: finance reads, c: companies writes, d: audit reads, q: quotation invoice summary RPC).
+// Static only: no database.
 // Each migration keeps the previous expression and only adds a module condition, fails closed on an unexpected
 // definition, and its module set matches what the application readers/writers already require.
 const root = fileURLToPath(new URL("../", import.meta.url));
@@ -13,6 +14,7 @@ const a = strip(read("supabase/migrations/20261122091000_crm_table_privilege_har
 const b = strip(read("supabase/migrations/20261122092000_finance_read_module_authorization.sql"));
 const c = strip(read("supabase/migrations/20261122093000_companies_write_module_authorization.sql"));
 const d = strip(read("supabase/migrations/20261122094000_audit_logs_read_module_authorization.sql"));
+const q = strip(read("supabase/migrations/20261122095000_quotation_invoice_summary_rpc.sql"));
 let passed = 0, failed = 0;
 function check(name: string, fn: () => void) {
   try { fn(); passed++; console.log(`PASS ${name}`); }
@@ -51,9 +53,10 @@ check("M-S5a: no anon reader of the CRM tables exists in the application", () =>
   }
 });
 
+// Owner decision 2026-11-21 (Option B): full finance rows are Invoices-module only.
 const finance: Array<[string, string, string[]]> = [
-  ["invoices", "invoices_select", ["invoices", "hrdf_claims", "sales_quotations"]],
-  ["invoice_payments", "invoice_payments_select", ["invoices", "sales_quotations"]],
+  ["invoices", "invoices_select", ["invoices"]],
+  ["invoice_payments", "invoice_payments_select", ["invoices"]],
   ["receipts", "receipts_select", ["invoices"]],
 ];
 check("M-S5b: keeps has_min_role('editor') and adds exactly the reviewed read set, fail-closed", () => {
@@ -72,6 +75,59 @@ check("M-S5b: every application reader of a finance table holds a module of its 
       assert.ok(mods.some((m) => g.has(m)), `${relative(root, f)} reads ${tbl} without ${mods.join("/")}`);
     }
   }
+});
+check("M-S5b: neither sales_quotations nor hrdf_claims grants full finance rows", () => {
+  assert.doesNotMatch(b, /array\[[^\]]*'(sales_quotations|hrdf_claims)'/);
+});
+check("Summary RPC: SECURITY DEFINER, pinned search_path, editor + Quotations/Invoices view, forbidden otherwise", () => {
+  assert.match(q, /create or replace function public\.get_quotation_invoice_summaries\(p_quotation_ids uuid\[\]\)/);
+  assert.match(q, /security definer\s+set search_path = public, pg_temp/);
+  assert.match(q, /auth\.uid\(\) is null\s+or not app\.has_min_role\('editor'::public\.user_role\)\s+or not app\.has_any_module_access\(array\['sales_quotations', 'invoices'\]::text\[\], 'view'\)/);
+  assert.match(q, /raise exception 'forbidden' using errcode = '42501'/);
+  assert.match(q, /cardinality\(p_quotation_ids\) > 200/);
+  assert.match(q, /raise exception 'ms5q: sales_quotations_select is not the expected M-S4 definition/);
+  // Per-quotation authorization equals the gate only while quotation visibility has no row predicate.
+  assert.match(q, /p\.qual not like '%auth\.uid\(\)%'/);
+  assert.match(q, /p\.cmd in \('SELECT', 'ALL'\)\) <> 1/);
+  assert.match(q, /p\.permissive = 'RESTRICTIVE'/);
+  const ms4 = read("supabase/migrations/20261121120000_sales_crm_module_rls_hardening.sql");
+  const start = ms4.indexOf("create policy sales_quotations_select");
+  const pol = ms4.slice(start, ms4.indexOf(");", start));
+  assert.ok(start > 0 && pol.length > 0, "M-S4 sales_quotations_select not found");
+  assert.doesNotMatch(pol, /auth\.uid\(\)|created_by|assigned_to|owner/);
+});
+check("Summary RPC: explicit columns only, invoice UUID withheld without Invoices view, payments reduced to status/provider", () => {
+  const body = q.slice(q.indexOf("return query"), q.indexOf("$fn$;"));
+  assert.doesNotMatch(body, /select \*|\b[a-z]\.\*/);
+  assert.match(body, /select i\.quotation_id, case when v_can_open_invoice then i\.id end, i\.invoice_no, i\.status, i\.grand_total, i\.amount_paid, i\.balance_due, i\.invoice_date, i\.due_date,/);
+  assert.match(q, /v_can_open_invoice := app\.has_any_module_access\(array\['invoices'\]::text\[\], 'view'\)/);
+  assert.match(body, /jsonb_build_object\('status', p\.status, 'payment_provider', p\.payment_provider\)/);
+  assert.doesNotMatch(body, /billing|notes|reference|bill_code|receipt|p\.amount|payer/i);
+  assert.match(body, /where i\.quotation_id = any \(p_quotation_ids\)/);
+});
+check("Summary RPC: EXECUTE revoked from public and anon, granted to authenticated only", () => {
+  assert.match(q, /revoke all on function public\.get_quotation_invoice_summaries\(uuid\[\]\) from public;/);
+  assert.match(q, /revoke all on function public\.get_quotation_invoice_summaries\(uuid\[\]\) from anon;/);
+  assert.match(q, /grant execute on function public\.get_quotation_invoice_summaries\(uuid\[\]\) to authenticated;/);
+  assert.doesNotMatch(q, /to (anon|public|service_role)\b/);
+});
+check("Quotation and HRDF pages read no finance table; links to invoices only with Invoices view", () => {
+  const list = read("app/admin/(protected)/sales/quotations/page.tsx");
+  const detail = read("app/admin/(protected)/sales/quotations/[id]/page.tsx");
+  const panel = read("app/admin/(protected)/sales/quotations/[id]/QuotationActionsPanel.tsx");
+  const hrdf = read("app/admin/(protected)/hrdf-claims/page.tsx");
+  for (const s of [list, detail, panel, hrdf]) assert.doesNotMatch(s, /\.from\("(invoices|invoice_payments|receipts)"\)/);
+  assert.match(list, /getQuotationInvoiceSummaries\(supabase, quotationIds\)/);
+  assert.match(detail, /getQuotationInvoiceSummaries\(supabase, \[id\]\)/);
+  assert.doesNotMatch(detail, /existingInvoice\.id\b|existingInvoice\?\.id\b/);
+  assert.match(panel, /\{existingInvoiceId && <Link href=\{`\/admin\/invoices\/\$\{existingInvoiceId\}`\}/);
+  assert.match(hrdf, /invoice_number_snapshot/);
+  assert.match(hrdf, /const canOpenInvoices = await hasModuleAccess\("invoices"\)/);
+  assert.match(hrdf, /\{canOpenInvoices && <Link[^>]*href=\{`\/admin\/invoices\/\$\{claim\.invoice_id\}`\}>Open invoice<\/Link>\}/);
+  assert.doesNotMatch(hrdf, /\{invoice \? invoice\.invoice_no : claim\.invoice_id\}/);
+  const helper = read("lib/sales/invoice-summary.ts");
+  assert.match(helper, /supabase\.rpc\("get_quotation_invoice_summaries", \{ p_quotation_ids: quotationIds \}\)/);
+  assert.match(helper, /if \(error\) return \{ data: \[\], error \};/);
 });
 check("M-S5c: keeps app.is_admin() and adds Companies edit for insert/update/delete; read unchanged", () => {
   for (const pol of ["companies_admin_insert", "companies_admin_update", "companies_admin_delete"]) assert.match(c, new RegExp(`create policy ${pol} on public\\.companies`));
@@ -107,7 +163,8 @@ check("M-S5 migrations are ordered after M-S4/M-S4b/M-S6 and none drops a table 
   const at = (n: string) => names.indexOf(n);
   assert.ok(at("20261121130000_sales_finance_rpc_module_authorization.sql") < at("20261122090000_invoices_update_module_authorization.sql"));
   assert.ok(at("20261122090000_invoices_update_module_authorization.sql") < at("20261122091000_crm_table_privilege_hardening.sql"));
-  for (const s of [a, b, c, d]) assert.doesNotMatch(s, /drop (table|column)|truncate public|delete from/i);
+  assert.ok(at("20261122094000_audit_logs_read_module_authorization.sql") < at("20261122095000_quotation_invoice_summary_rpc.sql"));
+  for (const s of [a, b, c, d, q]) assert.doesNotMatch(s, /drop (table|column)|truncate public|delete from/i);
 });
 
 console.log(`${passed} check(s) passed${failed ? `, ${failed} FAILED` : ""}.`);

@@ -15,6 +15,7 @@ export function QuotationActionsPanel({
   status,
   canManage,
   canCreateInvoice,
+  hasExistingInvoice,
   existingInvoiceId,
   isExpired,
   deniedReason,
@@ -24,6 +25,8 @@ export function QuotationActionsPanel({
   canManage: boolean;
   /** Admin with Invoices edit access; the invoice is written to that module. */
   canCreateInvoice: boolean;
+  hasExistingInvoice: boolean;
+  /** Null when the user cannot open Invoices: the invoice exists, only the link is withheld. */
   existingInvoiceId: string | null;
   isExpired: boolean;
   /** Exact missing requirement, computed server-side, shown when actions are unavailable. */
@@ -122,10 +125,10 @@ export function QuotationActionsPanel({
 
       {status === "accepted" && (
         <Card title="Invoice">
-          {existingInvoiceId ? (
+          {hasExistingInvoice ? (
             <div className="ta-card-pad" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <p style={{ margin: 0, fontSize: 13, color: "var(--ta-muted)" }}>An invoice already exists for this quotation.</p>
-              <Link href={`/admin/invoices/${existingInvoiceId}`} className="ta-btn ta-btn-outline ta-btn-sm">View Invoice</Link>
+              {existingInvoiceId && <Link href={`/admin/invoices/${existingInvoiceId}`} className="ta-btn ta-btn-outline ta-btn-sm">View Invoice</Link>}
             </div>
           ) : canCreateInvoice ? (
             <form action={invoiceAction} className="ta-card-pad" style={{ display: "flex", flexDirection: "column", gap: 10 }}>

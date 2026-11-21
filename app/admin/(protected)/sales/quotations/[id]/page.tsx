@@ -7,6 +7,7 @@ import { PageHead, Card, Badge, EmptyState, ReadErrorState } from "../../../../.
 import { dueDateState, revisionLabel, type SalesActivityRow, type SalesQuotationRow, type SalesQuotationItemRow, type SalesTaskRow } from "../../../../../../lib/sales/crm";
 import { formatMalaysiaDate, formatMalaysiaDateTime } from "../../../../../../lib/date-time";
 import { invoiceStatusLabel, paymentVisibilityLabel, pickNextQuotationTask, QUOTATION_EXPIRY_LABELS, quotationExpiryState } from "../../../../../../lib/sales/quotation-workflow";
+import { getQuotationInvoiceSummaries } from "../../../../../../lib/sales/invoice-summary";
 import { LeadActivityTimeline } from "../../leads/[id]/LeadActivityTimeline";
 import { QuotationItemsEditor } from "../QuotationItemsEditor";
 import { QuotationActionsPanel } from "./QuotationActionsPanel";
@@ -63,10 +64,10 @@ export default async function QuotationDetailPage({ params, searchParams }: { pa
   const { data: itemRows, error: itemReadError } = await supabase.from("sales_quotation_items").select("*").eq("quotation_id", id).order("sort_order");
   const items = (itemRows ?? []) as SalesQuotationItemRow[];
   const courseOptions = await loadCourseCommercialOptions(supabase);
-  const { data: existingInvoice, error: invoiceReadError } = await supabase.from("invoices").select("id, invoice_no, status, grand_total, amount_paid, balance_due, invoice_date, due_date").eq("quotation_id", id).maybeSingle();
-  const { data: paymentRows, error: paymentReadError } = existingInvoice
-    ? await supabase.from("invoice_payments").select("status, payment_provider").eq("invoice_id", existingInvoice.id)
-    : { data: [] as { status: string; payment_provider: string }[], error: null };
+  // Summary RPC, not the finance tables: Quotations users get only this quotation's invoice summary (M-S5b).
+  // invoice_id is null unless the user can open Invoices, so invoice links render only for them.
+  const { data: invoiceSummaries, error: invoiceReadError } = await getQuotationInvoiceSummaries(supabase, [id]);
+  const existingInvoice = invoiceSummaries[0] ?? null;
   const { data: taskRows, error: taskReadError } = await supabase.from("sales_tasks").select("*").eq("quotation_id", id).is("deleted_at", null).not("status", "in", "(completed,cancelled)");
   const nextTask = pickNextQuotationTask((taskRows ?? []) as SalesTaskRow[]);
   const expiry = quotationExpiryState(q.valid_until);
@@ -96,8 +97,10 @@ export default async function QuotationDetailPage({ params, searchParams }: { pa
       ? <Link href="#quotation-primary-action" className="ta-btn ta-btn-primary">Review sent actions</Link>
       : q.status === "accepted" && invoiceReadError
         ? undefined
+        : q.status === "accepted" && existingInvoice?.invoice_id
+          ? <Link href={`/admin/invoices/${existingInvoice.invoice_id}`} className="ta-btn ta-btn-primary">View invoice</Link>
         : q.status === "accepted" && existingInvoice
-          ? <Link href={`/admin/invoices/${existingInvoice.id}`} className="ta-btn ta-btn-primary">View invoice</Link>
+          ? undefined
           : q.status === "accepted" && canCreateInvoice
             ? <Link href="#quotation-primary-action" className="ta-btn ta-btn-primary">Create invoice</Link>
             : (q.status === "rejected" || q.status === "expired") && canManage
@@ -230,14 +233,14 @@ export default async function QuotationDetailPage({ params, searchParams }: { pa
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          <div id="quotation-primary-action" className="ta-quotation-primary-action"><QuotationActionsPanel quotationId={id} status={q.status} canManage={(q.status === "accepted" ? canCreateInvoice : canManage) && !(q.status === "accepted" && invoiceReadError)} canCreateInvoice={canCreateInvoice} existingInvoiceId={existingInvoice?.id ?? null} isExpired={expiry === "expired"} deniedReason={q.status === "accepted" ? (invoiceReadError ? "Invoice status could not be loaded. Refresh the page to try again." : invoiceDeniedReason) : statusDeniedReason} /></div>
+          <div id="quotation-primary-action" className="ta-quotation-primary-action"><QuotationActionsPanel quotationId={id} status={q.status} canManage={(q.status === "accepted" ? canCreateInvoice : canManage) && !(q.status === "accepted" && invoiceReadError)} canCreateInvoice={canCreateInvoice} hasExistingInvoice={Boolean(existingInvoice)} existingInvoiceId={existingInvoice?.invoice_id ?? null} isExpired={expiry === "expired"} deniedReason={q.status === "accepted" ? (invoiceReadError ? "Invoice status could not be loaded. Refresh the page to try again." : invoiceDeniedReason) : statusDeniedReason} /></div>
           <Card title="Quotation Documents">
             <div className="ta-card-pad" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><Link href={`/admin/quotation-pdf/${id}`} className="ta-btn ta-btn-outline ta-btn-sm" target="_blank">Print / PDF</Link></div>
           </Card>
           <Card title="Next Action">
             <div className="ta-card-pad">{taskReadError ? <ReadErrorState title="Next action unavailable" message="Quotation tasks could not be loaded. Retry the page." /> : nextTask ? <><strong>{nextTask.title}</strong><div style={{ color: nextTaskState === "overdue" ? "var(--ta-danger)" : "var(--ta-muted)", fontSize: 13, marginTop: 4 }}>{nextTask.due_at ? formatMalaysiaDateTime(nextTask.due_at) : "No due date"} · {nextTaskState === "none" ? "Not scheduled" : nextTaskState}</div><div style={{ fontSize: 12, marginTop: 4 }}>Status: {nextTask.status.replace(/_/g, " ")}</div></> : <span style={{ color: "var(--ta-muted)" }}>No active quotation task.</span>}</div>
           </Card>
-          {invoiceReadError ? <ReadErrorState title="Invoice context unavailable" message="Invoice state could not be loaded. Invoice actions are paused until the related record can be checked." /> : existingInvoice && <Card title="Invoice & Payment Summary"><div className="ta-card-pad" style={{ display: "grid", gap: 7, fontSize: 13 }}><div><strong>{existingInvoice.invoice_no}</strong> · <Badge status={existingInvoice.status} /></div><div>Total: RM {Number(existingInvoice.grand_total).toLocaleString("en-MY", { minimumFractionDigits: 2 })}</div><div>Paid: RM {Number(existingInvoice.amount_paid).toLocaleString("en-MY", { minimumFractionDigits: 2 })}</div><div>Balance due: RM {Number(existingInvoice.balance_due).toLocaleString("en-MY", { minimumFractionDigits: 2 })}</div><div>Payment: {paymentReadError ? "Payment status unavailable — retry" : paymentVisibilityLabel(existingInvoice.status, (paymentRows ?? []).map((payment: any) => payment.status))}</div><div>Issue date: {formatMalaysiaDate(existingInvoice.invoice_date)} · Due: {formatMalaysiaDate(existingInvoice.due_date)}</div><Link href={`/admin/invoices/${existingInvoice.id}`} className="ta-btn ta-btn-outline ta-btn-sm" style={{ justifySelf: "start" }}>View Invoice</Link></div></Card>}
+          {invoiceReadError ? <ReadErrorState title="Invoice context unavailable" message="Invoice state could not be loaded. Invoice actions are paused until the related record can be checked." /> : existingInvoice && <Card title="Invoice & Payment Summary"><div className="ta-card-pad" style={{ display: "grid", gap: 7, fontSize: 13 }}><div><strong>{existingInvoice.invoice_no}</strong> · <Badge status={existingInvoice.status} /></div><div>Total: RM {Number(existingInvoice.grand_total).toLocaleString("en-MY", { minimumFractionDigits: 2 })}</div><div>Paid: RM {Number(existingInvoice.amount_paid).toLocaleString("en-MY", { minimumFractionDigits: 2 })}</div><div>Balance due: RM {Number(existingInvoice.balance_due).toLocaleString("en-MY", { minimumFractionDigits: 2 })}</div><div>Payment: {paymentVisibilityLabel(existingInvoice.status, existingInvoice.payment_states.map((payment) => payment.status))}</div><div>Issue date: {formatMalaysiaDate(existingInvoice.invoice_date)} · Due: {formatMalaysiaDate(existingInvoice.due_date)}</div>{existingInvoice.invoice_id && <Link href={`/admin/invoices/${existingInvoice.invoice_id}`} className="ta-btn ta-btn-outline ta-btn-sm" style={{ justifySelf: "start" }}>View Invoice</Link>}</div></Card>}
 
         </div>
       </div>
