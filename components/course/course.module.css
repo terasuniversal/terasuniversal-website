@@ -29,7 +29,9 @@
 .photo { position: relative; aspect-ratio: 3 / 2; overflow: hidden; }
 .photoImg { object-fit: cover; }
 .credit { padding: 10px 14px 12px; color: var(--px-on-navy); font-size: 0.8125rem; line-height: 1.4; }
-.photoMobile { display: none; margin-top: 22px; }
+.photoMobile { display: none; }
+/* Two classes: the kit's ".px :where(figure) { margin: 0 }" has the same one-class weight and loads after this file. */
+.figure.photoMobile { margin-top: 22px; }
 
 /* ---- FT-1A-2: published FAQs and the three enquiry routes ------------------------------------------ */
 .faq { margin-top: 28px; max-width: 72ch; }
