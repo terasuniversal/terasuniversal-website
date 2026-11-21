@@ -11,6 +11,16 @@
 
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { registerHooks } from "node:module";
+
+// PKG-1b: lib/payments/toyyibpay.ts starts with `import "server-only"`, which only Next.js resolves. Test-only stub for
+// that one specifier; every other module resolves exactly as before and no assertion below changes.
+registerHooks({
+  resolve(specifier, context, nextResolve) {
+    if (specifier === "server-only") return { url: "data:text/javascript,export default {}", shortCircuit: true };
+    return nextResolve(specifier, context);
+  },
+});
 
 const {
   resolveDeploymentTarget,

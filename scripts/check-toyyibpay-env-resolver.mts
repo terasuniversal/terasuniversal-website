@@ -16,6 +16,15 @@
  */
 
 import assert from "node:assert/strict";
+import { registerHooks } from "node:module";
+
+// PKG-1b: lib/payments/toyyibpay.ts starts with `import "server-only"`, which only Next.js resolves. Test-only stub.
+registerHooks({
+  resolve(specifier, context, nextResolve) {
+    if (specifier === "server-only") return { url: "data:text/javascript,export default {}", shortCircuit: true };
+    return nextResolve(specifier, context);
+  },
+});
 
 type FetchCall = { url: string; body: string };
 const calls: FetchCall[] = [];
@@ -68,7 +77,7 @@ function check(name: string, fn: () => void | Promise<void>) {
 }
 
 async function main() {
-  const { createBill, verifyCallbackHash, getToyyibpayCapability } = await import(
+  const { createBill, verifyCallbackHash, getToyyibpayCapability, formatToyyibpayExpiryDate } = await import(
     "../lib/payments/toyyibpay.ts"
   );
 
@@ -184,6 +193,40 @@ async function main() {
       if (err.status !== 1) throw err;
     }
     assert.equal(out.trim(), "", `found NEXT_PUBLIC_TOYYIBPAY reference(s):\n${out}`);
+  });
+
+  console.log("9. PKG-1b: billExpiryDate in Malaysia time (UTC+8), dd-mm-yyyy HH:MM:SS, never rounded up");
+  await check("formats Malaysia time and truncates sub-second values (never later than the hold)", () => {
+    assert.equal(formatToyyibpayExpiryDate(new Date("2026-11-21T03:07:35.999Z")), "21-11-2026 11:07:35");
+    assert.equal(formatToyyibpayExpiryDate(new Date("2026-11-21T03:07:35.000Z")), "21-11-2026 11:07:35");
+  });
+  await check("crosses midnight, month, year and leap-day boundaries in Malaysia time", () => {
+    assert.equal(formatToyyibpayExpiryDate(new Date("2026-11-21T15:59:59Z")), "21-11-2026 23:59:59");
+    assert.equal(formatToyyibpayExpiryDate(new Date("2026-11-21T16:00:00Z")), "22-11-2026 00:00:00");
+    assert.equal(formatToyyibpayExpiryDate(new Date("2026-11-30T16:30:00Z")), "01-12-2026 00:30:00");
+    assert.equal(formatToyyibpayExpiryDate(new Date("2026-12-31T16:00:00Z")), "01-01-2027 00:00:00");
+    assert.equal(formatToyyibpayExpiryDate(new Date("2028-02-28T16:00:00Z")), "29-02-2028 00:00:00");
+  });
+  await check("an invalid date is refused", () => {
+    assert.throws(() => formatToyyibpayExpiryDate(new Date("not a date")), /invalid date/);
+  });
+  await check("createBill sends billExpiryDate only when expiresAt is given", async () => {
+    resetEnv();
+    process.env.TOYYIBPAY_ENV = "sandbox";
+    const expiresAt = new Date(Date.now() + 20 * 60 * 1000);
+    await createBill({ ...billInput, expiresAt });
+    assert.equal(new URLSearchParams(calls[0].body).get("billExpiryDate"), formatToyyibpayExpiryDate(expiresAt));
+    calls.length = 0;
+    await createBill(billInput);
+    assert.equal(new URLSearchParams(calls[0].body).has("billExpiryDate"), false, "no expiry parameter unless asked for");
+  });
+  await check("createBill refuses an expiry that is not in the future, before any HTTP call", async () => {
+    resetEnv();
+    process.env.TOYYIBPAY_ENV = "sandbox";
+    await assert.rejects(() => createBill({ ...billInput, expiresAt: new Date(Date.now() - 1000) }), /expiresAt must be in the future/);
+    await assert.rejects(() => createBill({ ...billInput, expiresAt: new Date(Date.now()) }), /expiresAt must be in the future/);
+    await assert.rejects(() => createBill({ ...billInput, expiresAt: new Date("not a date") }), /invalid date/);
+    assert.equal(calls.length, 0);
   });
 
   resetEnv();

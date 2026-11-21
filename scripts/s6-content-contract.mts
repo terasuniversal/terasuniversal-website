@@ -116,7 +116,10 @@ check("protected areas untouched by S6: registration, payments, verify, feedback
     " M app/api/registration/payment/route.ts", " M app/api/registration/route.ts", " M app/registration/[scheduleId]/page.tsx", " M app/verify/VerificationResult.tsx", " M app/verify/page.tsx",
     // PKG-1 (owner-approved 21 Nov 2026): exactly this one new migration, which withdraws public EXECUTE from the two
     // registration write RPCs; scripts/revoke-public-registration-rpcs-contract.mts proves its content.
-    "?? supabase/migrations/20261122100000_revoke_public_execute_registration_rpcs.sql"]);
+    "?? supabase/migrations/20261122100000_revoke_public_execute_registration_rpcs.sql",
+    // PKG-1b (owner-approved 21 Nov 2026): the ToyyibPay library gains only server-only and billExpiryDate; its exact
+    // named edits are proven by scripts/public-first-launch-contract.mts (revertPkg1b) and pkg1b-registration-hardening.
+    " M lib/payments/toyyibpay.ts"]);
   for (const line of changed.split("\n").filter(Boolean)) assert.ok(allowed.has(line), line);
 });
 

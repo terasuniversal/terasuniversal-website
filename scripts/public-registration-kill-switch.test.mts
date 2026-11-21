@@ -14,6 +14,7 @@ import { registerHooks } from "node:module";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { CONTRACT_BASE } from "./contract-base.mts";
+import { revertPkg1b } from "./public-first-approved.mts";
 
 const root = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const FAKES = pathToFileURL(path.join(root, "scripts", "fixtures", "public-registration-gate-fakes.mjs")).href;
@@ -122,6 +123,7 @@ await scenario("K5", "Flag 'enabled': the existing path is unchanged (create RPC
   const res = await createRoute(post("/api/registration", createBody));
   assert.equal(res.status, 201, "the existing route answers 201 Created");
   assert.deepEqual(gate().rpcs.map((c) => c.name), ["create_public_registration"]);
+  assert.deepEqual(gate().rpcs.map((c) => c.kind), ["service"], "PKG-1b: the write RPC goes through the server-only service client");
   reset("enabled", scheduleAnswer);
   const pay = await paymentRoute(post("/api/registration/payment", paymentBody));
   assert.equal(pay.status, 503, "existing TOYYIBPAY_ENV capability gate still applies after the kill switch");
@@ -154,10 +156,22 @@ await scenario("K8", "Existing obligations: ToyyibPay callbacks, the status rout
   // compared with the contract base (scripts/contract-base.mts) -- the release base -- with line endings normalised.
   const atBase = (file: string) => execFileSync("git", ["show", `${CONTRACT_BASE}:${file}`], { cwd: root, encoding: "utf8", maxBuffer: 1 << 26 }).replace(/\r\n/g, "\n");
   for (const file of ["app/api/payments/toyyibpay/callback/route.ts", "app/api/payments/toyyibpay/registration-callback/route.ts", "app/api/registration/status/route.ts", "lib/payments/toyyibpay.ts"]) {
-    assert.equal(readFileSync(path.join(root, file), "utf8").replace(/\r\n/g, "\n"), atBase(file), file);
+    // PKG-1b (owner-approved): the payment library may differ only by its named PKG-1b edits; the rest stay byte-exact.
+    const current = readFileSync(path.join(root, file), "utf8");
+    assert.equal((file === "lib/payments/toyyibpay.ts" ? revertPkg1b(file, current) : current).replace(/\r\n/g, "\n"), atBase(file), file);
   }
   assert.equal(existsSync(path.join(root, "lib/payments/toyyibpay-decision.ts")), false, "the R2 decision module is not part of this release");
   assert.equal(outbound.length, 0);
+});
+
+await scenario("K9", "Flag 'enabled': a missing or untrusted Origin is refused before rate limiting or any database call (PKG-1b)", async () => {
+  const bare = (url: string, body: unknown, origin?: string) => new Request(`http://localhost${url}`, { method: "POST", headers: { "content-type": "application/json", ...(origin ? { origin } : {}) }, body: JSON.stringify(body) });
+  for (const origin of [undefined, "https://evil.vercel.app", "null"]) {
+    reset("enabled", scheduleAnswer);
+    assert.equal((await createRoute(bare("/api/registration", createBody, origin))).status, 403, String(origin));
+    assert.equal((await paymentRoute(bare("/api/registration/payment", paymentBody, origin))).status, 403, String(origin));
+    assert.equal(gate().rpcs.length + gate().reads.length + gate().rateLimits.length + outbound.length, 0, String(origin));
+  }
 });
 
 for (const r of results) console.log(`${r.ok ? "LULUS" : "GAGAL"} ${r.id} ${r.name}${r.note ? ` -> ${r.note}` : ""}`);
