@@ -8,6 +8,10 @@ import { termsPartAEn } from "../content/en/terms.js";
 import { isUntrackedPath, sanitizeAnalyticsUrl, sanitizeReferrer } from "../lib/analytics-privacy.js";
 import { CONTRACT_BASE, changedSinceBase } from "./contract-base.mts";
 import { revertW2Privacy } from "./w2-privacy-approved.mts";
+import { createHash } from "node:crypto";
+
+// FT-1B (owner-approved): LF-normalised SHA-256 of the approved three-step components/ProposalWizard.js.
+const FT1B_PROPOSAL_WIZARD_SHA256 = "f0f7242bbc7e202796d739d445000db5392eb0f8306d54869cbff3ed6f72878b";
 
 // S5B-1B Round 2 (owner-approved, local only): draft legal pages (gated, noindex, not linked, BM/EN parity), form
 // privacy notes without payload changes, the proposal-success wording, the 404 header, the Insights hard 404 and
@@ -94,10 +98,14 @@ check("forms: apart from the approved notes (and Round 1 edits) every form compo
     .replaceAll("admin@terasuniversal.com.my", "training@terasuniversal.com.my")
     .replace("your subscription request has been received.", "please check your inbox to confirm your subscription.")
     .replace(' * configured. If that env var is missing, submission shows a neutral\n * "temporarily unavailable" error instead of silently failing.', " * configured. If that env var is missing, submission shows a clear error\n * instead of silently failing.");
-  for (const path of ["components/ContactEnquiryForm.js", "components/ContactForm.js", "components/ProposalWizard.js", "components/NewsletterSignup.js"]) {
+  // FT-1B (owner-approved, 21 Nov 2026): ProposalWizard.js was rewritten as the three-step wizard, so it is pinned below to
+  // the exact approved FT-1B bytes instead of the pre-Round-2 file; scripts/ft1b-proposal-wizard-contract.mts proves the
+  // payload keys, endpoint, required fields, allowed lists, consent and privacy wording are unchanged.
+  for (const path of ["components/ContactEnquiryForm.js", "components/ContactForm.js", "components/NewsletterSignup.js"]) {
     // W2 Phase 1 (owner-approved): the gated Privacy Notice link edits are undone first (scripts/w2-privacy-approved.mts).
     assert.equal(strip(revertW2Privacy(path, read(path))), atHead(path), path);
   }
+  assert.equal(createHash("sha256").update(read("components/ProposalWizard.js")).digest("hex"), FT1B_PROPOSAL_WIZARD_SHA256, "components/ProposalWizard.js (FT-1B approved bytes)");
 });
 check("proposal success: no unverified confirmation-email promise", () => {
   const page = read("app/request-proposal/success/page.js");
