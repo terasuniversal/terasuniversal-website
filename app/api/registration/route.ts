@@ -2,11 +2,11 @@ import { NextResponse } from "next/server";
 import { checkSharedRateLimit, hashedClientId } from "../../../lib/rate-limit";
 import {
   clientIp,
-  isAllowedOrigin,
+  isTrustedRegistrationOrigin,
   publicErrorMessage,
   publicRegistrationCreateSchema,
 } from "../../../lib/public-registration";
-import { createSupabaseServerClient } from "../../../lib/supabase/server";
+import { createSupabaseServiceClient } from "../../../lib/supabase/server";
 import { publicRegistrationEnabled, REGISTRATION_DISABLED_MESSAGE } from "../../../lib/public-registration-gate";
 
 export const runtime = "nodejs";
@@ -14,7 +14,7 @@ export const runtime = "nodejs";
 export async function POST(request: Request) {
   // F-1: fail closed before any database call when public registration is switched off.
   if (!publicRegistrationEnabled()) return NextResponse.json({ error: REGISTRATION_DISABLED_MESSAGE }, { status: 503 });
-  if (!isAllowedOrigin(request)) return NextResponse.json({ error: "Invalid request origin." }, { status: 403 });
+  if (!isTrustedRegistrationOrigin(request)) return NextResponse.json({ error: "Invalid request origin." }, { status: 403 });
   if (!(await checkSharedRateLimit({ key: `registration:create:${hashedClientId(clientIp(request))}`, windowSeconds: 60, maxAttempts: 5, failClosed: true }))) {
     return NextResponse.json({ error: "Please wait a moment before trying again." }, { status: 429 });
   }
@@ -31,7 +31,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Please check the registration details.", fields: parsed.error.flatten().fieldErrors }, { status: 400 });
   }
 
-  const supabase = await createSupabaseServerClient();
+  // PKG-1: create_public_registration is EXECUTE-able by service_role only. The server-only service client is built
+  // after every public check above, and is used for this one RPC and nothing else.
+  let supabase: ReturnType<typeof createSupabaseServiceClient>;
+  try {
+    supabase = createSupabaseServiceClient();
+  } catch (clientError) {
+    console.error("Public registration service client unavailable", { message: clientError instanceof Error ? clientError.message : "Unknown error" });
+    return NextResponse.json({ error: publicErrorMessage(null) }, { status: 503 });
+  }
   const { data, error } = await supabase.rpc("create_public_registration", {
     p_schedule_id: parsed.data.schedule_id,
     p_idempotency_key: parsed.data.idempotency_key,

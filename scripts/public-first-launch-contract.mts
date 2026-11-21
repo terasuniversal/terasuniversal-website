@@ -13,7 +13,7 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { revertPublicFirst, PF_CHANGED, PF_ADDED, PF_WITHHELD } from "./public-first-approved.mts";
+import { revertPublicFirst, revertPkg1b, PF_CHANGED, PF_ADDED, PF_WITHHELD } from "./public-first-approved.mts";
 import { CONTRACT_BASE, changedSinceBase } from "./contract-base.mts";
 
 const root = new URL("../", import.meta.url);
@@ -150,7 +150,10 @@ check("F-4: /verify uses #667085 for its secondary text; verification logic file
 });
 check("untouched: legal drafts and their markers, eBook gate, articles, certificate logic, site origin and every ToyyibPay file", () => {
   for (const [path, hash] of Object.entries(UNTOUCHED)) assert.equal(norm16(text(path)), hash, path);
-  for (const path of PAYMENT_AT_BASE) assert.equal(text(path).replace(/\r\n/g, "\n"), execFileSync("git", ["show", `${CONTRACT_BASE}:${path}`], { cwd: rootPath, encoding: "utf8", maxBuffer: 1 << 26 }).replace(/\r\n/g, "\n"), `${path} must equal the release base`);
+  // PKG-1b (owner-approved): only lib/payments/toyyibpay.ts may differ, and only by its named PKG-1b edits
+  // (scripts/public-first-approved.mts); every other ToyyibPay file stays byte-for-byte the release base.
+  const atRelease = (path: string) => (path === "lib/payments/toyyibpay.ts" ? revertPkg1b(path, text(path)) : text(path));
+  for (const path of PAYMENT_AT_BASE) assert.equal(atRelease(path).replace(/\r\n/g, "\n"), execFileSync("git", ["show", `${CONTRACT_BASE}:${path}`], { cwd: rootPath, encoding: "utf8", maxBuffer: 1 << 26 }).replace(/\r\n/g, "\n"), `${path} must equal the release base`);
   assert.equal(existsSync(new URL("lib/payments/toyyibpay-decision.ts", root)), false, "R2 decision module is not part of this release");
   assert.match(text("app/insights/[slug]/page.js"), /robots: \{ index: false, follow: true \}/, "articles stay noindex");
 });

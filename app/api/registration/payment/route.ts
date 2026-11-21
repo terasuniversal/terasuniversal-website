@@ -2,22 +2,28 @@ import { NextResponse } from "next/server";
 import { checkSharedRateLimit, hashedClientId } from "../../../../lib/rate-limit";
 import {
   clientIp,
-  isAllowedOrigin,
+  isTrustedRegistrationOrigin,
   publicErrorMessage,
   publicRegistrationPaymentSchema,
+  registrationReferenceBucket,
 } from "../../../../lib/public-registration";
 import { createBill, inactivateBill, ringgitStringToSen, getToyyibpayCapability } from "../../../../lib/payments/toyyibpay";
 import { canonicalSiteOrigin } from "../../../../lib/site-origin";
-import { createSupabaseServerClient, createSupabaseServiceClient } from "../../../../lib/supabase/server";
+import { createSupabaseServiceClient } from "../../../../lib/supabase/server";
 import { publicRegistrationEnabled, REGISTRATION_DISABLED_MESSAGE } from "../../../../lib/public-registration-gate";
 
 export const runtime = "nodejs";
+
+// PKG-1b: a new ToyyibPay bill is only created while at least this much of the registration hold remains, and the bill
+// expires no later than the hold itself. Bill expiry narrows the late-payment window; it does not by itself prevent a
+// late payment from being confirmed over capacity (database-side capacity integrity is PKG-1c).
+const MIN_HOLD_REMAINING_MS = 60_000;
 
 export async function POST(request: Request) {
   // F-1: no new payment attempt and no ToyyibPay bill while public registration is switched off. Checked before the
   // database and before ToyyibPay; callbacks for payments started earlier are separate routes and are not affected.
   if (!publicRegistrationEnabled()) return NextResponse.json({ error: REGISTRATION_DISABLED_MESSAGE }, { status: 503 });
-  if (!isAllowedOrigin(request)) return NextResponse.json({ error: "Invalid request origin." }, { status: 403 });
+  if (!isTrustedRegistrationOrigin(request)) return NextResponse.json({ error: "Invalid request origin." }, { status: 403 });
   if (!(await checkSharedRateLimit({ key: `registration:payment:${hashedClientId(clientIp(request))}`, windowSeconds: 60, maxAttempts: 3, failClosed: true }))) {
     return NextResponse.json({ error: "Please wait a moment before trying again." }, { status: 429 });
   }
@@ -34,8 +40,23 @@ export async function POST(request: Request) {
   const parsed = publicRegistrationPaymentSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "We could not start payment for that registration." }, { status: 400 });
 
-  const publicClient = await createSupabaseServerClient();
-  const { data: attempt, error: beginError } = await publicClient.rpc("begin_public_registration_payment", {
+  // PKG-1b: a second shared, fail-closed bucket per registration reference (digest only), so one registration cannot be
+  // driven from many addresses. The per-address bucket above is unchanged.
+  const referenceBucket = hashedClientId(registrationReferenceBucket(parsed.data.registration_reference));
+  if (!(await checkSharedRateLimit({ key: `registration:payment-ref:${referenceBucket}`, windowSeconds: 60, maxAttempts: 3, failClosed: true }))) {
+    return NextResponse.json({ error: "Please wait a moment before trying again." }, { status: 429 });
+  }
+
+  // PKG-1: begin_public_registration_payment is EXECUTE-able by service_role only. The server-only service client is
+  // built after every public check above; the RPC itself still proves the reference and secret.
+  let service: ReturnType<typeof createSupabaseServiceClient>;
+  try {
+    service = createSupabaseServiceClient();
+  } catch (clientError) {
+    console.error("Public registration payment service client unavailable", { message: clientError instanceof Error ? clientError.message : "Unknown error" });
+    return NextResponse.json({ error: "We could not start payment. Please try again." }, { status: 503 });
+  }
+  const { data: attempt, error: beginError } = await service.rpc("begin_public_registration_payment", {
     p_registration_reference: parsed.data.registration_reference,
     p_registration_secret: parsed.data.registration_secret,
     p_provider: parsed.data.provider,
@@ -50,30 +71,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ status: "bill_creation_in_progress", retry_after_seconds: 5 }, { status: 202 });
   }
 
-  const service = createSupabaseServiceClient();
-  // The public RPC deliberately does not return PII. Resolve the payer only
-  // inside this server-only route using the opaque reference and service role.
-  let payerRow: { full_name: string; email: string | null; phone: string | null } | null = null;
-  const { data: registration } = await service
+  // The RPC deliberately returns no PII and no attempt id. Resolve them inside this server-only route; every lookup's
+  // error is checked, and no bill is created after any database failure.
+  const { data: registration, error: registrationError } = await service
     .from("public_registrations")
-    .select("id")
+    .select("id, hold_expires_at")
     .eq("registration_reference", parsed.data.registration_reference)
     .maybeSingle();
-  if (registration?.id) {
-    const { data: fallbackPayer } = await service
-      .from("public_registration_attendees")
-      .select("full_name, email, phone")
-      .eq("registration_id", registration.id)
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-    payerRow = fallbackPayer;
+  if (registrationError) {
+    console.error("Public registration payment lookup failed", { step: "registration", message: registrationError.message });
+    return NextResponse.json({ error: "We could not start payment. Please try again." }, { status: 502 });
   }
-
   if (!registration?.id) {
     return NextResponse.json({ error: "We could not start payment. Please try again." }, { status: 400 });
   }
-  const { data: attemptRow } = await service
+  const { data: attemptRow, error: attemptError } = await service
     .from("public_registration_payments")
     .select("id, amount, payment_url, bill_creation_state")
     .eq("registration_id", registration.id)
@@ -82,8 +94,37 @@ export async function POST(request: Request) {
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
+  if (attemptError) {
+    console.error("Public registration payment lookup failed", { step: "attempt", message: attemptError.message });
+    return NextResponse.json({ error: "We could not start payment. Please try again." }, { status: 502 });
+  }
   if (!attemptRow?.id || attemptRow.bill_creation_state !== "claimed") {
     return NextResponse.json({ error: "We could not start payment. Please try again." }, { status: 502 });
+  }
+
+  // From here this request owns the claimed attempt: any refusal releases it, so the payer can start again.
+  const releaseClaim = async (reason: string) => {
+    const { error: releaseError } = await service.rpc("fail_public_registration_payment_setup", { p_attempt_id: attemptRow.id, p_reason: reason });
+    if (releaseError) console.error("Public registration payment claim release failed", { message: releaseError.message });
+  };
+
+  const { data: payerRow, error: payerError } = await service
+    .from("public_registration_attendees")
+    .select("full_name, email, phone")
+    .eq("registration_id", registration.id)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (payerError) {
+    console.error("Public registration payment lookup failed", { step: "payer", message: payerError.message });
+    await releaseClaim("payer lookup failed before bill creation");
+    return NextResponse.json({ error: "We could not start payment. Please try again." }, { status: 502 });
+  }
+
+  const holdEndsAt = registration.hold_expires_at ? new Date(registration.hold_expires_at) : null;
+  if (!holdEndsAt || !Number.isFinite(holdEndsAt.getTime()) || holdEndsAt.getTime() - Date.now() < MIN_HOLD_REMAINING_MS) {
+    await releaseClaim("registration hold too close to expiry for a new bill");
+    return NextResponse.json({ error: publicErrorMessage(new Error("registration_expired")) }, { status: 409 });
   }
 
   try {
@@ -98,6 +139,7 @@ export async function POST(request: Request) {
       billTo: payerRow?.full_name || "TERAS Training Participant",
       billEmail: payerRow?.email || null,
       billPhone: payerRow?.phone || null,
+      expiresAt: holdEndsAt,
     });
 
     const { data: attached, error: attachError } = await service.rpc("attach_public_registration_toyy_pay_bill", {

@@ -223,7 +223,9 @@ console.log("C. Public registration routes");
 const createRoute = await import("../app/api/registration/route.ts");
 const paymentRoute = await import("../app/api/registration/payment/route.ts");
 const statusRoute = await import("../app/api/registration/status/route.ts");
-const post = (url: string, ip: string, raw = "not json") => new Request(url, { method: "POST", headers: { "x-forwarded-for": ip, "content-type": "application/json" }, body: raw });
+// PKG-1b: positive requests carry the same-origin Origin a browser sends; the write routes refuse a missing or untrusted
+// Origin before the limiter (negative checks below).
+const post = (url: string, ip: string, raw = "not json") => new Request(url, { method: "POST", headers: { "x-forwarded-for": ip, "content-type": "application/json", origin: new URL(url).origin }, body: raw });
 const routes: Array<[string, (r: Request) => Promise<Response>, string, string]> = [
   ["create", createRoute.POST as never, "http://localhost/api/registration", "registration:create:"],
   ["payment", paymentRoute.POST as never, "http://localhost/api/registration/payment", "registration:payment:"],
@@ -256,6 +258,18 @@ for (const [name, handler, url, prefix] of routes) {
     assert.equal((await handler(post(url, "203.0.113.7"))).status, 429);
     assert.equal(calls.length, 0);
   }));
+}
+// PKG-1b: the two write routes refuse a missing or untrusted Origin before the limiter -- no limiter call, no request.
+for (const [name, handler, url] of routes.filter(([n]) => n !== "status")) {
+  for (const origin of [null, "https://evil.vercel.app", "null", "http://localhost.evil.test"]) {
+    await check(`${name}: Origin ${origin ?? "(missing)"} is refused with 403 before any limiter call`, quiet(async () => {
+      setEnv(productionConfig);
+      const headers: Record<string, string> = { "x-forwarded-for": "203.0.113.7", "content-type": "application/json" };
+      if (origin) headers.origin = origin;
+      assert.equal((await handler(new Request(url, { method: "POST", headers, body: "not json" }))).status, 403);
+      assert.equal(calls.length, 0);
+    }));
+  }
 }
 
 console.log("D. Logs and static contracts");

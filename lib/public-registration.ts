@@ -1,4 +1,6 @@
 import { z } from "zod";
+// Explicit extension: this module is also loaded directly by Node-run contracts that have no resolver hook.
+import { APEX_ORIGIN, WWW_ORIGIN } from "./canonical-origin.js";
 
 const trimmedText = (max: number) => z.string().trim().max(max);
 
@@ -40,11 +42,40 @@ export function clientIp(request: Request): string {
   ).split(",")[0].trim().slice(0, 100);
 }
 
+// PKG-1b: the two public registration write endpoints (create and payment) are only ever called by the registration
+// page's own fetch, which is same-origin, so a legitimate browser POST always carries an Origin equal to this
+// deployment's own origin or a canonical TERAS host (plus NEXT_PUBLIC_SITE_URL where an environment configures one).
+// Anything else -- no Origin, "null", a malformed value, another scheme, a look-alike host or an arbitrary *.vercel.app
+// deployment -- is refused before rate limiting, parsing or any database call. The ToyyibPay callback is server-to-server
+// and keeps its own checks; the read-only status route still uses isAllowedOrigin below.
+export function trustedRegistrationOrigins(request: Request): Set<string> {
+  const trusted = new Set<string>([new URL(request.url).origin, WWW_ORIGIN, APEX_ORIGIN]);
+  const configured = process.env.NEXT_PUBLIC_SITE_URL;
+  if (configured) {
+    try { trusted.add(new URL(configured).origin); } catch { /* a malformed configuration adds nothing */ }
+  }
+  return trusted;
+}
+
+export function isTrustedRegistrationOrigin(request: Request): boolean {
+  const origin = request.headers.get("origin");
+  if (!origin) return false;
+  // Exact string match against serialised origins only: a path, trailing slash, port, credentials, other scheme or
+  // alternative spelling never matches.
+  return trustedRegistrationOrigins(request).has(origin);
+}
+
 export function isAllowedOrigin(request: Request): boolean {
   const origin = request.headers.get("origin");
   if (!origin) return true;
   const requestOrigin = new URL(request.url).origin;
   return origin === requestOrigin || origin.endsWith(".vercel.app");
+}
+
+// PKG-1b: the per-registration payment rate-limit bucket. Case, whitespace and Unicode compatibility forms are folded
+// so trivially different spellings of one reference share one bucket.
+export function registrationReferenceBucket(reference: string): string {
+  return reference.normalize("NFKC").replace(/\s+/g, "").toUpperCase();
 }
 
 export function publicErrorMessage(error: unknown): string {

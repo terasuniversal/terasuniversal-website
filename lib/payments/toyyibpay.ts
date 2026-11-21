@@ -9,6 +9,7 @@
  * closing notes) and this file is the only place that boundary is crossed.
  */
 
+import "server-only";
 import { createHash, timingSafeEqual } from "crypto";
 
 const REQUEST_TIMEOUT_MS = 15000;
@@ -169,11 +170,26 @@ export interface CreateBillInput {
   billTo: string;
   billEmail?: string | null;
   billPhone?: string | null;
+  /** PKG-1b: optional bill expiry (sent as billExpiryDate). Must be in the future; omitted means no expiry, as before. */
+  expiresAt?: Date;
 }
 
 export interface CreateBillResult {
   billCode: string;
   paymentUrl: string;
+}
+
+// PKG-1b: ToyyibPay's documented billExpiryDate format is "dd-mm-yyyy HH:MM:SS" in Malaysia time (UTC+8, no daylight
+// saving) -- the same shape as the transaction dates parseToyyibpayTransactionDate reads. Seconds are truncated, never
+// rounded up, so the bill can never outlive the instant it is derived from. Provider acceptance is confirmed only by
+// sandbox UAT.
+const MALAYSIA_UTC_OFFSET_MS = 8 * 60 * 60 * 1000;
+export function formatToyyibpayExpiryDate(date: Date): string {
+  const ms = date instanceof Date ? date.getTime() : Number.NaN;
+  if (!Number.isFinite(ms)) throw new Error("ToyyibPay billExpiryDate: invalid date.");
+  const local = new Date(Math.floor(ms / 1000) * 1000 + MALAYSIA_UTC_OFFSET_MS);
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${pad(local.getUTCDate())}-${pad(local.getUTCMonth() + 1)}-${local.getUTCFullYear()} ${pad(local.getUTCHours())}:${pad(local.getUTCMinutes())}:${pad(local.getUTCSeconds())}`;
 }
 
 /**
@@ -188,6 +204,10 @@ export async function createBill(input: CreateBillInput): Promise<CreateBillResu
 
   if (!Number.isInteger(input.amountSen) || input.amountSen <= 0) {
     throw new Error("ToyyibPay createBill: amountSen must be a positive integer.");
+  }
+  const billExpiryDate = input.expiresAt === undefined ? null : formatToyyibpayExpiryDate(input.expiresAt);
+  if (input.expiresAt !== undefined && input.expiresAt.getTime() <= Date.now()) {
+    throw new Error("ToyyibPay createBill: expiresAt must be in the future.");
   }
 
   const billName = sanitizeToyyibpayText(input.invoiceNo, 30);
@@ -209,6 +229,7 @@ export async function createBill(input: CreateBillInput): Promise<CreateBillResu
     billEmail: input.billEmail ?? "",
     billPhone: input.billPhone ?? "",
     billPaymentChannel: "2", // FPX + card
+    ...(billExpiryDate ? { billExpiryDate } : {}),
   });
 
   const first = Array.isArray(raw) ? raw[0] : raw;
