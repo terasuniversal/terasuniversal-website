@@ -1,0 +1,237 @@
+[
+  {
+    "text": "000000-00-0000",
+    "identity": true,
+    "why": "IC with hyphens"
+  },
+  {
+    "text": "000000000000",
+    "identity": true,
+    "why": "12 contiguous digits"
+  },
+  {
+    "text": "000000/00/0000",
+    "identity": true,
+    "why": "slash separated"
+  },
+  {
+    "text": "000000.00.0000",
+    "identity": true,
+    "why": "dot separated"
+  },
+  {
+    "text": "000000 00 0000",
+    "identity": true,
+    "why": "space separated"
+  },
+  {
+    "text": "000000 - 00 - 0000",
+    "identity": true,
+    "why": "spaced hyphens"
+  },
+  {
+    "text": "000000_00_0000",
+    "identity": true,
+    "why": "underscore separated"
+  },
+  {
+    "text": "000000--00--0000",
+    "identity": true,
+    "why": "double separators"
+  },
+  {
+    "text": "000000\u201300\u20130000",
+    "identity": true,
+    "why": "en dash separated"
+  },
+  {
+    "text": "see ic:000000-00-0000.",
+    "identity": true,
+    "why": "inside a sentence"
+  },
+  {
+    "text": "no.000000000000end",
+    "identity": true,
+    "why": "glued to letters"
+  },
+  {
+    "text": "0 0 0 0 0 0 0 0 0 0 0 0",
+    "identity": true,
+    "why": "digits spaced one by one"
+  },
+  {
+    "text": "0-0-0-0-0-0-0-0-0-0-0-0",
+    "identity": true,
+    "why": "digits hyphenated one by one"
+  },
+  {
+    "text": "000 000 000 000",
+    "identity": true,
+    "why": "four groups of three"
+  },
+  {
+    "text": "000.000.000.000",
+    "identity": true,
+    "why": "four groups of three (also IP-shaped; strict by design)"
+  },
+  {
+    "text": "X00000000",
+    "identity": true,
+    "why": "passport 1 letter + 8 digits"
+  },
+  {
+    "text": "x00000000",
+    "identity": true,
+    "why": "passport lower case"
+  },
+  {
+    "text": "XY0000000",
+    "identity": true,
+    "why": "passport 2 letters + 7 digits"
+  },
+  {
+    "text": "X-00000000",
+    "identity": true,
+    "why": "passport with hyphen"
+  },
+  {
+    "text": "passport XY-0000000 checked",
+    "identity": true,
+    "why": "passport inside a sentence"
+  },
+  {
+    "text": "CERT-2026-000123",
+    "identity": false,
+    "why": "certificate number"
+  },
+  {
+    "text": "Certificate CERT-2026-000123 reviewed",
+    "identity": false,
+    "why": "certificate number in a sentence"
+  },
+  {
+    "text": "TU-SESP-2026-0001",
+    "identity": false,
+    "why": "prefixed certificate number"
+  },
+  {
+    "text": "dated 2026-11-07 ref 123456",
+    "identity": false,
+    "why": "date and short number"
+  },
+  {
+    "text": "2026-11-07 12:30:45 000",
+    "identity": false,
+    "why": "timestamp"
+  },
+  {
+    "text": "phone +60 12 345 6789",
+    "identity": false,
+    "why": "11-digit phone number"
+  },
+  {
+    "text": "call 0123456789",
+    "identity": false,
+    "why": "10-digit phone number"
+  },
+  {
+    "text": "invoice 2026110712",
+    "identity": false,
+    "why": "10-digit reference"
+  },
+  {
+    "text": "batch 12345678",
+    "identity": false,
+    "why": "8 digits after a word"
+  },
+  {
+    "text": "on 20261107",
+    "identity": false,
+    "why": "date after a short word"
+  },
+  {
+    "text": "0000000000000",
+    "identity": false,
+    "why": "13 contiguous digits are not an IC"
+  },
+  {
+    "text": "A1234",
+    "identity": false,
+    "why": "too short for a passport"
+  },
+  {
+    "text": "REF-12345678",
+    "identity": false,
+    "why": "word prefix, not a 1-2 letter passport"
+  },
+  {
+    "text": "page 1 of 2, 3 copies",
+    "identity": false,
+    "why": "ordinary numbers"
+  },
+  {
+    "text": "Original MyKad shown at the counter, copy filed",
+    "identity": false,
+    "why": "plain description"
+  },
+  {
+    "text": "",
+    "identity": false,
+    "why": "empty"
+  },
+  {
+    "text": "\uff10\uff10\uff10\uff10\uff10\uff10\uff0d\uff10\uff10\uff0d\uff10\uff10\uff10\uff10",
+    "identity": true,
+    "why": "full-width digits and hyphen"
+  },
+  {
+    "text": "\u0660\u0660\u0660\u0660\u0660\u0660-\u0660\u0660-\u0660\u0660\u0660\u0660",
+    "identity": true,
+    "why": "Arabic-Indic digits"
+  },
+  {
+    "text": "\u0e50\u0e50\u0e50\u0e50\u0e50\u0e50 \u0e50\u0e50 \u0e50\u0e50\u0e50\u0e50",
+    "identity": true,
+    "why": "Thai digits"
+  },
+  {
+    "text": "\u0be6\u0be6\u0be6\u0be6\u0be6\u0be6/\u0be6\u0be6/\u0be6\u0be6\u0be6\u0be6",
+    "identity": true,
+    "why": "Tamil digits"
+  },
+  {
+    "text": "00000\u200b0\u200d00\u200b0000",
+    "identity": true,
+    "why": "zero-width characters inside 12 digits"
+  },
+  {
+    "text": "000000\u00ad-\u00ad00\u00ad-\u00ad0000",
+    "identity": true,
+    "why": "soft hyphens around separators"
+  },
+  {
+    "text": "\u2460\u2461\u2462\u2463\u2464\u2465\u2466\u2467\u2468\u24ea\u2460\u2461",
+    "identity": true,
+    "why": "circled digits (NFKC)"
+  },
+  {
+    "text": "X\uff10\uff10\uff10\uff10\uff10\uff10\uff10\uff10",
+    "identity": true,
+    "why": "full-width passport"
+  },
+  {
+    "text": "caf\u00e9 r\u00e9sum\u00e9 No. 12 of 34",
+    "identity": false,
+    "why": "accented text with ordinary numbers"
+  },
+  {
+    "text": "\u0662\u0660\u0662\u0666 \u0661\u0661 \u0660\u0667",
+    "identity": false,
+    "why": "short Arabic-Indic date is not an IC"
+  },
+  {
+    "text": "\u200b\u200bplain\u200b text\u00ad",
+    "identity": false,
+    "why": "format characters without digits"
+  }
+]
