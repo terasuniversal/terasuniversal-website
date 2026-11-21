@@ -76,7 +76,9 @@ check("bridge scope: still .page/.aiNote only, approved palette, no protected se
 const FROZEN: Record<string, string> = {
   "components/ContactEnquiryForm.js": "c6094a0182d86889b5ac91e7d530706636d22abeaec878dbef4ed62710b4ec8e",
   "components/ContactForm.js": "b10c146a9dc816edaed988a8d75ca1c98d526df87e8416231fbc44f823773646",
-  "components/ProposalWizard.js": "d25dd7e16025c378bca1aed9b38aa6cd517eb1b5607508746ab08307abca9ac5",
+  // FT-1B (owner-approved, 21 Nov 2026): re-pinned to the approved three-step wizard (was d25dd7e1… from Round 3);
+  // scripts/ft1b-proposal-wizard-contract.mts proves its payload, endpoint, consent and privacy wording are unchanged.
+  "components/ProposalWizard.js": "18e35a80fa3a9dbc1b01219976df893b16256bf38f709d281be08c8129b89833",
   "components/NewsletterSignup.js": "16ab290193adb1688816543d33d13d39ae139112ed27461fd788eb3d4297bb9b",
   "app/api/contact/route.js": "d9de48d49b0d6e4ddb1b004d10f4ddc06a630f2133f8a1eb7e4beb2148bc0914",
   "app/api/request-proposal/route.js": "444572e3082786527bb3a00236ebc4d1dbee158b6ae85df9e309c3106d669ecb",
