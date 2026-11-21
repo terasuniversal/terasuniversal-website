@@ -66,7 +66,8 @@
     "start": "next start",
     "test:crm-module-rls-hardening": "node --experimental-strip-types scripts/crm-module-rls-hardening-contract.mts supabase/migrations/20261121120000_sales_crm_module_rls_hardening.sql .",
     "test:sales-finance-rpc-authorization": "node --experimental-strip-types scripts/sales-finance-rpc-authorization-contract.mts supabase/migrations/20261121130000_sales_finance_rpc_module_authorization.sql supabase/migrations/20261121120000_sales_crm_module_rls_hardening.sql .",
-    "test:crm-rc-ux": "node --experimental-strip-types scripts/crm-rc-ux-contract.mts"
+    "test:crm-rc-ux": "node --experimental-strip-types scripts/crm-rc-ux-contract.mts",
+    "test:crm-invoice-update-module": "node --experimental-strip-types scripts/crm-invoice-update-module-contract.mts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",
