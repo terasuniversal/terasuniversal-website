@@ -52,6 +52,8 @@ export default async function TaskDetailPage({
     if (q) relatedLink = { label: `Quotation ${q.quotation_no}`, href: (await hasModuleAccess("sales_quotations")) ? `/admin/sales/quotations/${t.quotation_id}` : null };
   }
   // Name the exact reason edits are unavailable (UAT F-U9): View access is not the same as not being the owner.
+  // Completed/cancelled tasks are read-only until reopened via the status actions (UAT F-UAT-3); updateTask enforces it too.
+  const isClosed = t.status === "completed" || t.status === "cancelled";
   const readOnlyReason = !canEdit
     ? "You have view-only access to Tasks. Changes require Edit access."
     : "Only the assigned owner, the creator, or an Admin can edit this task.";
@@ -82,7 +84,16 @@ export default async function TaskDetailPage({
 
       <div className="ta-task-detail-layout">
         <div>
-          {canManage ? (
+          {canManage && isClosed ? (
+            <Card title="Task Details">
+              <div className="ta-card-pad" style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 13 }}>
+                <p style={{ margin: 0, color: "var(--ta-muted)" }}>
+                  This task is {t.status === "completed" ? "completed" : "cancelled"} and read-only. Reopen it to make changes.
+                </p>
+                {t.description && <p style={{ margin: 0 }}>{t.description}</p>}
+              </div>
+            </Card>
+          ) : canManage ? (
             <Card title="Task Details">
               <div className="ta-card-pad">
                 <TaskForm action={updateTask.bind(null, t.id)} task={t} staff={staff} mode="edit" returnContext={returnContext} />

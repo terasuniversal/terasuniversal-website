@@ -39,6 +39,18 @@ export function QuotationActionsPanel({
   const [invoiceState, invoiceAction, invoicePending] = useActionState(createInvoiceFromQuotationAction.bind(null, quotationId), INVOICE_INITIAL);
 
   if (!canManage) {
+    // An existing invoice is the relevant fact for an accepted quotation; a "creating requires…" permission message
+    // would wrongly suggest that one still has to be created (UAT F-UAT-1). The link is shown only with Invoices view.
+    if (status === "accepted" && hasExistingInvoice) {
+      return (
+        <Card title="Invoice">
+          <div className="ta-card-pad" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <p style={{ margin: 0, fontSize: 13, color: "var(--ta-muted)" }}>An invoice already exists for this quotation.</p>
+            {existingInvoiceId && <Link href={`/admin/invoices/${existingInvoiceId}`} className="ta-btn ta-btn-outline ta-btn-sm">View Invoice</Link>}
+          </div>
+        </Card>
+      );
+    }
     return (
       <Card title="Manage Quotation">
         <div className="ta-card-pad" style={{ color: "var(--ta-muted)", fontSize: 13 }}>{deniedReason ?? "Status changes require the Admin role and Quotations Edit access."}</div>

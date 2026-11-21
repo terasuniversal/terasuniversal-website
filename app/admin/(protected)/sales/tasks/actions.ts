@@ -179,6 +179,18 @@ export async function updateTask(taskId: string, _prev: TaskFormState, formData:
   }
 
   const supabase = await createSupabaseServerClient();
+  // Completed and cancelled tasks are read-only until reopened through the status workflow (UAT F-UAT-3); the
+  // status filter on the update also closes the race with a concurrent completion.
+  const { data: current, error: currentError } = await supabase
+    .from("sales_tasks")
+    .select("status")
+    .eq("id", taskId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (currentError) return { message: "Task could not be loaded. Refresh and try again." };
+  if (current && current.status !== "open" && current.status !== "in_progress") {
+    return { message: "Completed or cancelled tasks are read-only. Reopen the task to edit it." };
+  }
   const { data: updated, error } = await supabase
     .from("sales_tasks")
     .update({
@@ -192,6 +204,7 @@ export async function updateTask(taskId: string, _prev: TaskFormState, formData:
       quotation_id: parsed.data.quotation_id || null,
     })
     .eq("id", taskId)
+    .in("status", ["open", "in_progress"])
     .select("id")
     .maybeSingle();
   if (error) return { message: error.message };

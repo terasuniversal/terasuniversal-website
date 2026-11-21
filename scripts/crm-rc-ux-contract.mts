@@ -104,5 +104,25 @@ check("Quotation form explains prefilled customer fields", () => {
   assert.match(itemsEditor, /Prefilled from the opportunity and lead\./);
 });
 
+const uiKit = read("components/admin/ui/index.tsx");
+check("F-UAT-1: an existing invoice is reported before the create-invoice permission message", () => {
+  const i = quotePanel.indexOf('if (status === "accepted" && hasExistingInvoice)');
+  const j = quotePanel.indexOf('deniedReason ?? "Status changes require');
+  assert.ok(i > 0 && j > i, "existing-invoice branch must precede the denied message");
+  const branch = quotePanel.slice(i, j);
+  assert.ok(branch.includes("An invoice already exists for this quotation."));
+  assert.ok(branch.includes("{existingInvoiceId && <Link href={`/admin/invoices/${existingInvoiceId}`}"));
+});
+check("F-UAT-2: a field error replaces its hint (no duplicate Email-or-phone message)", () => {
+  assert.ok(uiKit.includes("{hint && !error && <small id={hintId}"));
+  assert.ok(uiKit.includes("hint && !error ? hintId : null"));
+});
+check("F-UAT-3: completed/cancelled tasks are read-only in the UI and in updateTask", () => {
+  assert.ok(taskPage.includes('const isClosed = t.status === "completed" || t.status === "cancelled";'));
+  assert.ok(taskPage.includes("canManage && isClosed ? ("));
+  assert.ok(taskActions.includes("Completed or cancelled tasks are read-only. Reopen the task to edit it."));
+  assert.ok(taskActions.includes('.in("status", ["open", "in_progress"])'));
+});
+
 console.log(`${passed} check(s) passed${failed ? `, ${failed} FAILED` : ""}.`);
 if (failed) process.exit(1);
