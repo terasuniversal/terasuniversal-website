@@ -10,7 +10,8 @@ export const courseContent = {
   actions: {
     register: "Register Now",
     upcoming: "View Upcoming Training",
-    enquire: "Enquire About This Course",
+    // FT-1A-2: the button now opens the page's own enquiry section, which separates individual and company routes.
+    enquire: "Enquire Now",
     whatsapp: "WhatsApp TERAS",
     whatsappHref: (courseTitle) => `https://wa.me/60195193834?text=${encodeURIComponent(`Hi TERAS, saya berminat dengan ${courseTitle}.`)}`,
   },
@@ -40,6 +41,45 @@ export const courseContent = {
     more: "Explore solutions",
   },
   related: { eyebrow: "Related Courses", title: "Continue your competency pathway.", audience: "Suitable for", more: "View Course" },
+  // FT-1A-2 (owner-approved): photo credit, the published-FAQ selection (exact questions from data/faq.js; no answer is
+  // written here) and the three enquiry routes. The /contact note states that form's existing email requirement.
+  photoCredit: "Photograph: TERAS UNIVERSAL training, Kedah, Malaysia.",
+  faq: {
+    eyebrow: "Frequently Asked Questions",
+    title: "Questions about this course.",
+    all: "View all FAQs",
+    questions: [
+      "Do participants receive a certificate?",
+      "Are programmes suitable for beginners?",
+      "Do you provide practical training?",
+      "Can training dates be arranged according to our schedule?",
+      "Can training be conducted at our company site?",
+      "How can we request a quotation?",
+    ],
+  },
+  paths: {
+    eyebrow: "Enquire Now",
+    title: "Choose how to contact TERAS.",
+    individual: {
+      title: "Individual enquiry",
+      text: "Ask about dates, fees and entry requirements for yourself.",
+      note: "Uses the TERAS contact form. An email address is required there; choose the course in the form.",
+      cta: "Send an Enquiry",
+      href: "/contact",
+    },
+    company: {
+      title: "Company or group training",
+      text: "Request a quotation for in-house or group training for your organisation.",
+      note: "Uses the TERAS corporate proposal form.",
+      cta: "Request a Quotation",
+    },
+    registration: {
+      title: "Online registration",
+      open: { text: "Choose a confirmed public session and register online.", cta: "Register Now" },
+      closed: { text: "Online registration is not open at the moment. View upcoming sessions or use the options here.", cta: "View Upcoming Training" },
+    },
+    sticky: { label: "Quick enquiry", enquire: "Enquire Now", whatsapp: "WhatsApp" },
+  },
   // S6: articles from News & Articles that name this course in their relatedCourses (full articles only).
   reading: { eyebrow: "Related Reading", title: "Articles on this topic.", more: "Read article", all: "All news & articles" },
 };
