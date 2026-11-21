@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 export default async function EditCompanyPage({ params }: { params: Promise<{ id: string }> }) {
   await requireRole("admin");
-  await requireModuleAccess("companies");
+  await requireModuleAccess("companies", "edit");
   const { id } = await params;
   const supabase = await createSupabaseServerClient();
   const { data: company } = await supabase.from("companies").select("*").eq("id", id).single();

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { requireRole, requireModuleAccess } from "../../../../../lib/auth/session";
+import { requireRole, requireModuleAccess, hasModuleAccess } from "../../../../../lib/auth/session";
 import { PageHead, Card, EmptyState, Pagination, ListToolbar, ReadErrorState } from "../../../../../components/admin/ui";
 import { CRM_STATUS_ORDER, CRM_STATUS_LABELS, SOURCE_LABELS, mytEndOfTodayUtc, sanitizeSearchTerm, type SalesLeadInboxRow } from "../../../../../lib/sales/crm";
 import { ageLabel, daysSinceActivityLabel, qualificationLabel, temperatureLabel } from "../../../../../lib/sales/qualification";
@@ -23,6 +23,7 @@ export default async function SalesLeadsPage({
 }) {
   await requireRole("editor"); // read allowed for all sales-CRM staff; mutations are admin-gated in actions.ts
   await requireModuleAccess("sales_leads");
+  const canEdit = await hasModuleAccess("sales_leads", "edit");
   const sp = await searchParams;
   let page = normalizePage(sp.page);
   const supabase = await createSupabaseServerClient();
@@ -141,7 +142,7 @@ export default async function SalesLeadsPage({
       <PageHead
         title="Sales Leads"
         subtitle="Unified inbox — public contact enquiries and proposal requests in one pipeline."
-        action={<Link href="/admin/sales/leads/new" className="ta-btn ta-btn-primary">+ Create Lead</Link>}
+        action={canEdit ? <Link href="/admin/sales/leads/new" className="ta-btn ta-btn-primary">+ Create Lead</Link> : undefined}
         secondaryAction={<a href={`/admin/sales/leads/export${exportQs ? "?" + exportQs : ""}`} className="ta-btn ta-btn-outline">Export CSV</a>}
       />
       {hasStaffError && <ReadErrorState title="Assignee filter unavailable" message="Lead records are still shown, but owner names and assignee options may be incomplete." />}

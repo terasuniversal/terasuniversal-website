@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
-import { requireRole, requireModuleAccess } from "../../../../../../lib/auth/session";
+import { requireRole, requireModuleAccess, hasModuleAccess } from "../../../../../../lib/auth/session";
 import { isAdmin } from "../../../../../../lib/auth/rbac";
 import { PageHead, Card, Badge } from "../../../../../../components/admin/ui";
 import { TaskForm } from "../TaskForm";
@@ -9,7 +9,7 @@ import { updateTask } from "../actions";
 import { loadStaffOptions } from "../options";
 import { TaskStatusActions } from "./TaskStatusActions";
 import type { SalesTaskRow } from "../../../../../../lib/sales/crm";
-import { normalizeTaskQueueContext, taskQueueFeedbackMessage, taskQueueHref } from "../../../../../../lib/sales/task-queue";
+import { isTaskQueueWarning, normalizeTaskQueueContext, taskQueueFeedbackMessage, taskQueueHref } from "../../../../../../lib/sales/task-queue";
 
 export const metadata = { title: "Task Detail — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
@@ -23,6 +23,7 @@ export default async function TaskDetailPage({
 }) {
   const profile = await requireRole("editor");
   await requireModuleAccess("sales_tasks");
+  const canEdit = await hasModuleAccess("sales_tasks", "edit");
   const { id } = await params;
   const sp = await searchParams;
   const returnContext = normalizeTaskQueueContext(sp);
@@ -34,7 +35,7 @@ export default async function TaskDetailPage({
   if (!task) notFound();
   const t = task as SalesTaskRow;
 
-  const canManage = isAdmin(profile.role) || t.assigned_to === profile.id || t.created_by === profile.id;
+  const canManage = canEdit && (isAdmin(profile.role) || t.assigned_to === profile.id || t.created_by === profile.id);
   const staff = await loadStaffOptions();
   const staffNames = new Map(staff.map((s) => [s.id, s.full_name]));
 
@@ -57,7 +58,7 @@ export default async function TaskDetailPage({
         action={<Link href={returnHref} className="ta-btn ta-btn-outline">← Back to Tasks</Link>}
       />
       {feedbackMessage && (
-        <div className={`ta-alert ${sp.feedback === "activity-warning" ? "ta-alert-error" : "ta-alert-success"}`} role={sp.feedback === "activity-warning" ? "alert" : "status"}>
+        <div className={`ta-alert ${isTaskQueueWarning(sp.feedback) ? "ta-alert-error" : "ta-alert-success"}`} role={isTaskQueueWarning(sp.feedback) ? "alert" : "status"}>
           {feedbackMessage}
         </div>
       )}

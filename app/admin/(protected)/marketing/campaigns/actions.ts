@@ -40,7 +40,7 @@ function readForm(formData: FormData) {
  */
 export async function createCampaign(_prev: CampaignFormState, formData: FormData): Promise<CampaignFormState> {
   const profile = await requireRole("editor");
-  await requireModuleAccess("marketing_campaigns");
+  await requireModuleAccess("marketing_campaigns", "edit");
   const parsed = marketingCampaignSchema.safeParse(readForm(formData));
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
@@ -84,7 +84,7 @@ function revalidateCampaign(id: string) {
  */
 export async function updateCampaign(id: string, _prev: CampaignFormState, formData: FormData): Promise<CampaignFormState> {
   const profile = await requireRole("editor");
-  await requireModuleAccess("marketing_campaigns");
+  await requireModuleAccess("marketing_campaigns", "edit");
   const parsed = marketingCampaignSchema.safeParse(readForm(formData));
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
@@ -124,7 +124,7 @@ export async function updateCampaign(id: string, _prev: CampaignFormState, formD
  */
 async function transitionCampaign(id: string, from: MarketingCampaignStatus, to: MarketingCampaignStatus): Promise<void> {
   const profile = await requireRole("editor");
-  await requireModuleAccess("marketing_campaigns");
+  await requireModuleAccess("marketing_campaigns", "edit");
   const supabase = await createSupabaseServerClient();
 
   const { data: current, error: readError } = await supabase.from("marketing_campaigns").select("status").eq("id", id).maybeSingle();

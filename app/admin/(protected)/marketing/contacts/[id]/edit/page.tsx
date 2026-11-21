@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 
 export default async function EditContactPage({ params }: { params: Promise<{ id: string }> }) {
   await requireRole("editor");
-  await requireModuleAccess("marketing_contacts");
+  await requireModuleAccess("marketing_contacts", "edit");
   const { id } = await params;
   const supabase = await createSupabaseServerClient();
 

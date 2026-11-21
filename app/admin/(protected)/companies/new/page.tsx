@@ -31,7 +31,7 @@ export default async function NewCompanyPage({
   searchParams: Promise<{ opportunityId?: string }>;
 }) {
   await requireRole("admin");
-  await requireModuleAccess("companies");
+  await requireModuleAccess("companies", "edit");
   const sp = await searchParams;
 
   let handoff: { opportunityId: string; opportunityNo?: string } | undefined;

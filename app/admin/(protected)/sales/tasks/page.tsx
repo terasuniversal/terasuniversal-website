@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { requireRole, requireModuleAccess } from "../../../../../lib/auth/session";
+import { requireRole, requireModuleAccess, hasModuleAccess } from "../../../../../lib/auth/session";
 import { isAdmin } from "../../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, EmptyState, Pagination, ListToolbar, ReadErrorState } from "../../../../../components/admin/ui";
 import { dueDateState, mytEndOfTodayUtc, sanitizeSearchTerm, type SalesTaskRow } from "../../../../../lib/sales/crm";
 import { clampPage, normalizePage, pageCountFor, pageRange, SALES_QUEUE_PAGE_SIZE } from "../../../../../lib/sales/pagination";
 import { loadStaffOptions } from "./options";
 import { formatMalaysiaDateTime } from "../../../../../lib/date-time";
-import { normalizeTaskQueueContext, resolveTaskRelatedRecord, taskQueueFeedbackMessage, taskQueueHref, type TaskQueueContext, type TaskQueueView } from "../../../../../lib/sales/task-queue";
+import { isTaskQueueWarning, normalizeTaskQueueContext, resolveTaskRelatedRecord, taskQueueFeedbackMessage, taskQueueHref, type TaskQueueContext, type TaskQueueView } from "../../../../../lib/sales/task-queue";
 import { fetchSalesRowsInPages, isCurrentActiveTask, loadTaskArchiveState } from "../../../../../lib/sales/active-state";
 import { TaskQueueActions } from "./TaskQueueActions";
 
@@ -62,6 +62,7 @@ export default async function SalesTasksPage({
 }) {
   const profile = await requireRole("editor");
   await requireModuleAccess("sales_tasks");
+  const canEdit = await hasModuleAccess("sales_tasks", "edit");
   const sp = await searchParams;
   const normalized = normalizeTaskQueueContext(sp);
   const view = normalized.view;
@@ -177,10 +178,10 @@ export default async function SalesTasksPage({
       <PageHead
         title="Sales Tasks"
         subtitle="Production to-dos linked to leads, opportunities and quotations — no demo records."
-        action={<Link href="/admin/sales/tasks/new" className="ta-btn ta-btn-primary">+ New Task</Link>}
+        action={canEdit ? <Link href="/admin/sales/tasks/new" className="ta-btn ta-btn-primary">+ New Task</Link> : undefined}
       />
       {feedbackMessage && (
-        <div className={`ta-alert ${sp.feedback === "activity-warning" ? "ta-alert-error" : "ta-alert-success"}`} role={sp.feedback === "activity-warning" ? "alert" : "status"}>
+        <div className={`ta-alert ${isTaskQueueWarning(sp.feedback) ? "ta-alert-error" : "ta-alert-success"}`} role={isTaskQueueWarning(sp.feedback) ? "alert" : "status"}>
           {feedbackMessage}
         </div>
       )}
@@ -234,7 +235,7 @@ export default async function SalesTasksPage({
                 </thead>
                 <tbody>
                   {tasks.map((t) => {
-                    const canManage = isAdmin(profile.role) || t.assigned_to === profile.id || t.created_by === profile.id;
+                    const canManage = canEdit && (isAdmin(profile.role) || t.assigned_to === profile.id || t.created_by === profile.id);
                     return (
                       <tr key={t.id}>
                         <td><TaskTitle task={t} /></td>
@@ -255,7 +256,7 @@ export default async function SalesTasksPage({
 
             <ul className="ta-lead-cards ta-task-cards">
               {tasks.map((t) => {
-                const canManage = isAdmin(profile.role) || t.assigned_to === profile.id || t.created_by === profile.id;
+                const canManage = canEdit && (isAdmin(profile.role) || t.assigned_to === profile.id || t.created_by === profile.id);
                 return (
                   <li className="ta-card ta-lead-card ta-task-card" key={t.id}>
                     <div className="ta-lead-card-top">

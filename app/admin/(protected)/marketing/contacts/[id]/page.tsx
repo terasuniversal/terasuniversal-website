@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
-import { requireModuleAccess } from "../../../../../../lib/auth/session";
+import { requireModuleAccess, hasModuleAccess } from "../../../../../../lib/auth/session";
 import { PageHead, Card, Badge } from "../../../../../../components/admin/ui";
 import { SOURCE_LABELS, contactDisplayName } from "../../../../../../lib/marketing/contacts";
 import type { MarketingContact, MarketingContactEvent, MarketingContactStatus } from "../../../../../../lib/supabase/database.types";
@@ -53,6 +53,7 @@ const LIFECYCLE_ACTIONS: Record<MarketingContactStatus, { label: string; action:
 
 export default async function ContactDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await requireModuleAccess("marketing_contacts");
+  const canEdit = await hasModuleAccess("marketing_contacts", "edit");
   const { id } = await params;
   const supabase = await createSupabaseServerClient();
 
@@ -126,9 +127,11 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
             <Link href="/admin/marketing/contacts" className="ta-btn ta-btn-outline">
               ← Back to Contacts
             </Link>
-            <Link href={`/admin/marketing/contacts/${c.id}/edit`} className="ta-btn ta-btn-primary">
-              Edit Contact
-            </Link>
+            {canEdit && (
+              <Link href={`/admin/marketing/contacts/${c.id}/edit`} className="ta-btn ta-btn-primary">
+                Edit Contact
+              </Link>
+            )}
           </div>
         }
       />
@@ -136,7 +139,7 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
       <div className="ta-lead-meta">
         <Badge status={c.status} />
         <Badge status={c.consent_status} />
-        {!isPromoted &&
+        {!isPromoted && canEdit &&
           lifecycleActions.map((item) => (
             <form key={item.label} action={item.action.bind(null, c.id)}>
               <button type="submit" className="ta-btn ta-btn-outline ta-btn-sm">
@@ -206,8 +209,8 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
         </div>
 
         <div className="ta-lead-detail-side">
-          {c.status === "sales_ready" && !c.promoted_lead_metadata_id && <PromoteToSalesPanel contactId={c.id} />}
-          <ContactActionsPanel contactId={c.id} consentStatus={c.consent_status} consentSource={c.consent_source} />
+          {canEdit && c.status === "sales_ready" && !c.promoted_lead_metadata_id && <PromoteToSalesPanel contactId={c.id} />}
+          {canEdit && <ContactActionsPanel contactId={c.id} consentStatus={c.consent_status} consentSource={c.consent_source} />}
         </div>
       </div>
     </>

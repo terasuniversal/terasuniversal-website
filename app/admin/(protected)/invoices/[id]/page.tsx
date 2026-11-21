@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { requireRole, requireModuleAccess } from "../../../../../lib/auth/session";
+import { requireRole, requireModuleAccess, hasModuleAccess } from "../../../../../lib/auth/session";
 import { isAdmin } from "../../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, EmptyState } from "../../../../../components/admin/ui";
 import {
@@ -45,7 +45,13 @@ function taxDisplayLabel(label: string | null, rate: number) {
 export default async function InvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const profile = await requireRole("editor");
   await requireModuleAccess("invoices");
-  const canManage = isAdmin(profile.role);
+  // Invoice, payment and receipt actions need Invoices edit; HRDF claim actions also need HRDF edit.
+  const [canEditInvoices, canEditHrdf] = await Promise.all([
+    hasModuleAccess("invoices", "edit"),
+    hasModuleAccess("hrdf_claims", "edit"),
+  ]);
+  const canManage = isAdmin(profile.role) && canEditInvoices;
+  const canManageHrdf = isAdmin(profile.role) && canEditHrdf;
   const { id } = await params;
   const supabase = await createSupabaseServerClient();
 
@@ -257,7 +263,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
                               ? <div style={{ marginTop: 6 }}><Link href={`/admin/receipt-pdf/${receiptsByPaymentId.get(p.id)!.id}`} className="ta-btn ta-btn-outline ta-btn-sm">View Receipt</Link></div>
                               : p.payment_source === "hrdf"
                                 ? <div style={{ marginTop: 6, color: "var(--ta-muted)", fontSize: 12 }}>HRDF receipt unavailable in Receipt V1.</div>
-                                : <form action={generateReceiptAction} style={{ marginTop: 6 }}><input type="hidden" name="payment_id" value={p.id} /><input type="hidden" name="invoice_id" value={id} /><button type="submit" className="ta-btn ta-btn-outline ta-btn-sm">Generate Receipt</button></form>
+                                : canManage && <form action={generateReceiptAction} style={{ marginTop: 6 }}><input type="hidden" name="payment_id" value={p.id} /><input type="hidden" name="invoice_id" value={id} /><button type="submit" className="ta-btn ta-btn-outline ta-btn-sm">Generate Receipt</button></form>
                           )}
                         </td>
                         <td><Badge status={p.status} /></td>
@@ -283,7 +289,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
             )}
           </Card>
 
-          <HrdfClaimCard invoiceId={id} applicable={items.some((item) => item.hrdf_claim === true)} claim={hrdfClaim} canManage={canManage} />
+          <HrdfClaimCard invoiceId={id} applicable={items.some((item) => item.hrdf_claim === true)} claim={hrdfClaim} canManage={canManageHrdf} canRecord={canManage && canManageHrdf} />
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
