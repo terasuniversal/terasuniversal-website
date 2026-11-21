@@ -63,7 +63,9 @@
     "test:admin-premium-shell": "node --experimental-strip-types scripts/admin-premium-shell-contract.mts",
     "test:admin-topbar-search-placeholder": "node --experimental-strip-types scripts/admin-topbar-search-placeholder-contract.mts",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "test:crm-module-rls-hardening": "node --experimental-strip-types scripts/crm-module-rls-hardening-contract.mts supabase/migrations/20261121120000_sales_crm_module_rls_hardening.sql .",
+    "test:sales-finance-rpc-authorization": "node --experimental-strip-types scripts/sales-finance-rpc-authorization-contract.mts supabase/migrations/20261121130000_sales_finance_rpc_module_authorization.sql supabase/migrations/20261121120000_sales_crm_module_rls_hardening.sql ."
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",
