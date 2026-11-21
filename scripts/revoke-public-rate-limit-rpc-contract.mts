@@ -16,9 +16,19 @@ const sql = read(`supabase/migrations/${file}`);
 const code = sql.split(/\r?\n/).filter((line) => !line.trim().startsWith("--")).join("\n");
 const sig = "public\\.check_public_rate_limit\\(text, integer, integer\\)";
 
-check("migration: sorts after every existing migration", () => {
+// Ordering invariant (amended for PKG-1, owner-approved 21 Nov 2026): the original "must be the last file" check failed
+// for every later migration. What must hold is that this migration keeps its historical place: the function it changes
+// exists in Baseline V3, it runs after its immediate predecessor, and exactly the 138 migrations that preceded it when it
+// was written still sort before it (nothing back-dated into its history). Later migrations may follow it.
+check("migration: keeps its historical place after its designated predecessors", () => {
   const names = readdirSync(new URL("supabase/migrations/", root)).filter((n) => n.endsWith(".sql")).sort();
-  assert.equal(names[names.length - 1], file);
+  assert.match(read("supabase/baseline/v3/schema.sql"), /CREATE OR REPLACE FUNCTION "public"\."check_public_rate_limit"/);
+  const at = names.indexOf(file);
+  assert.ok(at >= 0, `${file} is missing`);
+  const predecessor = "20261106090000_public_registration_positive_fee_only.sql";
+  assert.equal(names[at - 1], predecessor);
+  assert.equal(at, 138, "migrations sorting before PR-2b changed (back-dated insertion or deletion)");
+  assert.ok(names.slice(at + 1).every((n) => n > file));
 });
 check("migration: revokes from PUBLIC, anon and authenticated by exact signature", () => {
   assert.match(code, new RegExp(`revoke all on function ${sig} from public, anon, authenticated;`));
