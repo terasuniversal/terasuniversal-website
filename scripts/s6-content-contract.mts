@@ -119,7 +119,10 @@ check("protected areas untouched by S6: registration, payments, verify, feedback
     "?? supabase/migrations/20261122100000_revoke_public_execute_registration_rpcs.sql",
     // PKG-1b (owner-approved 21 Nov 2026): the ToyyibPay library gains only server-only and billExpiryDate; its exact
     // named edits are proven by scripts/public-first-launch-contract.mts (revertPkg1b) and pkg1b-registration-hardening.
-    " M lib/payments/toyyibpay.ts"]);
+    " M lib/payments/toyyibpay.ts",
+    // PKG-1c (owner-approved 21 Nov 2026): exactly this one new migration, which makes the two registration finalization
+    // functions capacity-safe; scripts/pkg1c-capacity-finalization-contract.mts proves its content.
+    "?? supabase/migrations/20261122110000_public_registration_capacity_safe_finalization.sql"]);
   for (const line of changed.split("\n").filter(Boolean)) assert.ok(allowed.has(line), line);
 });
 
