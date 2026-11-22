@@ -12,6 +12,8 @@ import {
   PAGE_SIZE,
   parseQueueParams,
 } from "../../../../lib/registrations/reviewQueue";
+import { RECONCILIATION_VIEWS, VIEW_META, parseSearch, parseView } from "../../../../lib/registrations/reconciliation";
+import { loadReconciliationOverview, resolveQueueScope } from "../../../../lib/registrations/reconciliationLoader";
 import { formatRm } from "../../../../lib/finance/executiveKpis";
 import { formatMalaysiaDate, formatMalaysiaDateTime } from "../../../../lib/date-time";
 
@@ -19,10 +21,11 @@ export const metadata = { title: "Registrations — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
 
 /**
- * Public Registration Review Queue (V1): read-only, Admin and Super Admin.
- * RLS grants these tables to Admin and above only, and the role is enforced
- * here and again inside loadRegistrationQueue(). There are no retry, finalize,
- * refund, repair or manual-verification controls and no export.
+ * Public Registration Review Queue (V1) with the PKG-1d-B reconciliation
+ * overview: read-only, Admin and Super Admin. RLS grants these tables to Admin
+ * and above only, and the role is enforced here and again inside every loader.
+ * There are no retry, finalize, refund, repair or manual-verification controls
+ * and no export; each registration opens a read-only reconciliation detail page.
  */
 const CRM_LABELS = { not_applicable: "—", complete: "Complete", incomplete: "Incomplete", unknown: "UNKNOWN" } as const;
 
@@ -83,10 +86,19 @@ function AttendeeLinks({ row }: { row: QueueRow }) {
   );
 }
 
-export default async function RegistrationsPage({ searchParams }: { searchParams: Promise<{ page?: string; status?: string; payment?: string; attention?: string }> }) {
+export default async function RegistrationsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string; status?: string; payment?: string; attention?: string; view?: string; q?: string }>;
+}) {
   await requireRole("admin");
-  const params = parseQueueParams(await searchParams);
-  const result = await loadRegistrationQueue(params);
+  const sp = await searchParams;
+  const params = parseQueueParams(sp);
+  const view = parseView(sp.view);
+  const search = parseSearch(sp.q);
+  const searchRejected = typeof sp.q === "string" && sp.q.trim() !== "" && search === null;
+  const [overview, scope] = await Promise.all([loadReconciliationOverview(), resolveQueueScope(view, search)]);
+  const result = scope.ok ? await loadRegistrationQueue(params, new Date(), { view, ids: scope.ids }) : scope;
 
   if (!result.ok) {
     return (
@@ -106,7 +118,9 @@ export default async function RegistrationsPage({ searchParams }: { searchParams
   if (params.status) query.status = params.status;
   if (params.payment) query.payment = params.payment;
   if (params.attention) query.attention = params.attention;
-  const filtered = Boolean(params.status || params.payment || params.attention);
+  if (view) query.view = view;
+  if (search) query.q = search;
+  const filtered = Boolean(params.status || params.payment || params.attention || view || search);
   const first = filteredTotal === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const last = (page - 1) * PAGE_SIZE + rows.length;
 
@@ -117,18 +131,68 @@ export default async function RegistrationsPage({ searchParams }: { searchParams
       <div className="ta-sales-report-intro">
         <strong>What these indicators cover</strong>
         <p>
-          The three totals below count every registration. Every other indicator is checked only on the {PAGE_SIZE} rows shown, so it is not a total. Payment recorded at Toyyibpay is not treated as a completed registration: a charge whose
-          CRM finalization failed leaves no trace here and is UNKNOWN.
+          The totals below count every registration or payment attempt. Every other indicator is checked only on the {PAGE_SIZE} rows shown, so it is not a total. Payment recorded at Toyyibpay is not treated as a completed registration:
+          a payment can be kept without a seat (schedule full, or it arrived after the registration ended), and those cases are listed for staff review. A provider outcome with no callback is UNKNOWN.
         </p>
       </div>
 
       <div className="ta-sales-report-kpis ta-reg-kpis">
         <StatCard label="Registrations (all)" value={summary.total} icon="🧾" />
         <StatCard label="Hold expired, still open (all)" value={summary.expiredHolds} icon="⏱️" context="Should have expired on their own" />
-        <StatCard label="Paid, not confirmed (all)" value={summary.paidUnconfirmed} icon="⚠️" context="Should not occur from the normal path" />
+        <StatCard label="Paid, not confirmed (all)" value={summary.paidUnconfirmed} icon="⚠️" context="Money kept without a seat: staff review" />
       </div>
 
+      <section className="ta-recon-overview" aria-labelledby="recon-overview-title">
+        <h2 id="recon-overview-title" className="ta-recon-title">Payment reconciliation</h2>
+        {overview.ok ? (
+          <ul className="ta-recon-buckets">
+            {RECONCILIATION_VIEWS.map((v) => {
+              const count = overview.counts[v];
+              const active = view === v;
+              return (
+                <li key={v}>
+                  <Link
+                    href={active ? "/admin/registrations" : `/admin/registrations?view=${v}`}
+                    className={`ta-recon-bucket${active ? " is-active" : ""}`}
+                    aria-current={active ? "true" : undefined}
+                  >
+                    <span className="ta-recon-bucket-count">{count === null ? "UNKNOWN" : count}</span>
+                    <span className="ta-recon-bucket-label">{VIEW_META[v].label}</span>
+                    <span className="ta-recon-bucket-hint">{VIEW_META[v].hint} · {VIEW_META[v].unit}</span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <div className="ta-alert ta-alert-error" role="alert">The reconciliation totals could not be loaded. The list below is still exact.</div>
+        )}
+      </section>
+
       <form className="ta-toolbar" method="get" style={{ flexWrap: "wrap", marginBottom: 18 }} action="/admin/registrations">
+        <label className="ta-filter-date-group ta-recon-search">
+          Search
+          <input
+            type="search"
+            name="q"
+            defaultValue={search ?? ""}
+            className="ta-filter-date"
+            placeholder="Reference, transaction id or bill code"
+            aria-describedby="recon-search-hint"
+            maxLength={64}
+            autoComplete="off"
+          />
+          <span id="recon-search-hint" className="ta-lead-sub">Exact match</span>
+        </label>
+        <label className="ta-filter-date-group">
+          Reconciliation
+          <select name="view" defaultValue={view ?? ""} className="ta-filter-date" aria-label="Reconciliation view">
+            <option value="">All</option>
+            {RECONCILIATION_VIEWS.map((v) => (
+              <option key={v} value={v}>{VIEW_META[v].label}</option>
+            ))}
+          </select>
+        </label>
         <label className="ta-filter-date-group">
           Registration
           <select name="status" defaultValue={params.status ?? ""} className="ta-filter-date" aria-label="Registration status">
@@ -159,6 +223,11 @@ export default async function RegistrationsPage({ searchParams }: { searchParams
         <button type="submit" className="ta-btn ta-btn-primary ta-btn-sm">Apply</button>
         {filtered && <Link href="/admin/registrations" className="ta-btn ta-btn-outline ta-btn-sm">Reset</Link>}
       </form>
+      {searchRejected && (
+        <div className="ta-alert ta-recon-warning" role="status">
+          The search was ignored: use a full registration reference, provider transaction id or bill code (letters, digits, - or _).
+        </div>
+      )}
 
       {rows.length === 0 ? (
         <EmptyState
@@ -190,7 +259,7 @@ export default async function RegistrationsPage({ searchParams }: { searchParams
                 {rows.map((r) => (
                   <tr key={r.id}>
                     <td>
-                      <strong>{r.reference}</strong>
+                      <Link href={`/admin/registrations/${r.id}`} className="ta-sales-record-link"><strong>{r.reference}</strong></Link>
                       <div className="ta-lead-sub">{formatMalaysiaDateTime(r.createdAt)}</div>
                     </td>
                     <td>
@@ -227,7 +296,7 @@ export default async function RegistrationsPage({ searchParams }: { searchParams
             {rows.map((r) => (
               <li className="ta-card ta-lead-card ta-reg-card" key={r.id}>
                 <div className="ta-reg-id">
-                  <strong>{r.reference}</strong>
+                  <Link href={`/admin/registrations/${r.id}`} className="ta-sales-record-link"><strong>{r.reference}</strong></Link>
                   <div className="ta-lead-sub">{formatMalaysiaDateTime(r.createdAt)}</div>
                 </div>
                 <div className="ta-reg-grid">
@@ -257,11 +326,12 @@ export default async function RegistrationsPage({ searchParams }: { searchParams
                   <span className="ta-reg-attention-label">Needs attention</span>
                   <Flags row={r} />
                 </div>
-                {r.schedule && (
-                  <div className="ta-lead-card-action">
+                <div className="ta-lead-card-action">
+                  <Link href={`/admin/registrations/${r.id}`} className="ta-btn ta-btn-primary ta-btn-sm" aria-label={`Review payments for ${r.reference}`}>Review payments →</Link>
+                  {r.schedule && (
                     <Link href={`/admin/schedules/${r.schedule.id}`} className="ta-btn ta-btn-outline ta-btn-sm" aria-label={`View schedule for ${r.reference}`}>View schedule →</Link>
-                  </div>
-                )}
+                  )}
+                </div>
               </li>
             ))}
           </ul>
