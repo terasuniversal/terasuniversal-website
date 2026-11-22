@@ -32,17 +32,34 @@ export function parseEmailLinkParams(tokenHash: unknown, type: unknown): ParsedE
   return { ok: true, tokenHash: hash, type: type as EmailLinkType };
 }
 
-export const CONFIRM_ERROR_CODES = ["link_expired", "link_invalid", "account_inactive", "rate_limited", "unavailable"] as const;
+export const CONFIRM_ERROR_CODES = [
+  "link_expired",
+  "link_invalid",
+  "malformed_link",
+  "session_failed",
+  "network_failed",
+  "account_inactive",
+  "rate_limited",
+  "unavailable",
+] as const;
 export type ConfirmErrorCode = (typeof CONFIRM_ERROR_CODES)[number];
 
+// Each failure keeps its own message (AUTH-1 Gate B: every session failure used to read
+// "expired or used", which hid the real cause).
 export const CONFIRM_ERROR_MESSAGES: Record<ConfirmErrorCode, string> = {
   link_expired:
     "Pautan ini telah tamat tempoh atau sudah digunakan. Minta pautan baharu melalui \"Forgot password?\" di halaman log masuk, atau minta pentadbir menghantar semula jemputan.",
   link_invalid: "Pautan ini tidak sah. Buka pautan terkini daripada e-mel anda, atau minta pautan baharu di halaman log masuk.",
+  malformed_link: "Pautan ini tidak lengkap atau rosak. Buka semula pautan penuh daripada e-mel anda, atau minta pautan baharu.",
+  session_failed: "Sesi tidak dapat diwujudkan daripada pautan ini. Minta pautan baharu melalui \"Forgot password?\" di halaman log masuk.",
+  network_failed: "Sambungan terputus semasa mengesahkan pautan. Semak sambungan internet anda, kemudian tekan \"Cuba lagi\".",
   account_inactive: "Akaun ini tidak aktif. Hubungi Super Admin untuk mengaktifkannya.",
   rate_limited: "Terlalu banyak cubaan. Tunggu beberapa minit, kemudian cuba lagi.",
   unavailable: "Pengesahan tidak dapat diselesaikan sekarang. Cuba lagi sebentar lagi.",
 };
+
+/** Failures worth one more press of the same button (the link itself may still be valid). */
+export const RETRYABLE_CONFIRM_ERRORS: readonly ConfirmErrorCode[] = ["network_failed", "rate_limited", "unavailable"];
 
 export function confirmErrorCode(value: unknown): ConfirmErrorCode | null {
   return typeof value === "string" && (CONFIRM_ERROR_CODES as readonly string[]).includes(value) ? (value as ConfirmErrorCode) : null;
@@ -51,6 +68,7 @@ export function confirmErrorCode(value: unknown): ConfirmErrorCode | null {
 /** Maps a verifyOtp failure to a user-facing code without echoing the raw error. */
 export function mapVerifyOtpError(error: { status?: number; code?: string; message?: string } | null | undefined): ConfirmErrorCode {
   if (!error) return "unavailable";
+  if ((error as { name?: string }).name === "AuthRetryableFetchError") return "network_failed";
   const code = (error.code ?? "").toLowerCase();
   const message = (error.message ?? "").toLowerCase();
   if (error.status === 429 || code === "over_request_rate_limit" || code === "over_email_send_rate_limit") return "rate_limited";
@@ -99,6 +117,36 @@ export function parseLegacyHashTokens(hash: string): LegacyHashTokens | null {
   if (!(EMAIL_LINK_TYPES as readonly string[]).includes(type)) return null;
   if (accessToken.length > 4096 || refreshToken.length > 512) return null;
   return { accessToken, refreshToken, type: type as EmailLinkType };
+}
+
+const JWT_SHAPE = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*$/;
+const REFRESH_TOKEN_SHAPE = /^[A-Za-z0-9_-]{8,512}$/;
+
+/** Strict shape check before the tokens are sent anywhere (same limits as parseLegacyHashTokens). */
+export function legacyTokensWellFormed(accessToken: unknown, refreshToken: unknown): boolean {
+  return (
+    typeof accessToken === "string" &&
+    typeof refreshToken === "string" &&
+    accessToken.length <= 4096 &&
+    JWT_SHAPE.test(accessToken) &&
+    REFRESH_TOKEN_SHAPE.test(refreshToken)
+  );
+}
+
+/**
+ * Classifies a failed setSession. Only the error's name, status and code are used,
+ * never its message (which could echo request data).
+ */
+export function classifySessionError(error: { name?: string; status?: number; code?: string } | null | undefined): ConfirmErrorCode {
+  if (!error) return "unavailable";
+  const name = error.name ?? "";
+  const code = (error.code ?? "").toLowerCase();
+  if (name === "AuthRetryableFetchError") return "network_failed";
+  if (name === "AuthInvalidJwtError" || name === "AuthSessionMissingError" || code === "bad_jwt") return "malformed_link";
+  if (error.status === 429 || code.startsWith("over_")) return "rate_limited";
+  if (typeof error.status === "number" && error.status >= 500) return "unavailable";
+  if (typeof error.status === "number" && error.status >= 400) return "session_failed";
+  return "session_failed";
 }
 
 /** Error parameters GoTrue appends to the hash when a link is already used or expired. */

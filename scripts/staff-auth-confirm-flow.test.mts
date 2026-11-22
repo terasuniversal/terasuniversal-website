@@ -96,12 +96,16 @@ test("resend decision: inactive refused, pending invited, confirmed gets recover
 
 // ------------------------------------------- confirmEmailLink with mocked services
 class Redirect extends Error { to: string; constructor(to: string) { super(`redirect:${to}`); this.to = to; } }
-type Calls = { verifyOtp: unknown[]; signOut: number; rateKeys: string[] };
+type Calls = { verifyOtp: unknown[]; signOut: number; rateKeys: string[]; setSession: unknown[]; profileWrites: number };
+const NOW = Math.floor(Date.now() / 1000);
 const state = {
   verifyResult: { data: { user: { id: "00000000-0000-0000-0000-0000000000a1" } }, error: null } as any,
   profile: { data: { is_active: true }, error: null } as any,
   rateAllowed: true,
-  calls: { verifyOtp: [], signOut: 0, rateKeys: [] } as Calls,
+  setSessionResult: { data: { user: { id: "00000000-0000-0000-0000-0000000000a1" } }, error: null } as any,
+  setSessionThrows: null as null | Error,
+  claims: { data: { claims: { amr: [{ method: "otp", timestamp: NOW - 30 }] } }, error: null } as any,
+  calls: { verifyOtp: [], signOut: 0, rateKeys: [], setSession: [], profileWrites: 0 } as Calls,
 };
 mock.module("next/navigation.js", { namedExports: { redirect: (to: string) => { throw new Redirect(to); } } });
 mock.module("next/headers.js", { namedExports: { headers: async () => new Headers({ "x-forwarded-for": "203.0.113.9" }) } });
@@ -117,12 +121,18 @@ mock.module(url("lib/supabase/server.ts"), {
       auth: {
         verifyOtp: async (params: unknown) => { state.calls.verifyOtp.push(params); return state.verifyResult; },
         signOut: async () => { state.calls.signOut += 1; return { error: null }; },
+        setSession: async (params: unknown) => { state.calls.setSession.push(params); if (state.setSessionThrows) throw state.setSessionThrows; return state.setSessionResult; },
+        getClaims: async () => state.claims,
       },
-      from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => state.profile }) }) }),
+      from: () => ({
+        select: () => ({ eq: () => ({ maybeSingle: async () => state.profile }) }),
+        update: () => { state.calls.profileWrites += 1; return { eq: async () => ({ error: null }) }; },
+        upsert: () => { state.calls.profileWrites += 1; return { error: null }; },
+      }),
     }),
   },
 });
-const { confirmEmailLink } = await import("../app/admin/auth/confirm/actions.ts");
+const { confirmEmailLink, establishLegacySession } = await import("../app/admin/auth/confirm/actions.ts");
 
 function form(fields: Record<string, string>) { const f = new FormData(); for (const [k, v] of Object.entries(fields)) f.set(k, v); return f; }
 async function run(fields: Record<string, string>): Promise<string> {
@@ -133,7 +143,10 @@ function reset() {
   state.verifyResult = { data: { user: { id: "00000000-0000-0000-0000-0000000000a1" } }, error: null };
   state.profile = { data: { is_active: true }, error: null };
   state.rateAllowed = true;
-  state.calls = { verifyOtp: [], signOut: 0, rateKeys: [] };
+  state.setSessionResult = { data: { user: { id: "00000000-0000-0000-0000-0000000000a1" } }, error: null };
+  state.setSessionThrows = null;
+  state.claims = { data: { claims: { amr: [{ method: "otp", timestamp: NOW - 30 }] } }, error: null };
+  state.calls = { verifyOtp: [], signOut: 0, rateKeys: [], setSession: [], profileWrites: 0 };
 }
 
 test("new invitation: POST verifies once and goes only to set-password", async () => {
@@ -187,8 +200,112 @@ test("GET never spends the token; page is not indexable and sends no referrer", 
   assert.match(page, /index: false/);
   const legacy = await read("app/admin/auth/confirm/LegacyHashConfirm.tsx");
   assert.match(legacy, /history\.replaceState/, "hash tokens removed from the address bar");
-  assert.ok(legacy.indexOf("auth.setSession(") > legacy.indexOf("async function continueWithLink"), "setSession only on button press");
-  assert.equal(legacy.split("auth.setSession(").length, 2, "exactly one setSession call");
+  // Gate B remediation: the session is set on the server, only when the button is pressed.
+  assert.doesNotMatch(legacy, /createSupabaseBrowserClient|auth\.setSession\(/, "no browser-side setSession");
+  assert.equal(legacy.split("establishLegacySession(").length, 2, "exactly one call to the server action");
+  assert.ok(legacy.indexOf("establishLegacySession(form)") > legacy.indexOf("async function continueWithLink"), "posted only on button press");
+});
+
+// ------------------------------------- establishLegacySession (Gate B remediation)
+const b64u = (o: unknown) => Buffer.from(JSON.stringify(o)).toString("base64url");
+const ACCESS = `${b64u({ alg: "HS256" })}.${b64u({ sub: "a1", exp: NOW + 3600 })}.c2ln`; // synthetic, unsigned
+const REFRESH = "synthRefresh12";
+const legacyForm = (access = ACCESS, refresh = REFRESH) => form({ access_token: access, refresh_token: refresh });
+
+test("R1 valid first-use legacy recovery: server setSession once, then only the internal set-password path", async () => {
+  reset();
+  assert.deepEqual(await establishLegacySession(legacyForm()), { ok: true, next: "/admin/auth/set-password" });
+  assert.deepEqual(state.calls.setSession, [{ access_token: ACCESS, refresh_token: REFRESH }]);
+  assert.equal(state.calls.rateKeys[0], "auth-legacy-session:h(203.0.113.9)");
+});
+
+test("R2 malformed tokens are refused before any Auth call", async () => {
+  reset();
+  for (const [a, r] of [["not-a-jwt", REFRESH], [ACCESS, "x"], [ACCESS, "bad token!"], ["", ""], ["a.b.c" + "x".repeat(5000), REFRESH]]) {
+    assert.deepEqual(await establishLegacySession(legacyForm(a, r)), { ok: false, error: "malformed_link" });
+  }
+  assert.equal(state.calls.setSession.length, 0);
+});
+
+test("R3 failures are classified instead of all becoming link_expired", async () => {
+  const cases: [any, string][] = [
+    [{ name: "AuthRetryableFetchError", status: 0 }, "network_failed"],
+    [{ name: "AuthInvalidJwtError" }, "malformed_link"],
+    [{ name: "AuthApiError", status: 403, code: "session_not_found" }, "session_failed"],
+    [{ name: "AuthApiError", status: 400, code: "refresh_token_not_found" }, "session_failed"],
+    [{ name: "AuthApiError", status: 429, code: "over_request_rate_limit" }, "rate_limited"],
+    [{ name: "AuthApiError", status: 503 }, "unavailable"],
+  ];
+  for (const [error, expected] of cases) {
+    reset();
+    state.setSessionResult = { data: { user: null, session: null }, error };
+    assert.deepEqual(await establishLegacySession(legacyForm()), { ok: false, error: expected }, expected);
+  }
+});
+
+test("R4 server-side network exception is caught (no unhandled throw)", async () => {
+  reset();
+  state.setSessionThrows = Object.assign(new Error("fetch failed"), { name: "AuthRetryableFetchError" });
+  assert.deepEqual(await establishLegacySession(legacyForm()), { ok: false, error: "network_failed" });
+  reset();
+  state.setSessionThrows = new TypeError("boom");
+  assert.deepEqual(await establishLegacySession(legacyForm()), { ok: false, error: "unavailable" });
+});
+
+test("R5 inactive account: session discarded, stays inactive, no profile write", async () => {
+  reset();
+  state.profile = { data: { is_active: false }, error: null };
+  assert.deepEqual(await establishLegacySession(legacyForm()), { ok: false, error: "account_inactive" });
+  assert.equal(state.calls.signOut, 1);
+  assert.equal(state.calls.profileWrites, 0);
+});
+
+test("R6 a normal password session cannot use this path to reach set-password", async () => {
+  reset();
+  state.claims = { data: { claims: { amr: [{ method: "password", timestamp: NOW - 10 }] } }, error: null };
+  assert.deepEqual(await establishLegacySession(legacyForm()), { ok: false, error: "session_failed" });
+  assert.equal(state.calls.signOut, 1);
+});
+
+test("R7 rate limited: no Auth call", async () => {
+  reset();
+  state.rateAllowed = false;
+  assert.deepEqual(await establishLegacySession(legacyForm()), { ok: false, error: "rate_limited" });
+  assert.equal(state.calls.setSession.length, 0);
+});
+
+test("R8 repeated Continue: each press is one server call; a second press after success is harmless", async () => {
+  reset();
+  await establishLegacySession(legacyForm());
+  await establishLegacySession(legacyForm());
+  assert.equal(state.calls.setSession.length, 2, "no hidden retries");
+  const legacy = await read("app/admin/auth/confirm/LegacyHashConfirm.tsx");
+  assert.match(legacy, /if \(!tokens \|\| inFlight\.current\) return;/, "client ignores clicks while a request is in flight");
+  assert.match(legacy, /disabled=\{pending\}/);
+  assert.match(legacy, /\} catch \(thrown\) \{[\s\S]*?setError\("network_failed"\)/, "a failed request ends the loading state with a network error");
+  assert.match(legacy, /inFlight\.current = false;\s*setPending\(false\);/, "loading always ends on failure");
+});
+
+test("R9 no token appears in any log line of the new action", async () => {
+  reset();
+  const seen: string[] = [];
+  const orig = console.error;
+  console.error = (...args: unknown[]) => { seen.push(JSON.stringify(args)); };
+  try {
+    state.setSessionResult = { data: { user: null }, error: { name: "AuthApiError", status: 403, code: "session_not_found", message: `echo ${ACCESS} ${REFRESH}` } };
+    await establishLegacySession(legacyForm());
+    state.setSessionThrows = Object.assign(new Error(`echo ${ACCESS}`), { name: "AuthRetryableFetchError" });
+    await establishLegacySession(legacyForm());
+  } finally { console.error = orig; }
+  assert.ok(seen.length >= 2);
+  for (const line of seen) { assert.ok(!line.includes(ACCESS) && !line.includes(REFRESH), line); }
+});
+
+test("R10 error messages are distinct and in Bahasa Melayu", () => {
+  const messages = link.CONFIRM_ERROR_CODES.map((c) => link.CONFIRM_ERROR_MESSAGES[c]);
+  assert.equal(new Set(messages).size, messages.length, "every code has its own message");
+  assert.match(link.CONFIRM_ERROR_MESSAGES.network_failed, /Cuba lagi/);
+  assert.deepEqual([...link.RETRYABLE_CONFIRM_ERRORS].sort(), ["network_failed", "rate_limited", "unavailable"]);
 });
 
 test("set-password: active staff, recent email-link session, no privileged client", async () => {
