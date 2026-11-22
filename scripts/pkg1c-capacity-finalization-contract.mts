@@ -49,8 +49,10 @@ const PKG1D_A_MIGRATIONS = [
   "20261122121000_public_registration_late_success_recording.sql",
   "20261122122000_public_registration_manual_payment_states.sql",
   "20261122123000_public_registration_begin_payment_paid_guard.sql",
+  // R1 (owner-approved R1-G1, 22 Nov 2026): A5, proven by scripts/r1-schedule-finalization-contract.mts.
+  "20261122124000_public_registration_schedule_finalizable_guard.sql",
 ];
-check("versi: selepas setiap versi migrasi yang diketahui (live dan cawangan lain), dan fail migrasi terakhir kecuali tepat empat migrasi PKG-1d-A yang dinamakan", () => {
+check("versi: selepas setiap versi migrasi yang diketahui (live dan cawangan lain), dan fail migrasi terakhir kecuali tepat empat migrasi PKG-1d-A dan R1 A5 yang dinamakan", () => {
   // Known on 21 Nov 2026: Production latest live 20261121112628 (PKG-1), Staging latest live 20261122095000 (CRM), CRM
   // branch files up to 20261122095000, PKG-1 file 20261122100000.
   for (const known of ["20261108100400", "20261119032421", "20261121112628", "20261121130000", "20261122095000", "20261122100000"]) assert.ok(file > known, `${file} <= ${known}`);

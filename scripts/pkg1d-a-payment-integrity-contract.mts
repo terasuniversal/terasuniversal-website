@@ -63,11 +63,14 @@ const ACL = { a1: "guard", a2: "cb", a3: "manual", a4: "begin" } as const;
 const TAG = { a1: "a1", a2: "a2", a3: "a3", a4: "a4" } as const;
 
 const CHECKS: { name: string; run: (f: Files) => void }[] = [
-  { name: "tepat empat migrasi PKG-1d-A, selepas PKG-1c dan merupakan fail terakhir", run: (f) => {
+  // R1 (owner-approved R1-G1, 22 Nov 2026): the R1 A5 migration is the one named file allowed after PKG-1d-A; its
+  // content is proven by scripts/r1-schedule-finalization-contract.mts.
+  { name: "tepat empat migrasi PKG-1d-A, selepas PKG-1c, diikuti hanya oleh R1 A5 yang dinamakan", run: (f) => {
     const all = f["@migrations"].split("\n");
     const names = Object.values(M).map((p) => p.split("/").pop()!);
-    assert.deepEqual(all.slice(-4), names);
-    assert.equal(all.at(-5), PKG1C.split("/").pop());
+    assert.equal(all.at(-1), "20261122124000_public_registration_schedule_finalizable_guard.sql");
+    assert.deepEqual(all.slice(-5, -1), names);
+    assert.equal(all.at(-6), PKG1C.split("/").pop());
     for (const n of names) assert.equal(all.filter((x) => x.slice(0, 14) === n.slice(0, 14)).length, 1, `unique version ${n}`);
   } },
   ...(Object.keys(M) as (keyof typeof M)[]).flatMap((k) => [
