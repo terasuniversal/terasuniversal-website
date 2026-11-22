@@ -16,6 +16,25 @@ import { fileURLToPath } from "node:url";
 import { revertPublicFirst, revertPkg1b, PF_CHANGED, PF_ADDED, PF_WITHHELD } from "./public-first-approved.mts";
 import { CONTRACT_BASE, changedSinceBase } from "./contract-base.mts";
 
+// PKG-1d-A (owner-approved, 22 Nov 2026): the registration callback route may differ from the contract base only by
+// these three named edits (provider transaction selection, scripts/pkg1d-a-payment-integrity-contract.mts).
+// revertPkg1dACallback() undoes exactly them -- each must be present exactly once -- so every other byte of the route is
+// still compared with the base and any other change fails this contract.
+const PKG1D_A_CALLBACK_FILE = "app/api/payments/toyyibpay/registration-callback/route.ts";
+const PKG1D_A_CALLBACK_EDITS: [string, string][] = [
+  ["import { blockedCallbackBody, isPreviewIsolationError } from \"../../../../../lib/preview-isolation\";\nimport { selectProviderOutcome } from \"../../../../../lib/payments/registrationCallbackSelection\";\n", "import { blockedCallbackBody, isPreviewIsolationError } from \"../../../../../lib/preview-isolation\";\n"],
+  ["    // PKG-1d-A: the decision comes from the provider rows only; the callback refno merely picks between verified\n    // successful rows of this bill. Logged details are provider transaction ids and amounts, never the raw rows.\n    const outcome = selectProviderOutcome(transactions, value.billcode, value.refno);\n    if (outcome.kind === \"none\") {\n      await logEvent(service, attempt.id, \"no_matching_transaction\", {});\n      return genericResponse();\n    }\n    if (outcome.kind === \"conflict\") {\n      await logEvent(service, attempt.id, \"verification_failed\", { reason: \"provider_record_conflict\", provider_transaction_ids: outcome.transactionIds });\n      return genericResponse();\n    }\n    if (outcome.kind === \"invalid_success\") {\n      await logEvent(service, attempt.id, \"verification_failed\", { reason: \"missing_verified_fields\" });\n      return genericResponse();\n    }\n\n    if (outcome.kind === \"success\") {\n      const transaction = outcome.transaction;\n      for (const extra of outcome.additional) {\n        await logEvent(service, attempt.id, \"verification_failed\", {\n          reason: \"additional_successful_transaction\",\n          provider_transaction_id: extra.providerTransactionId,\n          amount: extra.amount,\n        });\n      }\n", "    const transaction = transactions.find((item) => item.billCode === value.billcode);\n    if (!transaction) {\n      await logEvent(service, attempt.id, \"no_matching_transaction\", {});\n      return genericResponse();\n    }\n\n    if (transaction.providerStatus === \"successful\") {\n      if (!transaction.providerTransactionId || !transaction.amount) {\n        await logEvent(service, attempt.id, \"verification_failed\", { reason: \"missing_verified_fields\" });\n        return genericResponse();\n      }\n"],
+  ["    if (outcome.kind === \"failed\") {\n", "    if (transaction.providerStatus === \"unsuccessful\") {\n"],
+];
+function revertPkg1dACallback(input: string): string {
+  let out = input.replace(/\r\n/g, "\n");
+  for (const [now, before] of PKG1D_A_CALLBACK_EDITS) {
+    if (out.split(now).length !== 2) throw new Error("PKG-1d-A: expected callback route edit not found exactly once");
+    out = out.replace(now, () => before);
+  }
+  return out;
+}
+
 const root = new URL("../", import.meta.url);
 const rootPath = fileURLToPath(root);
 const raw = (path: string) => readFileSync(new URL(path, root));
@@ -152,7 +171,8 @@ check("untouched: legal drafts and their markers, eBook gate, articles, certific
   for (const [path, hash] of Object.entries(UNTOUCHED)) assert.equal(norm16(text(path)), hash, path);
   // PKG-1b (owner-approved): only lib/payments/toyyibpay.ts may differ, and only by its named PKG-1b edits
   // (scripts/public-first-approved.mts); every other ToyyibPay file stays byte-for-byte the release base.
-  const atRelease = (path: string) => (path === "lib/payments/toyyibpay.ts" ? revertPkg1b(path, text(path)) : text(path));
+  // PKG-1d-A (owner-approved): the registration callback may differ only by its named PKG-1d-A edits (above).
+  const atRelease = (path: string) => (path === "lib/payments/toyyibpay.ts" ? revertPkg1b(path, text(path)) : path === PKG1D_A_CALLBACK_FILE ? revertPkg1dACallback(text(path)) : text(path));
   for (const path of PAYMENT_AT_BASE) assert.equal(atRelease(path).replace(/\r\n/g, "\n"), execFileSync("git", ["show", `${CONTRACT_BASE}:${path}`], { cwd: rootPath, encoding: "utf8", maxBuffer: 1 << 26 }).replace(/\r\n/g, "\n"), `${path} must equal the release base`);
   assert.equal(existsSync(new URL("lib/payments/toyyibpay-decision.ts", root)), false, "R2 decision module is not part of this release");
   assert.match(text("app/insights/[slug]/page.js"), /robots: \{ index: false, follow: true \}/, "articles stay noindex");

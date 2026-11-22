@@ -42,11 +42,20 @@ const branchStart = cb.indexOf("    if v_attempt.status = 'processing' then");
 const branchEnd = cb.indexOf("    else\n", branchStart);
 const branch = cb.slice(branchStart, branchEnd);
 
-check("versi: selepas setiap versi migrasi yang diketahui (live dan cawangan lain), dan fail migrasi terakhir", () => {
+// PKG-1d-A (owner-approved, 22 Nov 2026): exactly these four named migrations may follow PKG-1c, in this order. Any
+// other migration sorted after PKG-1c -- before, between or after them -- still fails this check.
+const PKG1D_A_MIGRATIONS = [
+  "20261122120000_public_registration_payment_guard_late_success.sql",
+  "20261122121000_public_registration_late_success_recording.sql",
+  "20261122122000_public_registration_manual_payment_states.sql",
+  "20261122123000_public_registration_begin_payment_paid_guard.sql",
+];
+check("versi: selepas setiap versi migrasi yang diketahui (live dan cawangan lain), dan fail migrasi terakhir kecuali tepat empat migrasi PKG-1d-A yang dinamakan", () => {
   // Known on 21 Nov 2026: Production latest live 20261121112628 (PKG-1), Staging latest live 20261122095000 (CRM), CRM
   // branch files up to 20261122095000, PKG-1 file 20261122100000.
   for (const known of ["20261108100400", "20261119032421", "20261121112628", "20261121130000", "20261122095000", "20261122100000"]) assert.ok(file > known, `${file} <= ${known}`);
-  assert.equal(migrations[migrations.length - 1], file);
+  assert.ok(migrations.includes(file), `missing ${file}`);
+  assert.deepEqual(migrations.slice(migrations.indexOf(file) + 1), PKG1D_A_MIGRATIONS);
 });
 check("skop: tepat dua CREATE OR REPLACE FUNCTION, tandatangan tepat", () => {
   const code = strip(sql);

@@ -70,10 +70,33 @@ check("regression: no later migration grants the registration write RPCs back to
   }
   assert.deepEqual(offenders, []);
 });
-check("regression: no later migration re-creates either RPC (a re-created function could inherit default ACLs)", () => {
-  const offenders = migrations.filter((n) => n > file)
-    .filter((n) => /create\s+(or\s+replace\s+)?function\s+public\.(create_public_registration|begin_public_registration_payment)\b/i.test(strip(read(`supabase/migrations/${n}`))));
+// PKG-1d-A (owner-approved, 22 Nov 2026): exactly one later migration, A4 (paid guard), may re-create
+// begin_public_registration_payment, and only in the form checked below: CREATE OR REPLACE of the same signature with
+// SECURITY DEFINER and the same search_path, no GRANT/REVOKE/ALTER, and an abort unless the privileges after the
+// re-creation equal those captured before it. Effective privileges (anon/authenticated/PUBLIC none, service_role
+// kept) and refused weakening variants are proven on Docker by scripts/pkg1d-a-payment-integrity-db-contract.mts.
+const PKG1D_A4 = "20261122123000_public_registration_begin_payment_paid_guard.sql";
+const RECREATE = /create\s+(or\s+replace\s+)?function\s+public\.(create_public_registration|begin_public_registration_payment)\b/gi;
+check("regression: no later migration re-creates either RPC (a re-created function could inherit default ACLs), except the named PKG-1d-A A4", () => {
+  const offenders = migrations.filter((n) => n > file && n !== PKG1D_A4)
+    .filter((n) => new RegExp(RECREATE.source, "i").test(strip(read(`supabase/migrations/${n}`))));
   assert.deepEqual(offenders, [], "a later re-creation must repeat the PKG-1 revoke/grant and update this contract");
+});
+check("PKG-1d-A A4: the only approved re-creation keeps the signature, SECURITY DEFINER, search_path and privileges", () => {
+  assert.ok(migrations.includes(PKG1D_A4) && PKG1D_A4 > file, `${PKG1D_A4} missing or not after ${file}`);
+  const a4 = strip(read(`supabase/migrations/${PKG1D_A4}`));
+  const creates = a4.match(RECREATE) ?? [];
+  assert.equal(creates.length, 1, `expected one re-creation, found ${creates.length}`);
+  const head = "create or replace function public.begin_public_registration_payment(p_registration_reference text, p_registration_secret text, p_provider text default 'toyyibpay'::text)\n returns jsonb\n language plpgsql\n security definer\n set search_path to 'pg_catalog', 'public', 'extensions'\nas $function$";
+  const at = a4.indexOf(head);
+  assert.ok(at >= 0, "A4 header is not the exact signature / SECURITY DEFINER / search_path");
+  assert.ok(!/^\s*(grant|revoke|alter\s+(function|routine|default\s+privileges))\b/im.test(a4), "A4 must not grant, revoke or alter");
+  const capture = a4.indexOf("perform set_config('pkg1d.acl_begin', coalesce((select proacl::text from pg_proc where oid = v_fn), 'null'), false);");
+  const post = a4.indexOf("if coalesce((select proacl::text from pg_proc where oid = v_fn), 'null') <> current_setting('pkg1d.acl_begin') then\n    raise exception 'pkg1d_a4_postcondition_failed: privileges of begin_public_registration_payment changed' using errcode = 'P0001';");
+  assert.ok(capture >= 0 && capture < at, "A4 must capture the privileges before the re-creation");
+  assert.ok(post > at, "A4 must abort after the re-creation unless the privileges are unchanged");
+  assert.ok(a4.indexOf("if not (select prosecdef from pg_proc where oid = v_fn) then", at) > at, "A4 must assert SECURITY DEFINER after the re-creation");
+  assert.ok(a4.indexOf("is distinct from array['search_path=pg_catalog, public, extensions'] then", at) > at, "A4 must assert the search_path after the re-creation");
 });
 
 // The application: both RPCs are reached only from the two registration routes, and only after the F-1 kill switch.
