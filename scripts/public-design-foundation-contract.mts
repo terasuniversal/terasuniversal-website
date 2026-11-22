@@ -179,8 +179,13 @@ const ROUND1_APPROVED = ["app/layout.js", "app/api/contact/route.js", "app/api/n
 // former allowances are gone -- any change under a protected path other than Round 1 and the named Public-First
 // fixes now fails this contract. Comparisons use the fixed CONTRACT_BASE (scripts/contract-base.mts), not HEAD.
 const changedLines = (path: string) => git(["diff", "-U0", CONTRACT_BASE, "--", path]).split("\n").filter((line) => /^[+-](?![+-])/.test(line));
-check("protected paths have no changes against the contract base except the S5B-1B Round 1 approved files and the PKG-1d-A callback route", () => {
-  const changed = git(["diff", "--name-only", CONTRACT_BASE, "--", ...PROTECTED]).trim().split("\n").filter(Boolean).filter((path) => !ROUND1_APPROVED.includes(path) && !PF_CHANGED.includes(path) && path !== PKG1D_A_CALLBACK_FILE);
+// PKG-1d-B (local, pending owner review, 22 Nov 2026): the read-only staff reconciliation screen may change exactly
+// these admin files and add exactly the one detail page. scripts/pkg1d-b-staff-reconciliation-contract.mts proves their
+// content (Admin guard first, read-only, named evidence keys only) and that admin.css only gains the ta-recon-* block.
+const PKG1D_B_CHANGED = ["app/admin/(protected)/registrations/page.tsx", "app/admin/admin.css"];
+const PKG1D_B_ADDED = ["app/admin/(protected)/registrations/[id]/page.tsx"];
+check("protected paths have no changes against the contract base except the S5B-1B Round 1 approved files, the PKG-1d-A callback route and the PKG-1d-B admin files", () => {
+  const changed = git(["diff", "--name-only", CONTRACT_BASE, "--", ...PROTECTED]).trim().split("\n").filter(Boolean).filter((path) => !ROUND1_APPROVED.includes(path) && !PF_CHANGED.includes(path) && path !== PKG1D_A_CALLBACK_FILE && !PKG1D_B_CHANGED.includes(path) && !PKG1D_B_ADDED.includes(path));
   assert.deepEqual(changed, [], changed.join(", "));
 });
 check("PKG-1d-A: the callback route equals the contract base after reverting exactly the three named edits", () => {
@@ -201,7 +206,7 @@ check("Round 1: API route changes never touch recipients, email sending, persist
   }
 });
 check("protected paths have no new files (committed or untracked) since the contract base", () => {
-  const added = changedSinceBase(PROTECTED).filter((line) => line.startsWith("?? ")).map((line) => line.slice(3)).filter((path) => !PF_ADDED.includes(path));
+  const added = changedSinceBase(PROTECTED).filter((line) => line.startsWith("?? ")).map((line) => line.slice(3)).filter((path) => !PF_ADDED.includes(path) && !PKG1D_B_ADDED.includes(path));
   assert.deepEqual(added, [], added.join(", "));
 });
 check("header css: no token redefinitions, @font-face, @import or url()", () => {

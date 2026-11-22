@@ -1056,3 +1056,36 @@ body:has(.teras-admin) .skip-link { display: none; }
 .ta-reg-attention-label { display: block; margin-bottom: 6px; color: var(--ta-muted); font-size: 12px; font-weight: 600; }
 .ta-reg .ta-card, .ta-reg .ta-sales-report-kpis > * { min-width: 0; }
 @media (max-width: 900px) { .ta-reg-kpis { grid-template-columns: minmax(0, 1fr); } .ta-reg-card .ta-lead-card-action > .ta-btn { min-height: 44px; } .ta-reg .ta-filter-date-group { flex: 1 1 100%; } }
+/* PKG-1d-B staff payment reconciliation (read-only). */
+.ta-recon-overview { margin: 18px 0; }
+.ta-recon-title { font-size: 15px; font-weight: 700; color: var(--ta-navy); margin: 0 0 10px; }
+.ta-recon-buckets { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+.ta-recon-bucket { display: grid; gap: 4px; min-height: 100%; padding: 12px 14px; border: 1px solid var(--ta-line); border-radius: var(--ta-radius); background: var(--ta-white); color: var(--ta-ink); text-decoration: none; }
+.ta-recon-bucket:hover { box-shadow: var(--ta-shadow-hover); }
+.ta-recon-bucket:focus-visible { outline: 2px solid var(--ta-gold); outline-offset: 2px; }
+.ta-recon-bucket.is-active { border-color: var(--ta-navy); box-shadow: inset 3px 0 0 var(--ta-gold); }
+.ta-recon-bucket-count { font-size: 22px; font-weight: 700; color: var(--ta-navy); font-variant-numeric: tabular-nums; }
+.ta-recon-bucket-label { font-size: 13px; font-weight: 600; }
+.ta-recon-bucket-hint { font-size: 12px; color: var(--ta-muted); }
+.ta-recon-warning { background: rgba(200,150,0,.12); color: var(--ta-gold-ink); margin-bottom: 14px; }
+.ta-recon-search.ta-filter-date-group { flex: 1 1 280px; min-width: min(100%, 240px); }
+.ta-recon-breadcrumb { margin-bottom: 8px; font-size: 13px; }
+.ta-recon-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-bottom: 14px; align-items: start; }
+.ta-recon .ta-card { min-width: 0; margin-bottom: 14px; }
+.ta-recon-dl { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 7px 14px; margin: 0; font-size: 13px; overflow-wrap: anywhere; }
+.ta-recon-dl dt { color: var(--ta-muted); font-weight: 600; }
+.ta-recon-dl dd { margin: 0; min-width: 0; }
+.ta-recon-attendees, .ta-recon-evidence { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 12px; }
+.ta-recon-refs code, .ta-recon .ta-reg-grid code { font-size: 12px; overflow-wrap: anywhere; }
+.ta-recon-status { display: inline-block; margin: 2px 0; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--ta-soft); color: var(--ta-ink); }
+.ta-recon-status-paid { background: rgba(31,138,76,.12); color: var(--ta-success); }
+.ta-recon-status-failed, .ta-recon-status-cancelled { background: rgba(214,69,69,.1); color: var(--ta-danger); }
+.ta-recon-status-refunded { background: rgba(200,150,0,.12); color: var(--ta-gold-ink); }
+.ta-recon-attempts { min-width: 860px; }
+.ta-recon-manual { padding: 12px 14px; border-left: 3px solid var(--ta-gold); background: var(--ta-soft); border-radius: var(--ta-radius); }
+.ta-recon-manual p { margin: 0 0 6px; font-size: 13px; }
+.ta-recon-audit { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 10px; font-size: 13px; }
+.ta-recon-audit > li { padding-left: 12px; border-left: 2px solid var(--ta-line); overflow-wrap: anywhere; }
+.ta-recon-audit-head { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
+@media (max-width: 1100px) { .ta-recon-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 900px) { .ta-recon-buckets { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ta-recon-dl { grid-template-columns: 96px minmax(0, 1fr); } .ta-recon-bucket { min-height: 44px; } }

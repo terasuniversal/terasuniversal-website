@@ -50,6 +50,8 @@
     "test:public-registration-positive-fee": "node --experimental-strip-types scripts/public-registration-positive-fee-app-contract.mts",
     "test:public-registration-positive-fee:db": "node --experimental-strip-types scripts/public-registration-positive-fee-db-contract.mts",
     "test:registration-review-queue-contract": "node --experimental-strip-types scripts/registration-review-queue-contract.mts",
+    "test:pkg1d-b-reconciliation": "node --experimental-strip-types scripts/pkg1d-b-reconciliation.test.mts",
+    "test:pkg1d-b-reconciliation-contract": "node --experimental-strip-types scripts/pkg1d-b-staff-reconciliation-contract.mts",
     "test:sales-wave3c-timezone": "node --experimental-strip-types scripts/sales-wave3c-timezone-contract.mts",
     "test:quotation-pdf-layout": "node --experimental-strip-types scripts/quotation-pdf-layout-contract.mts",
     "test:quotation-read-error": "node --experimental-strip-types scripts/quotation-read-error-contract.mts",

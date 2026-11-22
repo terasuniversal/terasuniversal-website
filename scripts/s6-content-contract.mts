@@ -129,7 +129,10 @@ check("protected areas untouched by S6: registration, payments, verify, feedback
     "?? supabase/migrations/20261122121000_public_registration_late_success_recording.sql",
     "?? supabase/migrations/20261122122000_public_registration_manual_payment_states.sql",
     "?? supabase/migrations/20261122123000_public_registration_begin_payment_paid_guard.sql",
-    " M app/api/payments/toyyibpay/registration-callback/route.ts", "?? lib/payments/registrationCallbackSelection.ts"]);
+    " M app/api/payments/toyyibpay/registration-callback/route.ts", "?? lib/payments/registrationCallbackSelection.ts",
+    // PKG-1d-B (local, pending owner review, 22 Nov 2026): package.json gains exactly the two PKG-1d-B test scripts;
+    // scripts/pkg1d-b-staff-reconciliation-contract.mts proves that no other line changed.
+    " M package.json"]);
   for (const line of changed.split("\n").filter(Boolean)) assert.ok(allowed.has(line), line);
 });
 

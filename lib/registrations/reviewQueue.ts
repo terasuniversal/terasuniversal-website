@@ -2,20 +2,19 @@
  * Public Registration Review Queue: pure rules (no imports, no I/O) so every
  * state and exception can be tested without a database.
  *
- * Ground rules, taken from the live schema and RPC source:
- *  - A registration is paid and confirmed in ONE database transaction
- *    (finalize_public_registration_payment_from_callback calls
- *    finalize_public_registration_crm). If CRM finalization fails the whole
- *    transaction rolls back, so the database cannot show "paid but not
- *    confirmed" from that path. A provider charge that was rolled back is NOT
- *    visible in these tables at all. Payment success at Toyyibpay is therefore
- *    never treated as registration completion, and "paid but not confirmed"
- *    is reported as an anomaly, not a normal state.
- *  - A payment that arrives after the registration ended is stored on the
- *    attempt (provider_transaction_id and callback_received_at set) while the
- *    attempt status stays pending/processing/cancelled. That is the only
- *    late-payment signal available without reading raw_response, which this
- *    screen never selects.
+ * Ground rules, taken from the live schema and RPC source (PKG-1c + PKG-1d-A):
+ *  - Payment success at Toyyibpay is never treated as registration completion.
+ *  - "Paid but not confirmed" is a RECORDED state that always needs staff
+ *    review: the payment is kept without a seat when the schedule is full
+ *    (paid_unallocated), or when it arrived after the attempt failed or the
+ *    registration ended (reconciliation_required). It is flagged as an action,
+ *    and the label says which of the two it is.
+ *  - Stored evidence (late success, amount mismatch, transaction conflict,
+ *    success after refund) is turned into reasons by
+ *    lib/registrations/reconciliation.ts and passed in as `extra`; this module
+ *    never sees raw_response.
+ *  - A transaction recorded on an ended registration whose attempt is not paid
+ *    is still reported as a possible late payment (older rows).
  *  - Anything that cannot be confirmed from these rows is reported as UNKNOWN,
  *    not guessed.
  *
@@ -87,6 +86,58 @@ export function pageCount(total: number): number {
   return Math.max(1, Math.ceil(Math.max(0, total) / PAGE_SIZE));
 }
 
+/** PostgREST answers HTTP 416 with this code when a counted range starts past the last row (for example page 2 of an empty list). */
+export const RANGE_NOT_SATISFIABLE = "PGRST103";
+
+export interface PageQueryResult<T> {
+  data: T[] | null;
+  count: number | null;
+  error: { code?: string } | null;
+}
+export interface CountQueryResult {
+  count: number | null;
+  error: { code?: string } | null;
+}
+export type RecoveredPage<T> =
+  | { ok: true; page: number; rows: T[]; count: number }
+  | { ok: false; code: string | undefined; query: "list" | "count" | "list retry" };
+
+/**
+ * Loads one page and, when the requested page lies beyond the end (a stale link, or search/filters that shrank the
+ * list), shows the last valid page instead (page 1 when the list is empty). It retries at most ONCE: one exact count
+ * and one re-fetch, never a loop. Every other error is returned unchanged for the caller to report.
+ */
+export async function fetchPageWithRecovery<T>(
+  requested: number,
+  fetchPage: (page: number) => PromiseLike<PageQueryResult<T>>,
+  countRows: () => PromiseLike<CountQueryResult>,
+): Promise<RecoveredPage<T>> {
+  const first = await fetchPage(requested);
+  let target: number;
+  let knownCount: number | null = null;
+  if (first.error) {
+    if (first.error.code !== RANGE_NOT_SATISFIABLE || requested <= 1) return { ok: false, code: first.error.code, query: "list" };
+    const counted = await countRows();
+    // No exact count is a failure, never "empty": an empty screen must not hide registrations that exist.
+    if (counted.error || counted.count === null) return { ok: false, code: counted.error?.code, query: "count" };
+    knownCount = Math.max(0, counted.count);
+    target = pageCount(knownCount);
+    // A count that still covers the requested page means the 416 was not "past the end": report it, never loop.
+    if (target >= requested) return { ok: false, code: first.error.code, query: "list" };
+  } else {
+    const rows = first.data ?? [];
+    const total = Math.max(0, first.count ?? 0);
+    target = pageCount(total);
+    if (rows.length > 0 || requested <= target) return { ok: true, page: requested, rows, count: total };
+    knownCount = total;
+  }
+  // Nothing matches: page 1, empty, without another query.
+  if (knownCount === 0) return { ok: true, page: 1, rows: [], count: 0 };
+  const retry = await fetchPage(target);
+  if (retry.error) return { ok: false, code: retry.error.code, query: "list retry" };
+  return { ok: true, page: target, rows: retry.data ?? [], count: Math.max(0, retry.count ?? knownCount ?? 0) };
+}
+
 export interface RegistrationInput {
   id: string;
   registration_reference: string;
@@ -139,7 +190,12 @@ export type ExceptionCode =
   | "amount_mismatch"
   | "duplicate_paid_payments"
   | "payment_status_inconsistent"
-  | "provider_outcome_unknown";
+  | "provider_outcome_unknown"
+  // Evidence-based reasons (reconciliation.ts evidenceReasons()).
+  | "late_success"
+  | "amount_mismatch_evidence"
+  | "transaction_conflict"
+  | "success_after_refund";
 
 export type ExceptionSeverity = "action" | "review" | "unknown";
 
@@ -191,6 +247,7 @@ export function classifyRegistration(
   payments: readonly PaymentInput[],
   enrolment: EnrolmentInput,
   now: Date,
+  extra: readonly RegistrationException[] = [],
 ): ClassifiedRegistration {
   const exceptions = new Map<ExceptionCode, RegistrationException>();
   const flag = (code: ExceptionCode, severity: ExceptionSeverity, label: string, detail: string) => {
@@ -226,9 +283,23 @@ export function classifyRegistration(
     flag("bill_creation_failed", "review", "Bill creation failed", "A payment bill was not created or attached cleanly. A bill may exist at the provider.");
   }
 
-  // 4. Paid but not confirmed: should be impossible from the normal path (single transaction).
+  // 4. Paid but not confirmed: a recorded state (PKG-1c / PKG-1d-A) that always needs staff review.
   if ((reg.payment_status === "paid" || paid.length > 0) && status !== "confirmed") {
-    flag("paid_not_confirmed", "action", "Paid, not confirmed", "Payment is recorded as paid but the registration is not confirmed. The normal path makes both changes together, so this needs investigation.");
+    if (ENDED.includes(status) || status === "failed") {
+      flag("paid_not_confirmed", "action", "Paid after the registration ended", "A verified payment is recorded but the registration had already ended or failed, so no seat was allocated. Reconcile with the payer; any refund or re-registration is manual.");
+    } else {
+      flag("paid_not_confirmed", "action", "Paid, seat not allocated", "Payment is recorded but no seat was allocated (for example the schedule was full). Review the schedule capacity; refunds and seat changes are manual.");
+    }
+  }
+
+  // 4b. Reasons from stored payment evidence, computed by the loader. Late-success evidence stays on the attempt for
+  // good; once the registration is confirmed (a seat was allocated later) it is a review item, not an open action.
+  for (const reason of extra) {
+    if (reason.code === "late_success" && status === "confirmed") {
+      flag(reason.code, "review", "Late payment recorded (registration now confirmed)", `${reason.detail} The registration has since been confirmed: check that the payer was not charged twice.`);
+    } else {
+      flag(reason.code, reason.severity, reason.label, reason.detail);
+    }
   }
 
   // 5. Confirmed without a recorded payment (free registrations, amount 0, are excluded).
