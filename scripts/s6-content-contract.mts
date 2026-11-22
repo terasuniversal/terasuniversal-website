@@ -129,7 +129,10 @@ check("protected areas untouched by S6: registration, payments, verify, feedback
     "?? supabase/migrations/20261122121000_public_registration_late_success_recording.sql",
     "?? supabase/migrations/20261122122000_public_registration_manual_payment_states.sql",
     "?? supabase/migrations/20261122123000_public_registration_begin_payment_paid_guard.sql",
-    " M app/api/payments/toyyibpay/registration-callback/route.ts", "?? lib/payments/registrationCallbackSelection.ts"]);
+    " M app/api/payments/toyyibpay/registration-callback/route.ts", "?? lib/payments/registrationCallbackSelection.ts",
+    // R1 (owner-approved R1-G1, 22 Nov 2026): exactly this one migration (A5), which keeps a verified payment when the
+    // schedule is cancelled/completed; scripts/r1-schedule-finalization-contract.mts proves its content.
+    "?? supabase/migrations/20261122124000_public_registration_schedule_finalizable_guard.sql"]);
   for (const line of changed.split("\n").filter(Boolean)) assert.ok(allowed.has(line), line);
 });
 
