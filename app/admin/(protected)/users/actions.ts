@@ -7,6 +7,11 @@ import { requireModuleAccess } from "../../../../lib/auth/session";
 import { outboundDecision } from "../../../../lib/preview-isolation";
 import { MODULE_CATALOG, STAFF_ROLES, type ModuleAccessLevel } from "../../../../lib/auth/rbac";
 import type { UserRole } from "../../../../lib/supabase/database.types";
+import { createClient } from "@supabase/supabase-js";
+import { getSupabasePublishableKey, getSupabaseUrl } from "../../../../lib/supabase/env";
+import { checkSharedRateLimit } from "../../../../lib/rate-limit";
+import { emailLinkRedirectUrl } from "../../../../lib/auth/email-link";
+import { resendDecision } from "../../../../lib/auth/staff-invite";
 
 // Matches the live public.staff_department enum exactly (verified against
 // project iagzkrzeuawaxvacqprk before writing this reconciliation) -- the
@@ -84,10 +89,10 @@ function serviceClientOrError() {
   return { client: createSupabaseServiceClient() } as const;
 }
 
+// Invitation and recovery emails return to /admin/reset-password, which forwards
+// to /admin/auth/confirm (AUTH-1); see lib/auth/email-link.ts.
 function invitationRedirectUrl() {
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "");
-  if (!siteUrl) return null;
-  return `${siteUrl}/admin/reset-password`;
+  return emailLinkRedirectUrl(process.env.NEXT_PUBLIC_SITE_URL);
 }
 
 function requestedModulesOrError(formData: FormData) {
@@ -414,17 +419,44 @@ export async function resendStaffInviteAction(formData: FormData): Promise<void>
   if (!("client" in service)) redirect("/admin/users?error=invite-not-configured");
 
   const supabase = await createSupabaseServerClient();
-  const { data: profile, error: profileError } = await supabase.from("profiles").select("id,email").eq("id", userId.data).maybeSingle();
+  const { data: profile, error: profileError } = await supabase.from("profiles").select("id,email,is_active").eq("id", userId.data).maybeSingle();
   if (profileError) {
     console.error("resendStaffInviteAction: profile lookup failed", { message: profileError.message, userId: userId.data });
     redirect("/admin/users?error=staff-not-found");
   }
   if (!profile) redirect("/admin/users?error=staff-not-found");
 
-  const { error } = await service.client.auth.admin.inviteUserByEmail(profile.email, { redirectTo });
-  if (error) {
-    console.error("resendStaffInviteAction: inviteUserByEmail failed", { message: error.message, userId: profile.id });
+  const { data: authUser, error: authUserError } = await service.client.auth.admin.getUserById(profile.id);
+  if (authUserError || !authUser?.user) {
+    console.error("resendStaffInviteAction: auth user lookup failed", { status: authUserError?.status, userId: profile.id });
     redirect(`/admin/users/${profile.id}?error=invite-not-resent`);
   }
-  redirect(`/admin/users/${profile.id}?resent=1`);
+  // AUTH-1: an inactive account is never re-invited (that would not activate it
+  // anyway), and an already-confirmed account gets a recovery link instead of a
+  // second invitation, which GoTrue rejects with 422 "already registered".
+  const decision = resendDecision({ isActive: profile.is_active === true, emailConfirmedAt: authUser.user.email_confirmed_at ?? null });
+  if (decision === "refuse_inactive") redirect(`/admin/users/${profile.id}?error=staff-inactive`);
+
+  // One email per staff member per 5 minutes; fails closed if the shared limiter is unavailable.
+  const allowed = await checkSharedRateLimit({ key: `staff-invite-resend:${profile.id}`, windowSeconds: 300, maxAttempts: 1, failClosed: true });
+  if (!allowed) redirect(`/admin/users/${profile.id}?error=resend-rate-limited`);
+
+  if (decision === "invite") {
+    const { error } = await service.client.auth.admin.inviteUserByEmail(profile.email, { redirectTo });
+    if (error) {
+      console.error("resendStaffInviteAction: inviteUserByEmail failed", { status: error.status, code: error.code, userId: profile.id });
+      redirect(`/admin/users/${profile.id}?error=invite-not-resent`);
+    }
+    redirect(`/admin/users/${profile.id}?resent=invite`);
+  }
+
+  // Password-setup (recovery) email via the public Auth endpoint -- the same
+  // call the login page's "Forgot password?" makes. No password is set here.
+  const publicClient = createClient(getSupabaseUrl(), getSupabasePublishableKey(), { auth: { persistSession: false, autoRefreshToken: false } });
+  const { error: recoveryError } = await publicClient.auth.resetPasswordForEmail(profile.email, { redirectTo });
+  if (recoveryError) {
+    console.error("resendStaffInviteAction: recovery email failed", { status: recoveryError.status, code: recoveryError.code, userId: profile.id });
+    redirect(`/admin/users/${profile.id}?error=${recoveryError.status === 429 ? "resend-rate-limited" : "invite-not-resent"}`);
+  }
+  redirect(`/admin/users/${profile.id}?resent=recovery`);
 }
