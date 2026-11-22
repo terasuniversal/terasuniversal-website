@@ -133,6 +133,12 @@ check("protected areas untouched by S6: registration, payments, verify, feedback
     // R1 (owner-approved R1-G1, 22 Nov 2026): exactly this one migration (A5), which keeps a verified payment when the
     // schedule is cancelled/completed; scripts/r1-schedule-finalization-contract.mts proves its content.
     "?? supabase/migrations/20261122124000_public_registration_schedule_finalizable_guard.sql"]);
+  // PKG-1d-B-DB-G1 (owner-approved, 22 Nov 2026): exactly these six migrations (M0, M1a, M2, AF1a, AF1b, M3);
+  // scripts/pkg1d-b-db-staff-bank-transfer-contract.mts proves their content.
+  for (const extra of ["?? supabase/migrations/20261124100000_public_registration_manual_payment_already_paid_guard.sql",
+    "?? supabase/migrations/20261124101000_payment_receiving_accounts.sql", "?? supabase/migrations/20261124102000_public_registration_staff_request_id.sql",
+    "?? supabase/migrations/20261124103000_public_registration_additional_funds.sql", "?? supabase/migrations/20261124104000_public_registration_additional_funds_rpcs.sql",
+    "?? supabase/migrations/20261124105000_public_registration_staff_bank_transfer_rpc.sql"]) allowed.add(extra);
   for (const line of changed.split("\n").filter(Boolean)) assert.ok(allowed.has(line), line);
 });
 

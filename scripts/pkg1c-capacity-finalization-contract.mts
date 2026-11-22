@@ -51,6 +51,13 @@ const PKG1D_A_MIGRATIONS = [
   "20261122123000_public_registration_begin_payment_paid_guard.sql",
   // R1 (owner-approved R1-G1, 22 Nov 2026): A5, proven by scripts/r1-schedule-finalization-contract.mts.
   "20261122124000_public_registration_schedule_finalizable_guard.sql",
+  // PKG-1d-B-DB-G1 (owner-approved, 22 Nov 2026): M0, M1a, M2, AF1a, AF1b, M3, proven by scripts/pkg1d-b-db-staff-bank-transfer-contract.mts.
+  "20261124100000_public_registration_manual_payment_already_paid_guard.sql",
+  "20261124101000_payment_receiving_accounts.sql",
+  "20261124102000_public_registration_staff_request_id.sql",
+  "20261124103000_public_registration_additional_funds.sql",
+  "20261124104000_public_registration_additional_funds_rpcs.sql",
+  "20261124105000_public_registration_staff_bank_transfer_rpc.sql",
 ];
 check("versi: selepas setiap versi migrasi yang diketahui (live dan cawangan lain), dan fail migrasi terakhir kecuali tepat empat migrasi PKG-1d-A dan R1 A5 yang dinamakan", () => {
   // Known on 21 Nov 2026: Production latest live 20261121112628 (PKG-1), Staging latest live 20261122095000 (CRM), CRM

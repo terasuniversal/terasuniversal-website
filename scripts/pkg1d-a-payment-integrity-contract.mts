@@ -68,6 +68,12 @@ const CHECKS: { name: string; run: (f: Files) => void }[] = [
   { name: "tepat empat migrasi PKG-1d-A, selepas PKG-1c, diikuti hanya oleh R1 A5 yang dinamakan", run: (f) => {
     const all = f["@migrations"].split("\n");
     const names = Object.values(M).map((p) => p.split("/").pop()!);
+    // PKG-1d-B-DB-G1 (owner-approved, 22 Nov 2026): exactly these six named files follow A5 (removed here, then the R1
+    // checks below run unchanged); scripts/pkg1d-b-db-staff-bank-transfer-contract.mts proves their content.
+    assert.deepEqual(all.splice(-6), ["20261124100000_public_registration_manual_payment_already_paid_guard.sql",
+      "20261124101000_payment_receiving_accounts.sql", "20261124102000_public_registration_staff_request_id.sql",
+      "20261124103000_public_registration_additional_funds.sql", "20261124104000_public_registration_additional_funds_rpcs.sql",
+      "20261124105000_public_registration_staff_bank_transfer_rpc.sql"]);
     assert.equal(all.at(-1), "20261122124000_public_registration_schedule_finalizable_guard.sql");
     assert.deepEqual(all.slice(-5, -1), names);
     assert.equal(all.at(-6), PKG1C.split("/").pop());
