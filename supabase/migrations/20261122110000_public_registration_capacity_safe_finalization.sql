@@ -3,7 +3,10 @@
 -- Why: public.finalize_public_registration_crm(uuid) locks the course schedule but never compares against capacity.
 -- A registration whose 30-minute hold lapsed no longer counts against capacity (create_public_registration only counts
 -- holds with hold_expires_at > now()), so its seat can be taken by another registration; a late ToyyibPay payment or a
--- staff-verified bank transfer for it was still confirmed and enrolled, overbooking the session. Both payment paths
+-- staff-verified bank transfer for it still went on to enrol, where course_schedules_check (seats_taken <= capacity,
+-- kept by app.sync_schedule_seats) raised check_violation and rolled back the whole transaction: the session was not
+-- overbooked, but the verified payment, its transaction id and the audit trail were lost and the caller received an
+-- error. Both payment paths
 -- (finalize_public_registration_payment_from_callback and verify_public_registration_manual_payment) end in
 -- finalize_public_registration_crm, so the capacity decision belongs there, under the schedule lock it already takes.
 --
