@@ -23,9 +23,23 @@ assert.match(staffForm, /module\.key === "hrdf_claims"/);
 assert.match(claimsPage, /requireRole\("editor"\)/);
 assert.match(claimsPage, /requireModuleAccess\("hrdf_claims"\)/);
 assert.match(invoicePage, /const canManage = isAdmin\(profile\.role\)/);
-assert.match(claimCard, /\{canManage &&/);
+// S1 (Owner 2026-11-22): HRD Corp claims are managed in the HRD Corp portal. The claim card is read-only: it imports
+// no server action and renders no form, and the invoice page passes it no management capability.
+assert.doesNotMatch(claimCard, /from "\.\/actions"/);
+assert.doesNotMatch(claimCard, /<form|<button|action=/);
+assert.doesNotMatch(invoicePage, /canManageHrdf|hasModuleAccess\("hrdf_claims", "edit"\)/);
+// The HRDF actions keep their guards and then refuse, so a direct call cannot reach the RPCs.
 assert.match(invoiceActions, /requireRole\("admin"\)/);
+assert.match(invoiceActions, /const HRDF_CLAIM_ACTIONS_ENABLED: boolean = false;/);
+for (const fn of ["createHrdfClaimAction", "transitionHrdfClaimAction", "recordHrdfPaymentAction"]) {
+  const body = invoiceActions.slice(invoiceActions.indexOf(`export async function ${fn}(`));
+  const refuseAt = body.indexOf("if (!HRDF_CLAIM_ACTIONS_ENABLED) fail(");
+  const rpcAt = body.indexOf("supabase.rpc(");
+  assert.ok(refuseAt > 0 && rpcAt > refuseAt, `${fn} refuses before any RPC call`);
+}
 assert.match(invoiceActions, /create_hrdf_claim_for_invoice|transition_hrdf_claim|record_hrdf_payment/);
-assert.match(nav, /key: "hrdf_claims"/);
+// Not in the menu; the legacy list stays reachable read-only for staff who hold HRDF view.
+assert.doesNotMatch(nav, /key: "hrdf_claims"/);
+assert.doesNotMatch(claimsPage, /<form|action=/);
 
 console.log("HRDF Sales view-only source contract: PASS");

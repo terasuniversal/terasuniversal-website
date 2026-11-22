@@ -103,7 +103,8 @@ export default async function ExecutivePage({ searchParams }: { searchParams: Pr
               <Row label="Billed, incl. SST" value={formatRm(kpis.billed.grossCents)} />
               <Row label="of which SST" value={formatRm(kpis.billed.sstCents)} />
               <Row label="Collected" value={formatRm(kpis.collected.grossCents)} />
-              <Row label="of which HRDF (counted once)" value={`${formatRm(kpis.collected.hrdfCents)} · ${kpis.collected.hrdfCount}`} />
+              {/* S1: HRD Corp receipts are recorded as ordinary payments, so an HRDF share of Collected cannot be attributed reliably. */}
+              <Row label="of which HRD Corp" value="Not available" />
               <Row label="Refunded (not in Collected)" value={`${formatRm(kpis.refunded.cents)} · ${kpis.refunded.count}`} />
             </dl>
             <p className="ta-sales-report-note" style={{ marginTop: 12 }}>SST is not split out of Collected because payments do not record a tax portion.</p>
@@ -143,7 +144,7 @@ export default async function ExecutivePage({ searchParams }: { searchParams: Pr
             <ul className="ta-exec-defs">
               <li><strong>Booked</strong>: accepted quotations by acceptance date. Superseded, cancelled, reversed and test quotations are excluded; each opportunity counts once.</li>
               <li><strong>Billed</strong>: issued, partially paid and paid invoices by issue date. Draft and cancelled invoices are excluded.</li>
-              <li><strong>Collected</strong>: successful payments by payment date. Refunded, failed, pending and superseded payments are excluded. HRDF payments are counted once.</li>
+              <li><strong>Collected</strong>: successful payments by payment date. Refunded, failed, pending and superseded payments are excluded. Money received from HRD Corp is included once, as an ordinary payment; it is not shown separately because HRD Corp grants and claims are managed in the HRD Corp portal.</li>
               <li><strong>Outstanding</strong>: balance due on issued invoices right now, after payments and refunds.</li>
             </ul>
           </div>

@@ -19,7 +19,7 @@ export default async function HrdfClaimsPage({ searchParams }: { searchParams: P
   if (status) query = query.eq("status", status);
   const { data: claims, error } = await query;
   return <>
-    <PageHead title="HRDF Claims" subtitle="Operational grant and claim tracking." />
+    <PageHead title="HRDF Claims (legacy, read-only)" subtitle="HRD Corp grants and claims are managed in the official HRD Corp portal. This list only shows records created earlier." />
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
       <Link className="ta-btn ta-btn-outline ta-btn-sm" href="/admin/hrdf-claims">All</Link>
       {HRDF_CLAIM_STATUS_FILTERS.map((item) => <Link key={item} className="ta-btn ta-btn-outline ta-btn-sm" href={`/admin/hrdf-claims?status=${item}`}>{HRDF_CLAIM_STATUS_LABELS[item]}</Link>)}

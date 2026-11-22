@@ -55,12 +55,18 @@ export async function requireRegistrationAccess() {
   return profile;
 }
 
+// S1 (Owner 2026-11-22): register_personal_lead is not deployed, so this action refuses before any database call
+// even if invoked directly. Typed as boolean so re-enabling is a deliberate, reviewed one-line change.
+const LEAD_REGISTRATION_ENABLED: boolean = false;
+const LEAD_REGISTRATION_UNAVAILABLE = "Registration from a lead is not available. Register participants through Training Operations.";
+
 export async function registerPersonalFromLead(
   leadMetadataId: string,
   _prev: PersonalRegState,
   formData: FormData
 ): Promise<PersonalRegState> {
   await requireRegistrationAccess();
+  if (!LEAD_REGISTRATION_ENABLED) return { message: LEAD_REGISTRATION_UNAVAILABLE };
   const parsed = personalRegistrationSchema.safeParse(readForm(formData));
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
