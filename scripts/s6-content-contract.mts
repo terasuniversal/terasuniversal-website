@@ -122,7 +122,14 @@ check("protected areas untouched by S6: registration, payments, verify, feedback
     " M lib/payments/toyyibpay.ts",
     // PKG-1c (owner-approved 21 Nov 2026): exactly this one new migration, which makes the two registration finalization
     // functions capacity-safe; scripts/pkg1c-capacity-finalization-contract.mts proves its content.
-    "?? supabase/migrations/20261122110000_public_registration_capacity_safe_finalization.sql"]);
+    "?? supabase/migrations/20261122110000_public_registration_capacity_safe_finalization.sql",
+    // PKG-1d-A (owner-approved 22 Nov 2026): exactly these four migrations, the callback route's named transaction
+    // selection edits and the pure selection module; scripts/pkg1d-a-payment-integrity-contract.mts proves their content.
+    "?? supabase/migrations/20261122120000_public_registration_payment_guard_late_success.sql",
+    "?? supabase/migrations/20261122121000_public_registration_late_success_recording.sql",
+    "?? supabase/migrations/20261122122000_public_registration_manual_payment_states.sql",
+    "?? supabase/migrations/20261122123000_public_registration_begin_payment_paid_guard.sql",
+    " M app/api/payments/toyyibpay/registration-callback/route.ts", "?? lib/payments/registrationCallbackSelection.ts"]);
   for (const line of changed.split("\n").filter(Boolean)) assert.ok(allowed.has(line), line);
 });
 

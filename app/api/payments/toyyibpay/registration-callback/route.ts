@@ -7,6 +7,7 @@ import {
 } from "../../../../../lib/payments/toyyibpay";
 import { createSupabaseServiceClient } from "../../../../../lib/supabase/server";
 import { blockedCallbackBody, isPreviewIsolationError } from "../../../../../lib/preview-isolation";
+import { selectProviderOutcome } from "../../../../../lib/payments/registrationCallbackSelection";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -119,16 +120,30 @@ export async function POST(request: NextRequest) {
       await logEvent(service, attempt.id, "verification_failed", { reason: "provider_transaction_lookup_failed" });
       return genericResponse();
     }
-    const transaction = transactions.find((item) => item.billCode === value.billcode);
-    if (!transaction) {
+    // PKG-1d-A: the decision comes from the provider rows only; the callback refno merely picks between verified
+    // successful rows of this bill. Logged details are provider transaction ids and amounts, never the raw rows.
+    const outcome = selectProviderOutcome(transactions, value.billcode, value.refno);
+    if (outcome.kind === "none") {
       await logEvent(service, attempt.id, "no_matching_transaction", {});
       return genericResponse();
     }
+    if (outcome.kind === "conflict") {
+      await logEvent(service, attempt.id, "verification_failed", { reason: "provider_record_conflict", provider_transaction_ids: outcome.transactionIds });
+      return genericResponse();
+    }
+    if (outcome.kind === "invalid_success") {
+      await logEvent(service, attempt.id, "verification_failed", { reason: "missing_verified_fields" });
+      return genericResponse();
+    }
 
-    if (transaction.providerStatus === "successful") {
-      if (!transaction.providerTransactionId || !transaction.amount) {
-        await logEvent(service, attempt.id, "verification_failed", { reason: "missing_verified_fields" });
-        return genericResponse();
+    if (outcome.kind === "success") {
+      const transaction = outcome.transaction;
+      for (const extra of outcome.additional) {
+        await logEvent(service, attempt.id, "verification_failed", {
+          reason: "additional_successful_transaction",
+          provider_transaction_id: extra.providerTransactionId,
+          amount: extra.amount,
+        });
       }
       const parsedTime = transaction.transactionTime ? parseToyyibpayTransactionDate(transaction.transactionTime) : null;
       const rawResponse = {
@@ -150,7 +165,7 @@ export async function POST(request: NextRequest) {
       return genericResponse();
     }
 
-    if (transaction.providerStatus === "unsuccessful") {
+    if (outcome.kind === "failed") {
       const { error } = await service.rpc("mark_public_registration_payment_failed_from_callback", {
         p_attempt_id: attempt.id,
         p_bill_code: value.billcode,

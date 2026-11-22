@@ -18,6 +18,25 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { CONTRACT_BASE } from "./contract-base.mts";
 
+// PKG-1d-A (owner-approved, 22 Nov 2026): the registration callback route may differ from the contract base only by
+// these three named edits (provider transaction selection, scripts/pkg1d-a-payment-integrity-contract.mts).
+// revertPkg1dACallback() undoes exactly them -- each must be present exactly once -- so every other byte of the route is
+// still compared with the base and any other change fails this contract.
+const PKG1D_A_CALLBACK_FILE = "app/api/payments/toyyibpay/registration-callback/route.ts";
+const PKG1D_A_CALLBACK_EDITS: [string, string][] = [
+  ["import { blockedCallbackBody, isPreviewIsolationError } from \"../../../../../lib/preview-isolation\";\nimport { selectProviderOutcome } from \"../../../../../lib/payments/registrationCallbackSelection\";\n", "import { blockedCallbackBody, isPreviewIsolationError } from \"../../../../../lib/preview-isolation\";\n"],
+  ["    // PKG-1d-A: the decision comes from the provider rows only; the callback refno merely picks between verified\n    // successful rows of this bill. Logged details are provider transaction ids and amounts, never the raw rows.\n    const outcome = selectProviderOutcome(transactions, value.billcode, value.refno);\n    if (outcome.kind === \"none\") {\n      await logEvent(service, attempt.id, \"no_matching_transaction\", {});\n      return genericResponse();\n    }\n    if (outcome.kind === \"conflict\") {\n      await logEvent(service, attempt.id, \"verification_failed\", { reason: \"provider_record_conflict\", provider_transaction_ids: outcome.transactionIds });\n      return genericResponse();\n    }\n    if (outcome.kind === \"invalid_success\") {\n      await logEvent(service, attempt.id, \"verification_failed\", { reason: \"missing_verified_fields\" });\n      return genericResponse();\n    }\n\n    if (outcome.kind === \"success\") {\n      const transaction = outcome.transaction;\n      for (const extra of outcome.additional) {\n        await logEvent(service, attempt.id, \"verification_failed\", {\n          reason: \"additional_successful_transaction\",\n          provider_transaction_id: extra.providerTransactionId,\n          amount: extra.amount,\n        });\n      }\n", "    const transaction = transactions.find((item) => item.billCode === value.billcode);\n    if (!transaction) {\n      await logEvent(service, attempt.id, \"no_matching_transaction\", {});\n      return genericResponse();\n    }\n\n    if (transaction.providerStatus === \"successful\") {\n      if (!transaction.providerTransactionId || !transaction.amount) {\n        await logEvent(service, attempt.id, \"verification_failed\", { reason: \"missing_verified_fields\" });\n        return genericResponse();\n      }\n"],
+  ["    if (outcome.kind === \"failed\") {\n", "    if (transaction.providerStatus === \"unsuccessful\") {\n"],
+];
+function revertPkg1dACallback(input: string): string {
+  let out = input.replace(/\r\n/g, "\n");
+  for (const [now, before] of PKG1D_A_CALLBACK_EDITS) {
+    if (out.split(now).length !== 2) throw new Error("PKG-1d-A: expected callback route edit not found exactly once");
+    out = out.replace(now, () => before);
+  }
+  return out;
+}
+
 const root = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const read = (rel: string) => readFileSync(path.join(root, rel), "utf8").replace(/\r\n/g, "\n");
 
@@ -404,7 +423,8 @@ await check("N12", "static: service client for writes, strict Origin, gate first
 await check("N12b", "unchanged: status route, both ToyyibPay callbacks and the client flow equal the contract base", () => {
   const atBase = (file: string) => execFileSync("git", ["show", `${CONTRACT_BASE}:${file}`], { cwd: root, encoding: "utf8", maxBuffer: 1 << 26 }).replace(/\r\n/g, "\n");
   for (const file of ["app/api/registration/status/route.ts", "app/api/payments/toyyibpay/callback/route.ts", "app/api/payments/toyyibpay/registration-callback/route.ts", "components/public/PublicRegistrationFlow.tsx"]) {
-    assert.equal(read(file), atBase(file), file);
+    // PKG-1d-A (owner-approved): the registration callback may differ only by its named PKG-1d-A edits (above).
+    assert.equal(file === PKG1D_A_CALLBACK_FILE ? revertPkg1dACallback(read(file)) : read(file), atBase(file), file);
   }
 });
 

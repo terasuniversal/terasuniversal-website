@@ -6,6 +6,25 @@ import { fileURLToPath } from "node:url";
 import { CONTRACT_BASE, changedSinceBase } from "./contract-base.mts";
 import { revertPublicFirst, PF_CHANGED, PF_ADDED, PF_WITHHELD } from "./public-first-approved.mts";
 
+// PKG-1d-A (owner-approved, 22 Nov 2026): the registration callback route may differ from the contract base only by
+// these three named edits (provider transaction selection, scripts/pkg1d-a-payment-integrity-contract.mts).
+// revertPkg1dACallback() undoes exactly them -- each must be present exactly once -- so every other byte of the route is
+// still compared with the base and any other change fails this contract.
+const PKG1D_A_CALLBACK_FILE = "app/api/payments/toyyibpay/registration-callback/route.ts";
+const PKG1D_A_CALLBACK_EDITS: [string, string][] = [
+  ["import { blockedCallbackBody, isPreviewIsolationError } from \"../../../../../lib/preview-isolation\";\nimport { selectProviderOutcome } from \"../../../../../lib/payments/registrationCallbackSelection\";\n", "import { blockedCallbackBody, isPreviewIsolationError } from \"../../../../../lib/preview-isolation\";\n"],
+  ["    // PKG-1d-A: the decision comes from the provider rows only; the callback refno merely picks between verified\n    // successful rows of this bill. Logged details are provider transaction ids and amounts, never the raw rows.\n    const outcome = selectProviderOutcome(transactions, value.billcode, value.refno);\n    if (outcome.kind === \"none\") {\n      await logEvent(service, attempt.id, \"no_matching_transaction\", {});\n      return genericResponse();\n    }\n    if (outcome.kind === \"conflict\") {\n      await logEvent(service, attempt.id, \"verification_failed\", { reason: \"provider_record_conflict\", provider_transaction_ids: outcome.transactionIds });\n      return genericResponse();\n    }\n    if (outcome.kind === \"invalid_success\") {\n      await logEvent(service, attempt.id, \"verification_failed\", { reason: \"missing_verified_fields\" });\n      return genericResponse();\n    }\n\n    if (outcome.kind === \"success\") {\n      const transaction = outcome.transaction;\n      for (const extra of outcome.additional) {\n        await logEvent(service, attempt.id, \"verification_failed\", {\n          reason: \"additional_successful_transaction\",\n          provider_transaction_id: extra.providerTransactionId,\n          amount: extra.amount,\n        });\n      }\n", "    const transaction = transactions.find((item) => item.billCode === value.billcode);\n    if (!transaction) {\n      await logEvent(service, attempt.id, \"no_matching_transaction\", {});\n      return genericResponse();\n    }\n\n    if (transaction.providerStatus === \"successful\") {\n      if (!transaction.providerTransactionId || !transaction.amount) {\n        await logEvent(service, attempt.id, \"verification_failed\", { reason: \"missing_verified_fields\" });\n        return genericResponse();\n      }\n"],
+  ["    if (outcome.kind === \"failed\") {\n", "    if (transaction.providerStatus === \"unsuccessful\") {\n"],
+];
+function revertPkg1dACallback(input: string): string {
+  let out = input.replace(/\r\n/g, "\n");
+  for (const [now, before] of PKG1D_A_CALLBACK_EDITS) {
+    if (out.split(now).length !== 2) throw new Error("PKG-1d-A: expected callback route edit not found exactly once");
+    out = out.replace(now, () => before);
+  }
+  return out;
+}
+
 // Contract for the scoped public design foundation (Phase S1): components/premium/premium.module.css and fonts.js.
 // Proves the kit cannot reach the admin/CRM shell, certificate pages or the attendance print layout, and that the
 // global brand tokens are untouched. Static analysis of repository files only.
@@ -160,9 +179,13 @@ const ROUND1_APPROVED = ["app/layout.js", "app/api/contact/route.js", "app/api/n
 // former allowances are gone -- any change under a protected path other than Round 1 and the named Public-First
 // fixes now fails this contract. Comparisons use the fixed CONTRACT_BASE (scripts/contract-base.mts), not HEAD.
 const changedLines = (path: string) => git(["diff", "-U0", CONTRACT_BASE, "--", path]).split("\n").filter((line) => /^[+-](?![+-])/.test(line));
-check("protected paths have no changes against the contract base except the S5B-1B Round 1 approved files", () => {
-  const changed = git(["diff", "--name-only", CONTRACT_BASE, "--", ...PROTECTED]).trim().split("\n").filter(Boolean).filter((path) => !ROUND1_APPROVED.includes(path) && !PF_CHANGED.includes(path));
+check("protected paths have no changes against the contract base except the S5B-1B Round 1 approved files and the PKG-1d-A callback route", () => {
+  const changed = git(["diff", "--name-only", CONTRACT_BASE, "--", ...PROTECTED]).trim().split("\n").filter(Boolean).filter((path) => !ROUND1_APPROVED.includes(path) && !PF_CHANGED.includes(path) && path !== PKG1D_A_CALLBACK_FILE);
   assert.deepEqual(changed, [], changed.join(", "));
+});
+check("PKG-1d-A: the callback route equals the contract base after reverting exactly the three named edits", () => {
+  const base = git(["show", `${CONTRACT_BASE}:${PKG1D_A_CALLBACK_FILE}`]).replace(/\r\n/g, "\n");
+  assert.ok(revertPkg1dACallback(read(PKG1D_A_CALLBACK_FILE)) === base, "callback route differs from the base beyond the PKG-1d-A edits");
 });
 check("Round 1: app/layout.js changes only the two JSON-LD email values", () => {
   // Public-First F-5 (canonical origin centralised) is reverted first; only the Round 1 lines may then differ from HEAD.
