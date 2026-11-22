@@ -115,9 +115,18 @@ try {
 if (changed.length > 0) {
   const allowed = new Set([A5_FILE, "scripts/r1-schedule-finalization-contract.mts", "scripts/r1-schedule-finalization-db-contract.mts",
     "scripts/s6-content-contract.mts", "scripts/pkg1c-capacity-finalization-contract.mts", "scripts/pkg1d-a-payment-integrity-contract.mts"]);
+  // PKG-1d-B-DB-G1 (owner-approved, 22 Nov 2026): its six migrations and three contract files; their content and the
+  // exact named lines it adds to the existing contracts are proven by scripts/pkg1d-b-db-staff-bank-transfer-contract.mts.
+  for (const f of ["supabase/migrations/20261124100000_public_registration_manual_payment_already_paid_guard.sql",
+    "supabase/migrations/20261124101000_payment_receiving_accounts.sql", "supabase/migrations/20261124102000_public_registration_staff_request_id.sql",
+    "supabase/migrations/20261124103000_public_registration_additional_funds.sql", "supabase/migrations/20261124104000_public_registration_additional_funds_rpcs.sql",
+    "supabase/migrations/20261124105000_public_registration_staff_bank_transfer_rpc.sql", "scripts/pkg1d-b-db-staff-bank-transfer-contract.mts",
+    "scripts/pkg1d-b-db-staff-bank-transfer-db-contract.mts", "scripts/pkg1d-b-db-staff-bank-transfer-db-contract.sql"]) allowed.add(f);
   for (const f of changed) assert.ok(allowed.has(f), `changed file is in scope: ${f}`);
   // The three existing contracts: exactly the named R1 lines, nothing else (an exact list, so widening fails here).
-  const diffLines = (path: string) => execFileSync("git", ["diff", "-U0", base, "--", path], { encoding: "utf8" }).replace(/\r/g, "")
+  // PKG-1d-B-DB-G1: compared within the R1 commit itself (base -> R1), so later packages' named lines are checked by their own contracts.
+  const r1Commit = process.env.TERAS_R1_COMMIT ?? "da93c70b500f502c682cf6e1c1676572030cfb1d";
+  const diffLines = (path: string) => execFileSync("git", ["diff", "-U0", base, r1Commit, "--", path], { encoding: "utf8" }).replace(/\r/g, "")
     .split("\n").filter((l) => /^[+-](?![+-])/.test(l));
   assert.deepEqual([...diffLines("scripts/s6-content-contract.mts"), ...diffLines("scripts/pkg1c-capacity-finalization-contract.mts"),
     ...diffLines("scripts/pkg1d-a-payment-integrity-contract.mts")], R1_GUARD_LINES, "existing contracts changed only by the named R1 lines");
