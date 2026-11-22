@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createSupabaseServerClient, createSupabaseServiceClient } from "../../../../lib/supabase/server";
 import { requireModuleAccess } from "../../../../lib/auth/session";
-import { outboundDecision } from "../../../../lib/preview-isolation";
+import { staffInviteDecision } from "../../../../lib/preview-isolation";
 import { MODULE_CATALOG, STAFF_ROLES, type ModuleAccessLevel } from "../../../../lib/auth/rbac";
 import type { UserRole } from "../../../../lib/supabase/database.types";
 import { createClient } from "@supabase/supabase-js";
@@ -170,10 +170,6 @@ function mapRpcError(raw: string | undefined): string {
  */
 export async function inviteStaffAction(_prev: StaffActionState, formData: FormData): Promise<StaffActionState> {
   await requireModuleAccess("users", "admin");
-  // Preview isolation: never send a real invitation email outside Production.
-  // Runs before any service-role or Auth admin call.
-  const inviteDecision = outboundDecision("staff_invite");
-  if (!inviteDecision.allowed) return { error: inviteDecision.message };
   const parsed = staffSchema.safeParse({
     full_name: formData.get("full_name"),
     email: formData.get("email"),
@@ -190,11 +186,17 @@ export async function inviteStaffAction(_prev: StaffActionState, formData: FormD
   const selectionError = validateAccessSelection(parsed.data.access_mode, requested.modules.length);
   if (selectionError) return selectionError;
 
+  const email = parsed.data.email.toLowerCase();
+  // Preview isolation: a real invitation email goes out only in Production, or
+  // in CRM Staging to an exact allowlisted address (AUTH-1 Option B). Decided
+  // on the server-parsed recipient, before any service-role or Auth admin call.
+  const inviteDecision = staffInviteDecision(email);
+  if (!inviteDecision.allowed) return { error: inviteDecision.message };
+
   const redirectTo = invitationRedirectUrl();
   if (!redirectTo) return { error: "Staff invitations are not configured: NEXT_PUBLIC_SITE_URL is missing." };
   const service = serviceClientOrError();
   if (!("client" in service)) return { error: service.error };
-  const email = parsed.data.email.toLowerCase();
 
   const supabase = await createSupabaseServerClient();
   const { data: existing, error: existingError } = await supabase.from("profiles").select("id").eq("email", email).maybeSingle();
@@ -409,14 +411,10 @@ export async function updateStaffAction(_prev: StaffActionState, formData: FormD
  */
 export async function resendStaffInviteAction(formData: FormData): Promise<void> {
   await requireModuleAccess("users", "admin");
-  // Preview isolation: never send a real invitation email outside Production.
-  if (!outboundDecision("staff_invite").allowed) redirect("/admin/users?error=invite-disabled-non-production");
   const userId = staffUserId.safeParse(formData.get("user_id"));
   if (!userId.success) redirect("/admin/users?error=invalid-staff-account");
   const redirectTo = invitationRedirectUrl();
   if (!redirectTo) redirect("/admin/users?error=invite-not-configured");
-  const service = serviceClientOrError();
-  if (!("client" in service)) redirect("/admin/users?error=invite-not-configured");
 
   const supabase = await createSupabaseServerClient();
   const { data: profile, error: profileError } = await supabase.from("profiles").select("id,email,is_active").eq("id", userId.data).maybeSingle();
@@ -425,6 +423,13 @@ export async function resendStaffInviteAction(formData: FormData): Promise<void>
     redirect("/admin/users?error=staff-not-found");
   }
   if (!profile) redirect("/admin/users?error=staff-not-found");
+
+  // Preview isolation: Production, or CRM Staging to an exact allowlisted
+  // address only (AUTH-1 Option B). The recipient is the stored profile email,
+  // never form input. Runs before any service-role or Auth admin call.
+  if (!staffInviteDecision(profile.email).allowed) redirect(`/admin/users/${profile.id}?error=invite-disabled-non-production`);
+  const service = serviceClientOrError();
+  if (!("client" in service)) redirect("/admin/users?error=invite-not-configured");
 
   const { data: authUser, error: authUserError } = await service.client.auth.admin.getUserById(profile.id);
   if (authUserError || !authUser?.user) {

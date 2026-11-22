@@ -104,6 +104,7 @@ const state = {
   rateAllowed: true,
   setSessionResult: { data: { user: { id: "00000000-0000-0000-0000-0000000000a1" } }, error: null } as any,
   setSessionThrows: null as null | Error,
+  claimsThrows: null as null | Error,
   claims: { data: { claims: { amr: [{ method: "otp", timestamp: NOW - 30 }] } }, error: null } as any,
   calls: { verifyOtp: [], signOut: 0, rateKeys: [], setSession: [], profileWrites: 0 } as Calls,
 };
@@ -122,7 +123,7 @@ mock.module(url("lib/supabase/server.ts"), {
         verifyOtp: async (params: unknown) => { state.calls.verifyOtp.push(params); return state.verifyResult; },
         signOut: async () => { state.calls.signOut += 1; return { error: null }; },
         setSession: async (params: unknown) => { state.calls.setSession.push(params); if (state.setSessionThrows) throw state.setSessionThrows; return state.setSessionResult; },
-        getClaims: async () => state.claims,
+        getClaims: async () => { if (state.claimsThrows) throw state.claimsThrows; return state.claims; },
       },
       from: () => ({
         select: () => ({ eq: () => ({ maybeSingle: async () => state.profile }) }),
@@ -145,6 +146,7 @@ function reset() {
   state.rateAllowed = true;
   state.setSessionResult = { data: { user: { id: "00000000-0000-0000-0000-0000000000a1" } }, error: null };
   state.setSessionThrows = null;
+  state.claimsThrows = null;
   state.claims = { data: { claims: { amr: [{ method: "otp", timestamp: NOW - 30 }] } }, error: null };
   state.calls = { verifyOtp: [], signOut: 0, rateKeys: [], setSession: [], profileWrites: 0 };
 }
@@ -189,6 +191,36 @@ test("disabled account: session discarded, stays inactive", async () => {
   state.profile = { data: { is_active: false }, error: null };
   assert.equal(await run({ token_hash: TOKEN, type: "recovery" }), "/admin/auth/confirm?error=account_inactive");
   assert.equal(state.calls.signOut, 1);
+});
+
+test("C6 token_hash: a session without a recent email-link AMR is discarded (fail closed)", async () => {
+  reset();
+  state.claims = { data: { claims: { amr: [{ method: "password", timestamp: NOW - 5 }] } }, error: null };
+  assert.equal(await run({ token_hash: TOKEN, type: "invite" }), "/admin/auth/confirm?error=session_failed");
+  assert.equal(state.calls.signOut, 1);
+  reset();
+  state.claims = { data: null, error: { name: "AuthInvalidJwtError", status: 401 } };
+  assert.equal(await run({ token_hash: TOKEN, type: "recovery" }), "/admin/auth/confirm?error=session_failed");
+  assert.equal(state.calls.signOut, 1);
+});
+
+test("C6 token_hash: unexpected Auth/network failures fail closed with a redirect, never a throw", async () => {
+  reset();
+  state.verifyResult = { data: null, error: null };
+  assert.equal(await run({ token_hash: TOKEN, type: "invite" }), "/admin/auth/confirm?error=unavailable");
+  reset();
+  state.profile = { data: null, error: { code: "PGRST000" } };
+  assert.equal(await run({ token_hash: TOKEN, type: "invite" }), "/admin/auth/confirm?error=unavailable");
+  assert.equal(state.calls.signOut, 1);
+  reset();
+  state.claimsThrows = Object.assign(new Error("fetch failed"), { name: "AuthRetryableFetchError" });
+  assert.equal(await run({ token_hash: TOKEN, type: "recovery" }), "/admin/auth/confirm?error=network_failed");
+  reset();
+  state.claimsThrows = new Error("boom");
+  assert.equal(await run({ token_hash: TOKEN, type: "recovery" }), "/admin/auth/confirm?error=unavailable");
+  const src = await read("app/admin/auth/confirm/actions.ts");
+  const confirmBody = src.slice(src.indexOf("export async function confirmEmailLink"), src.indexOf("async function verifyEmailLink"));
+  assert.doesNotMatch(confirmBody, /try \{/, "redirect() is never inside a try block");
 });
 
 // ---------------------------------------------------------- source contracts
@@ -337,7 +369,7 @@ test("old reset page only forwards; it no longer calls Auth", async () => {
 test("Resend Invite keeps the guards, refuses inactive, rate-limits, never touches roles or grants", async () => {
   const actions = await read("app/admin/(protected)/users/actions.ts");
   const body = actions.slice(actions.indexOf("export async function resendStaffInviteAction"));
-  const order = ["requireModuleAccess(\"users\", \"admin\")", "outboundDecision(\"staff_invite\")", "refuse_inactive", "checkSharedRateLimit", "inviteUserByEmail", "resetPasswordForEmail"].map((s) => body.indexOf(s));
+  const order = ["requireModuleAccess(\"users\", \"admin\")", "staffInviteDecision(profile.email)", "serviceClientOrError()", "refuse_inactive", "checkSharedRateLimit", "inviteUserByEmail", "resetPasswordForEmail"].map((s) => body.indexOf(s));
   assert.ok(order.every((i) => i > 0) && order.every((i, n) => n === 0 || i > order[n - 1]), `resend steps in order: ${order}`);
   assert.doesNotMatch(body, /update_staff_profile|set_staff_module_access|is_active:\s*true|\.update\(/);
   assert.match(actions, /function invitationRedirectUrl\(\) \{\n  return emailLinkRedirectUrl\(process\.env\.NEXT_PUBLIC_SITE_URL\);/);

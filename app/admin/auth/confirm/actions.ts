@@ -13,6 +13,7 @@ import {
   mapVerifyOtpError,
   parseEmailLinkParams,
   type ConfirmErrorCode,
+  type EmailLinkType,
 } from "../../../../lib/auth/email-link";
 
 function fail(code: string): never {
@@ -34,22 +35,43 @@ export async function confirmEmailLink(formData: FormData): Promise<void> {
   const allowed = await checkSharedRateLimit({ key: `auth-confirm:${hashedClientId(ip)}`, windowSeconds: 60, maxAttempts: 10, failClosed: true });
   if (!allowed) fail("rate_limited");
 
-  const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.auth.verifyOtp({ type: parsed.type, token_hash: parsed.tokenHash });
-  if (error || !data?.user) {
-    console.error("confirmEmailLink: verifyOtp failed", { type: parsed.type, status: error?.status, code: error?.code });
-    fail(mapVerifyOtpError(error));
-  }
-
-  // An inactive account stays inactive: a valid link must not let it in.
-  const { data: profile, error: profileError } = await supabase.from("profiles").select("is_active").eq("id", data.user.id).maybeSingle();
-  if (profileError || !profile?.is_active) {
-    if (profileError) console.error("confirmEmailLink: profile lookup failed", { code: profileError.code });
-    await supabase.auth.signOut();
-    fail(profileError ? "unavailable" : "account_inactive");
-  }
-
+  // redirect() throws, so it stays outside the try: the try only decides the outcome.
+  const outcome = await verifyEmailLink(parsed.type, parsed.tokenHash);
+  if (outcome !== "ok") fail(outcome);
   redirect(SET_PASSWORD_PATH);
+}
+
+async function verifyEmailLink(type: EmailLinkType, tokenHash: string): Promise<"ok" | ConfirmErrorCode> {
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash });
+    if (error || !data?.user) {
+      console.error("confirmEmailLink: verifyOtp failed", { type, status: error?.status, code: error?.code });
+      return mapVerifyOtpError(error);
+    }
+
+    // Same rule as the legacy path: only a fresh email-link (invite/recovery)
+    // session may continue to password setup.
+    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
+    if (claimsError || !hasRecentEmailLinkAuth(claimsData?.claims?.amr, Math.floor(Date.now() / 1000))) {
+      console.error("confirmEmailLink: not a recent email-link session", { type, name: claimsError?.name, status: claimsError?.status });
+      await supabase.auth.signOut();
+      return "session_failed";
+    }
+
+    // An inactive account stays inactive: a valid link must not let it in.
+    const { data: profile, error: profileError } = await supabase.from("profiles").select("is_active").eq("id", data.user.id).maybeSingle();
+    if (profileError || !profile?.is_active) {
+      if (profileError) console.error("confirmEmailLink: profile lookup failed", { code: profileError.code });
+      await supabase.auth.signOut();
+      return profileError ? "unavailable" : "account_inactive";
+    }
+    return "ok";
+  } catch (error) {
+    const e = error as { name?: string; status?: number; code?: string };
+    console.error("confirmEmailLink: unexpected failure", { type, name: e?.name, status: e?.status, code: e?.code });
+    return e?.name === "AuthRetryableFetchError" ? "network_failed" : "unavailable";
+  }
 }
 
 export type LegacySessionResult = { ok: true; next: typeof SET_PASSWORD_PATH } | { ok: false; error: ConfirmErrorCode };

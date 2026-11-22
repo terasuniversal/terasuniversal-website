@@ -24,7 +24,7 @@ export const STAFF_INVITE_MESSAGES: Record<string, string> = {
   "error:resend-rate-limited": "E-mel telah dihantar baru-baru ini. Tunggu 5 minit sebelum mencuba lagi.",
   "error:invite-not-resent": "Jemputan tidak dapat dihantar semula. Cuba lagi sebentar lagi.",
   "error:invite-not-configured": "Jemputan staf belum dikonfigurasi untuk persekitaran ini.",
-  "error:invite-disabled-non-production": "Jemputan staf tidak dihantar di luar Production.",
+  "error:invite-disabled-non-production": "Jemputan staf tidak dihantar dalam persekitaran ini. Di luar Production, hanya alamat Staging yang diluluskan boleh menerima jemputan.",
   "error:invalid-staff-account": "Akaun staf tidak sah.",
   "error:staff-not-found": "Akaun staf tidak ditemui.",
 };
