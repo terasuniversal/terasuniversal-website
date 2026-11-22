@@ -86,6 +86,58 @@ export function pageCount(total: number): number {
   return Math.max(1, Math.ceil(Math.max(0, total) / PAGE_SIZE));
 }
 
+/** PostgREST answers HTTP 416 with this code when a counted range starts past the last row (for example page 2 of an empty list). */
+export const RANGE_NOT_SATISFIABLE = "PGRST103";
+
+export interface PageQueryResult<T> {
+  data: T[] | null;
+  count: number | null;
+  error: { code?: string } | null;
+}
+export interface CountQueryResult {
+  count: number | null;
+  error: { code?: string } | null;
+}
+export type RecoveredPage<T> =
+  | { ok: true; page: number; rows: T[]; count: number }
+  | { ok: false; code: string | undefined; query: "list" | "count" | "list retry" };
+
+/**
+ * Loads one page and, when the requested page lies beyond the end (a stale link, or search/filters that shrank the
+ * list), shows the last valid page instead (page 1 when the list is empty). It retries at most ONCE: one exact count
+ * and one re-fetch, never a loop. Every other error is returned unchanged for the caller to report.
+ */
+export async function fetchPageWithRecovery<T>(
+  requested: number,
+  fetchPage: (page: number) => PromiseLike<PageQueryResult<T>>,
+  countRows: () => PromiseLike<CountQueryResult>,
+): Promise<RecoveredPage<T>> {
+  const first = await fetchPage(requested);
+  let target: number;
+  let knownCount: number | null = null;
+  if (first.error) {
+    if (first.error.code !== RANGE_NOT_SATISFIABLE || requested <= 1) return { ok: false, code: first.error.code, query: "list" };
+    const counted = await countRows();
+    // No exact count is a failure, never "empty": an empty screen must not hide registrations that exist.
+    if (counted.error || counted.count === null) return { ok: false, code: counted.error?.code, query: "count" };
+    knownCount = Math.max(0, counted.count);
+    target = pageCount(knownCount);
+    // A count that still covers the requested page means the 416 was not "past the end": report it, never loop.
+    if (target >= requested) return { ok: false, code: first.error.code, query: "list" };
+  } else {
+    const rows = first.data ?? [];
+    const total = Math.max(0, first.count ?? 0);
+    target = pageCount(total);
+    if (rows.length > 0 || requested <= target) return { ok: true, page: requested, rows, count: total };
+    knownCount = total;
+  }
+  // Nothing matches: page 1, empty, without another query.
+  if (knownCount === 0) return { ok: true, page: 1, rows: [], count: 0 };
+  const retry = await fetchPage(target);
+  if (retry.error) return { ok: false, code: retry.error.code, query: "list retry" };
+  return { ok: true, page: target, rows: retry.data ?? [], count: Math.max(0, retry.count ?? knownCount ?? 0) };
+}
+
 export interface RegistrationInput {
   id: string;
   registration_reference: string;

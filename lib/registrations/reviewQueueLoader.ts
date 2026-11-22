@@ -4,6 +4,7 @@ import { toCents } from "../finance/executiveKpis";
 import {
   PAGE_SIZE,
   classifyRegistration,
+  fetchPageWithRecovery,
   pageCount,
   type AttendeeInput,
   type ClassifiedRegistration,
@@ -82,8 +83,9 @@ export async function loadRegistrationQueue(
   const listColumns =
     "id, registration_reference, created_at, schedule_id, course_id, attendee_count, amount_snapshot, registration_status, payment_status, hold_expires_at";
 
-  const buildList = (page: number) => {
-    let q = supabase.from("public_registrations").select(listColumns, { count: "exact" });
+  // One filter definition for the page and for its exact count (head), so both always describe the same list.
+  const filteredQuery = (head: boolean) => {
+    let q = supabase.from("public_registrations").select(head ? "id" : listColumns, { count: "exact", head });
     if (params.status) q = q.eq("registration_status", params.status);
     if (params.payment) q = q.eq("payment_status", params.payment);
     if (params.attention === "expired_hold") q = q.in("registration_status", OPEN_STATUSES).lte("hold_expires_at", nowIso);
@@ -93,19 +95,28 @@ export async function loadRegistrationQueue(
     if (scope.view === "payment_pending") q = q.in("payment_status", ["pending", "processing"]);
     // Ids come from resolveQueueScope() (uuid-checked); an empty list means "no match", never "no filter".
     if (scope.ids !== null) q = q.in("id", scope.ids.length > 0 ? scope.ids : ["00000000-0000-0000-0000-000000000000"]);
-    const from = (page - 1) * PAGE_SIZE;
-    return q.order("created_at", { ascending: false }).order("id", { ascending: false }).range(from, from + PAGE_SIZE - 1);
+    return q;
   };
+  const buildList = (page: number) => {
+    const from = (page - 1) * PAGE_SIZE;
+    return filteredQuery(false).order("created_at", { ascending: false }).order("id", { ascending: false }).range(from, from + PAGE_SIZE - 1);
+  };
+  const countList = () => filteredQuery(true);
 
   // Independent queries, started together; no await inside the array literal (CLAUDE.md section 5/13).
   const [list, totalCount, expiredCount, paidUnconfirmedCount] = await Promise.all([
-    buildList(params.page),
+    fetchPageWithRecovery<Json>(params.page, buildList, countList),
     supabase.from("public_registrations").select("id", { count: "exact", head: true }),
     supabase.from("public_registrations").select("id", { count: "exact", head: true }).in("registration_status", OPEN_STATUSES).lte("hold_expires_at", nowIso),
     supabase.from("public_registrations").select("id", { count: "exact", head: true }).eq("payment_status", "paid").neq("registration_status", "confirmed"),
   ]);
+  if (!list.ok) {
+    // Query name and error code only: never the message body or any row data.
+    const query = `registrations ${list.query}`;
+    console.error("registration queue query failed", { query, code: list.code });
+    return { ok: false, reason: "query_failed" };
+  }
   for (const [name, result] of [
-    ["registrations", list],
     ["total", totalCount],
     ["expired holds", expiredCount],
     ["paid unconfirmed", paidUnconfirmedCount],
@@ -117,20 +128,11 @@ export async function loadRegistrationQueue(
     }
   }
 
-  const filteredTotal = list.count ?? 0;
+  // A page beyond the end (a stale link, or a search/filter that shrank the list) shows the last valid page, page 1 when empty.
+  const filteredTotal = list.count;
   const totalPages = pageCount(filteredTotal);
-  let page = params.page;
-  let registrations = rowsOf(list.data);
-  // A page beyond the end (for example a stale link) shows the last page rather than an empty screen.
-  if (registrations.length === 0 && filteredTotal > 0 && page > totalPages) {
-    page = totalPages;
-    const retry = await buildList(page);
-    if (retry.error) {
-      console.error("registration queue query failed", { query: "registrations retry", code: retry.error.code });
-      return { ok: false, reason: "query_failed" };
-    }
-    registrations = rowsOf(retry.data);
-  }
+  const page = list.page;
+  const registrations = rowsOf(list.rows);
 
   const summary: QueueSummary = { total: totalCount.count ?? 0, expiredHolds: expiredCount.count ?? 0, paidUnconfirmed: paidUnconfirmedCount.count ?? 0 };
   if (registrations.length === 0) return { ok: true, rows: [], page, totalPages, filteredTotal, summary };

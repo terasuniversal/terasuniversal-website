@@ -12,7 +12,19 @@ import {
   parseSearch,
   parseView,
 } from "../lib/registrations/reconciliation.ts";
-import { classifyRegistration, type PaymentInput, type RegistrationInput } from "../lib/registrations/reviewQueue.ts";
+import { readFileSync } from "node:fs";
+import {
+  MAX_PAGE,
+  PAGE_SIZE,
+  RANGE_NOT_SATISFIABLE,
+  classifyRegistration,
+  fetchPageWithRecovery,
+  pageCount,
+  parseQueueParams,
+  type PageQueryResult,
+  type PaymentInput,
+  type RegistrationInput,
+} from "../lib/registrations/reviewQueue.ts";
 
 // PKG-1d-B staff payment reconciliation: fixture-only checks of the pure rules. No database, no live data.
 
@@ -168,6 +180,172 @@ import { classifyRegistration, type PaymentInput, type RegistrationInput } from 
   // Still an action while the registration is not confirmed.
   const lateOpen = classifyRegistration(reg({ registration_status: "failed", payment_status: "paid" }), att, [paid], none, NOW, evidenceReasons([{ ...NO_EVIDENCE, lateSuccess: true, lateOriginalStatus: "failed" }]));
   assert.equal(lateOpen.exceptions.find((e) => e.code === "late_success")?.severity, "action");
+}
+
+// P-1 (local, pending owner review, 22 Nov 2026): a page beyond the end of the list (HTTP 416 / PGRST103).
+// A fake PostgREST with the real rule: with count=exact, a range that starts past the last row is refused with 416,
+// except offset 0 of an empty list, which is an empty 200.
+{
+  type Row = { id: number; view: string };
+  const makeDb = (data: Row[]) => {
+    const calls = { list: [] as number[], count: 0 };
+    let filter: (r: Row) => boolean = () => true;
+    let fail: { code: string } | null = null;
+    let countFail: { code: string } | null = null;
+    const matching = () => data.filter(filter);
+    return {
+      calls,
+      setFilter: (f: (r: Row) => boolean) => { filter = f; },
+      failWith: (e: { code: string } | null) => { fail = e; },
+      failCountWith: (e: { code: string } | null) => { countFail = e; },
+      fetchPage: async (page: number): Promise<PageQueryResult<Row>> => {
+        calls.list.push(page);
+        if (fail) return { data: null, count: null, error: fail };
+        const all = matching();
+        const from = (page - 1) * PAGE_SIZE;
+        if (from > 0 && from >= all.length) return { data: null, count: null, error: { code: RANGE_NOT_SATISFIABLE } };
+        return { data: all.slice(from, from + PAGE_SIZE), count: all.length, error: null };
+      },
+      countRows: async () => {
+        calls.count += 1;
+        return countFail ? { count: null, error: countFail } : { count: matching().length, error: null };
+      },
+    };
+  };
+  const rows = (n: number, view = "paid_confirmed"): Row[] => Array.from({ length: n }, (_, i) => ({ id: i + 1, view }));
+
+  // T1: page 1, no records: empty page 1, no extra query.
+  {
+    const db = makeDb([]);
+    assert.deepEqual(await fetchPageWithRecovery(1, db.fetchPage, db.countRows), { ok: true, page: 1, rows: [], count: 0 });
+    assert.deepEqual(db.calls, { list: [1], count: 0 });
+  }
+  // T2: page 2, no records: 416 -> one exact count (0) -> page 1, empty; no re-fetch needed.
+  {
+    const db = makeDb([]);
+    assert.deepEqual(await fetchPageWithRecovery(2, db.fetchPage, db.countRows), { ok: true, page: 1, rows: [], count: 0 });
+    assert.deepEqual(db.calls, { list: [2], count: 1 });
+  }
+  // T3: page beyond the last valid page (60 rows = 3 pages; page 7): last page 3 with its 10 rows, one retry.
+  {
+    const db = makeDb(rows(60));
+    const r = await fetchPageWithRecovery(7, db.fetchPage, db.countRows);
+    assert.ok(r.ok && r.page === 3 && r.rows.length === 10 && r.count === 60 && r.rows[0].id === 51, JSON.stringify(r));
+    assert.deepEqual(db.calls, { list: [7, 3], count: 1 });
+    const db2 = makeDb(rows(60));
+    const r2 = await fetchPageWithRecovery(MAX_PAGE, db2.fetchPage, db2.countRows);
+    assert.ok(r2.ok && r2.page === 3, JSON.stringify(r2));
+  }
+  // T4: the valid last page (exactly full, and partial) is returned as asked, one query only.
+  for (const [n, page, len] of [[50, 2, 25], [51, 3, 1], [25, 1, 25]] as const) {
+    const db = makeDb(rows(n));
+    const r = await fetchPageWithRecovery(page, db.fetchPage, db.countRows);
+    assert.ok(r.ok && r.page === page && r.rows.length === len && r.count === n, `${n}/${page}: ${JSON.stringify(r)}`);
+    assert.deepEqual(db.calls, { list: [page], count: 0 }, `${n}/${page}`);
+  }
+  // T5: a search that shrinks the result (page 4 link, search now matches 3 rows): page 1 with the 3 rows.
+  {
+    const db = makeDb(rows(100));
+    db.setFilter((r) => r.id % 33 === 0);
+    const r = await fetchPageWithRecovery(4, db.fetchPage, db.countRows);
+    assert.ok(r.ok && r.page === 1 && r.count === 3 && r.rows.map((x) => x.id).join() === "33,66,99", JSON.stringify(r));
+    const none = makeDb(rows(100));
+    none.setFilter(() => false);
+    assert.deepEqual(await fetchPageWithRecovery(4, none.fetchPage, none.countRows), { ok: true, page: 1, rows: [], count: 0 });
+  }
+  // T6: a filter that lowers the count (page 5 of 120 rows, filter leaves 30 = 2 pages): last valid page 2.
+  {
+    const db = makeDb(rows(120).map((r) => ({ ...r, view: r.id <= 30 ? "late_success" : "paid_confirmed" })));
+    db.setFilter((r) => r.view === "late_success");
+    const r = await fetchPageWithRecovery(5, db.fetchPage, db.countRows);
+    assert.ok(r.ok && r.page === 2 && r.rows.length === 5 && r.count === 30, JSON.stringify(r));
+  }
+  // T7: invalid page values never reach the database as anything but 1..MAX_PAGE.
+  const pageCases: [string | string[] | undefined, number][] = [
+    [undefined, 1], ["", 1], ["0", 1], ["-3", 1], ["abc", 1], ["2.5", 1], ["1e3", 1], ["999999", 1], [" 2", 1],
+    ["2", 2], ["00002", 2], ["10000", MAX_PAGE], ["99999", MAX_PAGE], [["3", "9"], 3],
+  ];
+  for (const [raw, want] of pageCases) assert.equal(parseQueueParams({ page: raw }).page, want, `page=${JSON.stringify(raw)}`);
+  // T8: every other PostgREST error is returned unchanged, with no count and no retry.
+  for (const code of ["PGRST301", "42501", "PGRST116", "57014"]) {
+    const db = makeDb(rows(10));
+    db.failWith({ code });
+    assert.deepEqual(await fetchPageWithRecovery(3, db.fetchPage, db.countRows), { ok: false, code, query: "list" }, code);
+    assert.deepEqual(db.calls, { list: [3], count: 0 }, code);
+  }
+  {
+    // PGRST103 on page 1 is not "past the end": reported, never retried.
+    const db = makeDb(rows(10));
+    db.failWith({ code: RANGE_NOT_SATISFIABLE });
+    assert.deepEqual(await fetchPageWithRecovery(1, db.fetchPage, db.countRows), { ok: false, code: RANGE_NOT_SATISFIABLE, query: "list" });
+    assert.deepEqual(db.calls, { list: [1], count: 0 });
+    // A failing count is reported as a count failure, with no re-fetch.
+    const dbc = makeDb(rows(10));
+    dbc.failCountWith({ code: "57014" });
+    assert.deepEqual(await fetchPageWithRecovery(4, dbc.fetchPage, dbc.countRows), { ok: false, code: "57014", query: "count" });
+    assert.deepEqual(dbc.calls, { list: [4], count: 1 });
+    // A count that comes back without a number is a failure, never shown as an empty list.
+    let refetched = false;
+    const noCount = await fetchPageWithRecovery(
+      4,
+      async (page: number): Promise<PageQueryResult<Row>> => {
+        if (page !== 4) refetched = true;
+        return { data: null, count: null, error: { code: RANGE_NOT_SATISFIABLE } };
+      },
+      async () => ({ count: null, error: null }),
+    );
+    assert.deepEqual(noCount, { ok: false, code: undefined, query: "count" });
+    assert.equal(refetched, false);
+  }
+  // T9: no infinite retry. A database that refuses every page: one count and one re-fetch at most, then an error.
+  {
+    const db = makeDb(rows(60));
+    db.failWith({ code: RANGE_NOT_SATISFIABLE });
+    assert.deepEqual(await fetchPageWithRecovery(9, db.fetchPage, db.countRows), { ok: false, code: RANGE_NOT_SATISFIABLE, query: "list retry" });
+    assert.deepEqual(db.calls, { list: [9, 3], count: 1 });
+    // A count that still covers the requested page (inconsistent 416): reported, no re-fetch.
+    const odd = makeDb(rows(300));
+    odd.failWith({ code: RANGE_NOT_SATISFIABLE });
+    assert.deepEqual(await fetchPageWithRecovery(4, odd.fetchPage, odd.countRows), { ok: false, code: RANGE_NOT_SATISFIABLE, query: "list" });
+    assert.deepEqual(odd.calls, { list: [4], count: 1 });
+    // An empty 200 past the end (a server without the 416) also resolves in one re-fetch and no count.
+    let n = 0;
+    const lenient = async (page: number): Promise<PageQueryResult<Row>> => {
+      n += 1;
+      const all = rows(30);
+      return { data: all.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), count: all.length, error: null };
+    };
+    const r3 = await fetchPageWithRecovery(6, lenient, async () => { throw new Error("count must not be called"); });
+    assert.ok(r3.ok && r3.page === 2 && r3.rows.length === 5 && n === 2, JSON.stringify(r3));
+  }
+  // T10: all seven reconciliation views keep their scope: the recovered page and count are for that view only.
+  {
+    const all = RECONCILIATION_VIEWS.flatMap((v, i) => Array.from({ length: (i + 1) * 7 }, (_, j) => ({ id: i * 1000 + j + 1, view: v as string })));
+    for (const [i, v] of RECONCILIATION_VIEWS.entries()) {
+      const db = makeDb(all);
+      db.setFilter((r) => r.view === v);
+      const want = (i + 1) * 7;
+      const r = await fetchPageWithRecovery(50, db.fetchPage, db.countRows);
+      assert.ok(r.ok && r.count === want && r.page === pageCount(want) && r.rows.length > 0 && r.rows.every((x) => x.view === v), `${v}: ${JSON.stringify(r)}`);
+      assert.ok(db.calls.list.length <= 2 && db.calls.count <= 1, v);
+    }
+  }
+  // The loader: the page and its exact count come from ONE filter definition (status, payment, attention, the seven
+  // views, search ids); only the recovered page reaches the screen; it stays read-only.
+  {
+    const loader = readFileSync("lib/registrations/reviewQueueLoader.ts", "utf8").replace(/\r\n/g, "\n");
+    assert.match(loader, /const buildList = \(page: number\) => \{\n    const from = \(page - 1\) \* PAGE_SIZE;\n    return filteredQuery\(false\)\.order/);
+    assert.match(loader, /const countList = \(\) => filteredQuery\(true\);/);
+    assert.match(loader, /fetchPageWithRecovery<Json>\(params\.page, buildList, countList\)/);
+    assert.equal((loader.match(/select\(head \? "id" : listColumns, \{ count: "exact", head \}\)/g) ?? []).length, 1);
+    for (const f of ['params.status', 'params.payment', 'params.attention === "expired_hold"', 'params.attention === "paid_unconfirmed"',
+      'scope.view === "paid_confirmed"', 'scope.view === "paid_unconfirmed"', 'scope.view === "payment_pending"', 'scope.ids !== null']) {
+      const at = loader.indexOf(`if (${f}`);
+      assert.ok(at > loader.indexOf("const filteredQuery") && at < loader.indexOf("const buildList"), `filter inside the shared definition: ${f}`);
+    }
+    assert.ok(!/buildList\(params\.page\)/.test(loader), "the unrecovered list call is gone");
+    assert.ok(!/\.rpc\(|\.insert\(|\.update\(|\.upsert\(|\.delete\(/.test(loader), "the loader stays read-only");
+  }
 }
 
 console.log("PKG-1d-B reconciliation rule tests passed.");
