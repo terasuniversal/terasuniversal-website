@@ -5489,6 +5489,9 @@ body:has(.teras-admin) .sticky-cta { display: none; }
 .skip-link:focus {
   top: 12px;
 }
+/* W4-a NE-3 (owner-approved): the page <main> receives programmatic focus from the skip link (components/SkipLink.js);
+   it is a landmark, not a control, so no focus ring is drawn around the whole page. */
+#main-content main[tabindex="-1"]:focus { outline: none; }
 
 /* ===== Jump-to-section mini nav (homepage) ===== */
 .jump-nav {
