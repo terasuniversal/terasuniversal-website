@@ -15,7 +15,7 @@ import CourseEnquiryPaths from "../../../components/course/CourseEnquiryPaths";
 import { courseCatalog, findCourse } from "../../../data/courseCatalog";
 import { industries } from "../../../data/industries";
 import { insights } from "../../../data/insights";
-import { getPublicCourseIdentity, getPublishedSchedulesWithState } from "../../../lib/public-content";
+import { courseIdentityFromSchedules, getPublishedSchedulesWithState } from "../../../lib/public-content";
 import { sessionKind } from "../../../lib/session-display";
 import { sessionsForCourse } from "../../../lib/course-session-map";
 import { socialMetadata } from "../../../lib/social-metadata";
@@ -46,7 +46,9 @@ export default async function CoursePage({ params }) {
   const relatedCourses = (course.related || []).map((reference) => findCourse(reference) || courseCatalog.find((item) => item.title === reference)).filter(Boolean);
   const relatedIndustries = industries.filter((industry) => industry.relevantCourseSlugs.includes(course.slug));
   const relatedArticles = insights.filter((article) => Array.isArray(article.body) && (article.relatedCourses || []).includes(`/training/${course.slug}`));
-  const [{ schedules: publicSchedules, error: scheduleLoadError }, canonicalCourse] = await Promise.all([getPublishedSchedulesWithState(), getPublicCourseIdentity(course.slug)]);
+  const { schedules: publicSchedules, error: scheduleLoadError } = await getPublishedSchedulesWithState();
+  // W3-a: the CRM course identity comes from the published sessions already loaded (no anon read of `courses`).
+  const canonicalCourse = courseIdentityFromSchedules(course.slug, publicSchedules);
   // Prefer the explicit stable CRM identity when the public marketing slug
   // differs from the canonical CRM slug/title. Legacy entries may resolve via
   // the published database slug; exact title matching is compatibility-only.

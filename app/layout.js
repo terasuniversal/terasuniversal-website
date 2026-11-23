@@ -2,6 +2,7 @@ import "./globals.css";
 import "./fonts/fallbacks.css";
 import Analytics from "../components/Analytics";
 import StickyCta from "../components/StickyCta";
+import SkipLink from "../components/SkipLink";
 import localFont from "next/font/local";
 import { CANONICAL_ORIGIN } from "../lib/canonical-origin";
 
@@ -98,7 +99,7 @@ export default function RootLayout({ children }) {
         <link rel="prefetch" href="/contact" />
       </head>
       <body>
-        <a href="#main-content" className="skip-link">Skip to main content</a>
+        <SkipLink />
         <div id="main-content">{children}</div>
         <StickyCta />
         <Analytics />

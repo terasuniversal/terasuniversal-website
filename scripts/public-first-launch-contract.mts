@@ -15,6 +15,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { revertPublicFirst, PF_CHANGED, PF_ADDED, PF_WITHHELD } from "./public-first-approved.mts";
 import { CONTRACT_BASE, changedSinceBase } from "./contract-base.mts";
+import { revertToyyibpayInactiveBill, revertToyyibpayInactiveBillInBase } from "./toyyibpay-inactivebill-approved.mts";
 
 const root = new URL("../", import.meta.url);
 const rootPath = fileURLToPath(root);
@@ -150,7 +151,13 @@ check("F-4: /verify uses #667085 for its secondary text; verification logic file
 });
 check("untouched: legal drafts and their markers, eBook gate, articles, certificate logic, site origin and every ToyyibPay file", () => {
   for (const [path, hash] of Object.entries(UNTOUCHED)) assert.equal(norm16(text(path)), hash, path);
-  for (const path of PAYMENT_AT_BASE) assert.equal(text(path).replace(/\r\n/g, "\n"), execFileSync("git", ["show", `${CONTRACT_BASE}:${path}`], { cwd: rootPath, encoding: "utf8", maxBuffer: 1 << 26 }).replace(/\r\n/g, "\n"), `${path} must equal the release base`);
+  for (const path of PAYMENT_AT_BASE) {
+    const current = text(path).replace(/\r\n/g, "\n");
+    const base = execFileSync("git", ["show", `${CONTRACT_BASE}:${path}`], { cwd: rootPath, encoding: "utf8", maxBuffer: 1 << 26 }).replace(/\r\n/g, "\n");
+    // CRM F-PAY-1 NE-1 (owner-approved): only the Inactive Bill classifier edit is undone, on both sides, before comparing.
+    if (path === "lib/payments/toyyibpay.ts") assert.equal(revertToyyibpayInactiveBill(path, current), revertToyyibpayInactiveBillInBase(path, base), `${path} must equal the release base`);
+    else assert.equal(current, base, `${path} must equal the release base`);
+  }
   assert.equal(existsSync(new URL("lib/payments/toyyibpay-decision.ts", root)), false, "R2 decision module is not part of this release");
   assert.match(text("app/insights/[slug]/page.js"), /robots: \{ index: false, follow: true \}/, "articles stay noindex");
 });

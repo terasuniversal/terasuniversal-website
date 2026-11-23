@@ -222,17 +222,58 @@ export async function createBill(input: CreateBillInput): Promise<CreateBillResu
   return { billCode, paymentUrl: `${baseUrl}/${billCode}` };
 }
 
+/**
+ * Outcome of an Inactive Bill call. Only "inactivated" means ToyyibPay confirmed it stopped the bill.
+ * - already_inactive: the bill was inactive before this call (it may also have been paid; undocumented).
+ * - pending_transaction: a payment is in progress on the bill right now.
+ * - failed: any other explicit failure body.
+ * - unknown: anything not matching the documented shapes.
+ */
+export type InactivateBillOutcome = "inactivated" | "already_inactive" | "pending_transaction" | "failed" | "unknown";
+
 export interface InactivateBillResult {
-  /** Best-effort: true only if ToyyibPay's response is recognizably a success. Callers must not assume true on ambiguous responses. */
+  /** True only for the documented, structurally valid success body (outcome "inactivated"). */
   success: boolean;
+  outcome: InactivateBillOutcome;
   raw: unknown;
 }
 
 /**
- * POST /index.php/api/inactiveBill -- compensation call for the
- * provider-orphan-bill scenario (Create Bill HTTP succeeded, the local DB
- * record failed after bounded retries). Never called from any code path
- * that isn't specifically that compensation flow.
+ * Classifies an Inactive Bill response body against the ToyyibPay API reference
+ * (https://toyyibpay.com/apireference/, "Inactive Bill", read 2026-11-23), which lists exactly three responses:
+ *   {"status":"success","result":"Bill status changed to inactive"}
+ *   {"status":"failed","result":"Bill has pending transaction process"}
+ *   {"status":"failed","result":"Bill is inactive"}
+ * Fail-closed: success needs status exactly "success" and a result string that mentions "inactive". The previous
+ * check (anything but "error"/"0"/missing) read both documented "failed" bodies as success, so a manual payment
+ * or a cancellation could proceed while a customer was mid-payment on the bill.
+ */
+export function classifyInactiveBillResponse(raw: unknown): InactivateBillOutcome {
+  let body: unknown = raw;
+  if (Array.isArray(raw)) {
+    if (raw.length !== 1) return "unknown";
+    body = raw[0];
+  }
+  if (body === null || typeof body !== "object" || Array.isArray(body)) return "unknown";
+  const { status, result } = body as Record<string, unknown>;
+  if (typeof status !== "string") return "unknown";
+  const text = typeof result === "string" ? result.trim() : null;
+
+  if (status === "success") return text !== null && /\binactive\b/i.test(text) ? "inactivated" : "unknown";
+  if (status === "failed") {
+    if (text === "Bill is inactive") return "already_inactive";
+    if (text === "Bill has pending transaction process") return "pending_transaction";
+    return "failed";
+  }
+  if (status === "error" || status === "0") return "failed";
+  return "unknown";
+}
+
+/**
+ * POST /index.php/api/inactiveBill. Used by the provider-orphan-bill compensation (Create Bill succeeded but the
+ * local record failed), by the manual payment and invoice cancellation flows (to stop an active bill before the
+ * invoice changes), and by public registration compensation. Transport problems (timeout, network, non-2xx,
+ * non-JSON) throw; callers must treat a throw exactly like success === false.
  */
 export async function inactivateBill(billCode: string): Promise<InactivateBillResult> {
   const { userSecretKey, baseUrl } = getCredentials();
@@ -252,16 +293,8 @@ export async function inactivateBill(billCode: string): Promise<InactivateBillRe
     billCode,
   });
 
-  const first = Array.isArray(raw) ? raw[0] : raw;
-  const status = first && typeof first === "object" && "status" in first ? String((first as Record<string, unknown>).status) : null;
-  // ToyyibPay's exact success-status vocabulary for this endpoint is not
-  // confirmed against a live response -- treat anything other than an
-  // explicit error/failure marker as inconclusive, not as confirmed
-  // success. Callers (the orphan-compensation flow) must log the raw
-  // response either way and never assume success silently.
-  const success = status !== null && status !== "error" && status !== "0";
-
-  return { success, raw };
+  const outcome = classifyInactiveBillResponse(raw);
+  return { success: outcome === "inactivated", outcome, raw };
 }
 
 /**

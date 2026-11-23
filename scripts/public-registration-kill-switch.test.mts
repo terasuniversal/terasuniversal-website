@@ -14,6 +14,7 @@ import { registerHooks } from "node:module";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { CONTRACT_BASE } from "./contract-base.mts";
+import { revertToyyibpayInactiveBill, revertToyyibpayInactiveBillInBase } from "./toyyibpay-inactivebill-approved.mts";
 
 const root = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const FAKES = pathToFileURL(path.join(root, "scripts", "fixtures", "public-registration-gate-fakes.mjs")).href;
@@ -154,7 +155,10 @@ await scenario("K8", "Existing obligations: ToyyibPay callbacks, the status rout
   // compared with the contract base (scripts/contract-base.mts) -- the release base -- with line endings normalised.
   const atBase = (file: string) => execFileSync("git", ["show", `${CONTRACT_BASE}:${file}`], { cwd: root, encoding: "utf8", maxBuffer: 1 << 26 }).replace(/\r\n/g, "\n");
   for (const file of ["app/api/payments/toyyibpay/callback/route.ts", "app/api/payments/toyyibpay/registration-callback/route.ts", "app/api/registration/status/route.ts", "lib/payments/toyyibpay.ts"]) {
-    assert.equal(readFileSync(path.join(root, file), "utf8").replace(/\r\n/g, "\n"), atBase(file), file);
+    const current = readFileSync(path.join(root, file), "utf8").replace(/\r\n/g, "\n");
+    // CRM F-PAY-1 NE-1 (owner-approved): only the Inactive Bill classifier edit is undone, on both sides, before comparing.
+    if (file === "lib/payments/toyyibpay.ts") assert.equal(revertToyyibpayInactiveBill(file, current), revertToyyibpayInactiveBillInBase(file, atBase(file)), file);
+    else assert.equal(current, atBase(file), file);
   }
   assert.equal(existsSync(path.join(root, "lib/payments/toyyibpay-decision.ts")), false, "the R2 decision module is not part of this release");
   assert.equal(outbound.length, 0);

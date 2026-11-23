@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { revertPublicFirst, PF_CHANGED, PF_ADDED, PF_WITHHELD } from "./public-first-approved.mts";
 import { revertW2Privacy } from "./w2-privacy-approved.mts";
 import { CONTRACT_BASE, changedSinceBase } from "./contract-base.mts";
+import { revertW4a } from "./w4a-approved.mts";
 
 // S5B-1B Round 4 (owner-approved, local only): Premium V2 hero and button treatment for the legacy informational
 // heroes and the inline required-field marker on /contact, all through the scoped bridge module. No JSX, form,
@@ -89,7 +90,8 @@ check("forms: components and API routes unchanged in this round", () => {
 });
 check("global stylesheet, root layout and loading boundary are untouched", () => {
   for (const path of ["app/globals.css", "app/loading.js"]) {
-    assert.equal(read(path), execFileSync("git", ["show", `${CONTRACT_BASE}:${path}`], { cwd: rootPath, encoding: "utf8", maxBuffer: 1 << 26 }).replace(/\r\n/g, "\n"), path);
+    // W4-a NE-2/NE-3 (owner-approved): the named globals.css rules are undone first (scripts/w4a-approved.mts).
+    assert.equal(revertW4a(path, read(path)), execFileSync("git", ["show", `${CONTRACT_BASE}:${path}`], { cwd: rootPath, encoding: "utf8", maxBuffer: 1 << 26 }).replace(/\r\n/g, "\n"), path);
   }
   // app/layout.js carries the Round 1 JSON-LD email change only; pinned to that result rather than HEAD.
   assert.equal(sha("app/layout.js"), "6ee5f7105b96c5985c5609b9704ef2792cb3fd37b9d514331c87e272cea02337", "app/layout.js");
