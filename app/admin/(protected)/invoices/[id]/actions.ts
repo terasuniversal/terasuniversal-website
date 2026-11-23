@@ -19,10 +19,16 @@ function fail(invoiceId: string, message: string): never {
   redirect(`/admin/invoices/${invoiceId}?hrdf_error=${encodeURIComponent(message.split(":")[0])}`);
 }
 
+// S1 (Owner 2026-11-22): HRD Corp grants and claims are managed in the official HRD Corp portal, and no UI renders
+// these actions any more. They stay exported (and guarded) so the database contract is unchanged, but refuse to act
+// even if invoked directly. Typed as boolean so re-enabling is a deliberate, reviewed one-line change.
+const HRDF_CLAIM_ACTIONS_ENABLED: boolean = false;
+
 export async function createHrdfClaimAction(invoiceId: string) {
   await requireRole("admin");
   await requireModuleAccess("invoices", "edit");
   await requireModuleAccess("hrdf_claims", "edit"); // creates or settles an HRDF claim, so HRDF edit is needed too
+  if (!HRDF_CLAIM_ACTIONS_ENABLED) fail(invoiceId, "hrdf_managed_in_hrdcorp_portal");
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.rpc("create_hrdf_claim_for_invoice", { p_invoice_id: invoiceId });
   if (error) fail(invoiceId, error.message);
@@ -34,6 +40,7 @@ export async function createHrdfClaimAction(invoiceId: string) {
 export async function transitionHrdfClaimAction(claimId: string, invoiceId: string, formData: FormData) {
   await requireRole("admin");
   await requireModuleAccess("hrdf_claims", "edit");
+  if (!HRDF_CLAIM_ACTIONS_ENABLED) fail(invoiceId, "hrdf_managed_in_hrdcorp_portal");
   const supabase = await createSupabaseServerClient();
   const toStatus = String(formData.get("to_status") ?? "");
   const { error } = await supabase.rpc("transition_hrdf_claim", {
@@ -51,6 +58,7 @@ export async function recordHrdfPaymentAction(claimId: string, invoiceId: string
   await requireRole("admin");
   await requireModuleAccess("invoices", "edit");
   await requireModuleAccess("hrdf_claims", "edit"); // creates or settles an HRDF claim, so HRDF edit is needed too
+  if (!HRDF_CLAIM_ACTIONS_ENABLED) fail(invoiceId, "hrdf_managed_in_hrdcorp_portal");
   const supabase = await createSupabaseServerClient();
   const parsed = recordHrdfPaymentSchema.safeParse({
     payment_provider: formData.get("payment_provider"),

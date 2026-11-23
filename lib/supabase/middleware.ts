@@ -19,7 +19,10 @@ export async function updateSession(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const isAdminArea = pathname.startsWith("/admin");
   const isLogin = pathname === "/admin/login";
-  const isPasswordRecovery = pathname === "/admin/reset-password";
+  // Public email-link entry pages: the one-time token in the link is the credential.
+  // /admin/auth/confirm verifies it only on an explicit POST; /admin/reset-password
+  // forwards older links there.
+  const isPasswordRecovery = pathname === "/admin/reset-password" || pathname === "/admin/auth/confirm";
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const publicKey = supabasePublicKey();
 

@@ -24,7 +24,8 @@ const { canAccessModule } = await import("../lib/auth/rbac.ts");
 const read = (file: string) => readFile(file, "utf8");
 const allItems = NAV.flatMap((group) => group.items);
 
-// 1. No entry removed, renamed or re-pointed (snapshot of origin/main e5a8c6e).
+// 1. No entry removed, renamed or re-pointed (snapshot of origin/main e5a8c6e), except "hrdf_claims", removed
+//    deliberately by S1 (Owner 2026-11-22: HRD Corp claims are managed in the HRD Corp portal).
 assert.deepEqual(
   allItems.map((i) => `${i.key} ${i.href}`),
   [
@@ -34,7 +35,7 @@ assert.deepEqual(
     "assessment /admin/assessment", "assessors /admin/assessors", "legacy_import /admin/participants/legacy-import",
     "certificates /admin/certificates", "cert-templates /admin/certificates/templates",
     "sales /admin/sales", "sales_leads /admin/sales/leads", "sales_opportunities /admin/sales/opportunities",
-    "sales_quotations /admin/sales/quotations", "invoices /admin/invoices", "hrdf_claims /admin/hrdf-claims",
+    "sales_quotations /admin/sales/quotations", "invoices /admin/invoices",
     "sales_followups /admin/sales/follow-ups", "sales_tasks /admin/sales/tasks", "sales_reports /admin/sales/reports",
     "marketing /admin/marketing", "marketing_campaigns /admin/marketing/campaigns", "marketing_contacts /admin/marketing/contacts",
     "news /admin/news", "gallery /admin/gallery", "faq /admin/faq", "downloads /admin/downloads",

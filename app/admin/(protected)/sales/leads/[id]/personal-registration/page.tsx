@@ -1,14 +1,12 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { createSupabaseServerClient } from "../../../../../../../lib/supabase/server";
 import { requireRegistrationAccess } from "./actions";
-import { loadEligibleRegistrationSchedules, checkLeadRegistrationEligibility } from "../../registration-schedules";
-import { PageHead, Card, EmptyState } from "../../../../../../../components/admin/ui";
-import { PersonalRegistrationForm } from "./PersonalRegistrationForm";
+import { PageHead, Card } from "../../../../../../../components/admin/ui";
 
 export const metadata = { title: "Personal Registration — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
 
+// S1 (Owner 2026-11-22): personal registration directly from a lead is unavailable because its database function
+// (register_personal_lead) is not deployed. The supported path is Training Operations.
 export default async function PersonalRegistrationPage({
   params,
 }: {
@@ -16,32 +14,21 @@ export default async function PersonalRegistrationPage({
 }) {
   await requireRegistrationAccess();
   const { id } = await params;
-  const supabase = await createSupabaseServerClient();
-
-  const { data: lead } = await supabase.from("v_sales_lead_inbox").select("*").eq("lead_metadata_id", id).maybeSingle();
-  if (!lead) notFound();
-
-  const eligibility = checkLeadRegistrationEligibility({ status: lead.status, is_test: lead.is_test });
-
   return (
     <>
       <PageHead
         title="Personal Registration"
-        subtitle={`Register an individual course participant from this lead.`}
+        subtitle="Registration from a lead is not available."
         action={<Link href={`/admin/sales/leads/${id}`} className="ta-btn ta-btn-outline">← Back to Lead</Link>}
       />
       <div style={{ maxWidth: 820 }}>
-        <Card title="Registration from Lead">
-          <div className="ta-card-pad">
-            {!eligibility.eligible ? (
-              <EmptyState icon="⚠" message={eligibility.reason!} />
-            ) : (
-              <PersonalRegistrationForm
-                leadMetadataId={id}
-                lead={{ name: lead.contact_name ?? "", email: lead.email ?? "", phone: lead.phone ?? "", company: lead.company ?? "" }}
-                schedules={await loadEligibleRegistrationSchedules()}
-              />
-            )}
+        <Card title="Use Training Operations">
+          <div className="ta-card-pad ta-stack">
+            <p style={{ margin: 0 }}>Create the participant, then assign them to the training schedule.</p>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <Link href="/admin/participants/new" className="ta-btn ta-btn-outline ta-btn-sm">New Participant</Link>
+              <Link href="/admin/schedules" className="ta-btn ta-btn-outline ta-btn-sm">Training Schedules</Link>
+            </div>
           </div>
         </Card>
       </div>

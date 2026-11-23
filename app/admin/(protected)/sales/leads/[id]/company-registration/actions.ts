@@ -6,6 +6,9 @@ import { companyRegistrationSchema, fieldErrors } from "../../../../../../../lib
 import { requireRegistrationAccess } from "../personal-registration/actions";
 import { checkLeadRegistrationEligibility, loadLeadEligibilityState } from "../../registration-schedules";
 
+// S1: see personal-registration/actions.ts. Not exported: a "use server" module may export async functions only.
+const LEAD_REGISTRATION_ENABLED: boolean = false;
+
 export type CompanyRegState = {
   message?: string;
   errors?: Record<string, string>;
@@ -61,6 +64,8 @@ export async function registerCompanyFromLead(
   formData: FormData
 ): Promise<CompanyRegState> {
   await requireRegistrationAccess();
+  // S1 (Owner 2026-11-22): register_company_enrollment is not deployed, so refuse before any database call.
+  if (!LEAD_REGISTRATION_ENABLED) return { message: "Registration from a lead is not available. Register participants through Training Operations." };
   const parsed = companyRegistrationSchema.safeParse(readForm(formData));
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 

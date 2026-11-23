@@ -1,15 +1,12 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { createSupabaseServerClient } from "../../../../../../../lib/supabase/server";
 import { requireRegistrationAccess } from "../personal-registration/actions";
-import { loadEligibleRegistrationSchedules, checkLeadRegistrationEligibility } from "../../registration-schedules";
-import { loadCompanyOptions } from "../../../../participants/loadSchedules";
-import { PageHead, Card, EmptyState } from "../../../../../../../components/admin/ui";
-import { CompanyRegistrationForm } from "./CompanyRegistrationForm";
+import { PageHead, Card } from "../../../../../../../components/admin/ui";
 
 export const metadata = { title: "Company Registration — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
 
+// S1 (Owner 2026-11-22): company registration directly from a lead is unavailable because its database function
+// (register_company_enrollment) is not deployed. The supported path is Training Operations.
 export default async function CompanyRegistrationPage({
   params,
 }: {
@@ -17,34 +14,22 @@ export default async function CompanyRegistrationPage({
 }) {
   await requireRegistrationAccess();
   const { id } = await params;
-  const supabase = await createSupabaseServerClient();
-
-  const { data: lead } = await supabase.from("v_sales_lead_inbox").select("*").eq("lead_metadata_id", id).maybeSingle();
-  if (!lead) notFound();
-
-  const eligibility = checkLeadRegistrationEligibility({ status: lead.status, is_test: lead.is_test });
-  const [schedules, companies] = await Promise.all([loadEligibleRegistrationSchedules(), loadCompanyOptions()]);
-
   return (
     <>
       <PageHead
         title="Company Registration"
-        subtitle={`Enroll multiple participants from this company lead into one existing schedule.`}
+        subtitle="Registration from a lead is not available."
         action={<Link href={`/admin/sales/leads/${id}`} className="ta-btn ta-btn-outline">← Back to Lead</Link>}
       />
-      <div style={{ maxWidth: 900 }}>
-        <Card title="Registration from Lead">
-          <div className="ta-card-pad">
-            {!eligibility.eligible ? (
-              <EmptyState icon="⚠" message={eligibility.reason!} />
-            ) : (
-              <CompanyRegistrationForm
-                leadMetadataId={id}
-                lead={{ company: lead.company ?? "", name: lead.contact_name ?? "" }}
-                schedules={schedules}
-                companies={companies}
-              />
-            )}
+      <div style={{ maxWidth: 820 }}>
+        <Card title="Use Training Operations">
+          <div className="ta-card-pad ta-stack">
+            <p style={{ margin: 0 }}>Create each employee as a participant (select the company), or import them in bulk, then assign them to the training schedule.</p>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <Link href="/admin/participants/new" className="ta-btn ta-btn-outline ta-btn-sm">New Participant</Link>
+              <Link href="/admin/participants/import" className="ta-btn ta-btn-outline ta-btn-sm">Import Participants</Link>
+              <Link href="/admin/schedules" className="ta-btn ta-btn-outline ta-btn-sm">Training Schedules</Link>
+            </div>
           </div>
         </Card>
       </div>

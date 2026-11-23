@@ -271,12 +271,17 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
             <Card title="Registration">
               <div className="ta-card-pad ta-stack">
                 {registrationEligibility.eligible ? (
+                  // S1: registration directly from a lead is unavailable (its database functions are not deployed).
+                  // Participants are registered through Training Operations instead.
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    <Link href={`/admin/sales/leads/${id}/personal-registration`} className="ta-btn ta-btn-outline ta-btn-sm">
-                      Personal Registration
+                    <p style={{ margin: 0, fontSize: 13, color: "var(--ta-muted)" }}>
+                      Register participants through Training Operations: create the participant (with the company), then assign them to the schedule.
+                    </p>
+                    <Link href="/admin/participants/new" className="ta-btn ta-btn-outline ta-btn-sm">
+                      New Participant
                     </Link>
-                    <Link href={`/admin/sales/leads/${id}/company-registration`} className="ta-btn ta-btn-outline ta-btn-sm">
-                      Company Registration
+                    <Link href="/admin/schedules" className="ta-btn ta-btn-outline ta-btn-sm">
+                      Training Schedules
                     </Link>
                   </div>
                 ) : (
