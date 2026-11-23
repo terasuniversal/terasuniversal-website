@@ -99,3 +99,10 @@
   .hdr :global(.mobile-contact) a:focus-visible { background: rgba(255, 255, 255, 0.08); }
   .hdr :global(.menu-button) { width: 44px; height: 44px; padding: 10px; }
 }
+/* W4-a NE-1 (owner-approved): below 360px the four controls (54px logo, Sessions, Contact, menu) did not fit, so the
+   Contact label (47px) overflowed its 44px box. Tighter spacing only on these widths; every control keeps a 44px target. */
+@media (max-width: 359px) {
+  .hdr .hdrRow { gap: 6px; padding-inline: 16px; }
+  .regCta { padding: 0 8px; }
+  .hdr :global(.contact-button) { flex: none; padding: 0 6px; }
+}
