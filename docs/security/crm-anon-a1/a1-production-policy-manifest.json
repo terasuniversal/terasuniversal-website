@@ -1,0 +1,419 @@
+{
+ "project": "iagzkrzeuawaxvacqprk",
+ "state": "pre-R1 (R1 NOT applied). DO NOT apply the Staging A1 file here: its preflight requires the split *_editor_select policies and fails closed on the four FOR ALL *_editor_all policies.",
+ "captured": "2026-11-23 read-only",
+ "fingerprint_sql": "md5(string_agg(concat_ws('|',tablename,policyname,permissive,roles::text,cmd,qual,with_check), E'\n' order by tablename,policyname)) over pg_policies (schemaname='public')",
+ "pinned": {
+  "targets_9": "ab5ae2237f4f5d40e676a9f22de90141",
+  "nine_tables_29": "f9ce81acd4972193fb3f004a6c1e5c3e",
+  "total_policies": 167,
+  "migrations": 166
+ },
+ "difference_vs_staging": "Group B targets are FOR ALL *_editor_all (qual and with_check app.is_editor()) instead of SELECT *_editor_select; Group A insert/update policies lack the R1 module condition. Production A1 needs its own manifest/migration, sequenced after the Production R1 decision (if R1 lands first, the Staging file applies unchanged).",
+ "policies": [
+  {
+   "schema": "public",
+   "table": "downloads",
+   "policy": "downloads_admin_delete",
+   "cmd": "DELETE",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "app.is_admin()",
+   "with_check": null,
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "downloads",
+   "policy": "downloads_editor_insert",
+   "cmd": "INSERT",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": null,
+   "with_check": "app.is_editor()",
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "downloads",
+   "policy": "downloads_editor_read",
+   "cmd": "SELECT",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "app.is_editor()",
+   "with_check": null,
+   "a1_target": true,
+   "proposed_roles": [
+    "authenticated"
+   ]
+  },
+  {
+   "schema": "public",
+   "table": "downloads",
+   "policy": "downloads_editor_update",
+   "cmd": "UPDATE",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "app.is_editor()",
+   "with_check": "app.is_editor()",
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "downloads",
+   "policy": "downloads_public_read",
+   "cmd": "SELECT",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "((status = 'published'::content_status) AND (deleted_at IS NULL))",
+   "with_check": null,
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "faq_categories",
+   "policy": "faq_categories_editor_all",
+   "cmd": "ALL",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "app.is_editor()",
+   "with_check": "app.is_editor()",
+   "a1_target": true,
+   "proposed_roles": [
+    "authenticated"
+   ]
+  },
+  {
+   "schema": "public",
+   "table": "faqs",
+   "policy": "faqs_admin_delete",
+   "cmd": "DELETE",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "app.is_admin()",
+   "with_check": null,
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "faqs",
+   "policy": "faqs_editor_insert",
+   "cmd": "INSERT",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": null,
+   "with_check": "app.is_editor()",
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "faqs",
+   "policy": "faqs_editor_read",
+   "cmd": "SELECT",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "app.is_editor()",
+   "with_check": null,
+   "a1_target": true,
+   "proposed_roles": [
+    "authenticated"
+   ]
+  },
+  {
+   "schema": "public",
+   "table": "faqs",
+   "policy": "faqs_editor_update",
+   "cmd": "UPDATE",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "app.is_editor()",
+   "with_check": "app.is_editor()",
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "faqs",
+   "policy": "faqs_public_read",
+   "cmd": "SELECT",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "((status = 'published'::content_status) AND (deleted_at IS NULL))",
+   "with_check": null,
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "gallery_categories",
+   "policy": "gallery_categories_editor_all",
+   "cmd": "ALL",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "app.is_editor()",
+   "with_check": "app.is_editor()",
+   "a1_target": true,
+   "proposed_roles": [
+    "authenticated"
+   ]
+  },
+  {
+   "schema": "public",
+   "table": "gallery_images",
+   "policy": "gallery_images_admin_delete",
+   "cmd": "DELETE",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "app.is_admin()",
+   "with_check": null,
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "gallery_images",
+   "policy": "gallery_images_editor_insert",
+   "cmd": "INSERT",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": null,
+   "with_check": "app.is_editor()",
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "gallery_images",
+   "policy": "gallery_images_editor_read",
+   "cmd": "SELECT",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "app.is_editor()",
+   "with_check": null,
+   "a1_target": true,
+   "proposed_roles": [
+    "authenticated"
+   ]
+  },
+  {
+   "schema": "public",
+   "table": "gallery_images",
+   "policy": "gallery_images_editor_update",
+   "cmd": "UPDATE",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "app.is_editor()",
+   "with_check": "app.is_editor()",
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "gallery_images",
+   "policy": "gallery_images_public_read",
+   "cmd": "SELECT",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "((status = 'published'::content_status) AND (deleted_at IS NULL))",
+   "with_check": null,
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "media",
+   "policy": "media_admin_delete",
+   "cmd": "DELETE",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "app.is_admin()",
+   "with_check": null,
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "media",
+   "policy": "media_editor_insert",
+   "cmd": "INSERT",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": null,
+   "with_check": "app.is_editor()",
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "media",
+   "policy": "media_editor_read",
+   "cmd": "SELECT",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "app.is_editor()",
+   "with_check": null,
+   "a1_target": true,
+   "proposed_roles": [
+    "authenticated"
+   ]
+  },
+  {
+   "schema": "public",
+   "table": "media",
+   "policy": "media_editor_update",
+   "cmd": "UPDATE",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "app.is_editor()",
+   "with_check": "app.is_editor()",
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "media",
+   "policy": "media_public_read",
+   "cmd": "SELECT",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "((status = 'published'::content_status) AND (deleted_at IS NULL))",
+   "with_check": null,
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "media_folders",
+   "policy": "media_folders_editor_all",
+   "cmd": "ALL",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "app.is_editor()",
+   "with_check": "app.is_editor()",
+   "a1_target": true,
+   "proposed_roles": [
+    "authenticated"
+   ]
+  },
+  {
+   "schema": "public",
+   "table": "news_categories",
+   "policy": "news_categories_editor_all",
+   "cmd": "ALL",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "app.is_editor()",
+   "with_check": "app.is_editor()",
+   "a1_target": true,
+   "proposed_roles": [
+    "authenticated"
+   ]
+  },
+  {
+   "schema": "public",
+   "table": "news_posts",
+   "policy": "news_posts_admin_delete",
+   "cmd": "DELETE",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "app.is_admin()",
+   "with_check": null,
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "news_posts",
+   "policy": "news_posts_editor_insert",
+   "cmd": "INSERT",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": null,
+   "with_check": "app.is_editor()",
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "news_posts",
+   "policy": "news_posts_editor_read",
+   "cmd": "SELECT",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "app.is_editor()",
+   "with_check": null,
+   "a1_target": true,
+   "proposed_roles": [
+    "authenticated"
+   ]
+  },
+  {
+   "schema": "public",
+   "table": "news_posts",
+   "policy": "news_posts_editor_update",
+   "cmd": "UPDATE",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "app.is_editor()",
+   "with_check": "app.is_editor()",
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "news_posts",
+   "policy": "news_posts_public_read",
+   "cmd": "SELECT",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "((status = 'published'::content_status) AND (deleted_at IS NULL))",
+   "with_check": null,
+   "a1_target": false
+  }
+ ]
+}
