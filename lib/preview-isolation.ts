@@ -392,6 +392,78 @@ export function outboundDecision(channel: OutboundChannel, env: Env = process.en
   return { allowed: false, status: 503, code: "outbound_disabled_non_production", channel, message: OUTBOUND_MESSAGES[channel] };
 }
 
+// ---------------------------------------------------------------------------
+// 3b. Staff invitations: Production, or the CRM Staging allowlist (AUTH-1 Option B)
+// ---------------------------------------------------------------------------
+
+/** The only non-Production Vercel target that may send staff invitations. */
+export const STAGING_INVITE_TARGET_NAME = "staging";
+/** The only non-Production Supabase project that may send staff invitations (canonical CRM Staging). */
+export const STAGING_INVITE_SUPABASE_PROJECT_REF = "eokiaehnvzbggmacifcf";
+/** Comma-separated exact recipient addresses. Server-side env only; never NEXT_PUBLIC_. */
+export const STAGING_INVITE_ALLOWLIST_ENV = "TERAS_STAGING_INVITE_ALLOWLIST";
+
+const ALLOWLIST_MAX_ENTRIES = 10;
+// Deliberately narrow: no wildcards, no spaces, no quoted local parts.
+const ALLOWLIST_EMAIL = /^[a-z0-9](?:[a-z0-9._+-]{0,62}[a-z0-9])?@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/;
+
+export type StaffInviteDenyReason =
+  | "not_staging_target"
+  | "project_ref_mismatch"
+  | "privileged_config_invalid"
+  | "allowlist_missing"
+  | "allowlist_malformed"
+  | "recipient_invalid"
+  | "recipient_not_allowlisted";
+
+export type StaffInviteDecision =
+  | { allowed: true; scope: "production" | "staging_allowlist" }
+  | (Extract<OutboundDecision, { allowed: false }> & { reason: StaffInviteDenyReason });
+
+/** Strict parse: any bad entry rejects the whole list (fail closed). */
+export function parseStagingInviteAllowlist(raw: unknown): { ok: true; emails: Set<string> } | { ok: false; reason: "allowlist_missing" | "allowlist_malformed" } {
+  if (typeof raw !== "string" || raw.trim() === "") return { ok: false, reason: "allowlist_missing" };
+  const entries = raw.split(",").map((entry) => entry.trim().toLowerCase());
+  if (entries.length > ALLOWLIST_MAX_ENTRIES) return { ok: false, reason: "allowlist_malformed" };
+  if (entries.some((entry) => entry === "" || !ALLOWLIST_EMAIL.test(entry))) return { ok: false, reason: "allowlist_malformed" };
+  return { ok: true, emails: new Set(entries) };
+}
+
+/**
+ * Decide whether a staff invitation/recovery email may go to this recipient.
+ *
+ * Production keeps its existing behavior (outboundDecision). Outside Production
+ * the ONLY exception is the canonical CRM Staging environment, and only for an
+ * exact address on a server-side allowlist, so Staging invitation UAT can run
+ * without opening email to arbitrary addresses. Generic Preview, Development,
+ * other custom environments, a different Supabase project, or any missing or
+ * malformed setting all deny. The recipient is the server-side value (parsed
+ * form email or the stored profile email), never a client-supplied flag.
+ */
+export function staffInviteDecision(recipientEmail: unknown, env: Env = process.env): StaffInviteDecision {
+  const base = outboundDecision("staff_invite", env);
+  if (base.allowed) return { allowed: true, scope: "production" };
+  const deny = (reason: StaffInviteDenyReason): StaffInviteDecision => ({ ...base, reason });
+
+  const resolved = resolveDeploymentTarget(env);
+  if (resolved.target !== "custom" || resolved.name !== STAGING_INVITE_TARGET_NAME) return deny("not_staging_target");
+
+  const approvedRef = clean(env[APPROVED_SUPABASE_REF_ENV]);
+  const urlRef = projectRefFromUrl(clean(env.NEXT_PUBLIC_SUPABASE_URL));
+  if (approvedRef !== STAGING_INVITE_SUPABASE_PROJECT_REF || urlRef !== STAGING_INVITE_SUPABASE_PROJECT_REF) return deny("project_ref_mismatch");
+  const privileged = validatePrivilegedSupabaseConfig(env);
+  if (!privileged.ok || privileged.projectRef !== STAGING_INVITE_SUPABASE_PROJECT_REF) return deny("privileged_config_invalid");
+
+  const allowlist = parseStagingInviteAllowlist(env[STAGING_INVITE_ALLOWLIST_ENV]);
+  if (!allowlist.ok) return deny(allowlist.reason);
+
+  if (typeof recipientEmail !== "string") return deny("recipient_invalid");
+  const recipient = recipientEmail.trim().toLowerCase();
+  if (!ALLOWLIST_EMAIL.test(recipient)) return deny("recipient_invalid");
+  if (!allowlist.emails.has(recipient)) return deny("recipient_not_allowlisted");
+  return { allowed: true, scope: "staging_allowlist" };
+}
+
 /** JSON body for a blocked route response. Explicit failure -- never a simulated success. */
 export function blockedOutboundBody(decision: Extract<OutboundDecision, { allowed: false }>) {
   return { error: decision.message, code: decision.code, channel: decision.channel };

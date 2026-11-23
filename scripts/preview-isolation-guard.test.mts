@@ -369,7 +369,8 @@ await check("users/actions.ts: staff invite guards run before the service client
     const start = code.indexOf(fn);
     assert.ok(start >= 0, fn);
     const body = code.slice(start);
-    const guard = body.search(/outboundDecision\("staff_invite"\)/);
+    // AUTH-1 Option B: the recipient-aware staffInviteDecision wraps outboundDecision("staff_invite").
+    const guard = body.search(/staffInviteDecision\((?:email|profile\.email)\)/);
     const external = firstIndexOf(body, [/serviceClientOrError\(\)/, /inviteUserByEmail\(/]);
     assert.ok(guard >= 0 && guard < external, `${fn}: guard must precede service client and inviteUserByEmail`);
   }

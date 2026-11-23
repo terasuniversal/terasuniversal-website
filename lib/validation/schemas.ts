@@ -454,6 +454,14 @@ export const changePasswordSchema = z.object({
 
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 
+/** First password after an invitation, or a new one after a recovery link (no current password exists to prove). */
+export const setPasswordSchema = z.object({
+  new_password: z.string().min(10, "Kata laluan mesti sekurang-kurangnya 10 aksara.").max(128, "Kata laluan terlalu panjang."),
+  confirm_password: z.string().min(1, "Sila sahkan kata laluan baharu."),
+});
+
+export type SetPasswordInput = z.infer<typeof setPasswordSchema>;
+
 /**
  * Bounds on the free-text certificate-template config fields that render
  * directly onto the fixed-height, overflow:hidden A4 certificate pages
