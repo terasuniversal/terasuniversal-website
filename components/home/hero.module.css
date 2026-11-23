@@ -7,7 +7,9 @@
 .hero {
   /* Copy column reserved on the left. The illustration's first worker starts at 44.6% of its width, so the image is never
      wider than (space right of the copy) / (1 - 0.446); 40px keeps a gap and absorbs the scrollbar inside 100vw. */
-  --hero-copy: 520px;
+  /* W8-H-b (owner-approved, R3 two-line headline): wide enough for "Empowering Industry." on one line at 64px; measured to
+     keep at least 40px clear of the first worker from 1500px up. */
+  --hero-copy: 720px;
   --hero-media-w: min(1230px, calc((100vw - max(0px, (100vw - var(--px-max)) / 2) - var(--px-m) - var(--hero-copy) - 40px) / 0.554));
   position: relative; display: flex; align-items: center;
   min-height: max(clamp(600px, calc(100svh - 120px), 820px), calc(var(--hero-media-w) / 1.7768));
@@ -44,8 +46,10 @@
 
 /* Narrow desktops: a slimmer copy column and stacked actions, so the image can stay large without reaching the copy. */
 @media (min-width: 1181px) and (max-width: 1499px) {
-  .hero { --hero-copy: 410px; }
-  .copy .title { font-size: 3.125rem; }
+  /* W8-H-b (owner-approved): two-line 52px headline as in R3 (was three lines at 50px in a 410px column); measured to keep
+     at least 66px clear of the first worker at 1181-1499px. */
+  .hero { --hero-copy: 620px; }
+  .copy .title { font-size: 3.25rem; }
   .copy .lead { font-size: 1.125rem; }
   .acts { flex-direction: column; align-items: flex-start; }
 }
