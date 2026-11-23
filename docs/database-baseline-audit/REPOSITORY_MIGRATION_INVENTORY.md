@@ -83,6 +83,16 @@ Legend:
 - `20260815130000_security_remediation_pack1_revision_a.sql` — **untracked**; applied out-of-band, no entry.
 - `20260815140000_proposal_delivery_status_security.sql` — tracked (added by commit `d2a1e7a`); applied out-of-band, no entry.
 
+### Post-baseline VERSION-DRIFT (MCP `apply_migration` records the apply time; recorded 2026-11-23)
+Applied with `apply_migration`, so each ledger records the platform-assigned apply time, not the filename version.
+Per the migration policy the applied files are never edited and `schema_migrations` is never rewritten; the mapping lives here.
+The stored statement md5 equals the md5 of the file content (without the final newline) in every listed environment.
+
+| Local file | Staging (eokiaehn) | Production (iagzkrzeu) | Statement md5 |
+|---|---|---|---|
+| 20261123100000_fpay1_p2_cancel_finalize_guards | 20261123100405 | 20261123111548 | `7b0f86ad1cf00c249ad1515e83c2c4e8` |
+| 20261128120000_marketing_contact_number_execute_grant | 20261123023212 | not applied | `34842b55152f0e9a12d4f80952692d86` |
+
 ## 3. REMOTE-ONLY migrations (in production history, no local file)
 
 | Remote version | Name | Notes |
