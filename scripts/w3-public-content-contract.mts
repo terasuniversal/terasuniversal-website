@@ -11,6 +11,7 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { revertW3, W3_CHANGED } from "./w3-approved.mts";
+import { revertW7 } from "./w7-approved.mts";
 import { sessionsForCourse } from "../lib/course-session-map.ts";
 
 const root = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
@@ -32,7 +33,8 @@ await check("scope: only the two approved files carry W3-a edits", () => {
   assert(JSON.stringify(W3_CHANGED) === JSON.stringify(Object.keys(BEFORE).sort()), W3_CHANGED.join(", "));
 });
 await check("integrity: reverting the named edits restores each file exactly (nothing else changed)", () => {
-  for (const [p, hash] of Object.entries(BEFORE)) assert(sha256(revertW3(p, read(p))) === hash, p);
+  // W7-a (owner-approved, scripts/w7-approved.mts) is later than W3-a, so it is undone first.
+  for (const [p, hash] of Object.entries(BEFORE)) assert(sha256(revertW3(p, revertW7(p, read(p)))) === hash, p);
 });
 
 const source = read("lib/public-content.ts");
@@ -58,7 +60,9 @@ await check("no sensitive fields: updated_by, email_admin and raw error messages
 await check("kept verbatim: the F-1 gate, the schedule result model and the homepage contract", () => {
   assert((source.match(/publicRegistrationEnabled\(\) && row\.registration_available === true/g) ?? []).length === 2, "F-1 gate x2");
   assert(/Promise<\{ schedules: PublicSchedule\[\]; error: boolean \}>/.test(source), "result model");
-  assert(/p_include_past: false \}\);\s*if \(error\) return \[\];/.test(source), "homepage fail-closed");
+  // W7-a: the cached loader throws and the uncached getUpcomingSchedules() wrapper still returns [] on failure.
+  assert(/p_include_past: false \}\);\s*if \(error\) throw new PublicScheduleLoadError\(error\.code\);/.test(source), "homepage loader throws");
+  assert(/export async function getUpcomingSchedules\(\): Promise<PublicSchedule\[\]> \{\s*try \{\s*return await loadUpcomingSchedules\(\);\s*\} catch \(error\) \{[\s\S]*?return \[\];\s*\}\s*\}/.test(source), "homepage fail-closed");
   assert(/\.map\(mapSchedule\)\.slice\(0, 3\)/.test(source), "homepage cap");
 });
 const page = read("app/training/[slug]/page.js");

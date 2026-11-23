@@ -138,7 +138,9 @@ check("fail-closed: the calendar and course pages keep their 'temporarily unavai
 });
 check("fail-closed: getUpcomingSchedules still degrades to an empty list on error", () => {
   const source = read("lib/public-content.ts");
-  assert.match(source, /p_include_past: false \}\);\s*if \(error\) return \[\];/);
+  // W7-a (owner-approved): the cached loader throws, so a failure is never cached; the wrapper still returns [].
+  assert.match(source, /p_include_past: false \}\);\s*if \(error\) throw new PublicScheduleLoadError\(error\.code\);/);
+  assert.match(source, /export async function getUpcomingSchedules\(\): Promise<PublicSchedule\[\]> \{\s*try \{\s*return await loadUpcomingSchedules\(\);\s*\} catch \(error\) \{[\s\S]*?return \[\];\s*\}\s*\}/);
 });
 
 console.log(failures ? `\n${failures} semakan GAGAL` : "\nSemua semakan LULUS");
