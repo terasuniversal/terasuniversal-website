@@ -401,6 +401,7 @@ body:has(.teras-admin) .skip-link { display: none; }
 .ta-alert-error { background: rgba(214,69,69,.1); color: var(--ta-danger); }
 .ta-alert-success { background: rgba(46,158,91,.1); color: var(--ta-success); }
 .ta-alert-info { background: rgba(47,111,237,.1); color: var(--ta-info); }
+.ta-alert-warning { background: rgba(212,175,55,.16); color: #7a5b00; }
 .ta-pagination { display: flex; gap: 6px; justify-content: flex-end; align-items: center; padding: 14px 4px 0; }
 .ta-toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
 .ta-toolbar .ta-spacer { flex: 1; }

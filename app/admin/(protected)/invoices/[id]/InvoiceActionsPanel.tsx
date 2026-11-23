@@ -9,6 +9,7 @@ import { MANUAL_PAYMENT_PROVIDERS, PAYMENT_PROVIDER_LABELS, type InvoiceStatus, 
 const INITIAL: InvoiceActionState = {};
 const TOYYIBPAY_INITIAL: ToyyibpayLinkState = {};
 const REFRESH_INITIAL: ToyyibpayRefreshState = {};
+const REFRESH_TONE_CLASS = { success: "ta-alert-success", info: "ta-alert-info", warning: "ta-alert-warning", error: "ta-alert-error" } as const;
 
 function fmtRM(n: number) {
   return `RM ${Number(n).toLocaleString("en-MY", { minimumFractionDigits: 2 })}`;
@@ -159,7 +160,17 @@ export function InvoiceActionsPanel({
               </span>
             )}
             {toyyibpayState.message && <div className="ta-alert ta-alert-error">{toyyibpayState.message}</div>}
-            {refreshState.message && <div className="ta-alert ta-alert-error">{refreshState.message}</div>}
+            {/* G2: every refresh outcome is announced; only a finalized payment uses the success tone. */}
+            <div aria-live="polite">
+              {refreshState.message && (
+                <div
+                  className={`ta-alert ${REFRESH_TONE_CLASS[refreshState.tone ?? "error"]}`}
+                  role={refreshState.tone === "warning" || refreshState.tone === "error" ? "alert" : "status"}
+                >
+                  {refreshState.message}
+                </div>
+              )}
+            </div>
 
             {/* State A -- no attempt at all yet */}
             {!attempt && (
@@ -226,8 +237,8 @@ export function InvoiceActionsPanel({
                   )}
                 </div>
                 <form action={refreshAction}>
-                  <button type="submit" className="ta-btn ta-btn-outline ta-btn-sm" disabled={refreshPending} style={{ alignSelf: "flex-start" }}>
-                    {refreshPending ? "Checking…" : "Refresh / Re-check Status"}
+                  <button type="submit" className="ta-btn ta-btn-outline ta-btn-sm" disabled={refreshPending} aria-busy={refreshPending} style={{ alignSelf: "flex-start" }}>
+                    {refreshPending ? "Checking with ToyyibPay…" : "Refresh / Re-check Status"}
                   </button>
                 </form>
               </div>
