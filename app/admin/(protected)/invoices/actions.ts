@@ -47,6 +47,7 @@ const RPC_ERROR_MESSAGES: Record<string, string> = {
   payment_exceeds_balance: "This payment amount exceeds the outstanding balance.",
   already_cancelled: "This invoice is already cancelled.",
   cannot_cancel_invoice_with_payments: "An invoice that has received a payment cannot be cancelled directly.",
+  active_toyyibpay_attempt: "A ToyyibPay payment link is still active for this invoice. Deactivate it before cancelling.",
   payment_not_found: "Payment not found.",
   payment_not_successful: "A receipt can only be generated for a successful payment.",
   toyyibpay_payment_not_verified: "This ToyyibPay payment has not completed verification.",
