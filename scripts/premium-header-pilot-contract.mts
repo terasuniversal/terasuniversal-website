@@ -6,6 +6,7 @@ import { revertPublicFirst, PF_CHANGED, PF_ADDED, PF_WITHHELD } from "./public-f
 import { CONTRACT_BASE, changedSinceBase } from "./contract-base.mts";
 import { revertS2_0 } from "./r2-s2-0-approved.mts";
 import { W4A_CHANGED } from "./w4a-approved.mts";
+import { revertW6seo } from "./w6seo-approved.mts";
 
 // Phase S4D-2A (owner-approved pilot): /about, /services and /corporate-training use the shared PremiumHeader instead
 // of their own legacy header. Phase S4D-2B (owner-approved rollout) adds the eight remaining eligible content routes.
@@ -143,7 +144,7 @@ check("lead pages still render their own form or confirmation, with the form com
   // scripts/home-content-contract.mts and scripts/public-design-foundation-contract.mts; the rest stay identical to HEAD.
   // Round 2 adds the ProposalWizard privacy note (scripts/s5b1b-round2-contract.mts proves the payload is unchanged).
   const ROUND1_APPROVED = ["components/ContactEnquiryForm.js", "components/ProposalWizard.js", "components/NewsletterSignup.js", "app/api/contact/route.js", "app/api/request-proposal/route.js", "app/api/newsletter/route.js"];
-  for (const path of ["components/ContactEnquiryForm.js", "components/ProposalWizard.js", "components/NewsletterSignup.js", "components/InsightsCentre.js", "components/LeadGenCta.js", "app/api/contact/route.js", "app/api/request-proposal/route.js", "app/api/newsletter/route.js"].filter((path) => !ROUND1_APPROVED.includes(path))) assert.equal(revertS6(path, read(path)), atHead(path), path);
+  for (const path of ["components/ContactEnquiryForm.js", "components/ProposalWizard.js", "components/NewsletterSignup.js", "components/InsightsCentre.js", "components/LeadGenCta.js", "app/api/contact/route.js", "app/api/request-proposal/route.js", "app/api/newsletter/route.js"].filter((path) => !ROUND1_APPROVED.includes(path))) assert.equal(revertS6(path, revertW6seo(path, read(path))), atHead(path), path); // W6-SEO-a1: listing filter in InsightsCentre.js undone first
   assert.match(read("components/ContactEnquiryForm.js"), /fetch\("\/api\/contact"/);
   assert.match(read("components/ProposalWizard.js"), /fetch\("\/api\/request-proposal"[\s\S]*router\.push\("\/request-proposal\/success"\)/);
   assert.match(read("components/NewsletterSignup.js"), /fetch\("\/api\/newsletter"/);

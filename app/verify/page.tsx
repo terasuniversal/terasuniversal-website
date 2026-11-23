@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { createSupabaseServerClient } from "../../lib/supabase/server";
 import { normalizeVerificationRpcResponse } from "../../lib/public-verification-rpc";
+import { socialMetadata } from "../../lib/social-metadata";
 import { VerificationResult, VerifyShell, firstIp, type VerifyRow } from "./VerificationResult";
 
 export const dynamic = "force-dynamic";
@@ -12,11 +13,16 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const sp = await searchParams;
   const hasResult = !!sp.q;
+  // W6-SEO-a1 (owner-approved): a fuller description, and the page's own share metadata so og:url is /verify rather
+  // than the homepage inherited from the root layout. The robots rule and the verification itself are unchanged.
+  const title = hasResult ? "Verification Result" : "Verify a Certificate";
+  const description = "Check that a certificate issued by TERAS UNIVERSAL SDN. BHD. is authentic, using its QR verification code or certificate number.";
   return {
-    title: hasResult ? "Verification Result" : "Verify a Certificate",
-    description: "Verify the authenticity of a certificate issued by TERAS UNIVERSAL SDN. BHD.",
+    title,
+    description,
     alternates: { canonical: "/verify" },
     robots: hasResult ? { index: false, follow: false } : { index: true, follow: true },
+    ...socialMetadata({ title: `${title} | TERAS UNIVERSAL`, description, path: "/verify" }),
   };
 }
 

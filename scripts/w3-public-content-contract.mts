@@ -12,6 +12,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { revertW3, W3_CHANGED } from "./w3-approved.mts";
 import { revertW7 } from "./w7-approved.mts";
+import { revertW6seo } from "./w6seo-approved.mts";
 import { sessionsForCourse } from "../lib/course-session-map.ts";
 
 const root = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
@@ -33,8 +34,9 @@ await check("scope: only the two approved files carry W3-a edits", () => {
   assert(JSON.stringify(W3_CHANGED) === JSON.stringify(Object.keys(BEFORE).sort()), W3_CHANGED.join(", "));
 });
 await check("integrity: reverting the named edits restores each file exactly (nothing else changed)", () => {
-  // W7-a (owner-approved, scripts/w7-approved.mts) is later than W3-a, so it is undone first.
-  for (const [p, hash] of Object.entries(BEFORE)) assert(sha256(revertW3(p, revertW7(p, read(p)))) === hash, p);
+  // W7-a (owner-approved, scripts/w7-approved.mts) and W6-SEO-a1 (scripts/w6seo-approved.mts) are later than W3-a, so
+  // they are undone first (latest change first).
+  for (const [p, hash] of Object.entries(BEFORE)) assert(sha256(revertW3(p, revertW7(p, revertW6seo(p, read(p))))) === hash, p);
 });
 
 const source = read("lib/public-content.ts");
