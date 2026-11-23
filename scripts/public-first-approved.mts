@@ -11,6 +11,7 @@
 import { revertW2aAddress } from "./w2a-address-approved.mts";
 import { revertW4a } from "./w4a-approved.mts";
 import { revertW3 } from "./w3-approved.mts";
+import { revertW7 } from "./w7-approved.mts";
 
 const HOST = "https://terasuniversal.com.my";
 
@@ -148,6 +149,9 @@ export function revertPublicFirst(path: string, input: string): string {
   // contract built on this function keeps proving the rest of each file is unchanged.
   // FT-1A-2 (owner-approved): the course-page edits are undone before everything else (latest change first).
   // W3-a (owner-approved, scripts/w3-approved.mts) is later still, so it is undone first of all.
+  // W7-a (owner-approved W7-a-G1, scripts/w7-approved.mts) is the latest change to lib/public-content.ts, so it is
+  // undone before W3-a.
+  input = revertW7(path, input);
   input = revertW3(path, input);
   // W4-a (owner-approved, W4-a-G1): the QA remediation edits are the latest change, so they are undone first
   // (scripts/w4a-approved.mts).

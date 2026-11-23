@@ -109,6 +109,22 @@ const mapSchedule = (row: any): PublicSchedule => ({
 });
 
 /**
+ * W7-a (owner-approved): a failed schedule read is thrown inside the cached loaders below and turned into the public
+ * error state outside them. unstable_cache stores only results that resolve, so a transient RPC failure is never cached
+ * as a normal (empty) schedule result, and a failed background refresh of a stale entry does not replace that entry.
+ * Only a short error code (SQLSTATE / PostgREST code) is logged: never the message, rows or request data.
+ */
+class PublicScheduleLoadError extends Error {
+  readonly code: string;
+  constructor(code: unknown) {
+    super("public schedule RPC failed");
+    this.name = "PublicScheduleLoadError";
+    this.code = typeof code === "string" && /^[A-Z0-9]{1,12}$/.test(code) ? code : "unknown";
+  }
+}
+const loadErrorCode = (error: unknown) => (error instanceof PublicScheduleLoadError ? error.code : "exception");
+
+/**
  * All published, non-deleted schedules (past included) via the public-safe
  * RPC. The function is SECURITY DEFINER: anon is granted EXECUTE only, and
  * has no direct table grants on course_schedules/courses (verified live:
@@ -116,25 +132,30 @@ const mapSchedule = (row: any): PublicSchedule => ({
  * helpers degrade to an empty list and the homepage/calendar render their
  * professional empty state.
  */
-export const getPublishedSchedulesWithState = unstable_cache(
-  async (): Promise<{ schedules: PublicSchedule[]; error: boolean }> => {
+const loadPublishedSchedules = unstable_cache(
+  async (): Promise<PublicSchedule[]> => {
     const supabase = getSupabaseClient();
-    try {
-      const { data, error } = await supabase.rpc("get_public_upcoming_schedules", { p_include_past: true });
-      if (error) return { schedules: [], error: true };
-      const schedules = (data ?? []).map(mapSchedule);
-      const withRegistration = await Promise.all(schedules.map(async (schedule: PublicSchedule) => {
-        const context = await getPublicRegistrationSchedule(schedule.id);
-        return { ...schedule, fee: context?.fee ?? null, registration_available: context?.registration_available === true };
-      }));
-      return { schedules: withRegistration, error: false };
-    } catch {
-      return { schedules: [], error: true };
-    }
+    const { data, error } = await supabase.rpc("get_public_upcoming_schedules", { p_include_past: true });
+    if (error) throw new PublicScheduleLoadError(error.code);
+    const schedules = (data ?? []).map(mapSchedule);
+    return Promise.all(schedules.map(async (schedule: PublicSchedule) => {
+      const context = await getPublicRegistrationSchedule(schedule.id);
+      return { ...schedule, fee: context?.fee ?? null, registration_available: context?.registration_available === true };
+    }));
   },
-  ["public-schedules"],
+  // W7-a: versioned key, because the cached value changed from the result object to the schedule list.
+  ["public-schedules-v2"],
   { tags: ["schedules"], revalidate: 60 }
 );
+
+export async function getPublishedSchedulesWithState(): Promise<{ schedules: PublicSchedule[]; error: boolean }> {
+  try {
+    return { schedules: await loadPublishedSchedules(), error: false };
+  } catch (error) {
+    console.error("public-content: published schedules unavailable", { code: loadErrorCode(error) });
+    return { schedules: [], error: true };
+  }
+}
 
 /**
  * The stable CRM course identity for a public course slug, taken from the published sessions the public RPC already
@@ -154,26 +175,32 @@ export function courseIdentityFromSchedules(slug: string, schedules: readonly Pu
  * preview. The date/status filtering is done inside the RPC so anon never
  * reads the underlying tables. Separate cache entry from
  * getPublishedSchedulesWithState — nested unstable_cache calls are not supported.
+ * W7-a: the cached loader throws on failure and getUpcomingSchedules() still degrades to an empty list (fail-closed).
  */
-export const getUpcomingSchedules = unstable_cache(
+const loadUpcomingSchedules = unstable_cache(
   async (): Promise<PublicSchedule[]> => {
     const supabase = getSupabaseClient();
-    try {
-      const { data, error } = await supabase.rpc("get_public_upcoming_schedules", { p_include_past: false });
-      if (error) return [];
-      const schedules = (data ?? []).map(mapSchedule).slice(0, 3);
-      return Promise.all(schedules.map(async (schedule: PublicSchedule) => {
-        const context = await getPublicRegistrationSchedule(schedule.id);
-        return {
-          ...schedule,
-          fee: context?.fee ?? null,
-          registration_available: context?.registration_available === true,
-        };
-      }));
-    } catch {
-      return [];
-    }
+    const { data, error } = await supabase.rpc("get_public_upcoming_schedules", { p_include_past: false });
+    if (error) throw new PublicScheduleLoadError(error.code);
+    const schedules = (data ?? []).map(mapSchedule).slice(0, 3);
+    return Promise.all(schedules.map(async (schedule: PublicSchedule) => {
+      const context = await getPublicRegistrationSchedule(schedule.id);
+      return {
+        ...schedule,
+        fee: context?.fee ?? null,
+        registration_available: context?.registration_available === true,
+      };
+    }));
   },
-  ["public-upcoming-schedules"],
+  ["public-upcoming-schedules-v2"],
   { tags: ["schedules"], revalidate: 60 }
 );
+
+export async function getUpcomingSchedules(): Promise<PublicSchedule[]> {
+  try {
+    return await loadUpcomingSchedules();
+  } catch (error) {
+    console.error("public-content: upcoming schedules unavailable", { code: loadErrorCode(error) });
+    return [];
+  }
+}
