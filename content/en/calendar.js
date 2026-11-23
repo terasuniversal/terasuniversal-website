@@ -6,8 +6,9 @@
 // Per-session wording (dates, fees, venue, Register / Full / Enquire) is not here: it comes from lib/session-display.ts.
 export const calendarContent = {
   meta: {
-    title: "Training Calendar",
-    description: "Browse TERAS UNIVERSAL training programme dates and delivery options in Malaysia.",
+    // W6-SEO-a1 (owner-approved): search title and description only; the page heading below is unchanged.
+    title: "Public Training Calendar",
+    description: "Upcoming public industrial safety and technical training sessions from TERAS UNIVERSAL in Malaysia, with dates, venues and how to enquire.",
   },
   intro: {
     eyebrow: "Programme Schedule",

@@ -19,6 +19,7 @@ import { courseIdentityFromSchedules, getPublishedSchedulesWithState } from "../
 import { sessionKind } from "../../../lib/session-display";
 import { sessionsForCourse } from "../../../lib/course-session-map";
 import { socialMetadata } from "../../../lib/social-metadata";
+import { courseSeoDescriptions } from "../../../content/en/course-seo";
 import { CANONICAL_ORIGIN } from "../../../lib/canonical-origin";
 
 export function generateStaticParams() { return courseCatalog.map(({ slug }) => ({ slug })); }
@@ -27,7 +28,10 @@ export function generateStaticParams() { return courseCatalog.map(({ slug }) => 
 // during render arrives after a 200 status has already been sent.
 export const dynamicParams = false;
 export const revalidate = 60;
-export async function generateMetadata({ params }) { const { slug } = await params; const course = findCourse(slug); return course ? { title: course.title, description: course.summary, alternates: { canonical: `/training/${course.slug}` }, ...socialMetadata({ title: `${course.title} | TERAS UNIVERSAL`, description: course.summary, path: `/training/${course.slug}` }) } : { title: "Training Programme | TERAS UNIVERSAL" }; }
+// W6-SEO-a1 (owner-approved): an absolute title, because app/training/layout.js sets its own absolute title and so the
+// root "%s | TERAS UNIVERSAL" template never reached this page (the title was the bare course name). The description is
+// the course's search description (content/en/course-seo.js), falling back to the catalogue summary.
+export async function generateMetadata({ params }) { const { slug } = await params; const course = findCourse(slug); if (!course) return { title: "Training Programme | TERAS UNIVERSAL" }; const pageTitle = `${course.title} Training | TERAS UNIVERSAL`; const description = courseSeoDescriptions[course.slug] || course.summary; return { title: { absolute: pageTitle }, description, alternates: { canonical: `/training/${course.slug}` }, ...socialMetadata({ title: pageTitle, description, path: `/training/${course.slug}` }) }; }
 
 function toIsoDuration(duration) { const match = /^(\d+)\s*Days?$/i.exec((duration || "").trim()); return match ? `P${match[1]}D` : undefined; }
 function courseSchema(course) { const isoDuration = toIsoDuration(course.duration); return { "@context": "https://schema.org", "@type": "Course", name: course.title, description: course.summary, url: `${CANONICAL_ORIGIN}/training/${course.slug}`, provider: { "@type": "Organization", name: "TERAS UNIVERSAL SDN. BHD.", sameAs: "https://www.terasuniversal.com.my" }, ...(isoDuration ? { hasCourseInstance: { "@type": "CourseInstance", courseMode: ["Blended", "onsite"], courseWorkload: isoDuration } } : {}) }; }
