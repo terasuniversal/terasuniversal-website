@@ -12,7 +12,7 @@ import {
   fieldErrors,
 } from "../../../../lib/validation/schemas";
 
-export type InvoiceActionState = { message?: string; errors?: Record<string, string> };
+export type InvoiceActionState = { message?: string; errors?: Record<string, string>; notice?: string };
 
 function revalidateInvoice(id: string, opportunityId?: string, quotationId?: string) {
   revalidatePath(`/admin/invoices/${id}`);
@@ -45,6 +45,10 @@ const RPC_ERROR_MESSAGES: Record<string, string> = {
   invalid_amount: "Payment amount must be greater than 0.",
   invoice_not_payable: "Only an issued or partially paid invoice can receive a payment.",
   payment_exceeds_balance: "This payment amount exceeds the outstanding balance.",
+  idempotency_key_required: "This payment form has expired. Reload the page and try again.",
+  idempotency_key_conflict: "This form was already used to record a different payment. Reload the page before recording another payment.",
+  payment_reference_required: "A bank transaction reference or cheque number is required for this payment method.",
+  duplicate_payment_reference: "A successful payment with this reference is already recorded on this invoice. Check the payment history before recording it again.",
   already_cancelled: "This invoice is already cancelled.",
   cannot_cancel_invoice_with_payments: "An invoice that has received a payment cannot be cancelled directly.",
   active_toyyibpay_attempt: "A ToyyibPay payment link is still active for this invoice. Deactivate it before cancelling.",
@@ -195,6 +199,7 @@ export async function recordManualPaymentAction(
     payment_date: formData.get("payment_date") ?? "",
     payment_reference: formData.get("payment_reference") ?? "",
     notes: formData.get("notes") ?? "",
+    idempotency_key: formData.get("idempotency_key") ?? "",
   });
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
   const d = parsed.data;
@@ -247,7 +252,7 @@ export async function recordManualPaymentAction(
     }
   }
 
-  const { error } = await supabase.rpc("record_manual_payment", {
+  const { data, error } = await supabase.rpc("record_manual_payment", {
     p_invoice_id: invoiceId,
     p_payment_provider: d.payment_provider,
     p_payment_method: d.payment_method || null,
@@ -255,10 +260,15 @@ export async function recordManualPaymentAction(
     p_payment_date: d.payment_date,
     p_payment_reference: d.payment_reference || null,
     p_notes: d.notes || null,
+    p_idempotency_key: d.idempotency_key,
   });
   if (error) return { message: rpcMessage(error) };
 
   revalidateInvoice(invoiceId, existing?.opportunity_id, existing?.quotation_id);
+  // G1: a replay (double submit, retry after a lost response) returns the original payment and writes nothing.
+  if ((data as { outcome?: unknown } | null)?.outcome === "duplicate_ignored") {
+    return { notice: "This payment was already recorded. No second payment was created." };
+  }
   return {};
 }
 

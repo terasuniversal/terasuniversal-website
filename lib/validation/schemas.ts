@@ -672,14 +672,31 @@ export const invoiceDraftEditSchema = z.object({
 export type InvoiceDraftEditInput = z.infer<typeof invoiceDraftEditSchema>;
 
 /** V1 manual-payment providers only — 'toyyibpay' is Phase 2, never reachable here. */
-export const recordManualPaymentSchema = z.object({
-  payment_provider: z.enum(["cash", "bank_transfer", "cheque", "other"]),
-  payment_method: z.string().trim().max(100).optional().or(z.literal("")),
-  amount: z.coerce.number().positive("Amount must be greater than 0"),
-  payment_date: z.string().trim().min(1, "Payment date is required"),
-  payment_reference: z.string().trim().max(200).optional().or(z.literal("")),
-  notes: z.string().trim().max(1000).optional().or(z.literal("")),
-});
+/**
+ * G1: the idempotency key comes from the rendered form (one per payment form, rotated after a recorded payment), so a
+ * double submit or a retry after a lost response maps to the same payment. The database enforces it; this only rejects
+ * a malformed request early. Bank transfer and cheque need a reference with at least one letter or digit, matching the
+ * database's normalisation (record_manual_payment_unguarded, migration 20261129120000).
+ */
+export const recordManualPaymentSchema = z
+  .object({
+    payment_provider: z.enum(["cash", "bank_transfer", "cheque", "other"]),
+    payment_method: z.string().trim().max(100).optional().or(z.literal("")),
+    amount: z.coerce.number().positive("Amount must be greater than 0"),
+    payment_date: z.string().trim().min(1, "Payment date is required"),
+    payment_reference: z.string().trim().max(200).optional().or(z.literal("")),
+    notes: z.string().trim().max(1000).optional().or(z.literal("")),
+    idempotency_key: z.string().uuid("This payment form has expired. Reload the page and try again."),
+  })
+  .superRefine((d, ctx) => {
+    if ((d.payment_provider === "bank_transfer" || d.payment_provider === "cheque") && !/[A-Za-z0-9]/.test(d.payment_reference ?? "")) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["payment_reference"],
+        message: d.payment_provider === "cheque" ? "Cheque number is required" : "Bank transaction reference is required",
+      });
+    }
+  });
 export type RecordManualPaymentInput = z.infer<typeof recordManualPaymentSchema>;
 
 export const recordHrdfPaymentSchema = z.object({

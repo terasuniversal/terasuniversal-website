@@ -80,6 +80,8 @@
     "test:crm-content-write-module-authorization": "node --experimental-strip-types scripts/crm-content-write-module-authorization-contract.mts .",
     "test:crm-anon-a1": "node --experimental-strip-types scripts/crm-anon-a1-contract.mts .",
     "test:crm-anon-a1-docker": "node --experimental-strip-types scripts/crm-anon-a1-docker/run.mts .",
+    "test:g1-manual-payment-action": "node --experimental-transform-types --experimental-test-module-mocks --no-warnings scripts/g1-manual-payment-action.test.mts",
+    "test:crm-g1-manual-payment-idempotency": "node --experimental-strip-types scripts/crm-g1-manual-payment-idempotency-contract.mts . --mutations",
     "test:ms7-finance-hrdf-rpc-authorization": "node --experimental-strip-types scripts/ms7-finance-hrdf-rpc-authorization-contract.mts ."
   },
   "dependencies": {

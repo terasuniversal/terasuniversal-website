@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { Card, Field, Badge } from "../../../../../components/admin/ui";
 import { issueInvoiceAction, recordManualPaymentAction, cancelInvoiceAction, type InvoiceActionState } from "../actions";
 import { generateToyyibpayPaymentLinkAction, refreshToyyibpayStatusAction, type ToyyibpayLinkState, type ToyyibpayRefreshState } from "../toyyibpayActions";
@@ -29,6 +29,7 @@ export function InvoiceActionsPanel({
   toyyibpayEnabled,
   toyyibpayIsSandbox,
   latestToyyibpayAttempt,
+  initialPaymentKey,
 }: {
   invoiceId: string;
   invoiceNo: string;
@@ -42,6 +43,8 @@ export function InvoiceActionsPanel({
   toyyibpayIsSandbox: boolean;
   /** Most recent invoice_payments row for payment_provider='toyyibpay', or null -- persisted server state, so the card reflects reality on first load, not just right after a Generate click. */
   latestToyyibpayAttempt: InvoicePaymentRow | null;
+  /** G1: server-generated idempotency key for the first manual payment on this page load (no hydration mismatch). */
+  initialPaymentKey: string;
 }) {
   const [issueState, issueAction, issuePending] = useActionState(issueInvoiceAction.bind(null, invoiceId), INITIAL);
   const [paymentState, paymentAction, paymentPending] = useActionState(recordManualPaymentAction.bind(null, invoiceId), INITIAL);
@@ -54,6 +57,17 @@ export function InvoiceActionsPanel({
     refreshToyyibpayStatusAction.bind(null, latestToyyibpayAttempt?.id ?? ""),
     REFRESH_INITIAL
   );
+  // G1: one key per payment. It survives a failed or retried submission (so a retry is recognised as the same payment)
+  // and is replaced only after the server reports the payment as recorded (or as an already-recorded replay).
+  const [paymentKey, setPaymentKey] = useState(initialPaymentKey);
+  const [paymentProvider, setPaymentProvider] = useState("bank_transfer");
+  const lastPaymentState = useRef(paymentState);
+  useEffect(() => {
+    if (paymentState === lastPaymentState.current) return;
+    lastPaymentState.current = paymentState;
+    if (!paymentState.message && !paymentState.errors) setPaymentKey(crypto.randomUUID());
+  }, [paymentState]);
+  const referenceRequired = paymentProvider === "bank_transfer" || paymentProvider === "cheque";
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedWhatsapp, setCopiedWhatsapp] = useState(false);
 
@@ -106,13 +120,17 @@ export function InvoiceActionsPanel({
               </div>
             )}
             <form action={paymentAction} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {paymentState.message && <div className="ta-alert ta-alert-error">{paymentState.message}</div>}
+              <div aria-live="polite">
+                {paymentState.message && <div className="ta-alert ta-alert-error" role="alert">{paymentState.message}</div>}
+                {paymentState.notice && <div className="ta-alert ta-alert-info" role="status">{paymentState.notice}</div>}
+              </div>
+              <input type="hidden" name="idempotency_key" value={paymentKey} />
               <p style={{ margin: 0, fontSize: 13, color: "var(--ta-muted)" }}>
                 Outstanding balance: <strong>{fmtRM(balanceDue)}</strong>
                 {amountPaid > 0 && <> ({fmtRM(amountPaid)} already paid)</>}
               </p>
               <Field label="Payment method" name="payment_provider" error={paymentState.errors?.payment_provider} required>
-                <select name="payment_provider" defaultValue="bank_transfer" required>
+                <select name="payment_provider" value={paymentProvider} onChange={(e) => setPaymentProvider(e.target.value)} required>
                   {MANUAL_PAYMENT_PROVIDERS.map((p) => <option key={p} value={p}>{PAYMENT_PROVIDER_LABELS[p]}</option>)}
                 </select>
               </Field>
@@ -125,13 +143,19 @@ export function InvoiceActionsPanel({
               <Field label="Payment date" name="payment_date" error={paymentState.errors?.payment_date} required>
                 <input type="date" name="payment_date" defaultValue={new Date().toISOString().slice(0, 10)} required />
               </Field>
-              <Field label="Payment reference" name="payment_reference" error={paymentState.errors?.payment_reference} hint="Transaction/reference number, if any">
-                <input type="text" name="payment_reference" maxLength={200} />
+              <Field
+                label={paymentProvider === "cheque" ? "Cheque number" : "Payment reference"}
+                name="payment_reference"
+                error={paymentState.errors?.payment_reference}
+                hint={referenceRequired ? "Required. Exactly as shown on the bank statement or cheque." : "Transaction/reference number, if any"}
+                required={referenceRequired}
+              >
+                <input type="text" name="payment_reference" maxLength={200} required={referenceRequired} />
               </Field>
               <Field label="Notes" name="notes" error={paymentState.errors?.notes}>
                 <textarea name="notes" rows={2} maxLength={1000} />
               </Field>
-              <button type="submit" className="ta-btn ta-btn-primary ta-btn-sm" disabled={paymentPending} style={{ alignSelf: "flex-start" }}>
+              <button type="submit" className="ta-btn ta-btn-primary ta-btn-sm" disabled={paymentPending} aria-busy={paymentPending} style={{ alignSelf: "flex-start" }}>
                 {paymentPending ? "Recording…" : "Record Payment"}
               </button>
             </form>
