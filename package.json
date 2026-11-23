@@ -71,6 +71,7 @@
     "test:sales-finance-rpc-authorization": "node --experimental-strip-types scripts/sales-finance-rpc-authorization-contract.mts supabase/migrations/20261121130000_sales_finance_rpc_module_authorization.sql supabase/migrations/20261121120000_sales_crm_module_rls_hardening.sql .",
     "test:crm-rc-ux": "node --experimental-strip-types scripts/crm-rc-ux-contract.mts",
     "test:crm-invoice-update-module": "node --experimental-strip-types scripts/crm-invoice-update-module-contract.mts",
+    "test:crm-mc1-marketing-contact-number-grant": "node --experimental-strip-types scripts/crm-mc1-marketing-contact-number-grant-contract.mts",
     "test:toyyibpay-inactive-bill-classifier": "node --experimental-transform-types --experimental-test-module-mocks --no-warnings scripts/toyyibpay-inactive-bill-classifier.test.mts",
     "test:fpay1-cancel-invoice-toyyibpay": "node --experimental-transform-types --experimental-test-module-mocks --no-warnings scripts/fpay1-cancel-invoice-toyyibpay.test.mts",
     "test:fpay1-cancel-invoice-real-lib": "node --experimental-transform-types --experimental-test-module-mocks --no-warnings scripts/fpay1-cancel-invoice-real-lib.test.mts",
