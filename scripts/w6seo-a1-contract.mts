@@ -10,6 +10,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { revertW6seo, W6SEO_CHANGED } from "./w6seo-approved.mts";
+import { revertW6a2 } from "./w6a2-approved.mts";
 import { courseSeoDescriptions } from "../content/en/course-seo.js";
 import { insights } from "../data/insights.js";
 
@@ -47,7 +48,8 @@ check("integrity: reverting the named edits restores each file exactly (nothing 
   for (const [p, hash] of Object.entries(BEFORE)) assert(sha256(revertW6seo(p, read(p))) === hash, p);
 });
 check("unchanged: article data and routes, sitemap, robots, gallery and course catalogue", () => {
-  for (const [p, hash] of Object.entries(UNCHANGED)) assert(sha256(read(p)) === hash, p);
+  // W6-SEO-a2 (owner-approved) later edited data/insights.js; its named edits are undone before hashing.
+  for (const [p, hash] of Object.entries(UNCHANGED)) assert(sha256(revertW6a2(p, read(p))) === hash, p);
 });
 
 // The catalogue imports an extensionless module, so it is read as text (as training-catalogue-contract does).
