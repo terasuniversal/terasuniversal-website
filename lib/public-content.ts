@@ -136,33 +136,24 @@ export const getPublishedSchedulesWithState = unstable_cache(
   { tags: ["schedules"], revalidate: 60 }
 );
 
-/** Resolve the stable CRM course identity without entering a cookie-bound cache. */
-export async function getPublicCourseIdentity(slug: string): Promise<{ id: string; slug: string } | null> {
-  try {
-    const supabase = getSupabaseClient();
-    const { data, error } = await supabase
-      .from("courses")
-      .select("id, slug")
-      .eq("slug", slug)
-      .eq("status", "published")
-      .is("deleted_at", null)
-      .maybeSingle();
-    return error || !data ? null : data;
-  } catch {
-    return null;
-  }
-}
-
-export async function getPublishedSchedules(): Promise<PublicSchedule[]> {
-  const result = await getPublishedSchedulesWithState();
-  return result.schedules;
+/**
+ * The stable CRM course identity for a public course slug, taken from the published sessions the public RPC already
+ * returned (published, non-deleted course; published, non-cancelled session). W3-a: this replaces a direct anon read of
+ * `courses`, which always resolved to null because anon has no read access to that table. Only upcoming sessions count
+ * (the same date rule as the course page), so a course with past sessions only keeps its catalogue calendar link. Null
+ * when no upcoming session carries the slug, or when sessions disagree on the course id. No database call.
+ */
+export function courseIdentityFromSchedules(slug: string, schedules: readonly PublicSchedule[]): { id: string; slug: string } | null {
+  const today = new Date().toISOString().slice(0, 10);
+  const ids = new Set(schedules.filter((schedule) => schedule.slug === slug && schedule.start_date >= today).map((schedule) => schedule.course_id));
+  return ids.size === 1 ? { id: [...ids][0], slug } : null;
 }
 
 /**
  * Upcoming open/full sessions, earliest first, capped at 3 for the homepage
  * preview. The date/status filtering is done inside the RPC so anon never
  * reads the underlying tables. Separate cache entry from
- * getPublishedSchedules — nested unstable_cache calls are not supported.
+ * getPublishedSchedulesWithState — nested unstable_cache calls are not supported.
  */
 export const getUpcomingSchedules = unstable_cache(
   async (): Promise<PublicSchedule[]> => {

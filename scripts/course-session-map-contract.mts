@@ -101,7 +101,8 @@ check("usage: no page keeps an inline copy of the mapping or the duration rule",
   }
 });
 check("scope: the course page keeps its own upcoming-date filter and data access", () => {
-  assert.match(coursePage, /getPublishedSchedulesWithState\(\), getPublicCourseIdentity\(course\.slug\)/);
+  // W3-a (owner-approved W3-G1): the identity is derived from the sessions already loaded (scripts/w3-approved.mts).
+  assert.match(coursePage, /= await getPublishedSchedulesWithState\(\);\r?\n[^\n]*\r?\n\s*const canonicalCourse = courseIdentityFromSchedules\(course\.slug, publicSchedules\);/);
   assert.match(coursePage, /session\.start_date >= new Date\(\)\.toISOString\(\)\.slice\(0, 10\)/);
 });
 
