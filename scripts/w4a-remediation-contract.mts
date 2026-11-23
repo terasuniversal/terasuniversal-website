@@ -19,6 +19,7 @@ const assert = (ok: unknown, message: string) => { if (!ok) throw new Error(mess
 // SHA-256 (LF-normalised) of each changed file at the approved base, before W4-a.
 const BEFORE: Record<string, string> = {
   "components/premium/header.module.css": "a92ea861098e795654332a0702dc51b04048f7f21a09017b3f1f91d2f2362a98",
+  "app/globals.css": "8c5f36435a7576bb1a5b58cf9d79b0d6b8368fdcc382c55f54a6398f75cc26d6",
 };
 
 check("only the approved files carry W4-a edits", () => {
@@ -40,6 +41,12 @@ check("NE-1: one max-width 359px block, after the 590px block, only spacing and 
 check("NE-1: the 54px mobile logo and the 44px menu button are unchanged", () => {
   assert(/@media \(max-width: 820px\) \{[\s\S]*?\.logo img \{ height: 54px; \}/.test(header), "54px logo");
   assert(/\.hdr :global\(\.menu-button\) \{ width: 44px; height: 44px;/.test(header), "44px menu button");
+});
+
+const css = read("app/globals.css").replace(/\r\n/g, "\n");
+check("NE-2: Read article / Read summary target 44px, 14px text, navy arrow", () => {
+  assert(/\.insight-card a \{ display: inline-flex; align-items: center; gap: 5px; min-height: 44px; font-size: 14px; \}/.test(css), "link rule");
+  assert(/\.insight-card a span \{ color: var\(--navy\); \}/.test(css), "navy arrow");
 });
 
 console.log(failures ? `\n${failures} semakan GAGAL` : "\nSemua semakan LULUS");

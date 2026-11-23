@@ -6233,7 +6233,10 @@ footer {
   box-shadow: 0 20px 42px rgba(7, 31, 66, .12);
 }
 
-.insight-card a { display: inline-flex; align-items: center; gap: 5px; }
+/* W4-a NE-2 (owner-approved): a 44px touch target and 14px text for "Read article / Read summary", and a navy arrow
+   (the gold one was 2.1:1 on white). */
+.insight-card a { display: inline-flex; align-items: center; gap: 5px; min-height: 44px; font-size: 14px; }
+.insight-card a span { color: var(--navy); }
 
 @media (max-width: 590px) {
   .insights-controls { padding: 14px; border-radius: 14px; }
