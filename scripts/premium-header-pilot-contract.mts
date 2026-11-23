@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { revertPublicFirst, PF_CHANGED, PF_ADDED, PF_WITHHELD } from "./public-first-approved.mts";
 import { CONTRACT_BASE, changedSinceBase } from "./contract-base.mts";
 import { revertS2_0 } from "./r2-s2-0-approved.mts";
+import { W4A_CHANGED } from "./w4a-approved.mts";
 
 // Phase S4D-2A (owner-approved pilot): /about, /services and /corporate-training use the shared PremiumHeader instead
 // of their own legacy header. Phase S4D-2B (owner-approved rollout) adds the eight remaining eligible content routes.
@@ -175,7 +176,9 @@ check("the shared header, menus and Footer are not modified by the pilot", () =>
   // Git blob hashes taken before the pilot started (the S4D-2A preflight); a later approved change updates them here.
   // Public-First F-1 (header action wording) is reverted before hashing (scripts/public-first-approved.mts).
   // revertPublicFirst also undoes the W2-A address edits (scripts/w2a-address-approved.mts, e.g. components/Footer.js).
-  const sha = (path: string) => PF_CHANGED.includes(path) || path === "components/Footer.js"
+  // W4-a NE-1 (owner-approved): header.module.css carries the 359px spacing block; revertPublicFirst undoes it first
+  // (scripts/w4a-approved.mts), so the pinned pre-pilot hash below still proves nothing else in the file moved.
+  const sha = (path: string) => PF_CHANGED.includes(path) || path === "components/Footer.js" || W4A_CHANGED.includes(path)
     ? execFileSync("git", ["hash-object", "--stdin", `--path=${path}`], { cwd: rootPath, encoding: "utf8", input: revertPublicFirst(path, readFileSync(new URL(path, root), "utf8")) }).trim()
     : execFileSync("git", ["hash-object", path], { cwd: rootPath, encoding: "utf8" }).trim();
   const expected: Record<string, string> = {

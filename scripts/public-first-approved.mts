@@ -9,6 +9,7 @@
  *  no behaviour change), newsletter collection gated off.
  */
 import { revertW2aAddress } from "./w2a-address-approved.mts";
+import { revertW4a } from "./w4a-approved.mts";
 
 const HOST = "https://terasuniversal.com.my";
 
@@ -145,6 +146,9 @@ export function revertPublicFirst(path: string, input: string): string {
   // W2-A (owner-approved): the public-address edits are undone first (scripts/w2a-address-approved.mts), so every
   // contract built on this function keeps proving the rest of each file is unchanged.
   // FT-1A-2 (owner-approved): the course-page edits are undone before everything else (latest change first).
+  // W4-a (owner-approved, W4-a-G1): the QA remediation edits are the latest change, so they are undone first
+  // (scripts/w4a-approved.mts).
+  input = revertW4a(path, input);
   const text = revertW2aAddress(path, revertFt1a(path, input));
   const crlf = text.includes("\r\n");
   const eol = (s: string) => (crlf ? s.replace(/\r?\n/g, "\r\n") : s);
