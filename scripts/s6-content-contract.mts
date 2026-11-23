@@ -5,7 +5,8 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { insights } from "../data/insights.js";
-import { changedSinceBase } from "./contract-base.mts";
+import { CONTRACT_BASE, changedSinceBase } from "./contract-base.mts";
+import { revertW5a } from "./w5a-approved.mts";
 
 // S6 (owner-approved, local only): News & Articles on the existing /insights system, the gated /ebook local preview
 // with a mocked request journey, course discovery fixes and navigation. This contract proves the safeguards: the
@@ -114,7 +115,10 @@ check("protected areas untouched by S6: registration, payments, verify, feedback
     " M app/payments/toyyibpay/return/page.tsx", "?? lib/payments/toyyibpay-return-view.ts",
     // Public-First launch fixes (owner-approved): F-1 kill switch and F-4 /verify contrast; scripts/public-first-launch-contract.mts.
     " M app/api/registration/payment/route.ts", " M app/api/registration/route.ts", " M app/registration/[scheduleId]/page.tsx", " M app/verify/VerificationResult.tsx", " M app/verify/page.tsx"]);
-  for (const line of changed.split("\n").filter(Boolean)) assert.ok(allowed.has(line), line);
+  // W5-a (owner-approved, W5-a-G1): next.config.mjs may differ only by the named GA4 CSP entries (scripts/w5a-approved.mts).
+  const w5aOnly = (line: string) => line === " M next.config.mjs"
+    && revertW5a("next.config.mjs", read("next.config.mjs")) === execFileSync("git", ["show", `${CONTRACT_BASE}:next.config.mjs`], { cwd: fileURLToPath(root), encoding: "utf8" }).replace(/\r\n/g, "\n");
+  for (const line of changed.split("\n").filter(Boolean)) assert.ok(allowed.has(line) || w5aOnly(line), line);
 });
 
 console.log(failures ? `\n${failures} semakan GAGAL` : "\nSemua semakan LULUS");
