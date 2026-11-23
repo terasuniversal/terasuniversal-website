@@ -35,8 +35,9 @@ assert.match(certData, /renderPayload\.programme_duration/);
 
 assert.match(api, /action === "create" \|\| action === "update"/);
 assert.match(api, /canonical eligibility and issuance flow/);
-assert.match(api, /action === "legacy_import"/);
-assert.match(api, /action === "bulk".*explicit legacy_import/s);
+assert.match(api, /action === "legacy_import" \|\| action === "log"\) \{\s*return NextResponse\.json\(\{ error: LEGACY_IMPORT_RETIRED \}, \{ status: 410 \}\)/);
+assert.doesNotMatch(api, /import_legacy_certificate|certificate_import_logs|from\("participants"\)|from\("courses"\)|createLegacyRecord/);
+assert.match(api, /action === "bulk".*status: 409/s);
 assert.match(api, /deleted_at/);
 assert.doesNotMatch(actions, /from\("certificates"\)\.update/);
 assert.doesNotMatch(api, /from\("certificates"\)\.update/);
@@ -69,5 +70,5 @@ console.log("- snapshot-first render provenance and fields: PASS");
 console.log("- explicit legacy fallback path: PASS");
 console.log("- event-only reissue RPC wiring: PASS");
 console.log("- modern direct API create/update rejection: PASS");
-console.log("- explicit legacy import path: PASS");
+console.log("- retired legacy import answers 410 with no write path: PASS");
 console.log("- React and HTML renderers share CertData contract: PASS");

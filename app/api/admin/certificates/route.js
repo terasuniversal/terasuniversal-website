@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { hasMinRole } from "../../../../lib/auth/rbac";
-import { isWahLegacyTarget } from "../../../../lib/certificates/wah-legacy-block";
 
 export const runtime = "nodejs";
 
@@ -19,51 +18,10 @@ async function requireAdmin({ manage = false } = {}) {
   return { client, userId: userData.user.id };
 }
 
-function validateCourseDates(form) {
-  const startDate = String(form?.course_date || "").trim();
-  const endDate = String(form?.course_end_date || "").trim();
-  if (endDate && !startDate) return "Course start date diperlukan apabila course end date diisi.";
-  if (endDate && endDate < startDate) return "Course end date tidak boleh lebih awal daripada course start date.";
-  return null;
-}
-function certificatePayload(form, ids = {}) {
-  return { ...ids, participant_name: String(form?.participant_name || "").trim(), course_name: String(form?.course_name || "").trim(), certificate_no: String(form?.certificate_no || "").trim().toUpperCase(), training_start_date: form?.course_date || null, training_end_date: form?.course_end_date || null, issue_date: form?.course_date || null, expiry_date: form?.expiry_date || null, status: ["valid", "expired", "revoked"].includes(form?.status) ? form.status : "valid", trainer_name: String(form?.instructor || "").trim() || null, venue: String(form?.venue || "").trim() || null, identity_no: String(form?.identity_no || "").trim().toUpperCase() || null, instructor: String(form?.instructor || "").trim() || null, certificate_file_url: String(form?.certificate_file_url || "").trim() || null, public_verification_enabled: form?.public_verification_enabled !== false };
-}
-
-async function createLegacyRecord(client, form) {
-  const required = ["participant_name", "identity_no", "course_name", "course_date", "certificate_no"];
-  if (required.some((field) => !String(form?.[field] || "").trim())) return "Medan wajib tidak lengkap.";
-  const dateError = validateCourseDates(form);
-  if (dateError) return dateError;
-
-  // Reuse an existing course by name instead of always inserting a new row —
-  // the previous unconditional insert here was silently minting a duplicate
-  // `courses` row on every certificate import, which is how the live table
-  // ended up with 125 rows representing only 8 distinct courses.
-  const courseName = String(form.course_name).trim();
-  const { data: existingCourse, error: existingCourseError } = await client.from("courses").select("id").ilike("course_name", courseName).is("deleted_at", null).limit(1).maybeSingle();
-  if (existingCourseError) return existingCourseError.message;
-  // Before the participant insert: this route is not transactional, so a later
-  // rejection would leave a participant behind.
-  if (isWahLegacyTarget(existingCourse?.id, courseName)) return "Import legacy untuk Working at Height tidak dibenarkan.";
-
-  const { data: participant, error: participantError } = await client.from("participants").insert({ full_name: String(form.participant_name).trim(), identity_no: String(form.identity_no).trim().toUpperCase(), identity_last4: String(form.identity_no).trim().slice(-4), status: "active" }).select("id").single();
-  if (participantError) return participantError.message;
-
-  let courseId = existingCourse?.id;
-  if (!courseId) {
-    const { data: course, error: courseError } = await client.from("courses").insert({ course_name: courseName, active: true }).select("id").single();
-    if (courseError) return courseError.message;
-    courseId = course.id;
-  }
-
-  const { error: certificateError } = await client.rpc("import_legacy_certificate", {
-    p_participant_id: participant.id,
-    p_course_id: courseId,
-    p_certificate: certificatePayload(form, { participant_id: participant.id, course_id: courseId }),
-  });
-  return certificateError?.message || null;
-}
+// Legacy certificate import is retired (Owner decision 2026-11-23): it has no UI caller, created participants and
+// courses outside the canonical issuance flow, and is not part of the TERAS CRM workflow. Its actions answer 410 so
+// any stale client fails loudly instead of writing. Historical participant imports use /admin/participants/legacy-import.
+const LEGACY_IMPORT_RETIRED = "Import sijil legasi telah ditamatkan. Gunakan aliran pengeluaran sijil semasa.";
 
 export async function GET(request) {
   const auth = await requireAdmin(); if (auth.response) return auth.response;
@@ -83,19 +41,9 @@ export async function POST(request) {
     const { error } = await auth.client.rpc("set_certificate_deleted", { p_certificate_id: body.id, p_deleted: true });
     if (error) return NextResponse.json({ error: error.message }, { status: 400 }); return NextResponse.json({ ok: true });
   }
-  if (action === "legacy_import") {
-    const sourceRows = Array.isArray(body.rows) ? body.rows : [];
-    if (!sourceRows.length) return NextResponse.json({ error: "Tiada rekod untuk diimport." }, { status: 400 });
-    if (sourceRows.length > 500) return NextResponse.json({ error: "Maksimum 500 rekod untuk satu import." }, { status: 400 });
-    let imported = 0; const errors = [];
-    for (const row of sourceRows) { const error = await createLegacyRecord(auth.client, row); if (error) errors.push(`Baris ${row._row || imported + errors.length + 2}: ${error}`); else imported += 1; }
-    return NextResponse.json({ ok: errors.length === 0, imported, failed: errors.length, errors });
+  if (action === "legacy_import" || action === "log") {
+    return NextResponse.json({ error: LEGACY_IMPORT_RETIRED }, { status: 410 });
   }
   if (action === "bulk") return NextResponse.json({ error: "Use the explicit legacy_import action for historical certificate imports." }, { status: 409 });
-  if (action === "log") {
-    const { error } = await auth.client.from("certificate_import_logs").insert({ created_by: auth.userId, source: body.source === "pdf" ? "pdf" : "csv", source_file_count: Number(body.source_count || 0), row_count: Number(body.row_count || 0), imported_count: Number(body.imported_count || 0), skipped_count: Number(body.skipped_count || 0), error_count: Number(body.error_count || 0), status: body.status || "completed", error_summary: Array.isArray(body.errors) ? body.errors.slice(0, 50) : [] });
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-    return NextResponse.json({ ok: true });
-  }
   return NextResponse.json({ error: "Operasi tidak dikenali." }, { status: 400 });
 }

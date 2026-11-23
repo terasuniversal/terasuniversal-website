@@ -119,35 +119,40 @@ function fakeClient({ existingCourse = null, course = null } = {}) {
 }
 const route = require(compile("app/api/admin/certificates/route.js", "certificates-route.js"));
 const row = (course_name) => ({ participant_name: "SYNTHETIC", identity_no: "SYN123", course_name, course_date: "2020-01-01", certificate_no: "SYN-1" });
-const importRows = async (client, rows) => {
+const post = async (client, payload) => {
   stubs.current.client = client;
-  const response = await route.POST({ json: async () => ({ action: "legacy_import", rows }) });
-  return response.json();
+  const response = await route.POST({ json: async () => payload });
+  return { status: response.status, body: await response.json() };
 };
 
-for (const [label, name, existing] of [["by name", "Working at Height", null], ["by name variant", "WORKING-AT-HEIGHT Refresher", null], ["by resolved course id", "Differently Named", { id: WAH }]]) {
+// The legacy certificate import is retired: every row (WAH or not) and the import log answer 410 with no write.
+for (const [label, payload, existing] of [
+  ["WAH by name", { action: "legacy_import", rows: [row("Working at Height")] }, null],
+  ["WAH by resolved course id", { action: "legacy_import", rows: [row("Differently Named")] }, { id: WAH }],
+  ["another course", { action: "legacy_import", rows: [row("Basic Scaffolding")] }, { id: OTHER_ID }],
+  ["a new course", { action: "legacy_import", rows: [row("New Unrelated Course")] }, null],
+  ["mixed rows", { action: "legacy_import", rows: [row("Working at Height"), row("Basic Scaffolding")] }, null],
+  ["the import log", { action: "log", source: "csv", row_count: 1 }, null],
+]) {
   const client = fakeClient({ existingCourse: existing });
-  const body = await importRows(client, [row(name)]);
-  assert.equal(body.imported, 0);
-  assert.equal(body.failed, 1);
-  assert.match(body.errors[0], /Working at Height tidak dibenarkan/);
+  const { status, body } = await post(client, payload);
+  assert.equal(status, 410, label);
+  assert.match(body.error, /ditamatkan/);
   assert.deepEqual(client.writes, [], `${label}: nothing may be written`);
-  console.log(`PASS API rejects WAH ${label} with no participant, course or RPC call`);
+  console.log(`PASS retired legacy import answers 410 for ${label} with no participant, course, RPC or log write`);
 }
 
-const otherClient = fakeClient({ existingCourse: { id: OTHER_ID } });
-assert.equal((await importRows(otherClient, [row("Basic Scaffolding")])).imported, 1);
-assert.deepEqual(otherClient.writes.map(([kind, name]) => `${kind}:${name}`), ["insert:participants", "rpc:import_legacy_certificate"]);
-const sent = otherClient.writes[1][2];
-assert.equal(sent.p_course_id, OTHER_ID);
-assert.equal("course_date" in sent.p_certificate, false, "the unrelated course_date bug is deliberately left as it was");
-const newCourseClient = fakeClient();
-assert.equal((await importRows(newCourseClient, [row("New Unrelated Course")])).imported, 1);
-assert.deepEqual(newCourseClient.writes.map(([kind, name]) => `${kind}:${name}`), ["insert:participants", "insert:courses", "rpc:import_legacy_certificate"]);
-const mixedClient = fakeClient();
-const mixed = await importRows(mixedClient, [row("Working at Height"), row("Basic Scaffolding")]);
-assert.deepEqual([mixed.imported, mixed.failed], [1, 1]);
-console.log("PASS API keeps other courses' behaviour and write order, and one WAH row does not stop the others");
+const keptClient = fakeClient();
+for (const [action, status] of [["create", 409], ["update", 409], ["bulk", 409]]) {
+  assert.equal((await post(keptClient, { action })).status, status, action);
+}
+assert.deepEqual(keptClient.writes, []);
+assert.equal((await post(keptClient, { action: "unknown" })).status, 400);
+const deleteClient = fakeClient();
+const deleted = await post(deleteClient, { action: "delete", id: "cert-1" });
+assert.equal(deleted.status, 200);
+assert.deepEqual(deleteClient.writes.map(([kind, name]) => `${kind}:${name}`), ["rpc:set_certificate_deleted"]);
+console.log("PASS create/update/bulk keep 409, unknown keeps 400, delete still calls set_certificate_deleted only");
 
 const legacyActions = require(compile("app/admin/(protected)/participants/legacy-import/actions.ts", "legacy-actions.js"));
 const mapForm = (course_id) => new Map([["course_map_id", "map-1"], ["course_id", course_id]]);
