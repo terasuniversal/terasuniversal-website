@@ -214,8 +214,9 @@ const UI_GATES: Array<[string, RegExp[]]> = [
   ["sales/tasks/page.tsx", [/hasModuleAccess\("sales_tasks", "edit"\)/, /canEdit \? <Link href="\/admin\/sales\/tasks\/new"/, /const canManage = canEdit && \(/]],
   ["sales/tasks/[id]/page.tsx", [/hasModuleAccess\("sales_tasks", "edit"\)/, /const canManage = canEdit && \(/]],
   ["sales/follow-ups/page.tsx", [/canSchedule = isAdmin\(profile\.role\) && \(await hasModuleAccess\("sales_leads", "edit"\)\)/]],
-  ["invoices/[id]/page.tsx", [/hasModuleAccess\("invoices", "edit"\)/, /hasModuleAccess\("hrdf_claims", "edit"\)/, /canManage = isAdmin\(profile\.role\) && canEditInvoices/, /canManage=\{canManageHrdf\} canRecord=\{canManage && canManageHrdf\}/, /canManage && <form action=\{generateReceiptAction\}/]],
-  ["invoices/[id]/HrdfClaimCard.tsx", [/\{canRecord && <form action=\{createHrdfClaimAction/, /claim\.status === "claim_approved" && canRecord && <form action=\{recordHrdfPaymentAction/]],
+  // S1 (Owner 2026-11-22): the HRDF claim card is read-only (claims are managed in the HRD Corp portal); its "no
+  // mutation control at all" rule is asserted separately below.
+  ["invoices/[id]/page.tsx", [/hasModuleAccess\("invoices", "edit"\)/, /canManage = isAdmin\(profile\.role\) && canEditInvoices/, /<HrdfClaimCard applicable=\{[^}]*\} claim=\{hrdfClaim\} \/>/, /canManage && <form action=\{generateReceiptAction\}/]],
   ["marketing/page.tsx", [/hasModuleAccess\("marketing_contacts", "edit"\)/, /canCreateContact \? <Link/]],
   ["marketing/contacts/page.tsx", [/hasModuleAccess\("marketing_contacts", "edit"\)/]],
   ["marketing/campaigns/page.tsx", [/hasModuleAccess\("marketing_campaigns", "edit"\)/]],
@@ -232,6 +233,10 @@ for (const [page, patterns] of UI_GATES) {
     for (const pattern of patterns) assert.match(source, pattern);
   });
 }
+check("invoices/[id]/HrdfClaimCard.tsx renders no HRDF mutation control (S1 read-only)", () => {
+  const source = read(P + "invoices/[id]/HrdfClaimCard.tsx");
+  assert.doesNotMatch(source, /from "\.\/actions"|<form|<button|action=/);
+});
 check("lead detail offers Add task only with Tasks edit", () => {
   const source = read(P + "sales/leads/[id]/page.tsx");
   assert.match(source, /const canAddTask = await hasModuleAccess\("sales_tasks", "edit"\);/);

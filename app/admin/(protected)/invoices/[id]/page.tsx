@@ -45,13 +45,10 @@ function taxDisplayLabel(label: string | null, rate: number) {
 export default async function InvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const profile = await requireRole("editor");
   await requireModuleAccess("invoices");
-  // Invoice, payment and receipt actions need Invoices edit; HRDF claim actions also need HRDF edit.
-  const [canEditInvoices, canEditHrdf] = await Promise.all([
-    hasModuleAccess("invoices", "edit"),
-    hasModuleAccess("hrdf_claims", "edit"),
-  ]);
+  // Invoice, payment and receipt actions need Invoices edit. HRDF claims are managed outside the CRM (S1), so no
+  // HRDF edit right is consulted here.
+  const canEditInvoices = await hasModuleAccess("invoices", "edit");
   const canManage = isAdmin(profile.role) && canEditInvoices;
-  const canManageHrdf = isAdmin(profile.role) && canEditHrdf;
   const { id } = await params;
   const supabase = await createSupabaseServerClient();
 
@@ -289,7 +286,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
             )}
           </Card>
 
-          <HrdfClaimCard invoiceId={id} applicable={items.some((item) => item.hrdf_claim === true)} claim={hrdfClaim} canManage={canManageHrdf} canRecord={canManage && canManageHrdf} />
+          <HrdfClaimCard applicable={items.some((item) => item.hrdf_claim === true)} claim={hrdfClaim} />
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
