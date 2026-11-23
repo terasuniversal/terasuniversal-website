@@ -72,6 +72,7 @@
     "test:crm-invoice-update-module": "node --experimental-strip-types scripts/crm-invoice-update-module-contract.mts",
     "test:toyyibpay-inactive-bill-classifier": "node --experimental-transform-types --experimental-test-module-mocks --no-warnings scripts/toyyibpay-inactive-bill-classifier.test.mts",
     "test:fpay1-cancel-invoice-toyyibpay": "node --experimental-transform-types --experimental-test-module-mocks --no-warnings scripts/fpay1-cancel-invoice-toyyibpay.test.mts",
+    "test:fpay1-cancel-invoice-real-lib": "node --experimental-transform-types --experimental-test-module-mocks --no-warnings scripts/fpay1-cancel-invoice-real-lib.test.mts",
     "test:crm-ms5-security": "node --experimental-strip-types scripts/crm-ms5-security-contract.mts",
     "test:ms7-finance-hrdf-rpc-authorization": "node --experimental-strip-types scripts/ms7-finance-hrdf-rpc-authorization-contract.mts ."
   },
