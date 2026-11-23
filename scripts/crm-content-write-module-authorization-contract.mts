@@ -199,8 +199,8 @@ check("rollback re-creates the 30 originals verbatim and drops every R1 name", (
   }
   const drops = new Set([...rollback.matchAll(/drop policy if exists (\w+) on public\.(\w+)/g)].map((m) => m[1]));
   for (const name of created.keys()) assert.ok(drops.has(name), `rollback drops ${name}`);
-  assert.match(rollback, /^\s*begin;/m);
-  assert.match(rollback, /^\s*commit;/m);
+  assert.doesNotMatch(rollback, /^\s*(begin|commit)\s*;/im);
+  assert.match(rollback, /A1 is applied - roll back A1 first/);
   assert.match(rollback, /r1_rollback_precondition_failed/);
 });
 
