@@ -1,55 +1,19 @@
 import { unstable_cache } from "next/cache";
 import { getSupabaseClient } from "./supabase";
-import { createSupabaseServerClient } from "./supabase/server";
 import { publicRegistrationEnabled } from "./public-registration-gate";
 
 /**
- * PUBLIC-SIDE read helpers. These let the existing public website render
- * from the CMS instead of hard-coded arrays. All reads go through the anon
- * key + RLS, so only `published` / live rows are ever returned.
+ * PUBLIC-SIDE read helpers for the public website. Every read uses the cookie-free anon client (lib/supabase.js), so
+ * these helpers are safe inside unstable_cache, and data comes only from the public-safe SECURITY DEFINER RPCs (published,
+ * non-deleted courses and sessions). anon has no direct read access to `courses`.
  *
- * Results are cached with a tag so admin mutations can revalidate instantly
- * (call revalidateTag('courses') in the relevant server action, or rely on
- * the short revalidate window below).
+ * W3-a (owner-approved): the unused CMS helpers (courses, featured courses, gallery, FAQs, company profile) were removed.
+ * They read through the cookie-bound server client inside unstable_cache and discarded errors. FAQ and gallery return,
+ * with explicit error states, once their content policies are fixed in Production (W3-b).
  *
- * INTEGRATION (no redesign — swap the data source only):
- *   // app/page.js (or a server component) — replace the hard-coded
- *   // `programmes` array with:
- *   import { getPublishedCourses } from "@/lib/public-content";
- *   const courses = await getPublishedCourses();
- *   // then map over `courses` exactly as before.
+ * Results are cached with a tag so admin mutations can revalidate instantly (revalidateTag("schedules") in the schedule
+ * actions), otherwise within the short revalidate window below.
  */
-
-export const getPublishedCourses = unstable_cache(
-  async () => {
-    const supabase = await createSupabaseServerClient();
-    const { data } = await supabase
-      .from("courses")
-      .select("id, title, slug, category, summary, featured, sort_order")
-      .eq("status", "published")
-      .is("deleted_at", null)
-      .order("sort_order", { ascending: true });
-    return data ?? [];
-  },
-  ["public-courses"],
-  { tags: ["courses"], revalidate: 60 }
-);
-
-export const getFeaturedCourses = unstable_cache(
-  async () => {
-    const supabase = await createSupabaseServerClient();
-    const { data } = await supabase
-      .from("courses")
-      .select("id, title, slug, category, summary")
-      .eq("status", "published")
-      .eq("featured", true)
-      .is("deleted_at", null)
-      .order("sort_order", { ascending: true });
-    return data ?? [];
-  },
-  ["public-featured-courses"],
-  { tags: ["courses"], revalidate: 60 }
-);
 
 /**
  * Shape of a published training session as shown on the public site, exactly
@@ -172,33 +136,24 @@ export const getPublishedSchedulesWithState = unstable_cache(
   { tags: ["schedules"], revalidate: 60 }
 );
 
-/** Resolve the stable CRM course identity without entering a cookie-bound cache. */
-export async function getPublicCourseIdentity(slug: string): Promise<{ id: string; slug: string } | null> {
-  try {
-    const supabase = getSupabaseClient();
-    const { data, error } = await supabase
-      .from("courses")
-      .select("id, slug")
-      .eq("slug", slug)
-      .eq("status", "published")
-      .is("deleted_at", null)
-      .maybeSingle();
-    return error || !data ? null : data;
-  } catch {
-    return null;
-  }
-}
-
-export async function getPublishedSchedules(): Promise<PublicSchedule[]> {
-  const result = await getPublishedSchedulesWithState();
-  return result.schedules;
+/**
+ * The stable CRM course identity for a public course slug, taken from the published sessions the public RPC already
+ * returned (published, non-deleted course; published, non-cancelled session). W3-a: this replaces a direct anon read of
+ * `courses`, which always resolved to null because anon has no read access to that table. Only upcoming sessions count
+ * (the same date rule as the course page), so a course with past sessions only keeps its catalogue calendar link. Null
+ * when no upcoming session carries the slug, or when sessions disagree on the course id. No database call.
+ */
+export function courseIdentityFromSchedules(slug: string, schedules: readonly PublicSchedule[]): { id: string; slug: string } | null {
+  const today = new Date().toISOString().slice(0, 10);
+  const ids = new Set(schedules.filter((schedule) => schedule.slug === slug && schedule.start_date >= today).map((schedule) => schedule.course_id));
+  return ids.size === 1 ? { id: [...ids][0], slug } : null;
 }
 
 /**
  * Upcoming open/full sessions, earliest first, capped at 3 for the homepage
  * preview. The date/status filtering is done inside the RPC so anon never
  * reads the underlying tables. Separate cache entry from
- * getPublishedSchedules — nested unstable_cache calls are not supported.
+ * getPublishedSchedulesWithState — nested unstable_cache calls are not supported.
  */
 export const getUpcomingSchedules = unstable_cache(
   async (): Promise<PublicSchedule[]> => {
@@ -221,44 +176,4 @@ export const getUpcomingSchedules = unstable_cache(
   },
   ["public-upcoming-schedules"],
   { tags: ["schedules"], revalidate: 60 }
-);
-
-export const getGallery = unstable_cache(
-  async () => {
-    const supabase = await createSupabaseServerClient();
-    const { data } = await supabase
-      .from("gallery_images")
-      .select("id, title, alt_text, image_url, category_id")
-      .eq("status", "published")
-      .is("deleted_at", null)
-      .order("sort_order", { ascending: true });
-    return data ?? [];
-  },
-  ["public-gallery"],
-  { tags: ["gallery"], revalidate: 60 }
-);
-
-export const getPublishedFaqs = unstable_cache(
-  async () => {
-    const supabase = await createSupabaseServerClient();
-    const { data } = await supabase
-      .from("faqs")
-      .select("id, question, answer, category_id")
-      .eq("status", "published")
-      .is("deleted_at", null)
-      .order("sort_order", { ascending: true });
-    return data ?? [];
-  },
-  ["public-faqs"],
-  { tags: ["faqs"], revalidate: 60 }
-);
-
-export const getCompanyProfile = unstable_cache(
-  async () => {
-    const supabase = await createSupabaseServerClient();
-    const { data } = await supabase.from("company_profile").select("*").eq("id", 1).single();
-    return data;
-  },
-  ["public-company"],
-  { tags: ["company"], revalidate: 120 }
 );
