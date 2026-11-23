@@ -70,6 +70,7 @@
     "test:sales-finance-rpc-authorization": "node --experimental-strip-types scripts/sales-finance-rpc-authorization-contract.mts supabase/migrations/20261121130000_sales_finance_rpc_module_authorization.sql supabase/migrations/20261121120000_sales_crm_module_rls_hardening.sql .",
     "test:crm-rc-ux": "node --experimental-strip-types scripts/crm-rc-ux-contract.mts",
     "test:crm-invoice-update-module": "node --experimental-strip-types scripts/crm-invoice-update-module-contract.mts",
+    "test:fpay1-cancel-invoice-toyyibpay": "node --experimental-transform-types --experimental-test-module-mocks --no-warnings scripts/fpay1-cancel-invoice-toyyibpay.test.mts",
     "test:crm-ms5-security": "node --experimental-strip-types scripts/crm-ms5-security-contract.mts",
     "test:ms7-finance-hrdf-rpc-authorization": "node --experimental-strip-types scripts/ms7-finance-hrdf-rpc-authorization-contract.mts ."
   },

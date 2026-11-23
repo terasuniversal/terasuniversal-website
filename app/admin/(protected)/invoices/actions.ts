@@ -276,7 +276,16 @@ export async function generateReceiptAction(formData: FormData): Promise<never> 
   redirect(`/admin/receipt-pdf/${result.receipt_id}`);
 }
 
-/** Task section 11: controlled cancellation — see cancel_invoice() for the exact draft/issued-only rule. */
+/**
+ * Task section 11: controlled cancellation — see cancel_invoice() for the exact draft/issued-only rule.
+ *
+ * F-PAY-1: cancel_invoice() does not touch ToyyibPay, and the callback finalizer does not check the
+ * invoice status, so cancelling while a pending ToyyibPay bill exists left that bill payable against a
+ * cancelled invoice. Before cancelling, resolve the active attempt exactly like recordManualPaymentAction:
+ * inactivate the bill server-to-server, and only after a CONFIRMED provider success mark the local attempt
+ * superseded. Any check error, provider error, timeout or unconfirmed result stops here and leaves the
+ * invoice, the attempt and the bill exactly as they were.
+ */
 export async function cancelInvoiceAction(invoiceId: string, _prev: InvoiceActionState, formData: FormData): Promise<InvoiceActionState> {
   await requireRole("admin");
   await requireModuleAccess("invoices", "edit");
@@ -285,8 +294,66 @@ export async function cancelInvoiceAction(invoiceId: string, _prev: InvoiceActio
 
   const supabase = await createSupabaseServerClient();
   const { data: existing } = await supabase.from("invoices").select("opportunity_id, quotation_id").eq("id", invoiceId).maybeSingle();
+
+  const { data: activeCheck, error: activeError } = await supabase.rpc("get_active_toyyibpay_attempt", {
+    p_invoice_id: invoiceId,
+  });
+  if (activeError) {
+    return { message: "Could not check for an active ToyyibPay payment link before cancelling this invoice. The invoice was NOT cancelled — please try again." };
+  }
+  const active = activeCheck as { has_active_attempt: boolean; attempt_id?: string; billcode?: string } | null;
+
+  if (active?.has_active_attempt) {
+    // An active attempt without its identifiers cannot be inactivated safely: never cancel around it.
+    if (!active.attempt_id || !active.billcode) {
+      return { message: "A ToyyibPay payment link is active for this invoice but could not be identified. The invoice was NOT cancelled — please contact an administrator." };
+    }
+
+    let inactivateSucceeded = false;
+    try {
+      const result = await inactivateBill(active.billcode);
+      inactivateSucceeded = result.success === true;
+    } catch {
+      inactivateSucceeded = false;
+    }
+
+    if (!inactivateSucceeded) {
+      await supabase.rpc("log_toyyibpay_conflict", {
+        p_invoice_id: invoiceId,
+        p_attempt_id: active.attempt_id,
+        p_conflict_type: "in_progress",
+      });
+      return {
+        message: "A ToyyibPay payment link is active for this invoice and could not be safely deactivated. The invoice was NOT cancelled — please try again shortly, or reconcile the ToyyibPay attempt first.",
+      };
+    }
+
+    // If a payment completed before the bill was inactivated, the attempt is no longer pending and this
+    // fails (terminal attempts are immutable): the invoice is then not cancelled and needs reconciliation.
+    const { error: supersedeError } = await supabase.rpc("mark_toyyibpay_attempt_superseded", {
+      p_attempt_id: active.attempt_id,
+    });
+    if (supersedeError) {
+      await supabase.rpc("log_toyyibpay_conflict", {
+        p_invoice_id: invoiceId,
+        p_attempt_id: active.attempt_id,
+        p_conflict_type: "reconciliation_required",
+      });
+      return {
+        message: "The ToyyibPay payment link was deactivated on ToyyibPay's side, but its local status could not be updated. The invoice was NOT cancelled — please contact an administrator before retrying.",
+      };
+    }
+  }
+
   const { error } = await supabase.rpc("cancel_invoice", { p_invoice_id: invoiceId, p_reason: parsed.data.reason || null });
-  if (error) return { message: rpcMessage(error) };
+  if (error) {
+    if (active?.has_active_attempt) {
+      // The bill is already inactive and the attempt superseded, so nothing is payable; say so plainly.
+      revalidateInvoice(invoiceId, existing?.opportunity_id, existing?.quotation_id);
+      return { message: `The ToyyibPay payment link was deactivated, but the invoice could not be cancelled: ${rpcMessage(error)}` };
+    }
+    return { message: rpcMessage(error) };
+  }
 
   revalidateInvoice(invoiceId, existing?.opportunity_id, existing?.quotation_id);
   return {};

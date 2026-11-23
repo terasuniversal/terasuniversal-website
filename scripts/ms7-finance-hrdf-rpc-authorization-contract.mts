@@ -150,7 +150,9 @@ for (const f of files) {
     for (const fn of Object.keys(RPCS)) assert.doesNotMatch(t, new RegExp(`\\.rpc\\("${fn}_unguarded"`), "app must not call *_unguarded");
   });
 }
-check("all ten known application call sites were found", () => assert.equal(callSites, 10));
+// 10 M-S7 call sites + 4 from the F-PAY-1 cancel orchestration in cancelInvoiceAction
+// (get_active_toyyibpay_attempt, mark_toyyibpay_attempt_superseded, log_toyyibpay_conflict x2).
+check("all fourteen known application call sites were found", () => assert.equal(callSites, 14));
 
 console.log(failures ? `${failures} check(s) FAILED, ${passed} passed.` : `${passed} check(s) passed.`);
 process.exit(failures ? 1 : 0);
