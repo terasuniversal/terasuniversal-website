@@ -76,6 +76,8 @@
     "test:fpay1-cancel-invoice-real-lib": "node --experimental-transform-types --experimental-test-module-mocks --no-warnings scripts/fpay1-cancel-invoice-real-lib.test.mts",
     "test:crm-ms5-security": "node --experimental-strip-types scripts/crm-ms5-security-contract.mts",
     "test:crm-content-write-module-authorization": "node --experimental-strip-types scripts/crm-content-write-module-authorization-contract.mts .",
+    "test:crm-anon-a1": "node --experimental-strip-types scripts/crm-anon-a1-contract.mts .",
+    "test:crm-anon-a1-docker": "node --experimental-strip-types scripts/crm-anon-a1-docker/run.mts .",
     "test:ms7-finance-hrdf-rpc-authorization": "node --experimental-strip-types scripts/ms7-finance-hrdf-rpc-authorization-contract.mts ."
   },
   "dependencies": {

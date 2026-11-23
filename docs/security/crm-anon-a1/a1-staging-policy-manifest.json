@@ -1,0 +1,579 @@
+{
+ "project": "eokiaehnvzbggmacifcf",
+ "state": "post-R1 (R1 applied as 20261123010449), post-R0-S",
+ "captured": "2026-11-23 read-only",
+ "fingerprint_sql": "md5(string_agg(concat_ws('|',tablename,policyname,permissive,roles::text,cmd,qual,with_check), E'\n' order by tablename,policyname)) over pg_policies (schemaname='public')",
+ "pinned": {
+  "targets_9_pre": "9914080179fe06924f6aea08fe9adea2",
+  "targets_9_post_expected": "c1d42de950da4cee926597b2fae49bb8",
+  "nine_tables_41_pre": "40ff9b48273f92d22b00d8fb48f5a3b2",
+  "nine_tables_41_post_expected": "69894c508ffe74d13084a0b84b66add9",
+  "r1_19_tables_pre": "4027925574edfdd0093304331ef2af7e",
+  "r1_19_tables_post_expected": "401e5287e19beceaf6b8a45201da1ab1",
+  "outside_nine_tables_all_schemas": "4a9f9a53882a0a6f2fab75dcd99480bf",
+  "total_policies": 213,
+  "migrations": 69
+ },
+ "policies": [
+  {
+   "schema": "public",
+   "table": "downloads",
+   "policy": "downloads_admin_delete",
+   "cmd": "DELETE",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "app.is_admin()",
+   "with_check": null,
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "downloads",
+   "policy": "downloads_editor_insert",
+   "cmd": "INSERT",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": null,
+   "with_check": "(app.is_editor() AND ( SELECT has_module_access_level('downloads'::text, 'edit'::text) AS has_module_access_level))",
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "downloads",
+   "policy": "downloads_editor_read",
+   "cmd": "SELECT",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "app.is_editor()",
+   "with_check": null,
+   "a1_target": true,
+   "proposed_roles": [
+    "authenticated"
+   ]
+  },
+  {
+   "schema": "public",
+   "table": "downloads",
+   "policy": "downloads_editor_update",
+   "cmd": "UPDATE",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "(app.is_editor() AND ( SELECT has_module_access_level('downloads'::text, 'edit'::text) AS has_module_access_level))",
+   "with_check": "(app.is_editor() AND ( SELECT has_module_access_level('downloads'::text, 'edit'::text) AS has_module_access_level))",
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "downloads",
+   "policy": "downloads_public_read",
+   "cmd": "SELECT",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "((status = 'published'::content_status) AND (deleted_at IS NULL))",
+   "with_check": null,
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "faq_categories",
+   "policy": "faq_categories_editor_delete",
+   "cmd": "DELETE",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "(app.is_editor() AND ( SELECT has_module_access_level('faq'::text, 'edit'::text) AS has_module_access_level))",
+   "with_check": null,
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "faq_categories",
+   "policy": "faq_categories_editor_insert",
+   "cmd": "INSERT",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": null,
+   "with_check": "(app.is_editor() AND ( SELECT has_module_access_level('faq'::text, 'edit'::text) AS has_module_access_level))",
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "faq_categories",
+   "policy": "faq_categories_editor_select",
+   "cmd": "SELECT",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "app.is_editor()",
+   "with_check": null,
+   "a1_target": true,
+   "proposed_roles": [
+    "authenticated"
+   ]
+  },
+  {
+   "schema": "public",
+   "table": "faq_categories",
+   "policy": "faq_categories_editor_update",
+   "cmd": "UPDATE",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "(app.is_editor() AND ( SELECT has_module_access_level('faq'::text, 'edit'::text) AS has_module_access_level))",
+   "with_check": "(app.is_editor() AND ( SELECT has_module_access_level('faq'::text, 'edit'::text) AS has_module_access_level))",
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "faqs",
+   "policy": "faqs_admin_delete",
+   "cmd": "DELETE",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "app.is_admin()",
+   "with_check": null,
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "faqs",
+   "policy": "faqs_editor_insert",
+   "cmd": "INSERT",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": null,
+   "with_check": "(app.is_editor() AND ( SELECT has_module_access_level('faq'::text, 'edit'::text) AS has_module_access_level))",
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "faqs",
+   "policy": "faqs_editor_read",
+   "cmd": "SELECT",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "app.is_editor()",
+   "with_check": null,
+   "a1_target": true,
+   "proposed_roles": [
+    "authenticated"
+   ]
+  },
+  {
+   "schema": "public",
+   "table": "faqs",
+   "policy": "faqs_editor_update",
+   "cmd": "UPDATE",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "(app.is_editor() AND ( SELECT has_module_access_level('faq'::text, 'edit'::text) AS has_module_access_level))",
+   "with_check": "(app.is_editor() AND ( SELECT has_module_access_level('faq'::text, 'edit'::text) AS has_module_access_level))",
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "faqs",
+   "policy": "faqs_public_read",
+   "cmd": "SELECT",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "((status = 'published'::content_status) AND (deleted_at IS NULL))",
+   "with_check": null,
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "gallery_categories",
+   "policy": "gallery_categories_editor_delete",
+   "cmd": "DELETE",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "(app.is_editor() AND ( SELECT has_module_access_level('gallery'::text, 'edit'::text) AS has_module_access_level))",
+   "with_check": null,
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "gallery_categories",
+   "policy": "gallery_categories_editor_insert",
+   "cmd": "INSERT",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": null,
+   "with_check": "(app.is_editor() AND ( SELECT has_module_access_level('gallery'::text, 'edit'::text) AS has_module_access_level))",
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "gallery_categories",
+   "policy": "gallery_categories_editor_select",
+   "cmd": "SELECT",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "app.is_editor()",
+   "with_check": null,
+   "a1_target": true,
+   "proposed_roles": [
+    "authenticated"
+   ]
+  },
+  {
+   "schema": "public",
+   "table": "gallery_categories",
+   "policy": "gallery_categories_editor_update",
+   "cmd": "UPDATE",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "(app.is_editor() AND ( SELECT has_module_access_level('gallery'::text, 'edit'::text) AS has_module_access_level))",
+   "with_check": "(app.is_editor() AND ( SELECT has_module_access_level('gallery'::text, 'edit'::text) AS has_module_access_level))",
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "gallery_images",
+   "policy": "gallery_images_admin_delete",
+   "cmd": "DELETE",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "app.is_admin()",
+   "with_check": null,
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "gallery_images",
+   "policy": "gallery_images_editor_insert",
+   "cmd": "INSERT",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": null,
+   "with_check": "(app.is_editor() AND ( SELECT has_module_access_level('gallery'::text, 'edit'::text) AS has_module_access_level))",
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "gallery_images",
+   "policy": "gallery_images_editor_read",
+   "cmd": "SELECT",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "app.is_editor()",
+   "with_check": null,
+   "a1_target": true,
+   "proposed_roles": [
+    "authenticated"
+   ]
+  },
+  {
+   "schema": "public",
+   "table": "gallery_images",
+   "policy": "gallery_images_editor_update",
+   "cmd": "UPDATE",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "(app.is_editor() AND ( SELECT has_module_access_level('gallery'::text, 'edit'::text) AS has_module_access_level))",
+   "with_check": "(app.is_editor() AND ( SELECT has_module_access_level('gallery'::text, 'edit'::text) AS has_module_access_level))",
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "gallery_images",
+   "policy": "gallery_images_public_read",
+   "cmd": "SELECT",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "((status = 'published'::content_status) AND (deleted_at IS NULL))",
+   "with_check": null,
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "media",
+   "policy": "media_admin_delete",
+   "cmd": "DELETE",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "app.is_admin()",
+   "with_check": null,
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "media",
+   "policy": "media_editor_insert",
+   "cmd": "INSERT",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": null,
+   "with_check": "(app.is_editor() AND ( SELECT has_module_access_level('media'::text, 'edit'::text) AS has_module_access_level))",
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "media",
+   "policy": "media_editor_read",
+   "cmd": "SELECT",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "app.is_editor()",
+   "with_check": null,
+   "a1_target": true,
+   "proposed_roles": [
+    "authenticated"
+   ]
+  },
+  {
+   "schema": "public",
+   "table": "media",
+   "policy": "media_editor_update",
+   "cmd": "UPDATE",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "(app.is_editor() AND ( SELECT has_module_access_level('media'::text, 'edit'::text) AS has_module_access_level))",
+   "with_check": "(app.is_editor() AND ( SELECT has_module_access_level('media'::text, 'edit'::text) AS has_module_access_level))",
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "media",
+   "policy": "media_public_read",
+   "cmd": "SELECT",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "((status = 'published'::content_status) AND (deleted_at IS NULL))",
+   "with_check": null,
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "media_folders",
+   "policy": "media_folders_editor_delete",
+   "cmd": "DELETE",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "(app.is_editor() AND ( SELECT has_module_access_level('media'::text, 'edit'::text) AS has_module_access_level))",
+   "with_check": null,
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "media_folders",
+   "policy": "media_folders_editor_insert",
+   "cmd": "INSERT",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": null,
+   "with_check": "(app.is_editor() AND ( SELECT has_module_access_level('media'::text, 'edit'::text) AS has_module_access_level))",
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "media_folders",
+   "policy": "media_folders_editor_select",
+   "cmd": "SELECT",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "app.is_editor()",
+   "with_check": null,
+   "a1_target": true,
+   "proposed_roles": [
+    "authenticated"
+   ]
+  },
+  {
+   "schema": "public",
+   "table": "media_folders",
+   "policy": "media_folders_editor_update",
+   "cmd": "UPDATE",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "(app.is_editor() AND ( SELECT has_module_access_level('media'::text, 'edit'::text) AS has_module_access_level))",
+   "with_check": "(app.is_editor() AND ( SELECT has_module_access_level('media'::text, 'edit'::text) AS has_module_access_level))",
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "news_categories",
+   "policy": "news_categories_editor_delete",
+   "cmd": "DELETE",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "(app.is_editor() AND ( SELECT has_module_access_level('news'::text, 'edit'::text) AS has_module_access_level))",
+   "with_check": null,
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "news_categories",
+   "policy": "news_categories_editor_insert",
+   "cmd": "INSERT",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": null,
+   "with_check": "(app.is_editor() AND ( SELECT has_module_access_level('news'::text, 'edit'::text) AS has_module_access_level))",
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "news_categories",
+   "policy": "news_categories_editor_select",
+   "cmd": "SELECT",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "app.is_editor()",
+   "with_check": null,
+   "a1_target": true,
+   "proposed_roles": [
+    "authenticated"
+   ]
+  },
+  {
+   "schema": "public",
+   "table": "news_categories",
+   "policy": "news_categories_editor_update",
+   "cmd": "UPDATE",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "(app.is_editor() AND ( SELECT has_module_access_level('news'::text, 'edit'::text) AS has_module_access_level))",
+   "with_check": "(app.is_editor() AND ( SELECT has_module_access_level('news'::text, 'edit'::text) AS has_module_access_level))",
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "news_posts",
+   "policy": "news_posts_admin_delete",
+   "cmd": "DELETE",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "app.is_admin()",
+   "with_check": null,
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "news_posts",
+   "policy": "news_posts_editor_insert",
+   "cmd": "INSERT",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": null,
+   "with_check": "(app.is_editor() AND ( SELECT has_module_access_level('news'::text, 'edit'::text) AS has_module_access_level))",
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "news_posts",
+   "policy": "news_posts_editor_read",
+   "cmd": "SELECT",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "app.is_editor()",
+   "with_check": null,
+   "a1_target": true,
+   "proposed_roles": [
+    "authenticated"
+   ]
+  },
+  {
+   "schema": "public",
+   "table": "news_posts",
+   "policy": "news_posts_editor_update",
+   "cmd": "UPDATE",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "(app.is_editor() AND ( SELECT has_module_access_level('news'::text, 'edit'::text) AS has_module_access_level))",
+   "with_check": "(app.is_editor() AND ( SELECT has_module_access_level('news'::text, 'edit'::text) AS has_module_access_level))",
+   "a1_target": false
+  },
+  {
+   "schema": "public",
+   "table": "news_posts",
+   "policy": "news_posts_public_read",
+   "cmd": "SELECT",
+   "permissive": "PERMISSIVE",
+   "roles": [
+    "public"
+   ],
+   "using": "((status = 'published'::content_status) AND (deleted_at IS NULL))",
+   "with_check": null,
+   "a1_target": false
+  }
+ ]
+}
