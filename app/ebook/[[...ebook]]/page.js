@@ -81,11 +81,11 @@ export default function EbookPage() {
           <div className={`${kit.wrap} ${styles.requestGrid}`}>
             <div>
               <h2 id="ebook-request-title">Request your free copy</h2>
-              <p>Tell us where to send the eBook. We only ask for what is needed to send it.</p>
+              <p>Tell us who you are and where to send the eBook. We only ask for what is needed to provide it and handle your request.</p>
               <h3>How your details would be used</h3>
               <ul className={styles.privacy}>
-                <li>Your name and email are used to send you this eBook.</li>
-                <li>Hearing from TERAS about courses is a separate, optional choice. You get the eBook either way.</li>
+                <li>Your full name, WhatsApp/phone number and email are used to provide this eBook and handle your request. Your number is not used for promotional calls or WhatsApp messages.</li>
+                <li>Hearing from TERAS about courses by email is a separate, optional choice. You get the eBook either way.</li>
                 <li>TERAS UNIVERSAL’s Privacy Notice is being finalised and will be published before this form goes live.</li>
               </ul>
             </div>

@@ -17,6 +17,7 @@ import { revertPublicFirst, PF_CHANGED, PF_ADDED, PF_WITHHELD } from "./public-f
 import { CONTRACT_BASE, changedSinceBase } from "./contract-base.mts";
 import { revertToyyibpayInactiveBill, revertToyyibpayInactiveBillInBase } from "./toyyibpay-inactivebill-approved.mts";
 import { revertW6a2 } from "./w6a2-approved.mts";
+import { revertW9g1 } from "./w9g1-approved.mts";
 
 const root = new URL("../", import.meta.url);
 const rootPath = fileURLToPath(root);
@@ -152,7 +153,8 @@ check("F-4: /verify uses #667085 for its secondary text; verification logic file
 });
 check("untouched: legal drafts and their markers, eBook gate, articles, certificate logic, site origin and every ToyyibPay file", () => {
   // W6-SEO-a2 (owner-approved) later edited data/insights.js; only its named edits are undone before hashing.
-  for (const [path, hash] of Object.entries(UNTOUCHED)) assert.equal(norm16(revertW6a2(path, text(path))), hash, path);
+  // W9-G1 (owner-approved) later edited the /ebook page; its named edits are undone first.
+  for (const [path, hash] of Object.entries(UNTOUCHED)) assert.equal(norm16(revertW6a2(path, revertW9g1(path, text(path)))), hash, path);
   for (const path of PAYMENT_AT_BASE) {
     const current = text(path).replace(/\r\n/g, "\n");
     const base = execFileSync("git", ["show", `${CONTRACT_BASE}:${path}`], { cwd: rootPath, encoding: "utf8", maxBuffer: 1 << 26 }).replace(/\r\n/g, "\n");

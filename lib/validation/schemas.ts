@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { normalizeMalaysianPhone } from "../my-phone.js";
 
 /**
  * Zod schemas — the single source of truth for input validation in server
@@ -185,6 +186,24 @@ export const contactEnquirySchema = z.object({
   sourcePage: z.enum(["homepage", "contact_page"]),
 });
 export type ContactEnquiryInput = z.infer<typeof contactEnquirySchema>;
+// W9-G1 eBook lead form (public /api/ebook). Name, Malaysian phone and email are required; the phone is normalised to
+// E.164 (+60…) here so the CRM deduplicates on one canonical value. The Privacy Notice acknowledgement must be exactly
+// true. Marketing is a separate, optional email-only choice that defaults to false; the phone number carries no consent.
+export const ebookLeadSchema = z.object({
+  fullName: z.string().trim().min(2, "Please enter your full name").max(120),
+  phone: z.string().trim().max(30).transform((value, ctx) => {
+    const result = normalizeMalaysianPhone(value);
+    if (!result.ok) {
+      ctx.addIssue({ code: "custom", message: "Please enter a valid Malaysian WhatsApp or phone number" });
+      return z.NEVER;
+    }
+    return result.e164;
+  }),
+  email: z.string().trim().toLowerCase().email("Please enter a valid email address").max(254),
+  privacyAck: z.boolean().refine((value) => value === true, "Please confirm the Privacy Notice to receive the eBook"),
+  marketingEmailOptIn: z.boolean().default(false),
+});
+export type EbookLeadInput = z.infer<typeof ebookLeadSchema>;
 
 export const participantSchema = z.object({
   // Required fields (friendly messages).
