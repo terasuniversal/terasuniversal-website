@@ -16,6 +16,7 @@ import { revertW6seo } from "./w6seo-approved.mts";
 import { revertW8h } from "./w8h-approved.mts";
 import { revertW6a2 } from "./w6a2-approved.mts";
 import { revertW9g1 } from "./w9g1-approved.mts";
+import { revertW9g3 } from "./w9g3-approved.mts";
 
 const HOST = "https://terasuniversal.com.my";
 
@@ -159,6 +160,8 @@ export function revertPublicFirst(path: string, input: string): string {
   // W8-H (owner-approved W8-H G1/G2, scripts/w8h-approved.mts) is the latest change of all, so it is undone first.
   // W6-SEO-a2 (owner-approved W6-SEO-a2 G1, scripts/w6a2-approved.mts) is later than W8-H, so it is undone first.
   // W9-G1 (owner-approved, scripts/w9g1-approved.mts) is later than W6-SEO-a2, so it is undone first.
+  // W9-G3 (owner-approved, scripts/w9g3-approved.mts) is later than W9-G1, so it is undone first.
+  input = revertW9g3(path, input);
   input = revertW9g1(path, input);
   input = revertW6a2(path, input);
   input = revertW8h(path, input);

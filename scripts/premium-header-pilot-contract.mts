@@ -133,7 +133,9 @@ check("PremiumHeader is used by the approved Premium pages, the pilot pages, the
     // S5B-1B Round 2: the 404 page and the local-only draft legal pages.
     "app/not-found.js", "app/privacy/[[...lang]]/page.js", "app/terms/[[...part]]/page.js",
     // S6: the local-preview eBook landing page (gated by TERAS_EBOOK_PREVIEW).
-    "app/ebook/[[...ebook]]/page.js", ...PILOT, ...ROLLOUT, ...LEAD].sort());
+    "app/ebook/[[...ebook]]/page.js",
+    // W9-G3 (owner-approved): the eBook email verification page (only when TERAS_EBOOK_PUBLIC is "on").
+    "app/ebook/verify/[[...verify]]/page.js", ...PILOT, ...ROLLOUT, ...LEAD].sort());
 });
 check("lead pages still render their own form or confirmation, with the form components, endpoints and redirect untouched", () => {
   assert.match(read("app/contact/page.js"), /<ContactEnquiryForm \/>/);

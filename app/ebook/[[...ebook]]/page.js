@@ -5,7 +5,9 @@ import { publicBody } from "../../../components/premium/fonts";
 import kit from "../../../components/premium/premium.module.css";
 import styles from "../../../components/ebook/ebook.module.css";
 import EbookRequestDemo from "../../../components/ebook/EbookRequestDemo";
+import EbookRequestForm from "../../../components/ebook/EbookRequestForm";
 import { ebookPreviewEnabled, ebookRelease } from "../../../lib/ebook-preview";
+import { ebookPublicEnabled } from "../../../lib/ebook-lead";
 
 // LOCAL PREVIEW (Phase S6): /ebook only exists when TERAS_EBOOK_PREVIEW=local at build time. Otherwise
 // generateStaticParams returns no paths and dynamicParams = false makes the router answer a real HTTP 404 (a notFound()
@@ -13,8 +15,10 @@ import { ebookPreviewEnabled, ebookRelease } from "../../../lib/ebook-preview";
 // until the lead-capture flow, Privacy Notice and delivery are approved. The copy summarises the approved v1.5.1 eBook.
 export const dynamicParams = false;
 
+// W9-G3: the page also exists when TERAS_EBOOK_PUBLIC is "on" at build time (launch needs a rebuild, which an env change
+// on Vercel triggers anyway). Live mode renders the real request form; the local preview keeps the network-free demo.
 export function generateStaticParams() {
-  return ebookPreviewEnabled ? [{ ebook: [] }] : [];
+  return ebookPreviewEnabled || ebookPublicEnabled() ? [{ ebook: [] }] : [];
 }
 
 const description = "A free introductory eBook in Bahasa Melayu about scaffolding and the scaffold erector career, for school leavers and newcomers to industry.";
@@ -37,11 +41,12 @@ const learn = [
 ];
 
 export default function EbookPage() {
+  const live = ebookPublicEnabled();
   return (
     <>
       <PremiumHeader />
       <main className={`${publicBody.variable} ${kit.px} ${styles.page}`}>
-        <p className={styles.previewBanner} role="note"><strong>Local preview, not live.</strong> This page and its request form are a demonstration for owner review. No details are sent or stored, and the eBook is not delivered here.</p>
+        {!live && <p className={styles.previewBanner} role="note"><strong>Local preview, not live.</strong> This page and its request form are a demonstration for owner review. No details are sent or stored, and the eBook is not delivered here.</p>}
 
         <section className={styles.hero} aria-labelledby="ebook-title">
           <div className={`${kit.wrap} ${styles.heroGrid}`}>
@@ -89,7 +94,7 @@ export default function EbookPage() {
                 <li>TERAS UNIVERSAL’s Privacy Notice is being finalised and will be published before this form goes live.</li>
               </ul>
             </div>
-            <EbookRequestDemo />
+            {live ? <EbookRequestForm /> : <EbookRequestDemo />}
           </div>
         </section>
 

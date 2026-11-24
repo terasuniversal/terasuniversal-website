@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { CONTRACT_BASE, changedSinceBase } from "./contract-base.mts";
 import { revertPublicFirst, PF_CHANGED, PF_ADDED, PF_WITHHELD } from "./public-first-approved.mts";
 import { revertW4a, W4A_CHANGED } from "./w4a-approved.mts";
+import { W9G3_PROTECTED_ADDED } from "./w9g3-approved.mts"; // W9-G3.3: the two exact W9-G3 API route files
 
 // Contract for the scoped public design foundation (Phase S1): components/premium/premium.module.css and fonts.js.
 // Proves the kit cannot reach the admin/CRM shell, certificate pages or the attendance print layout, and that the
@@ -91,7 +92,7 @@ const importers = sourceFiles.filter((path) => !path.startsWith("components/prem
 // S5B-1B Round 1 (owner-approved): /insights/[slug] (Premium header + footer) and the 404 page (Premium footer) join it.
 // S5B-1B Round 2: the local-only draft legal pages and their LegalDocument component join it.
 check("kit is imported only by the homepage, the training calendar, the course pages, the training catalogue, the scaffolding category, the header-rollout content and lead pages and their own components", () =>
-  assert.deepEqual(importers, ["app/about/page.js", "app/calendar/page.js", "app/contact/page.js", "app/corporate-training/page.js", "app/ebook/[[...ebook]]/page.js" /* S6 local-preview eBook page */, "app/faq/page.js", "app/gallery/page.js", "app/industries/[slug]/page.js", "app/industries/page.js", "app/insights/[slug]/page.js", "app/insights/page.js", "app/not-found.js", "app/page.js", "app/privacy/[[...lang]]/page.js", "app/request-proposal/page.js", "app/request-proposal/success/page.js", "app/resources/page.js", "app/search/page.js", "app/services/page.js", "app/services/scaffolding/page.js", "app/stories/page.js", "app/terms/[[...part]]/page.js", "app/training/[slug]/page.js", "app/training/page.js", "app/training/scaffolding-competency/page.js", "components/TrainingCalendar.js", "components/TrainingComparison.js", "components/TrainingFinder.js", "components/course/CourseSessions.tsx", "components/home/CoreProgrammes.js", "components/home/HomeHero.js", "components/home/UpcomingDates.js", "components/legal/LegalDocument.js", "components/training/CourseCatalogue.js"]));
+  assert.deepEqual(importers, ["app/about/page.js", "app/calendar/page.js", "app/contact/page.js", "app/corporate-training/page.js", "app/ebook/[[...ebook]]/page.js" /* S6 local-preview eBook page */, "app/ebook/verify/[[...verify]]/page.js" /* W9-G3 eBook verification page (W9-G3.2) */, "app/faq/page.js", "app/gallery/page.js", "app/industries/[slug]/page.js", "app/industries/page.js", "app/insights/[slug]/page.js", "app/insights/page.js", "app/not-found.js", "app/page.js", "app/privacy/[[...lang]]/page.js", "app/request-proposal/page.js", "app/request-proposal/success/page.js", "app/resources/page.js", "app/search/page.js", "app/services/page.js", "app/services/scaffolding/page.js", "app/stories/page.js", "app/terms/[[...part]]/page.js", "app/training/[slug]/page.js", "app/training/page.js", "app/training/scaffolding-competency/page.js", "components/TrainingCalendar.js", "components/TrainingComparison.js", "components/TrainingFinder.js", "components/course/CourseSessions.tsx", "components/home/CoreProgrammes.js", "components/home/HomeHero.js", "components/home/UpcomingDates.js", "components/legal/LegalDocument.js", "components/training/CourseCatalogue.js"]));
 check("admin, certificate, verification and registration code never import the kit", () => {
   for (const path of sourceFiles.filter((file) => /^(app\/admin|components\/admin|app\/verify|app\/registration|components\/public)/.test(file))) {
     assert.ok(!importsKit(read(path)) && !/premium\.module\.css|header\.module\.css/.test(read(path)), path);
@@ -183,7 +184,7 @@ check("Round 1: API route changes never touch recipients, email sending, persist
   }
 });
 check("protected paths have no new files (committed or untracked) since the contract base", () => {
-  const added = changedSinceBase(PROTECTED).filter((line) => line.startsWith("?? ")).map((line) => line.slice(3)).filter((path) => !PF_ADDED.includes(path));
+  const added = changedSinceBase(PROTECTED).filter((line) => line.startsWith("?? ")).map((line) => line.slice(3)).filter((path) => !PF_ADDED.includes(path) && !W9G3_PROTECTED_ADDED.includes(path) /* W9-G3.3 exact paths */);
   assert.deepEqual(added, [], added.join(", "));
 });
 check("header css: no token redefinitions, @font-face, @import or url()", () => {

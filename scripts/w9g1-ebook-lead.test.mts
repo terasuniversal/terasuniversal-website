@@ -1,6 +1,6 @@
 /**
  * W9-G1 eBook lead form tests (owner-approved, local only): Malaysian phone normalisation, the ebookLeadSchema and the
- * request logic in lib/ebook-request.js with fake dependencies. No network, no database, no Next.js runtime.
+ * launch switch. No network, no database, no Next.js runtime. (Flow tests: scripts/w9g3-ebook-flow.test.mts.)
  *
  * Run: node --experimental-transform-types scripts/w9g1-ebook-lead.test.mts
  */
@@ -8,8 +8,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { normalizeMalaysianPhone } from "../lib/my-phone.js";
 import { ebookLeadSchema } from "../lib/validation/schemas.ts";
-import { processEbookRequest } from "../lib/ebook-request.js";
-import { ebookPublicEnabled, EBOOK_MARKETING_TEXT_VERSION, EBOOK_PRIVACY_ACK_VERSION } from "../lib/ebook-lead.js";
+import { ebookPublicEnabled } from "../lib/ebook-lead.js";
 
 // Cases follow MCMC NEAP 2023: §9.2.3 (01Y, 7-digit Z = 2–9 or 8-digit Z = 1–9), §9.2.4 (015Z + 7 digits, A = 1–9),
 // §6.3–6.4 (geographic NDC and subscriber lengths, X1 = 2–9, never "99"). Valid format ≠ assigned or reachable.
@@ -89,85 +88,4 @@ test("switch: only the exact value \"on\" enables the public API", () => {
   assert.equal(ebookPublicEnabled({ TERAS_EBOOK_PUBLIC: "on" }), true);
 });
 
-function deps(overrides: Partial<{ allow: boolean; result: { data: unknown; error: unknown } }> = {}) {
-  const calls: { rateLimit: number; submit: Record<string, unknown>[]; logs: unknown[][] } = { rateLimit: 0, submit: [], logs: [] };
-  return {
-    calls,
-    deps: {
-      rateLimit: async () => { calls.rateLimit += 1; return overrides.allow ?? true; },
-      submit: async (args: Record<string, unknown>) => { calls.submit.push(args); return overrides.result ?? { data: [{ token: "tok_abc", expires_at: "2026-11-23T10:15:00Z" }], error: null }; },
-      log: (...args: unknown[]) => { calls.logs.push(args); },
-    },
-  };
-}
-const request = (payload: unknown, origin: string | null = "https://www.terasuniversal.com.my") =>
-  ({ payload, origin, siteOrigin: "https://www.terasuniversal.com.my", now: 1_000_000 });
-
-test("request: valid submission calls the RPC once with the canonical, versioned contract", async () => {
-  const { calls, deps: d } = deps();
-  const res = await processEbookRequest(request({ ...valid, formStartedAt: 1 }), d);
-  assert.equal(res.status, 200);
-  assert.deepEqual(res.body, { ok: true, delivery: { token: "tok_abc", expiresAt: "2026-11-23T10:15:00Z" } });
-  assert.equal(calls.rateLimit, 1);
-  assert.deepEqual(calls.submit, [{
-    p_full_name: "Aminah Binti Ali", p_phone_e164: "+60123456789", p_email: "aminah@example.com", p_privacy_ack: true,
-    p_privacy_ack_version: EBOOK_PRIVACY_ACK_VERSION, p_marketing_email_opt_in: false, p_marketing_text_version: EBOOK_MARKETING_TEXT_VERSION,
-  }]);
-});
-
-test("request: marketing is only true when explicitly ticked; phone never implies consent", async () => {
-  const a = deps();
-  await processEbookRequest(request({ ...valid, marketingEmailOptIn: true }), a.deps);
-  assert.equal(a.calls.submit[0].p_marketing_email_opt_in, true);
-  const b = deps();
-  await processEbookRequest(request({ ...valid }), b.deps);
-  assert.equal(b.calls.submit[0].p_marketing_email_opt_in, false);
-  assert.deepEqual(Object.keys(b.calls.submit[0]).filter((k) => /whatsapp|call|sms|phone_consent/i.test(k)), []);
-});
-
-test("request: rejected before the RPC (origin, body, honeypot, fill time, validation, privacy, rate limit)", async () => {
-  const cases: [ReturnType<typeof request>, number, boolean][] = [
-    [request(valid, "https://evil.example"), 403, false],
-    [request(null), 400, false],
-    [request([valid]), 400, false],
-    [request({ ...valid, website: "bot" }), 200, false],
-    [request({ ...valid, formStartedAt: 999_000 }), 400, false],
-    [request({ ...valid, phone: "+65 9123 4567" }), 400, false],
-    [request({ ...valid, privacyAck: false }), 400, false],
-    [request({ ...valid, email: "x" }), 400, false],
-  ];
-  for (const [req, status] of cases) {
-    const { calls, deps: d } = deps();
-    const res = await processEbookRequest(req, d);
-    assert.equal(res.status, status, JSON.stringify(req.payload));
-    assert.equal(calls.submit.length, 0);
-    assert.equal("delivery" in (res.body as object), false);
-  }
-  const limited = deps({ allow: false });
-  const res = await processEbookRequest(request(valid), limited.deps);
-  assert.equal(res.status, 429);
-  assert.equal(limited.calls.submit.length, 0);
-});
-
-test("request: field errors name the phone field with a friendly message", async () => {
-  const { deps: d } = deps();
-  const res = await processEbookRequest(request({ ...valid, phone: "12345" }), d);
-  assert.equal(res.status, 400);
-  assert.match(JSON.stringify(res.body), /"phone":"Please enter a valid Malaysian WhatsApp or phone number"/);
-});
-
-test("request: database failures are generic, logged without PII, and never return a token", async () => {
-  for (const result of [
-    { data: null, error: { code: "42883", message: "function submit_ebook_request does not exist on marketing_contacts" } },
-    { data: [], error: null },
-    { data: [{ token: "" }], error: null },
-  ]) {
-    const { calls, deps: d } = deps({ result });
-    const res = await processEbookRequest(request(valid), d);
-    assert.equal(res.status, 502);
-    assert.equal(JSON.stringify(res.body).includes("marketing_contacts"), false);
-    assert.equal(JSON.stringify(calls.logs).match(/aminah|\+6012|0123|Aminah/i), null);
-  }
-  const rl = deps({ result: { data: null, error: { message: "rate_limited" } } });
-  assert.equal((await processEbookRequest(request(valid), rl.deps)).status, 429);
-});
+// W9-G3: the request/verify/download flow tests moved to scripts/w9g3-ebook-flow.test.mts (W9-EBOOK-RPC-CONTRACT v1.0).

@@ -24,14 +24,20 @@ check("eBook gate: flag is TERAS_EBOOK_PREVIEW=local only; route has no paths an
   assert.match(read("lib/ebook-preview.js"), /^export const ebookPreviewEnabled = process\.env\.TERAS_EBOOK_PREVIEW === "local";$/m);
   const page = read("app/ebook/[[...ebook]]/page.js");
   assert.match(page, /^export const dynamicParams = false;$/m);
-  assert.match(page, /return ebookPreviewEnabled \? \[\{ ebook: \[\] \}\] : \[\];/);
+  // W9-G3 (owner-approved): the page also exists when TERAS_EBOOK_PUBLIC is exactly "on" at build time (live form).
+  assert.match(page, /return ebookPreviewEnabled \|\| ebookPublicEnabled\(\) \? \[\{ ebook: \[\] \}\] : \[\];/);
+  assert.match(read("lib/ebook-lead.js"), /return env\.TERAS_EBOOK_PUBLIC === "on";/);
   assert.match(page, /robots: \{ index: false, follow: false \}/);
   assert.doesNotMatch(read("app/sitemap.js"), /ebook/);
 });
 check("eBook gate: every link to /ebook lives in EbookPromo, which renders nothing unless the preview flag is on", () => {
   const files = ["app", "components", "content", "data", "lib"].flatMap((dir) => walk(join(rootPath, dir))).filter((file) => /\.(js|jsx|ts|tsx)$/.test(file));
   const linking = files.filter((file) => /href="\/ebook|href=\{?"\/ebook|"\/ebook"\]|\("\/ebook/.test(readFileSync(file, "utf8"))).map((file) => file.slice(rootPath.length).replace(/\\/g, "/"));
-  assert.deepEqual(linking, ["components/ebook/EbookPromo.js"]);
+  // W9-G3: EbookVerify links back to the request form; it renders only on /ebook/verify, which exists only when
+  // TERAS_EBOOK_PUBLIC is "on" (real 404 otherwise; checked below).
+  assert.deepEqual(linking, ["components/ebook/EbookPromo.js", "components/ebook/EbookVerify.js"]);
+  assert.match(read("app/ebook/verify/[[...verify]]/page.js"), /return ebookPublicEnabled\(\) \? \[\{ verify: \[\] \}\] : \[\];/);
+  assert.match(read("app/ebook/verify/[[...verify]]/page.js"), /^export const dynamicParams = false;$/m);
   assert.match(read("components/ebook/EbookPromo.js"), /if \(!ebookPreviewEnabled\) return null;/);
   // Code only: content/en/footer.js mentions /ebook in a comment that explains why it is not linked.
   const code = (path: string) => read(path).replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
@@ -40,13 +46,16 @@ check("eBook gate: every link to /ebook lives in EbookPromo, which renders nothi
 check("eBook PDF: not shipped with the site (no PDF anywhere in public/, no file route), release facts match the approval record", () => {
   const pdfs = walk(join(rootPath, "public")).filter((file) => /\.pdf$/i.test(file) && /ebook|darizero|dunia/i.test(file));
   assert.deepEqual(pdfs, []);
-  // W9-G1 (owner-approved): exactly one eBook route, the lead API. It answers 404 before anything else unless
-  // TERAS_EBOOK_PUBLIC is exactly "on", and it never serves a file or uses the service role.
-  const routes = walk(join(rootPath, "app")).filter((file) => /route\.(js|ts)$/.test(file) && /ebook/i.test(file)).map((file) => file.slice(rootPath.length).replace(/\\/g, "/"));
-  assert.deepEqual(routes, ["app/api/ebook/route.js"]);
-  const api = read("app/api/ebook/route.js");
-  assert.match(api, /export async function POST\(request\) \{\n  if \(!ebookPublicEnabled\(\)\) return new NextResponse\(null, \{ status: 404 \}\);/);
-  assert.doesNotMatch(api, /createSupabaseServiceClient|getSupabaseServiceRoleKey|\.pdf|storage\.from|createSignedUrl/);
+  // W9-G1/G3 (owner-approved): exactly three eBook routes (request, verify, download). Each answers 404 before anything
+  // else unless TERAS_EBOOK_PUBLIC is exactly "on"; none serves a file itself or touches credentials (the single
+  // service-role entry point is lib/ebook-privileged.server.js; scripts/w9g3-ebook-contract.mts).
+  const routes = walk(join(rootPath, "app")).filter((file) => /route\.(js|ts)$/.test(file) && /ebook/i.test(file)).map((file) => file.slice(rootPath.length).replace(/\\/g, "/")).sort();
+  assert.deepEqual(routes, ["app/api/ebook/download/route.js", "app/api/ebook/route.js", "app/api/ebook/verify/route.js"]);
+  for (const route of routes) {
+    const api = read(route);
+    assert.match(api, /export async function POST\(request\) \{\n  if \(!ebookPublicEnabled\(\)\) return new NextResponse\(null, \{ status: 404 \}\);/, route);
+    assert.doesNotMatch(api, /createSupabaseServiceClient|getSupabaseServiceRoleKey|\.pdf|storage\.from|createSignedUrl/, route);
+  }
   const lib = read("lib/ebook-preview.js");
   assert.ok(lib.includes('sha256: "fbf19c283c534e0638bfd91816e7e5b708ee3a8b69a6946612c53a4d570a04dc"'));
   assert.ok(lib.includes('language: "Bahasa Melayu"'));
@@ -120,7 +129,9 @@ check("protected areas untouched by S6: registration, payments, verify, feedback
     // Public-First launch fixes (owner-approved): F-1 kill switch and F-4 /verify contrast; scripts/public-first-launch-contract.mts.
     " M app/api/registration/payment/route.ts", " M app/api/registration/route.ts", " M app/registration/[scheduleId]/page.tsx", " M app/verify/VerificationResult.tsx", " M app/verify/page.tsx",
     // W9-G1 (owner-approved): the eBook lead API, 404 unless TERAS_EBOOK_PUBLIC is "on" (checked above).
-    "?? app/api/ebook/route.js"]);
+    "?? app/api/ebook/route.js",
+    // W9-G3 (owner-approved): the eBook verify and download APIs, 404 unless TERAS_EBOOK_PUBLIC is "on" (checked above).
+    "?? app/api/ebook/verify/route.js", "?? app/api/ebook/download/route.js"]);
   for (const line of changed.split("\n").filter(Boolean)) assert.ok(allowed.has(line), line);
 });
 
