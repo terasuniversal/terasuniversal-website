@@ -301,6 +301,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
             latestToyyibpayAttempt={latestToyyibpayAttempt}
             invoiceNo={inv.invoice_no}
             initialPaymentKey={crypto.randomUUID()}
+            currentUserId={profile.id}
           />
         </div>
       </div>

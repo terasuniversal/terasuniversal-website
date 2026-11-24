@@ -13,15 +13,24 @@ import {
 } from "../../../../lib/validation/schemas";
 
 import {
+  LOOKUP_FAILED_MESSAGE,
+  LOOKUP_NOT_FOUND_MESSAGE,
   UNCONFIRMED_PAYMENT_MESSAGE,
   buildManualPaymentResult,
+  keyStatusForCode,
   parseRecordManualPaymentResponse,
+  type KeyStatus,
   type ManualPaymentResult,
+  type RecordedPayment,
 } from "../../../../lib/payments/manual-payment-outcome";
 
 /**
  * `payment` is set only for a confirmed record_manual_payment outcome (recorded or duplicate_ignored).
  * `unconfirmed` means the payment may or may not exist: the form keeps its values and its G1 key so a retry can only replay.
+ * `keyStatus` (R-1) is database evidence about the submitted key: "not_recorded" for a refusal raised after the key
+ * check, "used" for idempotency_key_conflict (which still has to be checked against the recorded payment).
+ * `lookup`/`recordedPayment`/`recordedResult` (R-1.1) come only from the read-only attempt check. They are evidence to
+ * compare, never a confirmed outcome on their own: the client settles only on an exact match.
  */
 export type InvoiceActionState = {
   message?: string;
@@ -29,7 +38,13 @@ export type InvoiceActionState = {
   notice?: string;
   payment?: ManualPaymentResult;
   unconfirmed?: boolean;
+  keyStatus?: KeyStatus;
+  lookup?: "found" | "not_found" | "failed";
+  recordedPayment?: RecordedPayment;
+  recordedResult?: ManualPaymentResult;
 };
+
+const IDEMPOTENCY_KEY_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function revalidateInvoice(id: string, opportunityId?: string, quotationId?: string) {
   revalidatePath(`/admin/invoices/${id}`);
@@ -283,7 +298,10 @@ export async function recordManualPaymentAction(
     // G3: a known code is a definite refusal (nothing was written). Anything else (timeout, dropped connection,
     // unexpected database error) may have committed, so it must not read like a rejection that invites re-entry.
     const code = error.message.split(":")[0].trim();
-    if (RPC_ERROR_MESSAGES[code]) return { message: RPC_ERROR_MESSAGES[code] };
+    if (RPC_ERROR_MESSAGES[code]) {
+      const keyStatus = keyStatusForCode(code);
+      return keyStatus ? { message: RPC_ERROR_MESSAGES[code], keyStatus } : { message: RPC_ERROR_MESSAGES[code] };
+    }
     return { message: UNCONFIRMED_PAYMENT_MESSAGE, unconfirmed: true };
   }
 
@@ -305,6 +323,51 @@ export async function recordManualPaymentAction(
     return { notice: "This payment was already recorded. No second payment was created.", payment };
   }
   return { payment };
+}
+
+/**
+ * R-1: read-only look-up of an unresolved manual-payment attempt by its G1 key, through the existing
+ * invoice_payments SELECT policy (no new database contract). Same guards as recording a payment.
+ * A found row settles the attempt as recorded. "Not found" never settles it: the attempt stays unresolved and staff
+ * are told to retry the original payment, which can only replay or record it once.
+ */
+export async function checkManualPaymentAttemptAction(invoiceId: string, idempotencyKey: string): Promise<InvoiceActionState> {
+  await requireRole("admin");
+  await requireModuleAccess("invoices", "edit");
+  if (!IDEMPOTENCY_KEY_RE.test(invoiceId) || !IDEMPOTENCY_KEY_RE.test(idempotencyKey)) {
+    return { message: LOOKUP_FAILED_MESSAGE, unconfirmed: true, lookup: "failed" };
+  }
+  const supabase = await createSupabaseServerClient();
+  // Scoped to this invoice and key, under the caller's RLS: nothing from another invoice can come back.
+  const { data: row, error } = await supabase
+    .from("invoice_payments")
+    .select("id, invoice_id, idempotency_key, amount, payment_provider, payment_reference, status")
+    .eq("invoice_id", invoiceId)
+    .eq("idempotency_key", idempotencyKey)
+    .maybeSingle();
+  if (error) return { message: LOOKUP_FAILED_MESSAGE, unconfirmed: true, lookup: "failed" };
+  if (!row || row.status !== "successful") return { message: LOOKUP_NOT_FOUND_MESSAGE, unconfirmed: true, lookup: "not_found" };
+
+  const recordedPayment: RecordedPayment = {
+    invoiceId: String(row.invoice_id),
+    idempotencyKey: String(row.idempotency_key),
+    provider: String(row.payment_provider),
+    amount: Number(row.amount),
+    reference: row.payment_reference == null ? null : String(row.payment_reference),
+    status: String(row.status),
+  };
+  const { data: fresh, error: freshError } = await supabase
+    .from("invoices")
+    .select("status, amount_paid, balance_due")
+    .eq("id", invoiceId)
+    .maybeSingle();
+  const recordedResult = buildManualPaymentResult(
+    { outcome: "duplicate_ignored", paymentId: row.id, status: null, amountPaid: null },
+    { provider: recordedPayment.provider, amount: recordedPayment.amount },
+    freshError ? null : fresh
+  );
+  // Evidence only: the client compares it with the locked attempt and settles on an exact match.
+  return { unconfirmed: true, lookup: "found", recordedPayment, recordedResult };
 }
 
 export async function generateReceiptAction(formData: FormData): Promise<never> {

@@ -31,13 +31,17 @@ const state = {
   calls: [] as string[],
   record: { data: { outcome: "recorded", payment_id: "p1", amount_paid: 400, status: "partially_paid" }, error: null } as Rpc,
   invoiceRead: { data: { status: "partially_paid", amount_paid: 400, balance_due: 600 }, error: null } as Read,
+  paymentLookup: { data: null, error: null } as Read,
+  lookupFilters: [] as Array<[string, unknown]>,
   revalidated: [] as string[],
 };
 function reset() {
   state.calls = [];
   state.revalidated = [];
+  state.lookupFilters = [];
   state.record = { data: { outcome: "recorded", payment_id: "p1", amount_paid: 400, status: "partially_paid" }, error: null };
   state.invoiceRead = { data: { status: "partially_paid", amount_paid: 400, balance_due: 600 }, error: null };
+  state.paymentLookup = { data: null, error: null };
 }
 
 mock.module("next/cache.js", { namedExports: { revalidatePath: (p: string) => { state.revalidated.push(p); } } });
@@ -53,15 +57,21 @@ mock.module(url("lib/supabase/server.ts"), {
   namedExports: {
     createSupabaseServerClient: async () => ({
       from: (table: string) => ({
-        select: (cols: string) => ({
-          eq: () => ({
+        select: (cols: string) => {
+          const chain = {
+            eq: (col: string, val: unknown) => {
+              if (table === "invoice_payments") state.lookupFilters.push([col, val]);
+              return chain;
+            },
             maybeSingle: async () => {
               state.calls.push(`select:${table}:${cols}`);
+              if (table === "invoice_payments") return state.paymentLookup;
               if (table === "invoices" && cols.includes("balance_due")) return state.invoiceRead;
               return { data: { opportunity_id: null, quotation_id: null }, error: null };
             },
-          }),
-        }),
+          };
+          return chain;
+        },
       }),
       rpc: async (name: string) => {
         state.calls.push(`rpc:${name}`);
@@ -264,4 +274,195 @@ test("guards still run first and the RPC contract is unchanged (eight G1 argumen
   await pay();
   assert.deepEqual(state.calls.slice(0, 2), ["requireRole:admin", "requireModuleAccess:invoices:edit"]);
   assert.deepEqual(state.calls.filter((c) => c.startsWith("rpc:")), ["rpc:get_active_toyyibpay_attempt", "rpc:record_manual_payment"]);
+});
+
+// ---- R-1: unresolved attempts (acceptance tests A-T1 .. A-T11, node-level parts) -------------------------------------
+const USER = "aaaaaaaa-0000-4000-8000-00000000a001";
+const OTHER_USER = "aaaaaaaa-0000-4000-8000-00000000a002";
+const OTHER_INVOICE = "22222222-2222-4222-8222-222222222222";
+const attempt = { key: KEY, provider: "cash", amount: "20.00", reference: "", paymentDate: "2026-11-24", createdAt: 1_800_000_000_000 };
+const storedWith = (over: Record<string, unknown>) => JSON.stringify({ ...JSON.parse(lib.serializePending(USER, INVOICE, attempt)), ...over });
+
+test("A-T1/A-T2 (key rule): while unresolved the key never changes, even when the intent differs", () => {
+  const a = lib.manualPaymentIntent({ payment_provider: "cash", amount: "20", payment_reference: "" });
+  const b = lib.manualPaymentIntent({ payment_provider: "cash", amount: "25", payment_reference: "" });
+  const fresh = () => "NEW";
+  assert.deepEqual(lib.keyForSubmission({ key: KEY, intent: a }, b, fresh, true), { key: KEY, intent: a }, "unresolved: same key, original intent");
+  assert.equal(lib.keyForSubmission({ key: KEY, intent: a }, b, fresh, false).key, "NEW", "resolved: a different payment gets a new key");
+  assert.equal(lib.keyForSubmission({ key: KEY, intent: a }, a, fresh, true).key, KEY, "A-T3: retry of the same intent keeps the key");
+});
+
+test("A-T1/A-T2/A-T9 (evidence): only refusals raised after the G1 key check prove not recorded", () => {
+  for (const code of ["invoice_not_payable", "payment_exceeds_balance", "duplicate_payment_reference"]) assert.equal(lib.keyStatusForCode(code), "not_recorded", code);
+  assert.equal(lib.keyStatusForCode("idempotency_key_conflict"), "used");
+  for (const code of ["not_authorized", "invalid_payment_provider", "invalid_amount", "payment_reference_required", "invoice_not_found", "idempotency_key_required", "TypeError: fetch failed"]) {
+    assert.equal(lib.keyStatusForCode(code), undefined, `${code} raised before the key check proves nothing`);
+  }
+  assert.equal(lib.resolveUnresolvedAttempt({ payment: {} }), "confirmed");
+  assert.equal(lib.resolveUnresolvedAttempt({ keyStatus: "not_recorded" }), "not_recorded");
+  assert.equal(lib.resolveUnresolvedAttempt({ keyStatus: "used" }), "key_used");
+  assert.equal(lib.resolveUnresolvedAttempt({ unconfirmed: true }), "unresolved", "lost response settles nothing");
+  assert.equal(lib.resolveUnresolvedAttempt({}), "unresolved", "validation error settles nothing");
+});
+
+for (const [code, status] of [["payment_exceeds_balance", "not_recorded"], ["invoice_not_payable", "not_recorded"], ["duplicate_payment_reference", "not_recorded"], ["idempotency_key_conflict", "used"], ["payment_reference_required", undefined], ["not_authorized", undefined]] as const) {
+  test(`A-T1/A-T9: action reports keyStatus=${status ?? "none"} for ${code}`, async () => {
+    reset();
+    state.record = { data: null, error: { message: code } };
+    const r = await pay();
+    assert.equal(r.keyStatus, status);
+    assert.ok(r.message, "still a staff message");
+    assert.equal(r.payment, undefined);
+  });
+}
+
+test("A-T5/A-T8: storage key is scoped to user and invoice; serialised data is minimal", () => {
+  const k = lib.pendingStorageKey(USER, INVOICE);
+  assert.ok(k.includes(USER) && k.includes(INVOICE));
+  assert.notEqual(k, lib.pendingStorageKey(OTHER_USER, INVOICE));
+  assert.notEqual(k, lib.pendingStorageKey(USER, OTHER_INVOICE));
+  const raw = lib.serializePending(USER, INVOICE, attempt);
+  assert.deepEqual(Object.keys(JSON.parse(raw)).sort(), ["a", "d", "i", "k", "p", "r", "t", "u", "v"], "key, replay identity, date, owner, time only");
+  assert.doesNotMatch(raw, /notes|payment_method|token|password/i);
+});
+
+test("A-T5: a stored attempt round-trips and restores the same key", () => {
+  const raw = lib.serializePending(USER, INVOICE, attempt);
+  const parsed = lib.parsePending(raw, USER, INVOICE, attempt.createdAt + 60_000);
+  assert.equal(parsed.state, "ok");
+  assert.deepEqual(parsed.state === "ok" && parsed.attempt, attempt);
+  assert.equal(lib.pendingIntent(attempt), lib.manualPaymentIntent({ payment_provider: "cash", amount: "20", payment_reference: "" }));
+});
+
+test("A-T8/A-T13: a stored attempt claiming another user or invoice is corrupt (blocked), never trusted or dropped", () => {
+  const raw = lib.serializePending(USER, INVOICE, attempt);
+  assert.deepEqual(lib.parsePending(raw, OTHER_USER, INVOICE, attempt.createdAt), { state: "corrupt", key: KEY });
+  assert.deepEqual(lib.parsePending(raw, USER, OTHER_INVOICE, attempt.createdAt), { state: "corrupt", key: KEY });
+});
+
+for (const [label, raw, key] of [
+  ["not JSON", "{oops", null],
+  ["array", "[]", null],
+  ["null literal", "null", null],
+  ["wrong version", storedWith({ v: 2 }), KEY],
+  ["bad key", storedWith({ k: "not-a-uuid" }), null],
+  ["missing key", storedWith({ k: undefined }), null],
+  ["bad provider", storedWith({ p: "toyyibpay" }), KEY],
+  ["negative amount", storedWith({ a: "-5" }), KEY],
+  ["zero amount", storedWith({ a: "0" }), KEY],
+  ["oversized reference", storedWith({ r: "x".repeat(201) }), KEY],
+] as const) {
+  test(`A-T13/A-T14: corrupted stored attempt (${label}) is corrupt; readable key kept only for a read-only check`, () => {
+    assert.deepEqual(lib.parsePending(raw, USER, INVOICE, attempt.createdAt), { state: "corrupt", key });
+  });
+}
+
+test("A-T12: an expired (older than 7 days) attempt is restored with its key and locked; age never unlocks", () => {
+  const raw = lib.serializePending(USER, INVOICE, attempt);
+  const old = lib.parsePending(raw, USER, INVOICE, attempt.createdAt + lib.PENDING_TTL_MS + 1);
+  assert.equal(old.state, "ok");
+  assert.ok(old.state === "ok" && old.stale && old.attempt.key === KEY && old.attempt.amount === "20.00");
+  const fresh = lib.parsePending(raw, USER, INVOICE, attempt.createdAt + lib.PENDING_TTL_MS - 1);
+  assert.ok(fresh.state === "ok" && !fresh.stale);
+  assert.equal(lib.parsePending(null, USER, INVOICE, attempt.createdAt).state, "none");
+});
+
+test("A-T12: non-identity fields (date, time) never invalidate the record; bad time counts as old", () => {
+  const badDate = lib.parsePending(storedWith({ d: "24/11/2026" }), USER, INVOICE, attempt.createdAt);
+  assert.ok(badDate.state === "ok" && badDate.attempt.paymentDate === "" && badDate.attempt.key === KEY);
+  const future = lib.parsePending(storedWith({ t: attempt.createdAt + 10 * 60_000 }), USER, INVOICE, attempt.createdAt);
+  assert.ok(future.state === "ok" && future.stale, "a future timestamp is untrusted: treated as old, still locked");
+  const noTime = lib.parsePending(storedWith({ t: "yesterday" }), USER, INVOICE, attempt.createdAt);
+  assert.ok(noTime.state === "ok" && noTime.stale);
+});
+
+const recorded = (over: Partial<Record<string, unknown>> = {}) => ({ invoiceId: INVOICE, idempotencyKey: KEY, provider: "cash", amount: 20, reference: null, status: "successful", ...over }) as Parameters<typeof lib.matchRecordedPayment>[0];
+
+test("A-T16: exact match (invoice, key, method, amount to the cent, normalised reference, successful) settles", () => {
+  assert.equal(lib.matchRecordedPayment(recorded(), { invoiceId: INVOICE, attempt }), "match");
+  const bank = { ...attempt, provider: "bank_transfer", amount: "400.00", reference: "FT-123 456" };
+  assert.equal(lib.matchRecordedPayment(recorded({ provider: "bank_transfer", amount: 400, reference: "ft123456" }), { invoiceId: INVOICE, attempt: bank }), "match",
+    "reference compared with the G1 normalisation");
+  assert.equal(lib.matchRecordedPayment(recorded({ idempotencyKey: KEY.toUpperCase() }), { invoiceId: INVOICE, attempt }), "match", "UUID case-insensitive");
+});
+
+for (const [label, over] of [
+  ["other invoice", { invoiceId: OTHER_INVOICE }],
+  ["other key", { idempotencyKey: "44444444-4444-4444-8444-444444444444" }],
+  ["other method", { provider: "other" }],
+  ["other amount", { amount: 20.01 }],
+  ["other reference", { reference: "X-1" }],
+  ["not successful", { status: "refunded" }],
+  ["amount not a number", { amount: Number.NaN }],
+] as const) {
+  test(`A-T17: ${label} is a mismatch (recording stays blocked; never Already recorded)`, () => {
+    assert.equal(lib.matchRecordedPayment(recorded(over), { invoiceId: INVOICE, attempt }), "mismatch");
+  });
+}
+
+test("A-T16/A-T17 (look-up found): returns evidence to compare, never a confirmed payment by itself", async () => {
+  reset();
+  state.paymentLookup = { data: { id: "p9", invoice_id: INVOICE, idempotency_key: KEY, amount: 20, payment_provider: "cash", payment_reference: null, status: "successful" }, error: null };
+  const r = await actions.checkManualPaymentAttemptAction(INVOICE, KEY);
+  assert.deepEqual(state.calls.slice(0, 2), ["requireRole:admin", "requireModuleAccess:invoices:edit"], "same guards as recording");
+  assert.deepEqual(state.lookupFilters, [["invoice_id", INVOICE], ["idempotency_key", KEY]], "scoped to this invoice and key");
+  assert.equal(r.lookup, "found");
+  assert.equal(r.payment, undefined, "no payment field: the look-up alone never settles");
+  assert.equal(lib.resolveUnresolvedAttempt(r), "unresolved");
+  assert.deepEqual(r.recordedPayment, { invoiceId: INVOICE, idempotencyKey: KEY, provider: "cash", amount: 20, reference: null, status: "successful" });
+  assert.equal(r.recordedResult?.outcome, "duplicate_ignored");
+  assert.equal(r.recordedResult?.balanceDue, 600);
+  assert.equal(lib.matchRecordedPayment(r.recordedPayment!, { invoiceId: INVOICE, attempt }), "match");
+  assert.equal(lib.matchRecordedPayment(r.recordedPayment!, { invoiceId: INVOICE, attempt: { ...attempt, amount: "25.00" } }), "mismatch");
+  assert.deepEqual(state.calls.filter((c) => c.startsWith("rpc:")), [], "read-only: no RPC");
+});
+
+test("A-T16/A-T17 (look-up found, bank reference): the recorded reference is returned and compared", async () => {
+  reset();
+  state.paymentLookup = { data: { id: "p10", invoice_id: INVOICE, idempotency_key: KEY, amount: 400, payment_provider: "bank_transfer", payment_reference: "FT-123 456", status: "successful" }, error: null };
+  const r = await actions.checkManualPaymentAttemptAction(INVOICE, KEY);
+  assert.equal(r.recordedPayment?.reference, "FT-123 456");
+  const bank = { ...attempt, provider: "bank_transfer", amount: "400.00", reference: "ft123456" };
+  assert.equal(lib.matchRecordedPayment(r.recordedPayment!, { invoiceId: INVOICE, attempt: bank }), "match");
+  assert.equal(lib.matchRecordedPayment(r.recordedPayment!, { invoiceId: INVOICE, attempt: { ...bank, reference: "FT-999" } }), "mismatch");
+});
+
+for (const [label, lookup] of [
+  ["not found", { data: null, error: null }],
+  ["row not successful", { data: { id: "p9", invoice_id: INVOICE, idempotency_key: KEY, amount: 20, payment_provider: "cash", payment_reference: null, status: "pending" }, error: null }],
+] as const) {
+  test(`A-T2/A-T18 (look-up ${label}): stays unresolved, never proof that nothing was recorded`, async () => {
+    reset();
+    state.paymentLookup = lookup as Read;
+    const r = await actions.checkManualPaymentAttemptAction(INVOICE, KEY);
+    assert.equal(r.unconfirmed, true);
+    assert.equal(r.lookup, "not_found");
+    assert.equal(r.keyStatus, undefined);
+    assert.equal(r.payment, undefined);
+    assert.equal(lib.resolveUnresolvedAttempt(r), "unresolved");
+    assert.match(r.message ?? "", /does not prove it failed/);
+  });
+}
+
+test("A-T4/A-T18 (look-up error or bad input): stays unresolved and touches nothing", async () => {
+  reset();
+  state.paymentLookup = { data: null, error: { message: "permission denied" } };
+  const failed = await actions.checkManualPaymentAttemptAction(INVOICE, KEY);
+  assert.equal(failed.lookup, "failed");
+  assert.equal(lib.resolveUnresolvedAttempt(failed), "unresolved");
+  reset();
+  const bad = await actions.checkManualPaymentAttemptAction(INVOICE, "not-a-uuid");
+  assert.equal(bad.lookup, "failed");
+  assert.equal(lib.resolveUnresolvedAttempt(bad), "unresolved");
+  assert.deepEqual(state.calls.filter((c) => c.startsWith("select:")), [], "no query with malformed input");
+});
+
+test("A-T15/B: a key conflict is classified for checking, never as a confirmed payment", async () => {
+  reset();
+  state.record = { data: null, error: { message: "idempotency_key_conflict" } };
+  const r = await pay();
+  assert.equal(r.keyStatus, "used");
+  assert.equal(r.payment, undefined);
+  assert.equal(lib.resolveUnresolvedAttempt(r), "key_used");
+  assert.doesNotMatch(r.message ?? "", /recorded with its original details/);
 });

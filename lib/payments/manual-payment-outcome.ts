@@ -159,11 +159,187 @@ export function withUnconfirmedOnReject<Bound extends unknown[], S>(
 }
 
 /**
- * Decides the key to send. A key already sent for a different intent is never reused: a changed amount, method or
- * reference is a different payment, and resending the old key would be refused as a conflict (or, worse, be mistaken
- * for a replay of a payment the user no longer means).
+ * Decides the key to send. While nothing is unresolved, a key already sent for a different intent is never reused: a
+ * changed amount, method or reference is a different payment.
+ *
+ * R-1: while an earlier attempt is unresolved (its outcome was never confirmed), the key never changes, whatever the
+ * intent. If that attempt was in fact recorded, the database then refuses any different details with
+ * idempotency_key_conflict instead of recording a second payment. The panel also locks the fields, so in practice the
+ * intent cannot differ; this rule is the second line of defence.
  */
-export function keyForSubmission(current: { key: string; intent: string | null }, intent: string, newKey: () => string): { key: string; intent: string } {
+export function keyForSubmission(
+  current: { key: string; intent: string | null },
+  intent: string,
+  newKey: () => string,
+  unresolved = false
+): { key: string; intent: string } {
+  if (unresolved) return { key: current.key, intent: current.intent ?? intent };
   if (current.intent === null || current.intent === intent) return { key: current.key, intent };
   return { key: newKey(), intent };
+}
+
+// ---- R-1: unresolved attempts ---------------------------------------------------------------------------------------
+
+/**
+ * Database codes that prove the submitted key was NOT recorded. record_manual_payment_unguarded (G1) checks for an
+ * existing row with the key under the invoice lock *before* raising any of these, and returns duplicate_ignored if it
+ * finds one. So a same-key submission that ends in one of these codes proves the earlier attempt never committed.
+ * Codes raised before that check (not_authorized, invalid_*, payment_reference_required, invoice_not_found) prove
+ * nothing and leave the attempt unresolved.
+ */
+export const KEY_NOT_RECORDED_CODES = ["invoice_not_payable", "payment_exceeds_balance", "duplicate_payment_reference"] as const;
+
+/** The key is already attached to a recorded payment (with different details). */
+export const KEY_USED_CODE = "idempotency_key_conflict";
+
+export type KeyStatus = "not_recorded" | "used";
+
+export function keyStatusForCode(code: string): KeyStatus | undefined {
+  if ((KEY_NOT_RECORDED_CODES as readonly string[]).includes(code)) return "not_recorded";
+  if (code === KEY_USED_CODE) return "used";
+  return undefined;
+}
+
+export type UnresolvedResolution = "confirmed" | "not_recorded" | "key_used" | "unresolved";
+
+/**
+ * How a result settles an attempt that is currently unresolved. Only database evidence settles it: a confirmed
+ * recorded/replayed payment, a found row, or a refusal raised after the key check. Validation errors, refusals raised
+ * before the key check, lost responses and "not found" look-ups all leave it unresolved.
+ */
+export function resolveUnresolvedAttempt(state: { payment?: unknown; keyStatus?: KeyStatus; unconfirmed?: boolean }): UnresolvedResolution {
+  if (state.payment) return "confirmed";
+  if (state.keyStatus === "not_recorded") return "not_recorded";
+  if (state.keyStatus === "used") return "key_used";
+  return "unresolved";
+}
+
+export const PENDING_LOCK_TITLE = "Payment not confirmed — details are locked";
+export const PENDING_LOCK_MESSAGE =
+  "The last attempt may or may not have been saved. Method, amount and reference are locked to that attempt. Retry the original payment (it cannot create a second payment) or check its status. Do not record another payment for this money until this is resolved.";
+export const LOOKUP_NOT_FOUND_MESSAGE =
+  "No recorded payment was found for this attempt yet. That does not prove it failed. Retry the original payment to settle it safely.";
+export const LOOKUP_FAILED_MESSAGE = "The payment status could not be checked. The attempt is still unresolved; try again shortly.";
+export const NOT_RECORDED_RESOLVED_NOTE = "The earlier attempt was not recorded, so the payment details are unlocked.";
+/** R-1.1: an old attempt is still an unresolved attempt; age is never evidence that it failed. */
+export const STALE_PENDING_NOTICE =
+  "This unconfirmed payment attempt is more than 7 days old. Its age does not show whether it was recorded, so it stays locked until the payment status is confirmed.";
+export const BLOCKED_TITLE = "Payment recording is blocked on this invoice";
+export const BLOCKED_CORRUPT_MESSAGE =
+  "Details of an earlier unconfirmed payment attempt on this invoice could not be read safely, so it cannot be checked or retried here. Recording payments on this invoice is blocked in this browser session. Contact the Finance administrator to reconcile the payment history before any further payment is recorded.";
+export const BLOCKED_MISMATCH_MESSAGE =
+  "The key of the unconfirmed attempt is already attached to a recorded payment with different details. No new payment was created. Recording payments on this invoice is blocked in this browser session. Contact the Finance administrator to reconcile it.";
+export const KEY_CONFLICT_CHECKING_MESSAGE = "This attempt's key is already in use. Checking the recorded payment before anything else is allowed.";
+export const STORAGE_WARNING =
+  "This browser could not save the recovery details for this unconfirmed payment. Do not refresh or leave this page until it is resolved, or the lock may be lost.";
+export const STORAGE_READ_WARNING =
+  "This browser blocked access to saved payment-recovery details, so an earlier unconfirmed attempt on this invoice cannot be detected here. Check the payment history before recording a payment, and do not rely on refresh to keep a lock.";
+export const STORAGE_CLEAR_WARNING =
+  "This browser could not clear the saved recovery details. If this page is reopened, the earlier attempt will be checked again against the payment history before anything else is allowed.";
+
+/** What is kept so an unresolved attempt survives a refresh: the key and the replay identity, nothing else. */
+export interface PendingAttempt {
+  key: string;
+  provider: string;
+  amount: string;
+  reference: string;
+  paymentDate: string;
+  createdAt: number;
+}
+
+export const PENDING_STORAGE_VERSION = 1;
+/** Age above which a restored attempt carries the "older than 7 days" notice. It is never a reason to unlock. */
+export const PENDING_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const MANUAL_PROVIDERS = ["cash", "bank_transfer", "cheque", "other"];
+
+/** Scoped to the signed-in staff member and the invoice, so neither another user nor another invoice can pick it up. */
+export function pendingStorageKey(userId: string, invoiceId: string): string {
+  return `teras:crm:pending-manual-payment:v${PENDING_STORAGE_VERSION}:${userId}:${invoiceId}`;
+}
+
+export function serializePending(userId: string, invoiceId: string, attempt: PendingAttempt): string {
+  return JSON.stringify({ v: PENDING_STORAGE_VERSION, u: userId, i: invoiceId, k: attempt.key, p: attempt.provider, a: attempt.amount, r: attempt.reference, d: attempt.paymentDate, t: attempt.createdAt });
+}
+
+export type ParsedPending =
+  | { state: "none" }
+  /** The full replay identity was recovered. `stale` marks age only; it never changes what is allowed. */
+  | { state: "ok"; attempt: PendingAttempt; stale: boolean }
+  /** Something is stored but the identity cannot be trusted. `key` is the readable idempotency key, if any. */
+  | { state: "corrupt"; key: string | null };
+
+/**
+ * R-1.1: nothing stored is ever silently dropped. A record whose replay identity (owner, invoice, key, method, amount,
+ * reference) is intact is restored, however old. Anything else is "corrupt": payment recording stays blocked, and a
+ * readable key is only used for a read-only status check (never to retry or to unlock, because the details it would
+ * have to match are not known).
+ */
+export function parsePending(raw: string | null, userId: string, invoiceId: string, now: number): ParsedPending {
+  if (raw === null) return { state: "none" };
+  let o: Record<string, unknown>;
+  try {
+    const value = JSON.parse(raw);
+    if (!value || typeof value !== "object" || Array.isArray(value)) return { state: "corrupt", key: null };
+    o = value as Record<string, unknown>;
+  } catch {
+    return { state: "corrupt", key: null };
+  }
+  const key = typeof o.k === "string" && UUID_RE.test(o.k) ? o.k : null;
+  const identityIntact =
+    o.v === PENDING_STORAGE_VERSION &&
+    o.u === userId &&
+    o.i === invoiceId &&
+    key !== null &&
+    typeof o.p === "string" && MANUAL_PROVIDERS.includes(o.p) &&
+    typeof o.a === "string" && /^\d{1,10}(\.\d{1,2})?$/.test(o.a) && Number(o.a) > 0 &&
+    typeof o.r === "string" && o.r.length <= 200;
+  if (!identityIntact) return { state: "corrupt", key };
+  // Date and time are not part of the replay identity: a bad date falls back to "" (the form uses today), and a
+  // missing, invalid or future time counts as old rather than invalidating the record.
+  const paymentDate = typeof o.d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(o.d) ? o.d : "";
+  const createdAt = typeof o.t === "number" && Number.isFinite(o.t) && o.t <= now + 60_000 ? o.t : 0;
+  return {
+    state: "ok",
+    stale: now - createdAt > PENDING_TTL_MS,
+    attempt: { key, provider: o.p as string, amount: o.a as string, reference: o.r as string, paymentDate, createdAt },
+  };
+}
+
+/** G1's normalisation of a payment reference (record_manual_payment_unguarded): upper case, letters and digits only. */
+export function normalizeReference(reference: string | null | undefined): string {
+  return String(reference ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
+export interface RecordedPayment {
+  invoiceId: string;
+  idempotencyKey: string;
+  provider: string;
+  amount: number;
+  reference: string | null;
+  status: string;
+}
+
+/**
+ * R-1.1 (Gate B): a recorded payment settles an unresolved attempt only if it is exactly that attempt: same invoice,
+ * same key, a successful status, and the same method, amount (to the cent) and normalised reference.
+ */
+export function matchRecordedPayment(
+  recorded: RecordedPayment,
+  expected: { invoiceId: string; attempt: PendingAttempt }
+): "match" | "mismatch" {
+  const a = expected.attempt;
+  const same =
+    recorded.invoiceId === expected.invoiceId &&
+    recorded.idempotencyKey.toLowerCase() === a.key.toLowerCase() &&
+    recorded.status === "successful" &&
+    recorded.provider === a.provider &&
+    Number.isFinite(recorded.amount) && recorded.amount.toFixed(2) === Number(a.amount).toFixed(2) &&
+    normalizeReference(recorded.reference) === normalizeReference(a.reference);
+  return same ? "match" : "mismatch";
+}
+
+/** The replay identity of a stored attempt, comparable with manualPaymentIntent(values). */
+export function pendingIntent(attempt: PendingAttempt): string {
+  return manualPaymentIntent({ payment_provider: attempt.provider, amount: attempt.amount, payment_reference: attempt.reference });
 }
