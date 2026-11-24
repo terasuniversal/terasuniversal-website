@@ -37,6 +37,8 @@ import {
 } from "../../../../../lib/payments/manual-payment-outcome";
 
 const INITIAL: InvoiceActionState = {};
+/** The fields that define a manual payment's intent; frozen while an attempt is unresolved (R-1, O-1). */
+const LOCKED_PAYMENT_FIELDS: ReadonlySet<keyof PaymentValues> = new Set<keyof PaymentValues>(["payment_provider", "amount", "payment_reference"]);
 const TOYYIBPAY_INITIAL: ToyyibpayLinkState = {};
 const REFRESH_INITIAL: ToyyibpayRefreshState = {};
 const REFRESH_TONE_CLASS = { success: "ta-alert-success", info: "ta-alert-info", warning: "ta-alert-warning", error: "ta-alert-error" } as const;
@@ -109,7 +111,13 @@ export function InvoiceActionsPanel({
   // G3-02: controlled values, and submission through onSubmit instead of <form action>, so React's automatic form
   // reset never wipes what staff typed. Values are cleared only after a confirmed outcome.
   const [values, setValues] = useState<PaymentValues>(emptyPayment);
-  const setValue = (field: keyof PaymentValues) => (e: { target: { value: string } }) => setValues((v) => ({ ...v, [field]: e.target.value }));
+  // O-1: while an attempt is unresolved (or blocked), the amount, method and reference belong to that attempt.
+  // The controls are disabled/read-only for people, but a scripted change event still reaches onChange, so the
+  // setter itself refuses those fields. The refs are read at event time, after this render has assigned them.
+  const setValue = (field: keyof PaymentValues) => (e: { target: { value: string } }) => {
+    if (LOCKED_PAYMENT_FIELDS.has(field) && (pendingRef.current !== null || blockedRef.current !== null)) return;
+    setValues((v) => ({ ...v, [field]: e.target.value }));
+  };
   const paymentProvider = values.payment_provider;
   const submitting = useRef(false);
   const paymentFormRef = useRef<HTMLFormElement>(null);
@@ -346,6 +354,8 @@ export function InvoiceActionsPanel({
   const paymentBusy = paymentPending || refreshingInvoice || checkingAttempt || !paymentFormReady || blocked !== null;
   const paymentResult = shown.payment ? describeManualPaymentResult(shown.payment) : null;
   const detailsLocked = pending !== null || blocked !== null;
+  // O-1: the locked method always comes from the unresolved attempt itself, never from editable state.
+  const lockedProvider = detailsLocked && pending ? pending.provider : null;
   const referenceRequired = paymentProvider === "bank_transfer" || paymentProvider === "cheque";
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedWhatsapp, setCopiedWhatsapp] = useState(false);
@@ -423,11 +433,11 @@ export function InvoiceActionsPanel({
             {shown.message && shown.message !== UNCONFIRMED_PAYMENT_MESSAGE && <span className="ta-payment-result-next">{shown.message}</span>}
             <span className="ta-payment-actions">
               {(status === "issued" || status === "partially_paid") && (
-                <button type="button" className="ta-btn ta-btn-primary ta-btn-sm" disabled={paymentBusy} onClick={() => paymentFormRef.current?.requestSubmit()}>
+                <button type="button" className="ta-btn ta-btn-primary ta-btn-sm ta-btn-touch" disabled={paymentBusy} onClick={() => paymentFormRef.current?.requestSubmit()}>
                   {paymentPending ? "Recording…" : "Retry original payment"}
                 </button>
               )}
-              <button type="button" className="ta-btn ta-btn-outline ta-btn-sm" disabled={checkingAttempt || paymentPending} aria-busy={checkingAttempt} onClick={() => checkAttempt(pending.key, "pending")}>
+              <button type="button" className="ta-btn ta-btn-outline ta-btn-sm ta-btn-touch" disabled={checkingAttempt || paymentPending} aria-busy={checkingAttempt} onClick={() => checkAttempt(pending.key, "pending")}>
                 {checkingAttempt ? "Checking…" : "Check payment status"}
               </button>
             </span>
@@ -484,11 +494,11 @@ export function InvoiceActionsPanel({
               </p>
               <Field label="Payment method" name="payment_provider" error={shown.errors?.payment_provider} required>
                 {/* R-1: a disabled select is not submitted, so the locked value travels in a hidden input instead. */}
-                <select name={detailsLocked ? undefined : "payment_provider"} value={values.payment_provider} onChange={setValue("payment_provider")} required disabled={detailsLocked} aria-describedby={detailsLocked ? "payment-locked-note" : undefined}>
+                <select name={detailsLocked ? undefined : "payment_provider"} value={lockedProvider ?? values.payment_provider} onChange={setValue("payment_provider")} required disabled={detailsLocked} aria-describedby={detailsLocked ? "payment-locked-note" : undefined}>
                   {MANUAL_PAYMENT_PROVIDERS.map((p) => <option key={p} value={p}>{PAYMENT_PROVIDER_LABELS[p]}</option>)}
                 </select>
               </Field>
-              {detailsLocked && <input type="hidden" name="payment_provider" value={values.payment_provider} />}
+              {detailsLocked && <input type="hidden" name="payment_provider" value={lockedProvider ?? values.payment_provider} />}
               <Field label="Bank / reference detail" name="payment_method" error={shown.errors?.payment_method} hint="e.g. bank name, cheque no.">
                 <input type="text" name="payment_method" maxLength={100} value={values.payment_method} onChange={setValue("payment_method")} />
               </Field>
@@ -513,7 +523,7 @@ export function InvoiceActionsPanel({
               <Field label="Notes" name="notes" error={shown.errors?.notes}>
                 <textarea name="notes" rows={2} maxLength={1000} value={values.notes} onChange={setValue("notes")} />
               </Field>
-              <button type="submit" className="ta-btn ta-btn-primary ta-btn-sm" disabled={paymentBusy} aria-busy={paymentBusy} style={{ alignSelf: "flex-start" }}>
+              <button type="submit" className="ta-btn ta-btn-primary ta-btn-sm ta-btn-touch" disabled={paymentBusy} aria-busy={paymentBusy} style={{ alignSelf: "flex-start" }}>
                 {paymentPending ? "Recording…" : checkingAttempt ? "Checking…" : refreshingInvoice ? "Updating invoice…" : detailsLocked ? "Retry original payment" : "Record Payment"}
               </button>
             </form>

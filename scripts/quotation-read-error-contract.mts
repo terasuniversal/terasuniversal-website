@@ -29,7 +29,8 @@ assert.ok(quotationRead < quotationErrorGuard && quotationErrorGuard < quotation
 assert.ok(opportunityRead < opportunityErrorGuard && opportunityErrorGuard < companyRead, "opportunity query errors fail before company/customer rendering");
 assert.ok(companyRead < companyErrorGuard && companyErrorGuard < itemsRead, "company query errors fail before item and totals rendering");
 assert.ok(itemsRead < itemsErrorGuard && itemsErrorGuard < itemFallback, "item query errors fail before empty-item fallback");
-assert.ok(itemFallback < normalQuotation && normalQuotation < totals, "successful reads retain the existing normal quotation and totals output");
+// DOC-4: totals are rendered by a block renderer declared before the returned markup; both still follow every read guard.
+assert.ok(itemFallback < totals && itemFallback < normalQuotation, "successful reads retain the existing normal quotation and totals output");
 assert.match(source, /function QuotationReadFailure\(\)[\s\S]*?role="alert"[\s\S]*?This quotation was not generated[\s\S]*?no totals or printable quotation are available/);
 assert.match(source, /opportunity\?\.company_id[\s\S]*?: \{ data: null, error: null \}/, "missing optional company relationship remains a valid null result");
 assert.match(source, /if \(!quotation\) notFound\(\)/, "a valid query with no quotation remains not-found");

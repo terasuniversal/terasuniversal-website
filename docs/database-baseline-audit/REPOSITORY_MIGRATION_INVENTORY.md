@@ -91,7 +91,78 @@ The stored statement md5 equals the md5 of the file content (without the final n
 | Local file | Staging (eokiaehn) | Production (iagzkrzeu) | Statement md5 |
 |---|---|---|---|
 | 20261123100000_fpay1_p2_cancel_finalize_guards | 20261123100405 | 20261123111548 | `7b0f86ad1cf00c249ad1515e83c2c4e8` |
-| 20261128120000_marketing_contact_number_execute_grant | 20261123023212 | not applied | `34842b55152f0e9a12d4f80952692d86` |
+| 20261128120000_marketing_contact_number_execute_grant | 20261123023212 | 20261123131951 (applied after the 2026-11-23 record; see 2a) | `34842b55152f0e9a12d4f80952692d86` |
+
+### 2a. Sales & Finance VERSION-DRIFT reconciliation (CLOSEOUT-01, re-verified 2026-11-24)
+Local draft prepared under OWNER-CRM-CLOSEOUT-01-20261124. Evidence: read-only `SELECT version, name, md5(array_to_string(statements, E'\n'))`
+from `supabase_migrations.schema_migrations` on Production `iagzkrzeuawaxvacqprk` (171 rows, last `20261124015814`) and
+Staging `eokiaehnvzbggmacifcf` (73 rows, last `20261123145928`), compared against `supabase/migrations/*.sql` at `main` `4a37c51d`.
+No migration file was renamed, rewritten, deleted or re-applied, and no remote ledger was edited.
+
+"Matches file md5" is checked two ways because `apply_migration` sometimes stores the file without its final newline:
+**exact** = md5 of the whole file; **trimmed** = md5 without trailing newline(s).
+
+| Workstream | Local file | Staging version | Production version | Ledger statement md5 (Prod vs Staging) | Matches file md5 | Status |
+|---|---|---|---|---|---|---|
+| G1 | 20261129120000_manual_payment_idempotency_reference | 20261123145928 | 20261124015814 | `15b36920…` (same) | trimmed | VERSION-DRIFT, content identical |
+| F-PAY-1 P2 | 20261123100000_fpay1_p2_cancel_finalize_guards | 20261123100405 | 20261123111548 | `7b0f86ad…` (same) | exact | VERSION-DRIFT, content identical |
+| MC-1 | 20261128120000_marketing_contact_number_execute_grant | 20261123023212 | 20261123131951 | `34842b55…` (same) | trimmed | VERSION-DRIFT, content identical |
+| A1 | 20261127120000_anon_content_staff_select_to_authenticated | 20261123015709 | 20261123130437 | `88105cf9…` (same) | trimmed | VERSION-DRIFT, content identical |
+| R1 (content writes) | 20261126120000_crm_content_write_module_authorization | 20261123010449 | 20261123122337 | `141bc8e2…` (same) | trimmed | VERSION-DRIFT, content identical |
+| MS7 finance/HRDF RPC | 20261123090000_finance_hrdf_rpc_module_authorization | not in ledger (Staging has `20261123005755 r0s_staging_finance_hrdf_rpc_module_authorization`, md5 `dca13228…`) | 20261123090000 | Prod `dcb024e4…` = file exact; Staging row differs | Prod exact | MATCH (Prod); Staging used a differently named, different-content equivalent: NOT VERIFIED as equivalent |
+| Sales/Finance RLS and RPC hardening (9 files 20261121120000 to 20261123080000) | sales_crm_module_rls_hardening, sales_finance_rpc_module_authorization, invoices_update_module_authorization, crm_table_privilege_hardening, finance_read_module_authorization, companies_write_module_authorization, audit_logs_read_module_authorization, quotation_invoice_summary_rpc, revoke_client_execute_unused_finance_rpcs | same versions | same versions | same | exact | MATCH |
+| sales_activity insert authz | 20261119180000_sales_activity_insert_authorization | 20261119180000 | 20261119180000 | `06690081…` (same) | exact | MATCH |
+| Lead contact edit (5 files) | 20261119032250 to 20261119032421 | 20261108130040 to 20261108142533 | 20261119032250 to 20261119032421 | differs Prod vs Staging | Prod only | MATCH (Prod); VERSION-DRIFT and content differs (Staging) |
+| Registration RPC revoke | no repo file `revoke_public_execute_registration_rpcs` | 20261121110735 | 20261121112628 | same `a665b62b…` | n/a | REMOTE-ONLY in both; VERSION-DRIFT between them |
+| Receipts v1 | 20260919230000_receipts_v1 (+ `20260919233000_..._staging_compatibility_repair`) | 20260919230000 | 20260919230000 | differs (Prod `54999d4f…`, Staging `e7e3d41a…`) | neither | Version MATCH; content divergent between environments and file: NOT VERIFIED which text was applied (functional equivalence shown only by G3 UAT) |
+| Quotation training snapshot | no repo file with this name | 20260917160558 | 20260917160558 | differs | n/a | REMOTE-ONLY; content divergent |
+| Invoice v1, ToyyibPay 2a to 2e | 20260824160000 to 20260826100000 | not in Staging ledger (Staging ledger starts 20260911) | 20260824101552 to 20260826111303 | n/a | not checked | VERSION-DRIFT (Prod), pre-existing |
+
+Staging-only ledger rows relevant to Finance (not in Production): `payment_receiving_accounts`, ten `public_registration_*` rows (2026-11-22/23),
+`ebook_lead_capture` and `ebook_private_bucket` (W9, HOLD), and the certificate C5b1/lifecycle series (creates role `certificate_lifecycle_executor`,
+which explains the `has_module_access_level` ACL difference; see CLOSEOUT-01 security review section 6).
+
+Full machine comparison by name (139 dated repo files): MATCH in both ledgers 27; MATCH Prod / absent Staging 23; VERSION-DRIFT in both 9;
+MATCH Prod / VERSION-DRIFT Staging 5; VERSION-DRIFT Prod / absent Staging 64; absent from both 11.
+Table: `crm-prod-readiness-prep/closeout-01/evidence/ledgers/drift_table.md`.
+
+### 2b. DRIFT-2: `receipts_v1` content comparison (CLOSEOUT-02, re-verified 2026-11-24)
+Read-only. Ledgers re-checked unchanged since 2a: Production 171 rows (last `20261124015814`, name-list md5 `544db0bd…`),
+Staging 73 rows (last `20261123145928`, name-list md5 `8dfa2e6a…`). Repository files at `main` `a71d679b` (no migration change since `4a37c51d`).
+
+Normalisation used for every source: remove `--` comments, remove all whitespace, remove `;`, concatenate statements in order, md5.
+
+| Migration | Source | Statements | Raw text md5 / file sha256 | Normalised md5 |
+|---|---|---|---|---|
+| `20260919230000 receipts_v1` | Production ledger | 19 | `54999d4f…` | `49da7b4e27679c5c26114f08bc464a2a` |
+| | Staging ledger | 19 | `e7e3d41a…` | `49da7b4e27679c5c26114f08bc464a2a` |
+| | Repository file | — | sha256 `bb3ea73ac49b99c4…8f31` (12,941 chars) | `49da7b4e27679c5c26114f08bc464a2a` |
+| `20260919233000 receipts_v1_staging_compatibility_repair` | Production ledger | 7 | `6ac9812a…` | `832f06c99ad5a28b228884e2a5c99e8f` |
+| | Staging ledger | 7 | `8ebf65b3…` | `832f06c99ad5a28b228884e2a5c99e8f` |
+| | Repository file | — | sha256 `7f3835a13ddb1eb7…900f` (3,274 chars) | `832f06c99ad5a28b228884e2a5c99e8f` |
+
+Per statement: 11 of 19 (`receipts_v1`) and 3 of 7 (repair) are byte-identical between environments; the others differ only in
+comments/whitespace (all 26 identical after normalisation).
+
+Live objects compared (identical in both environments): `public.receipts` columns, 11 constraints (incl. unique `receipt_no`,
+unique `invoice_payment_id`), indexes, trigger `trg_void_receipt_on_refunded_payment`, functions `generate_receipt_for_payment`
+(EXECUTE `authenticated`), `generate_receipt_for_payment_unguarded`, `next_receipt_number`, `void_receipt_on_refunded_payment`
+(EXECUTE `postgres` only), RLS policies, table grants (`authenticated: SELECT` only). Sequence `sales_receipt_seq` exists in both
+(values differ: data only).
+
+**Classification:** formatting-only historical variation of the text recorded by `apply_migration`. No active functional,
+security or financial-integrity discrepancy. **No action** beyond documentation. Recommendation: compare future migrations by
+normalised md5, not raw md5. Full report: `crm-prod-readiness-prep/closeout-02/DRIFT-2_RECEIPTS_V1_INVESTIGATION.md`.
+
+### 2c. Remaining unverified discrepancies (carried forward)
+- `finance_hrdf_rpc_module_authorization`: Production applied the repository file (exact md5); Staging applied a differently named,
+  different-content migration `20261123005755 r0s_staging_finance_hrdf_rpc_module_authorization`. Functional equivalence of the
+  resulting HRDF RPC definitions/ACLs between environments is **NOT VERIFIED** (candidate for the same normalised/object comparison).
+- Lead contact edit (5 files): Staging versions `20261108…` with statement md5 different from Production; **NOT VERIFIED** whether
+  only formatting differs.
+- `quotation_training_snapshot_v1` (`20260917160558`): remote-only in both ledgers with different statement md5; **NOT VERIFIED**.
+- Staging-only rows (`payment_receiving_accounts`, ten `public_registration_*`, eBook W9-era `ebook_lead_capture`/`ebook_private_bucket`,
+  certificate C5b1 series) are expected environment differences, not drift of a shared migration.
 
 ## 3. REMOTE-ONLY migrations (in production history, no local file)
 

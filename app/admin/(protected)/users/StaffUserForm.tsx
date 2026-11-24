@@ -2,6 +2,7 @@
 
 import { useActionState, useState, type FormEvent } from "react";
 import { DEPARTMENTS, MODULE_CATALOG, SALES_STAFF_PRESET, type ModuleAccessLevel } from "../../../../lib/auth/rbac";
+import { describeEditScope } from "../../../../lib/auth/edit-scope";
 import { inviteStaffAction, updateStaffAction, type StaffActionState } from "./actions";
 import type { Profile, UserRole } from "../../../../lib/supabase/database.types";
 
@@ -120,7 +121,7 @@ export function StaffUserForm({ profile }: { profile?: StaffFormProfile }) {
         </div>
         {presetApplied && (
           <p className="ta-card ta-card-pad" role="status" style={{ margin: "0 0 14px", fontSize: 13 }}>
-            Sales Staff draft applied: Editor, Sales, and Custom Module Access are selected. Nothing is saved until you submit this form.
+            Sales Staff draft applied: Editor, Sales, and Custom Module Access are selected. As an Editor, Edit on Leads, Opportunities and Tasks covers everyday work only (create leads, notes, contact corrections, own tasks); status changes, conversions and every quotation action still need an Admin. Nothing is saved until you submit this form.
           </p>
         )}
         {!showsAccessControls ? (
@@ -148,8 +149,12 @@ export function StaffUserForm({ profile }: { profile?: StaffFormProfile }) {
                     const current = isSelected ? (levels[module.key] ?? "view") : "none";
                     const viewOnly = module.key === "hrdf_claims" && !targetIsAdmin;
                     const selectId = `module-level-${module.key}`;
+                    // SEC-3: say what Edit really allows for the chosen role, so the label never overstates the server guards.
+                    const scopeNote = current === "edit" ? describeEditScope(role, module.key) : null;
+                    const scopeId = `${selectId}-scope`;
                     return (
-                      <div key={module.key} style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "space-between" }}>
+                      <div key={module.key}>
+                      <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "space-between" }}>
                         {isSelected && <input type="hidden" name="module_key" value={module.key} />}
                         <label htmlFor={selectId} style={{ display: "flex", gap: 8, alignItems: "baseline", minWidth: 0 }}>
                           <span>{module.label}{module.key === "hrdf_claims" ? " (view only for non-admin staff)" : ""}</span>
@@ -158,6 +163,7 @@ export function StaffUserForm({ profile }: { profile?: StaffFormProfile }) {
                         <select
                           id={selectId}
                           aria-label={`${module.label} access`}
+                          aria-describedby={scopeNote ? scopeId : undefined}
                           value={current}
                           onChange={(event) => setModuleLevel(module.key, event.target.value as ModuleAccessLevel | "none")}
                           style={{ minHeight: 44, minWidth: 96 }}
@@ -168,11 +174,17 @@ export function StaffUserForm({ profile }: { profile?: StaffFormProfile }) {
                           {(savedAdminKeys.has(module.key) || current === "admin") && <option value="admin">{ACCESS_LEVEL_LABELS.admin}</option>}
                         </select>
                       </div>
+                      {scopeNote && (
+                        <small id={scopeId} data-edit-scope={module.key} style={{ display: "block", color: "var(--ta-muted)", fontSize: 12, marginTop: 4 }}>
+                          {scopeNote}
+                        </small>
+                      )}
+                      </div>
                     );
                   })}
                 </div>
                 <p style={{ color: "var(--ta-muted)", margin: "12px 0 0", fontSize: 13 }}>
-                  Choose None, View or Edit for each module. View is strictly read-only; Edit allows changes within the role&apos;s own limits (for example, only Admins can accept quotations). Nothing is saved until you submit this form.
+                  Choose None, View or Edit for each module. View is strictly read-only; Edit allows changes within the role&apos;s own limits, listed under each module set to Edit (for example, only Admins can accept quotations). Nothing is saved until you submit this form.
                 </p>
                 {customWithNoModules && (
                   <p className="ta-error" role="alert" style={{ marginTop: 10, marginBottom: 0 }}>

@@ -29,8 +29,21 @@ assert.match(invoice, /paymentInstructions/);
 assert.doesNotMatch(invoice, /Accomadation/);
 assert.doesNotMatch(invoice, /This quotation is valid for 30 days/);
 assert.doesNotMatch(invoice, /Bank transfer details to be provided/);
-assert.match(invoice, /itemChunks/);
-assert.match(invoice, /const pageCount = itemChunks\.length/);
+// DOC-3: invoice papers come from the calibrated layout, not the generic block packer.
+assert.match(invoice, /layoutInvoicePages\(/);
+assert.match(invoice, /const pageCount = pages\.length/);
+// DOC-2: invoice and quotation print through the readiness controller, never an unconditional inline script.
+for (const doc of [invoice, quotation]) {
+  assert.match(doc, /<DocumentPrintController /);
+  assert.doesNotMatch(doc, /PRINT_WHEN_READY_SCRIPT/);
+  assert.match(doc, /\.loading-screen,\s*\[data-print-hide\]\s*\{\s*display:\s*none\s*!important/);
+}
+// Both verify A4 fit before printing: the invoice on its screen paper (calibrated to fit), the quotation in its
+// print geometry (DOC-4), because its preview uses larger type than its print CSS.
+assert.match(invoice, /<DocumentPrintController [^>]*verifyA4Fit/);
+assert.match(quotation, /<DocumentPrintController [^>]*verifyA4Fit printGeometryAttribute=/);
+// DOC-3: the global admin "section { padding-block: 86px }" rule must not reach invoice sections.
+assert.match(invoice, /\.inv-pdf-page \.inv-pdf-section \{ margin: 22px 0; padding: 10px 0 0;/);
 assert.match(invoice, /pageNumber=\{pageIndex \+ 1\}/);
 assert.match(invoice, /pageCount=\{pageCount\}/);
 assert.match(invoice, /font-variant-numeric: tabular-nums/);
