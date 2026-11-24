@@ -54,6 +54,9 @@ check("switch: TERAS_EBOOK_PUBLIC must be exactly \"on\"; POST answers 404 first
   assert(/export async function POST\(request\) \{\n  if \(!ebookPublicEnabled\(\)\) return new NextResponse\(null, \{ status: 404 \}\);/.test(api), "POST gate first");
   assert(/export function GET\(\) \{\n  return new NextResponse\(null, \{ status: 404 \}\);/.test(api), "GET 404");
   assert(/export const PUT = GET;\nexport const PATCH = GET;\nexport const DELETE = GET;/.test(api), "PUT/PATCH/DELETE answer 404 too");
+  // W9-G2.1: OPTIONS is exported (otherwise Next.js answers 204 + Allow); HEAD follows GET automatically.
+  assert(/\nexport const OPTIONS = GET;/.test(api), "OPTIONS answers 404 too");
+  assert(!/export (const|async function|function) HEAD\b/.test(api), "HEAD is derived from GET, not separately handled");
 });
 check("security: no service role, no storage or PDF, no email, RLS-bound client, no PII in logs", () => {
   const code = read("app/api/ebook/route.js") + read("lib/ebook-request.js");

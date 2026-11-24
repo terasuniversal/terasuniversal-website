@@ -25,6 +25,9 @@ export function GET() {
 export const PUT = GET;
 export const PATCH = GET;
 export const DELETE = GET;
+// W9-G2.1: Next.js answers OPTIONS automatically (204 with an Allow header) when a route does not export it, which
+// would reveal the route and its methods; it is pinned to the same 404.
+export const OPTIONS = GET;
 
 export async function POST(request) {
   if (!ebookPublicEnabled()) return new NextResponse(null, { status: 404 });
