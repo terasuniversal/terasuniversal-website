@@ -137,6 +137,8 @@ mock.module(url("lib/supabase/server.ts"), {
         flow.calls.push(name);
         (flow.rpcArgs[name] ??= []).push(args);
         if (name === "get_active_toyyibpay_attempt") return { data: { has_active_attempt: true, attempt_id: ATTEMPT, billcode: "synthbill01" }, error: null };
+        // G3: the real RPC always reports an outcome; a payload without one is now treated as unconfirmed.
+        if (name === "record_manual_payment") return { data: { outcome: "recorded", payment_id: "p1", amount_paid: 100, status: "partially_paid" }, error: null };
         return { data: {}, error: null };
       },
     }),
@@ -170,7 +172,9 @@ for (const [label, plan] of [
 
 test("manual payment proceeds only after the documented success body", async () => {
   flow.calls = []; flow.rpcArgs = {}; net.plan = { status: 200, body: SUCCESS };
-  assert.deepEqual(await invoiceActions.recordManualPaymentAction(INVOICE, {}, paymentForm()), {});
+  const result = await invoiceActions.recordManualPaymentAction(INVOICE, {}, paymentForm());
+  assert.equal(result.message, undefined);
+  assert.equal(result.payment?.outcome, "recorded");
   assert.deepEqual(flow.calls, ["get_active_toyyibpay_attempt", "mark_toyyibpay_attempt_superseded", "record_manual_payment"]);
 });
 

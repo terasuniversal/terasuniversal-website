@@ -12,7 +12,24 @@ import {
   fieldErrors,
 } from "../../../../lib/validation/schemas";
 
-export type InvoiceActionState = { message?: string; errors?: Record<string, string>; notice?: string };
+import {
+  UNCONFIRMED_PAYMENT_MESSAGE,
+  buildManualPaymentResult,
+  parseRecordManualPaymentResponse,
+  type ManualPaymentResult,
+} from "../../../../lib/payments/manual-payment-outcome";
+
+/**
+ * `payment` is set only for a confirmed record_manual_payment outcome (recorded or duplicate_ignored).
+ * `unconfirmed` means the payment may or may not exist: the form keeps its values and its G1 key so a retry can only replay.
+ */
+export type InvoiceActionState = {
+  message?: string;
+  errors?: Record<string, string>;
+  notice?: string;
+  payment?: ManualPaymentResult;
+  unconfirmed?: boolean;
+};
 
 function revalidateInvoice(id: string, opportunityId?: string, quotationId?: string) {
   revalidatePath(`/admin/invoices/${id}`);
@@ -262,14 +279,32 @@ export async function recordManualPaymentAction(
     p_notes: d.notes || null,
     p_idempotency_key: d.idempotency_key,
   });
-  if (error) return { message: rpcMessage(error) };
+  if (error) {
+    // G3: a known code is a definite refusal (nothing was written). Anything else (timeout, dropped connection,
+    // unexpected database error) may have committed, so it must not read like a rejection that invites re-entry.
+    const code = error.message.split(":")[0].trim();
+    if (RPC_ERROR_MESSAGES[code]) return { message: RPC_ERROR_MESSAGES[code] };
+    return { message: UNCONFIRMED_PAYMENT_MESSAGE, unconfirmed: true };
+  }
 
   revalidateInvoice(invoiceId, existing?.opportunity_id, existing?.quotation_id);
+  const confirmed = parseRecordManualPaymentResponse(data);
+  if (!confirmed) return { message: UNCONFIRMED_PAYMENT_MESSAGE, unconfirmed: true };
+
+  // G3-01: read the invoice back so staff see the new balance at once. A failed read never turns a confirmed payment
+  // into an error; the result just says the details could not be refreshed.
+  const { data: fresh, error: freshError } = await supabase
+    .from("invoices")
+    .select("status, amount_paid, balance_due")
+    .eq("id", invoiceId)
+    .maybeSingle();
+  const payment = buildManualPaymentResult(confirmed, { provider: d.payment_provider, amount: d.amount }, freshError ? null : fresh);
+
   // G1: a replay (double submit, retry after a lost response) returns the original payment and writes nothing.
-  if ((data as { outcome?: unknown } | null)?.outcome === "duplicate_ignored") {
-    return { notice: "This payment was already recorded. No second payment was created." };
+  if (confirmed.outcome === "duplicate_ignored") {
+    return { notice: "This payment was already recorded. No second payment was created.", payment };
   }
-  return {};
+  return { payment };
 }
 
 export async function generateReceiptAction(formData: FormData): Promise<never> {
