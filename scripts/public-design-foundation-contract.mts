@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { CONTRACT_BASE, changedSinceBase } from "./contract-base.mts";
 import { revertPublicFirst, PF_CHANGED, PF_ADDED, PF_WITHHELD } from "./public-first-approved.mts";
 import { revertW4a, W4A_CHANGED } from "./w4a-approved.mts";
+import { revertW5a, W5A_CHANGED } from "./w5a-approved.mts";
 
 // Contract for the scoped public design foundation (Phase S1): components/premium/premium.module.css and fonts.js.
 // Proves the kit cannot reach the admin/CRM shell, certificate pages or the attendance print layout, and that the
@@ -166,7 +167,10 @@ check("protected paths have no changes against the contract base except the S5B-
   // once they are undone the file must equal the contract base byte for byte.
   const w4aOnly = (path: string) => W4A_CHANGED.includes(path)
     && revertW4a(path, read(path)).replace(/\r\n/g, "\n") === git(["show", `${CONTRACT_BASE}:${path}`]).replace(/\r\n/g, "\n");
-  const changed = git(["diff", "--name-only", CONTRACT_BASE, "--", ...PROTECTED]).trim().split("\n").filter(Boolean).filter((path) => !ROUND1_APPROVED.includes(path) && !PF_CHANGED.includes(path) && !w4aOnly(path));
+  // W5-a (owner-approved, W5-a-G1): next.config.mjs may differ only by the named GA4 CSP entries (scripts/w5a-approved.mts).
+  const w5aOnly = (path: string) => W5A_CHANGED.includes(path)
+    && revertW5a(path, read(path)).replace(/\r\n/g, "\n") === git(["show", `${CONTRACT_BASE}:${path}`]).replace(/\r\n/g, "\n");
+  const changed = git(["diff", "--name-only", CONTRACT_BASE, "--", ...PROTECTED]).trim().split("\n").filter(Boolean).filter((path) => !ROUND1_APPROVED.includes(path) && !PF_CHANGED.includes(path) && !w4aOnly(path) && !w5aOnly(path));
   assert.deepEqual(changed, [], changed.join(", "));
 });
 check("Round 1: app/layout.js changes only the two JSON-LD email values", () => {

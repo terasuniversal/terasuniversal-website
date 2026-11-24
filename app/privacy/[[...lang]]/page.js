@@ -1,6 +1,7 @@
 import PremiumHeader from "../../../components/premium/PremiumHeader";
 import PremiumFooter from "../../../components/premium/PremiumFooter";
 import LegalDocument from "../../../components/legal/LegalDocument";
+import AnalyticsSettings from "../../../components/AnalyticsSettings";
 import { privacyNoticeEn } from "../../../content/en/privacy";
 import { privacyNoticeMs } from "../../../content/ms/privacy";
 import { legalDraftsEnabled, legalDraftStatus } from "../../../lib/legal-drafts";
@@ -52,6 +53,8 @@ export default async function PrivacyNoticePage({ params }) {
       <PremiumHeader />
       <main>
         <LegalDocument doc={doc} status={status} />
+        {/* W5-a (D-07): give, change or withdraw analytics consent; renders nothing while GA4 is not configured. */}
+        <AnalyticsSettings lang={malay ? "ms" : "en"} />
       </main>
       <PremiumFooter />
     </>

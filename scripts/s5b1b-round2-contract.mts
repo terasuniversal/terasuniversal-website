@@ -149,11 +149,16 @@ check("analytics: sanitised URLs keep origin + path + utm_* only; sensitive rout
 check("analytics: the component never sends the raw URL, disables GA4 and loads nothing on untracked routes", () => {
   const source = read("components/Analytics.js");
   assert.doesNotMatch(source, /page_location: window\.location\.href|location\.search/);
-  assert.match(source, /window\[`ga-disable-\$\{measurementId\}`\] = isUntrackedPath\(pathname\);/);
-  assert.match(source, /window\.gtag\("config", measurementId, \{ send_page_view: false, page_location: pageLocation, page_referrer: pageReferrer \}\);/);
-  assert.match(source, /if \(untracked \|\| \(!analyticsEnabled && !tagManagerEnabled\)\) return null;/);
+  // W5-a (owner-approved D-07, W5-a-G1): opt-in replaces the former opt-out flag; GA4 is also switched off without
+  // consent, Google Signals and ad personalisation are off, and Google Tag Manager support is removed.
+  assert.match(source, /window\[`ga-disable-\$\{measurementId\}`\] = isUntrackedPath\(pathname\) \|\| consent !== CONSENT_GRANTED;/);
+  assert.match(source, /window\.gtag\("config", measurementId, \{ send_page_view: false, page_location: pageLocation, page_referrer: pageReferrer, allow_google_signals: false, allow_ad_personalization_signals: false \}\);/);
+  assert.match(source, /if \(untracked \|\| !analyticsEnabled\) return null;/);
   assert.match(source, /cta_destination: target\.href \? sanitizeAnalyticsUrl\(target\.href\) : "button"/);
-  assert.match(source, /window\.__TERAS_ANALYTICS_CONSENT__ !== false/, "existing opt-out flag kept");
+  assert.match(source, /window\.__TERAS_ANALYTICS_CONSENT__ === true/, "opt-in consent flag");
+  assert.doesNotMatch(source, /window\.__TERAS_ANALYTICS_CONSENT__ !== false/, "the former opt-out default is gone");
+  assert.match(source, /\{consent === CONSENT_GRANTED && <Script src=\{`https:\/\/www\.googletagmanager\.com\/gtag\/js\?id=\$\{measurementId\}`\}/, "gtag.js only after consent");
+  assert.doesNotMatch(source, /gtm\.js|NEXT_PUBLIC_GTM_ID|tagManager/, "no Google Tag Manager");
 });
 
 console.log(failures ? `\n${failures} semakan GAGAL` : "\nSemua semakan LULUS");
