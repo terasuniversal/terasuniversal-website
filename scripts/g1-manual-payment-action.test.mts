@@ -70,7 +70,9 @@ test("guards run first", async () => {
 
 test("sends the form's key as p_idempotency_key with the existing seven arguments", async () => {
   reset();
-  assert.deepEqual(await pay(), {});
+  const r = await pay();
+  assert.equal(r.message, undefined);
+  assert.equal(r.payment?.outcome, "recorded"); // G3: a confirmed payment is reported, not an empty state
   assert.deepEqual(state.args.record_manual_payment, [{
     p_invoice_id: INVOICE, p_payment_provider: "bank_transfer", p_payment_method: "Maybank", p_amount: 400, p_payment_date: "2026-11-23",
     p_payment_reference: "FT-123 456", p_notes: null, p_idempotency_key: KEY,
@@ -103,7 +105,7 @@ for (const [label, over, field] of [
 test("cash and other need no reference", async () => {
   for (const provider of ["cash", "other"]) {
     reset();
-    assert.deepEqual(await pay(form({ payment_provider: provider, payment_reference: "" })), {});
+    assert.equal((await pay(form({ payment_provider: provider, payment_reference: "" }))).payment?.outcome, "recorded");
     assert.equal((state.args.record_manual_payment[0] as { p_payment_reference: unknown }).p_payment_reference, null);
   }
 });

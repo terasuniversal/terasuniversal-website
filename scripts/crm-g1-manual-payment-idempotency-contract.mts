@@ -171,9 +171,11 @@ function checks(f: Files): Array<[string, () => void]> {
     ["form: hidden key input bound to state, server-provided first key, rotation only after success, reference required for bank/cheque", () => {
       assert.ok(f.panel.includes('<input type="hidden" name="idempotency_key" value={paymentKey} />'));
       assert.ok(f.panel.includes("useState(initialPaymentKey)"));
-      assert.match(f.panel, /if \(!paymentState\.message && !paymentState\.errors\) setPaymentKey\(crypto\.randomUUID\(\)\);/);
+      // G3: the key rotates only after a confirmed outcome (recorded or replay), never after an error or an unconfirmed result.
+      // R-1: the outcome handler is applyOutcome(state, …); a confirmed outcome is still the first branch to rotate.
+      assert.match(f.panel, /    if \(state\.payment\) \{[\s\S]{0,700}setPaymentKey\(crypto\.randomUUID\(\)\);/);
       assert.ok(f.panel.includes('const referenceRequired = paymentProvider === "bank_transfer" || paymentProvider === "cheque";'));
-      assert.ok(f.panel.includes('required={referenceRequired} />'));
+      assert.ok(f.panel.includes('onChange={setValue("payment_reference")} required={referenceRequired} readOnly={detailsLocked}'));
       assert.ok(f.page.includes("initialPaymentKey={crypto.randomUUID()}"));
     }],
   ];
@@ -208,7 +210,7 @@ if (withMutations) {
     ["rollback drops the column", "rb", "  drop index if exists public.invoice_payments_idempotency_key_key;", "  alter table public.invoice_payments drop column idempotency_key;"],
     ["app forgets the key", "action", "    p_idempotency_key: d.idempotency_key,\n", ""],
     ["schema stops requiring a cheque number", "schema", '(d.payment_provider === "bank_transfer" || d.payment_provider === "cheque")', '(d.payment_provider === "bank_transfer")'],
-    ["form rotates the key on every state change (breaks retry)", "panel", "    if (!paymentState.message && !paymentState.errors) setPaymentKey(crypto.randomUUID());", "    setPaymentKey(crypto.randomUUID());"],
+    ["form rotates the key on every state change (breaks retry)", "panel", "    if (state.payment) {", "    if (state.payment || state.errors || state.message) {"],
     ["form generates the first key on the client (hydration mismatch)", "page", "initialPaymentKey={crypto.randomUUID()}", 'initialPaymentKey=""'],
   ];
   let killed = 0;
