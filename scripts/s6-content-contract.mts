@@ -40,8 +40,13 @@ check("eBook gate: every link to /ebook lives in EbookPromo, which renders nothi
 check("eBook PDF: not shipped with the site (no PDF anywhere in public/, no file route), release facts match the approval record", () => {
   const pdfs = walk(join(rootPath, "public")).filter((file) => /\.pdf$/i.test(file) && /ebook|darizero|dunia/i.test(file));
   assert.deepEqual(pdfs, []);
-  const routes = walk(join(rootPath, "app")).filter((file) => /route\.(js|ts)$/.test(file) && /ebook/i.test(file));
-  assert.deepEqual(routes, []);
+  // W9-G1 (owner-approved): exactly one eBook route, the lead API. It answers 404 before anything else unless
+  // TERAS_EBOOK_PUBLIC is exactly "on", and it never serves a file or uses the service role.
+  const routes = walk(join(rootPath, "app")).filter((file) => /route\.(js|ts)$/.test(file) && /ebook/i.test(file)).map((file) => file.slice(rootPath.length).replace(/\\/g, "/"));
+  assert.deepEqual(routes, ["app/api/ebook/route.js"]);
+  const api = read("app/api/ebook/route.js");
+  assert.match(api, /export async function POST\(request\) \{\n  if \(!ebookPublicEnabled\(\)\) return new NextResponse\(null, \{ status: 404 \}\);/);
+  assert.doesNotMatch(api, /createSupabaseServiceClient|getSupabaseServiceRoleKey|\.pdf|storage\.from|createSignedUrl/);
   const lib = read("lib/ebook-preview.js");
   assert.ok(lib.includes('sha256: "fbf19c283c534e0638bfd91816e7e5b708ee3a8b69a6946612c53a4d570a04dc"'));
   assert.ok(lib.includes('language: "Bahasa Melayu"'));
@@ -113,7 +118,9 @@ check("protected areas untouched by S6: registration, payments, verify, feedback
     // ToyyibPay R2/R4 callback, library and decision changes are excluded and must not appear here.
     " M app/payments/toyyibpay/return/page.tsx", "?? lib/payments/toyyibpay-return-view.ts",
     // Public-First launch fixes (owner-approved): F-1 kill switch and F-4 /verify contrast; scripts/public-first-launch-contract.mts.
-    " M app/api/registration/payment/route.ts", " M app/api/registration/route.ts", " M app/registration/[scheduleId]/page.tsx", " M app/verify/VerificationResult.tsx", " M app/verify/page.tsx"]);
+    " M app/api/registration/payment/route.ts", " M app/api/registration/route.ts", " M app/registration/[scheduleId]/page.tsx", " M app/verify/VerificationResult.tsx", " M app/verify/page.tsx",
+    // W9-G1 (owner-approved): the eBook lead API, 404 unless TERAS_EBOOK_PUBLIC is "on" (checked above).
+    "?? app/api/ebook/route.js"]);
   for (const line of changed.split("\n").filter(Boolean)) assert.ok(allowed.has(line), line);
 });
 
