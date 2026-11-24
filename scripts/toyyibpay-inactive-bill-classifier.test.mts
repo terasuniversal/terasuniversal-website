@@ -146,6 +146,8 @@ const invoiceActions = await import("../app/admin/(protected)/invoices/actions.t
 const paymentForm = () => {
   const f = new FormData();
   f.set("payment_provider", "bank_transfer"); f.set("amount", "100"); f.set("payment_date", "2026-11-23");
+  // G1: bank transfers need a reference and every submission carries the form's idempotency key.
+  f.set("payment_reference", "FT-TEST-0001"); f.set("idempotency_key", "33333333-3333-4333-8333-333333333333");
   return f;
 };
 

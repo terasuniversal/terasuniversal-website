@@ -300,6 +300,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
             toyyibpayIsSandbox={toyyibpayIsSandbox}
             latestToyyibpayAttempt={latestToyyibpayAttempt}
             invoiceNo={inv.invoice_no}
+            initialPaymentKey={crypto.randomUUID()}
           />
         </div>
       </div>

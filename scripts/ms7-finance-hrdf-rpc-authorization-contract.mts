@@ -36,6 +36,11 @@ const RPCS: Record<string, { sig: string; params: string[]; modules: string[]; r
   transition_hrdf_claim: { sig: "uuid, text, jsonb", params: ["p_claim_id", "p_to_status", "p_payload"], modules: ["hrdf_claims"], returns: "public.hrdf_claims" },
 };
 
+// Parameters added to a Group A RPC by a LATER migration. The M-S7 file checks above stay exactly as applied; only the
+// application call-site check accepts (and requires) these. G1 (20261129120000) adds the 8-argument record_manual_payment
+// with p_idempotency_key and revokes the 7-argument wrapper from authenticated, so every app call must send the key.
+const LATER_APP_PARAMS: Record<string, string[]> = { record_manual_payment: ["p_idempotency_key"] };
+
 // ---- 1. Exact file ------------------------------------------------------------------------------------------------
 check("migration is byte-identical to the Production-applied file (sha256 cf9c991f)", () => {
   assert.equal(createHash("sha256").update(rawBuf).digest("hex"), MIG_SHA256);
@@ -130,8 +135,9 @@ for (const f of files) {
       const rel = relative(repoRoot, f).replace(/\\/g, "/");
       check(`${rel}: ${fn} call uses only wrapper parameter names and supplies every required one`, () => {
         const keys = [...m[1].matchAll(/\b(p_[a-z_]+)\s*:/g)].map((k) => k[1]);
-        for (const k of keys) assert.ok(RPCS[fn].params.includes(k), `unknown parameter ${k}`);
-        const required = RPCS[fn].params.filter((p) => !(fn === "transition_hrdf_claim" && p === "p_payload"));
+        const later = LATER_APP_PARAMS[fn] ?? [];
+        for (const k of keys) assert.ok(RPCS[fn].params.includes(k) || later.includes(k), `unknown parameter ${k}`);
+        const required = [...RPCS[fn].params.filter((p) => !(fn === "transition_hrdf_claim" && p === "p_payload")), ...later];
         for (const p of required) assert.ok(keys.includes(p), `missing ${p}`);
       });
       check(`${rel}: ${fn} caller holds the same edit guards as the wrapper`, () => {
