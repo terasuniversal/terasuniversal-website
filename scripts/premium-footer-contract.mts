@@ -32,7 +32,9 @@ const APPROVED = ["app/page.js", "app/training/page.js", "app/training/[slug]/pa
   // S5B-1B Round 2: the local-only draft legal pages (gated by TERAS_LEGAL_DRAFTS, noindex).
   "app/privacy/[[...lang]]/page.js", "app/terms/[[...part]]/page.js",
   // S6: the local-preview eBook landing page (gated by TERAS_EBOOK_PREVIEW, noindex).
-  "app/ebook/[[...ebook]]/page.js"];
+  "app/ebook/[[...ebook]]/page.js",
+  // W9-G3 (owner-approved): the eBook email verification page (exists only when TERAS_EBOOK_PUBLIC is "on", noindex).
+  "app/ebook/verify/[[...verify]]/page.js"];
 const LEGACY = ["app/registration/[scheduleId]/page.tsx", "app/verify/page.js"];
 
 check("logo: the official white vector from the logo pack, whole, at its intrinsic ratio, served as is", () => {

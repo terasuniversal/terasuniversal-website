@@ -381,3 +381,31 @@
     width: 100%;
   }
 }
+
+.honeypot {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+a.reset {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+.verifySection {
+  max-width: 720px;
+}
+.verifyHeading {
+  margin: 8px 0 24px;
+}
+.verifyTitle {
+  margin: 0 0 12px;
+  font-size: 22px;
+}
+.result button + button,
+.result form + .hint,
+.result button + .hint {
+  margin-top: 12px;
+}

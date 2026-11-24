@@ -11,6 +11,7 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { revertW9g1, W9G1_CHANGED, W9G1_ADDED } from "./w9g1-approved.mts";
+import { revertW9g3 } from "./w9g3-approved.mts";
 
 const root = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const read = (p: string) => readFileSync(path.join(root, p), "utf8").replace(/\r\n/g, "\n");
@@ -43,7 +44,8 @@ check("scope: exactly the four approved files carry W9-G1 named edits", () => {
   for (const p of W9G1_ADDED) assert(existsSync(path.join(root, p)), `missing ${p}`);
 });
 check("integrity: reverting the named edits restores each file exactly (nothing else changed)", () => {
-  for (const [p, hash] of Object.entries(BEFORE)) assert(sha256(revertW9g1(p, read(p))) === hash, p);
+  // W9-G3 (owner-approved) later edited the page and the stylesheet; its named edits are undone first.
+  for (const [p, hash] of Object.entries(BEFORE)) assert(sha256(revertW9g1(p, revertW9g3(p, read(p)))) === hash, p);
 });
 check("unchanged: preview gate, release facts, promo, Privacy Notice (EN/BM), sitemap, robots", () => {
   for (const [p, hash] of Object.entries(UNCHANGED)) assert(sha256(read(p)) === hash, p);
@@ -58,13 +60,16 @@ check("switch: TERAS_EBOOK_PUBLIC must be exactly \"on\"; POST answers 404 first
   assert(/\nexport const OPTIONS = GET;/.test(api), "OPTIONS answers 404 too");
   assert(!/export (const|async function|function) HEAD\b/.test(api), "HEAD is derived from GET, not separately handled");
 });
-check("security: no service role, no storage or PDF, no email, RLS-bound client, no PII in logs", () => {
+// W9-G3 (owner-approved; W9-EBOOK-RPC-CONTRACT v1.0): the CRM RPCs are service_role only, so the request logic and the
+// route never touch credentials themselves; the privileged module is the single service-role entry point (asserted in
+// scripts/w9g3-ebook-contract.mts). This check keeps the request logic and route free of credentials, storage and PII logs.
+check("security: request logic and route hold no credentials, storage or provider code; no PII in logs", () => {
   const code = read("app/api/ebook/route.js") + read("lib/ebook-request.js");
-  assert(!/createSupabaseServiceClient|getSupabaseServiceRoleKey|SERVICE_ROLE|storage\.from|createSignedUrl|\.pdf|resend|Resend/.test(code), "forbidden API");
-  assert(/createSupabaseServerClient\(\)\)\.rpc\("submit_ebook_request", args\)/.test(code), "RLS-bound RPC");
+  assert(!/createSupabaseServiceClient|createSupabaseServerClient|getSupabaseServiceRoleKey|SERVICE_ROLE|storage\.from|createSignedUrl|\.pdf|new Resend|from "resend"/.test(code), "forbidden API");
+  assert(/backend\.callEbookRpc\(EBOOK_RPC\.submit, \{/.test(code), "contract RPC through the privileged backend");
   const logCalls = code.split("\n").filter((l) => /\blog\("|console\.(error|log|warn)\(/.test(l));
   assert(logCalls.length >= 2, "log calls found");
-  for (const line of logCalls) assert(!/fullName|phone|email|token|payload|data\./.test(line), line.trim());
+  for (const line of logCalls) assert(!/fullName|phone|email\b|token|payload|data\.|url/i.test(line.replace(/log\("ebook [a-z ]+"/, "")), line.trim());
 });
 check("form: full name, WhatsApp/phone and email required; consent A required; B optional, unticked, email only", () => {
   const demo = read("components/ebook/EbookRequestDemo.js");
