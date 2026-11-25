@@ -23,7 +23,8 @@ const ACTIONS: Record<string, [string, string, string?][]> = {
 const UI_FILES = ["sales/follow-ups/page.tsx", "sales/leads/[id]/page.tsx", "sales/opportunities/[id]/page.tsx", "sales/quotations/[id]/page.tsx",
   "sales/tasks/actions.ts", "sales/tasks/page.tsx", "sales/tasks/[id]/page.tsx", "invoices/[id]/page.tsx"];
 const MIGRATIONS = ["20261201100000_rbac_m01", "20261201101000_rbac_m06", "20261201102000_rbac_m07", "20261201103000_rbac_m08", "20261201104000_rbac_m09",
-  "20261201110000_rbac_m02", "20261201111000_rbac_m03", "20261201120000_rbac_m04", "20261201121000_rbac_m05", "20261201130000_rbac_m10"];
+  "20261201110000_rbac_m02", "20261201111000_rbac_m03", "20261201120000_rbac_m04", "20261201121000_rbac_m05", "20261201130000_rbac_m10",
+  "20261201140000_rbac_m11"];
 
 type Src = Record<string, string>;
 function load(): Src {
@@ -155,6 +156,25 @@ function checks(s: Src, eligible: typeof isCapabilityRoleEligible, presets = STA
     m10Create("marketing_contact_events_select").includes("( SELECT app.has_any_module_access(ARRAY['marketing_contacts'::text], 'view'::text) AS has_any_module_access)"));
   c("M-10 pins the pre-state, requires DB B and checks one SELECT policy per table",
     /m10_precondition_failed: policy/.test(m10) && /to_regprocedure\('app\.can_module\(text,text\)'\)/.test(m10) && /m10_postcondition_failed: % has RLS off, more than one SELECT policy/.test(m10));
+  const m11 = s["20261201140000_rbac_m11"];
+  const m11Body = m11.replace(/^--.*$/gm, "");
+  const m11Create = (p: string) => (m11Body.match(new RegExp(`create policy ${p} [^;]*;`)) ?? [""])[0];
+  c("M-11 changes SELECT policies only (no grant, function, table or write-policy change)",
+    (m11Body.match(/create policy /g) ?? []).length === 3 && (m11Body.match(/drop policy if exists /g) ?? []).length === 2
+    && (m11Body.match(/create policy cert_verif_staff_read on public\.certificate_verifications as permissive for select to %s/g) ?? []).length === 1
+    && !/grant |revoke |create (or replace )?function|alter table|for (insert|update|delete|all) /i.test(m11Body));
+  c("M-11 certificates need certificates, participants or companies View (not reports) above the trainer floor",
+    m11Create("certificates_select").includes("(app.has_min_role('trainer'::public.user_role) AND ( SELECT app.has_any_module_access(ARRAY['certificates'::text, 'participants'::text, 'companies'::text], 'view'::text) AS has_any_module_access))")
+    && !m11Create("certificates_select").includes("'reports'"));
+  c("M-11 verification log needs certificates View above the trainer floor and drops the role-only trainer branch",
+    m11Body.includes("$q$(app.has_min_role('trainer'::public.user_role) AND ( SELECT app.has_any_module_access(ARRAY['certificates'::text], 'view'::text) AS has_any_module_access))$q$")
+    && !/\$m11_cv\$[\s\S]*current_role[\s\S]*\$m11_cv\$;/.test(m11Body));
+  c("M-11 feedback needs feedback, feedback_responses or schedules View above the editor floor",
+    m11Create("participant_feedback_staff_select").includes("(app.has_min_role('editor'::public.user_role) AND ( SELECT app.has_any_module_access(ARRAY['feedback'::text, 'feedback_responses'::text, 'schedules'::text], 'view'::text) AS has_any_module_access))")
+    && !m11Create("participant_feedback_staff_select").includes("feedback_issues"));
+  c("M-11 pins the pre-state, requires DB B and checks one staff SELECT policy per table",
+    /m11_precondition_failed: policy/.test(m11) && /to_regprocedure\('app\.can_module\(text,text\)'\)/.test(m11)
+    && /m11_postcondition_failed: % has RLS off, more than one staff SELECT policy/.test(m11));
   return out;
 }
 
@@ -199,6 +219,11 @@ if (process.argv.includes("--mutations")) {
     mut("M-10 marketing_contacts drops the promoted-lead condition", swap("20261201130000_rbac_m10", / AND \(EXISTS \( SELECT 1 FROM public\.sales_lead_metadata m WHERE \(\(m\.lead_source = 'marketing_contact'::text\) AND \(m\.source_id = marketing_contacts\.id\)\)\)\)/, "")),
     mut("M-10 adds a grant", swap("20261201130000_rbac_m10", "set local lock_timeout = '5s';", "set local lock_timeout = '5s';\ngrant select on public.enquiries to anon;")),
     mut("M-10 events open to Sales", swap("20261201130000_rbac_m10", "ARRAY['marketing_contacts'::text], 'view'::text)", "ARRAY['marketing_contacts'::text, 'sales'::text], 'view'::text)")),
+    mut("M-11 certificates admit reports", swap("20261201140000_rbac_m11", "'participants'::text, 'companies'::text], 'view'::text)", "'participants'::text, 'companies'::text, 'reports'::text], 'view'::text)")),
+    mut("M-11 certificates stay role-only", swap("20261201140000_rbac_m11", /(create policy certificates_select[^;]*?using )\(\(app\.has_min_role[^;]*;/, "$1(app.has_min_role('trainer'::public.user_role));")),
+    mut("M-11 verification log opens to participants", swap("20261201140000_rbac_m11", "ARRAY['certificates'::text], 'view'::text)", "ARRAY['certificates'::text, 'participants'::text], 'view'::text)")),
+    mut("M-11 feedback admits feedback_issues", swap("20261201140000_rbac_m11", "'feedback_responses'::text, 'schedules'::text]", "'feedback_responses'::text, 'schedules'::text, 'feedback_issues'::text]")),
+    mut("M-11 adds a grant", swap("20261201140000_rbac_m11", "set local lock_timeout = '5s';", "set local lock_timeout = '5s';\ngrant select on public.certificates to anon;")),
   ];
   let killed = 0;
   for (const [n, k] of mutants) { if (k) killed++; console.log(`${k ? "KILLED " : "SURVIVED"} ${n}`); }

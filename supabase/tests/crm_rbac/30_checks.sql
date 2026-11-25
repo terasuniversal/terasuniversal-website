@@ -27,9 +27,9 @@ grant execute on function rbac_test.finance_flow() to authenticated;
 
 create or replace function rbac_test.checks(p_stage text) returns void language plpgsql as $$
 declare
-  post_a boolean := p_stage in ('A', 'B', 'C', 'D');
-  post_b boolean := p_stage in ('B', 'C', 'D');
-  post_c boolean := p_stage in ('C', 'D');
+  post_a boolean := p_stage in ('A', 'B', 'C', 'D', 'E');
+  post_b boolean := p_stage in ('B', 'C', 'D', 'E');
+  post_c boolean := p_stage in ('C', 'D', 'E');
   r text; r2 text; v_uid uuid := 'aaaaaaaa-0000-4000-8000-0000000000ee'; v_n int; v_pay uuid; v_bal numeric;
   h1 text[] := array['public.verify_public_registration_manual_payment(text,text,numeric,text,text,uuid)', 'public.finalize_public_registration_crm(uuid)'];
   s text;
@@ -103,7 +103,7 @@ begin
         = 'id,participant_id,full_name,company,status,created_at',
       (select array_to_string(proargnames, ',') from pg_proc where oid = 'public.get_report_participants(integer)'::regprocedure));
     r := rbac_test.probe('RP', 'select public.get_report_participant_count()::text');
-    perform rbac_test.ck('report_count_for_reports_holder', r = 'ok:2', r);
+    perform rbac_test.ck('report_count_for_reports_holder', r = 'ok:' || (select count(*) from public.participants where deleted_at is null), r);
     r := rbac_test.probe('SS', 'select coalesce(public.get_report_participant_count()::text, ''null'')');
     perform rbac_test.ck('report_count_denied_without_reports', r = 'ok:null', r);
     r := rbac_test.probe('RP', $q$select count(*)::text from public.participants$q$);
