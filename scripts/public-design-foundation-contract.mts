@@ -7,6 +7,7 @@ import { CONTRACT_BASE, changedSinceBase } from "./contract-base.mts";
 import { revertPublicFirst, PF_CHANGED, PF_ADDED, PF_WITHHELD } from "./public-first-approved.mts";
 import { revertW4a, W4A_CHANGED } from "./w4a-approved.mts";
 import { W9G3_PROTECTED_ADDED } from "./w9g3-approved.mts"; // W9-G3.3: the two exact W9-G3 API route files
+import { w10uxAdminBoundaryApproved } from "./w10ux-approved.mts"; // CE-1: the one admin loading boundary, content-gated
 
 // Contract for the scoped public design foundation (Phase S1): components/premium/premium.module.css and fonts.js.
 // Proves the kit cannot reach the admin/CRM shell, certificate pages or the attendance print layout, and that the
@@ -167,7 +168,7 @@ check("protected paths have no changes against the contract base except the S5B-
   // once they are undone the file must equal the contract base byte for byte.
   const w4aOnly = (path: string) => W4A_CHANGED.includes(path)
     && revertW4a(path, read(path)).replace(/\r\n/g, "\n") === git(["show", `${CONTRACT_BASE}:${path}`]).replace(/\r\n/g, "\n");
-  const changed = git(["diff", "--name-only", CONTRACT_BASE, "--", ...PROTECTED]).trim().split("\n").filter(Boolean).filter((path) => !ROUND1_APPROVED.includes(path) && !PF_CHANGED.includes(path) && !w4aOnly(path));
+  const changed = git(["diff", "--name-only", CONTRACT_BASE, "--", ...PROTECTED]).trim().split("\n").filter(Boolean).filter((path) => !ROUND1_APPROVED.includes(path) && !PF_CHANGED.includes(path) && !w4aOnly(path) && !w10uxAdminBoundaryApproved(new URL("../", import.meta.url), path, CONTRACT_BASE) /* CE-1 exact path */);
   assert.deepEqual(changed, [], changed.join(", "));
 });
 check("Round 1: app/layout.js changes only the two JSON-LD email values", () => {
@@ -184,7 +185,7 @@ check("Round 1: API route changes never touch recipients, email sending, persist
   }
 });
 check("protected paths have no new files (committed or untracked) since the contract base", () => {
-  const added = changedSinceBase(PROTECTED).filter((line) => line.startsWith("?? ")).map((line) => line.slice(3)).filter((path) => !PF_ADDED.includes(path) && !W9G3_PROTECTED_ADDED.includes(path) /* W9-G3.3 exact paths */);
+  const added = changedSinceBase(PROTECTED).filter((line) => line.startsWith("?? ")).map((line) => line.slice(3)).filter((path) => !PF_ADDED.includes(path) && !W9G3_PROTECTED_ADDED.includes(path) /* W9-G3.3 exact paths */ && !w10uxAdminBoundaryApproved(new URL("../", import.meta.url), path, CONTRACT_BASE) /* CE-1 exact path */);
   assert.deepEqual(added, [], added.join(", "));
 });
 check("header css: no token redefinitions, @font-face, @import or url()", () => {

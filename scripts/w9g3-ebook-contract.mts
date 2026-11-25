@@ -18,9 +18,10 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { revertW9g3, W9G3_ADDED, W9G3_CHANGED, W9G3_PROTECTED_ADDED } from "./w9g3-approved.mts";
+import { revertW10uxFoundation, W10UX_FOUNDATION } from "./w10ux-approved.mts"; // CE-1 is later than W9-G3: undone first
 
 const root = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
-const read = (p: string) => readFileSync(path.join(root, p), "utf8").replace(/\r\n/g, "\n");
+const read = (p: string) => { const t = readFileSync(path.join(root, p), "utf8").replace(/\r\n/g, "\n"); return p === W10UX_FOUNDATION ? revertW10uxFoundation(t) : t; };
 const sha256 = (text: string) => createHash("sha256").update(text.replace(/\r\n/g, "\n")).digest("hex");
 const walk = (dir: string): string[] => readdirSync(dir).flatMap((n) => { const f = path.join(dir, n); return statSync(f).isDirectory() ? walk(f) : [f]; });
 const rel = (f: string) => path.relative(root, f).replace(/\\/g, "/");

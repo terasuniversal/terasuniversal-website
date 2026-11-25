@@ -7,6 +7,7 @@ import { CONTRACT_BASE, changedSinceBase } from "./contract-base.mts";
 import { revertS2_0 } from "./r2-s2-0-approved.mts";
 import { W4A_CHANGED } from "./w4a-approved.mts";
 import { revertW6seo } from "./w6seo-approved.mts";
+import { approvedRootLoading } from "./w10ux-approved.mts"; // W10-UX-01: root loading boundary moved to /calendar
 
 // Phase S4D-2A (owner-approved pilot): /about, /services and /corporate-training use the shared PremiumHeader instead
 // of their own legacy header. Phase S4D-2B (owner-approved rollout) adds the eight remaining eligible content routes.
@@ -168,7 +169,7 @@ const EXCLUDED = ["app/loading.js", "app/registration/[scheduleId]/page.tsx", "a
 const R2_APPROVED_EXCLUDED = ["app/payments/toyyibpay/return/page.tsx"];
 check("excluded, transactional and protected routes are unchanged against HEAD", () => {
   // Public-First F-1 (registration kill switch) and F-4 (/verify contrast) are reverted before the comparison.
-  for (const path of EXCLUDED.filter((entry) => !R2_APPROVED_EXCLUDED.includes(entry))) assert.equal(revertPublicFirst(path, read(path)), atHead(path), path);
+  for (const path of EXCLUDED.filter((entry) => !R2_APPROVED_EXCLUDED.includes(entry))) assert.equal(revertPublicFirst(path, path === "app/loading.js" ? approvedRootLoading(root) : read(path)), atHead(path), path);
 });
 check("the legacy header now remains only on the excluded routes", () => {
   const out = execFileSync("git", ["grep", "-l", "--untracked", 'className="site-header"', "--", "app"], { cwd: rootPath, encoding: "utf8" });

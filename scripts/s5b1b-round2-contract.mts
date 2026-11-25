@@ -8,6 +8,7 @@ import { termsPartAEn } from "../content/en/terms.js";
 import { isUntrackedPath, sanitizeAnalyticsUrl, sanitizeReferrer } from "../lib/analytics-privacy.js";
 import { CONTRACT_BASE, changedSinceBase } from "./contract-base.mts";
 import { revertW2Privacy } from "./w2-privacy-approved.mts";
+import { approvedRootLoading } from "./w10ux-approved.mts"; // W10-UX-01: root loading boundary moved to /calendar
 import { createHash } from "node:crypto";
 
 // FT-1B (owner-approved): LF-normalised SHA-256 of the approved three-step components/ProposalWizard.js.
@@ -124,7 +125,7 @@ check("insights: unknown article slugs are rejected by the router (dynamicParams
   const page = read("app/insights/[slug]/page.js");
   assert.match(page, /^export function generateStaticParams\(\) \{ return insights\.map\(\(\{ slug \}\) => \(\{ slug \}\)\); \}$/m);
   assert.match(page, /^export const dynamicParams = false;$/m);
-  assert.equal(read("app/loading.js"), atHead("app/loading.js"), "root loading.js unchanged");
+  assert.equal(approvedRootLoading(root), atHead("app/loading.js"), "root loading boundary unchanged except the W10-UX-01 move");
 });
 
 // ---- analytics URL privacy -----------------------------------------------------------------------------------
