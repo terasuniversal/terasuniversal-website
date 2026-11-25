@@ -125,7 +125,7 @@ function checks(f: Files): Array<[string, () => void]> {
       assert.ok(f.panel.includes('paymentFormRef.current?.querySelector<HTMLElement>(`[name="${focusTarget.field}"]`)?.focus();'));
     }],
     ["G1/G2 untouched: guards, eight-argument RPC, reference rule, G2 refresh tones", () => {
-      assert.ok(f.action.includes('  await requireRole("admin");\n  await requireModuleAccess("invoices", "edit");\n  const parsed = recordManualPaymentSchema.safeParse({'));
+      assert.ok(f.action.includes('  await requireModuleCapability("invoices", "edit");\n  const parsed = recordManualPaymentSchema.safeParse({'));
       assert.ok(f.action.includes("p_idempotency_key: d.idempotency_key,"));
       assert.ok(f.panel.includes('const referenceRequired = paymentProvider === "bank_transfer" || paymentProvider === "cheque";'));
       assert.ok(f.panel.includes("className={`ta-alert ${REFRESH_TONE_CLASS[refreshState.tone ?? \"error\"]}`}"));
@@ -147,7 +147,7 @@ function checks(f: Files): Array<[string, () => void]> {
       assert.ok(f.action.includes("      const keyStatus = keyStatusForCode(code);\n      return keyStatus ? { message: RPC_ERROR_MESSAGES[code], keyStatus } : { message: RPC_ERROR_MESSAGES[code] };"));
     }],
     ["R-1/R-1.1: the status look-up is guarded, read-only, keyed, and returns evidence only", () => {
-      assert.ok(lookup.includes('  await requireRole("admin");\n  await requireModuleAccess("invoices", "edit");\n  if (!IDEMPOTENCY_KEY_RE.test(invoiceId) || !IDEMPOTENCY_KEY_RE.test(idempotencyKey)) {'));
+      assert.ok(lookup.includes('  await requireModuleCapability("invoices", "edit");\n  if (!IDEMPOTENCY_KEY_RE.test(invoiceId) || !IDEMPOTENCY_KEY_RE.test(idempotencyKey)) {'));
       assert.ok(lookup.includes('.from("invoice_payments")') && lookup.includes('.eq("invoice_id", invoiceId)') && lookup.includes('.eq("idempotency_key", idempotencyKey)'));
       assert.ok(!/\.(insert|update|upsert|delete|rpc)\(/.test(lookup), "no writes or RPCs");
       assert.ok(lookup.includes('if (!row || row.status !== "successful") return { message: LOOKUP_NOT_FOUND_MESSAGE, unconfirmed: true, lookup: "not_found" };'));
@@ -265,7 +265,7 @@ if (withMutations) {
     ["unmapped DB error shown as a definite refusal", "action", "    return { message: UNCONFIRMED_PAYMENT_MESSAGE, unconfirmed: true };\n  }\n\n  revalidateInvoice(", '    return { message: "Could not complete this action." };\n  }\n\n  revalidateInvoice('],
     ["stale balance kept when the read failed", "lib", "balanceDue: refreshed ? balanceDue : null,", "balanceDue,"],
     ["no focus on the first field error", "panel", 'paymentFormRef.current?.querySelector<HTMLElement>(`[name="${focusTarget.field}"]`)?.focus();', "void 0;"],
-    ["guard order changed", "action", '  await requireRole("admin");\n  await requireModuleAccess("invoices", "edit");\n  const parsed = recordManualPaymentSchema', '  await requireModuleAccess("invoices", "edit");\n  const parsed = recordManualPaymentSchema'],
+    ["guard loses its role half (capability -> module only)", "action", '  await requireModuleCapability("invoices", "edit");\n  const parsed = recordManualPaymentSchema', '  await requireModuleAccess("invoices", "edit");\n  const parsed = recordManualPaymentSchema'],
     // R-1
     ["R-1: key rotates while unresolved", "lib", "  if (unresolved) return { key: current.key, intent: current.intent ?? intent };\n", ""],
     ["R-1: unresolved flag not passed", "panel", "() => crypto.randomUUID(), Boolean(unresolved))", "() => crypto.randomUUID())"],
@@ -273,7 +273,7 @@ if (withMutations) {
     ["R-1: unconfirmed result is not locked", "panel", "      beginPending({\n        key: s.key,", "      void ({\n        key: s.key,"],
     ["R-1: pre-check refusal treated as not recorded", "lib", '["invoice_not_payable", "payment_exceeds_balance", "duplicate_payment_reference"]', '["invoice_not_payable", "payment_exceeds_balance", "duplicate_payment_reference", "payment_reference_required"]'],
     ["R-1: look-up 'not found' settles as not recorded", "action", 'return { message: LOOKUP_NOT_FOUND_MESSAGE, unconfirmed: true, lookup: "not_found" };', 'return { message: LOOKUP_NOT_FOUND_MESSAGE, keyStatus: "not_recorded", lookup: "not_found" };'],
-    ["R-1: look-up loses its guard", "action", '  await requireRole("admin");\n  await requireModuleAccess("invoices", "edit");\n  if (!IDEMPOTENCY_KEY_RE', "  if (!IDEMPOTENCY_KEY_RE"],
+    ["R-1: look-up loses its guard", "action", '  await requireModuleCapability("invoices", "edit");\n  if (!IDEMPOTENCY_KEY_RE', "  if (!IDEMPOTENCY_KEY_RE"],
     ["R-1: method stays editable while locked", "panel", "required disabled={detailsLocked}", "required disabled={false}"],
     ["R-1: amount stays editable while locked", "panel", 'inputMode="decimal" value={values.amount} onChange={setValue("amount")} readOnly={detailsLocked}', 'inputMode="decimal" value={values.amount} onChange={setValue("amount")} readOnly={false}'],
     ["R-1: different intent can be submitted", "panel", "if (unresolved && manualPaymentIntent(values) !== pendingIntent(unresolved)) {", "if (false) {"],

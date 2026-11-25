@@ -51,8 +51,8 @@ const [actions, panel, page] = await Promise.all([
 ]);
 
 const statusAction = actions.slice(actions.indexOf("export async function updateLeadStatus"), actions.indexOf("export async function assignLead"));
-assert.match(statusAction, /requireRole\("admin"\)/, "status change still requires admin");
-const order = ["requireRole(\"admin\")", "salesLeadStatusSchema.safeParse", "leadStatusChangeBlock(", ".update(patch)"].map((needle) => statusAction.indexOf(needle));
+assert.match(statusAction, /requireModuleCapability\("sales_leads", "edit"\)/, "status change still requires the sales_leads capability (RBAC)");
+const order = ["requireModuleCapability(\"sales_leads\", \"edit\")", "salesLeadStatusSchema.safeParse", "leadStatusChangeBlock(", ".update(patch)"].map((needle) => statusAction.indexOf(needle));
 assert.ok(order.every((i) => i >= 0) && order.every((i, n) => n === 0 || i > order[n - 1]), "guard, validate, won check, then write");
 assert.match(statusAction, /if \(blocked\) return \{ message: blocked \}/, "won refusal returns a message");
 assert.match(statusAction, /currentLead\.status === "won" && status === "won"\) return \{\}/, "re-submitting won keeps the original won_at");
@@ -66,12 +66,12 @@ assert.match(panel, /selectableLeadStatuses\(status\)/, "status select hides won
 assert.match(panel, /Mark Lost/, "Mark Lost is kept");
 assert.match(panel, /convertLeadToOpportunity/, "convert flow is kept");
 
-assert.match(page, /const canSchedule = isAdmin\(profile\.role\)/, "follow-ups page decides by role");
+assert.match(page, /const leadsCapable = isCapabilityRoleEligible\(profile\);\s*const canSchedule = leadsCapable && /, "follow-ups page decides by capability (RBAC)");
 assert.equal((page.match(/<FollowUpInlineForm/g) ?? []).length, 1, "the form is rendered in exactly one place, behind canSchedule");
 assert.match(page, /canSchedule \?[\s\S]*?<FollowUpInlineForm[\s\S]*?\) : \(/, "form only when canSchedule");
 assert.equal((page.match(/followUpControl\(l\)/g) ?? []).length, 2, "table and card layouts both use the gated control");
 assert.match(page, /requireRole\("editor"\)/, "the page is still open to editors");
 const followUpAction = actions.slice(actions.indexOf("export async function setLeadFollowUp"), actions.indexOf("const QUALIFICATION_REASON_SET"));
-assert.match(followUpAction, /requireRole\("admin"\)/, "scheduling still requires admin on the server");
+assert.match(followUpAction, /requireModuleCapability\("sales_leads", "edit"\)/, "scheduling still requires the sales_leads capability on the server (RBAC)");
 
 console.log("Sales lead-won guard contract passed.");

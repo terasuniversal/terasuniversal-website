@@ -56,7 +56,8 @@ assert.match(receiptRoute, /VOIDED RECEIPT/);
 assert.match(receiptRoute, /PAID IN FULL/);
 assert.match(invoicePage, /generateReceiptAction/);
 assert.match(invoicePage, /HRDF receipt unavailable in Receipt V1/);
-assert.match(actions, /requireRole\("admin"\)/);
+// RBAC: receipt generation needs the invoices capability (admin, or Finance Staff with Custom access).
+assert.match(actions, /requireModuleCapability\("invoices", "edit"\)/);
 assert.match(actions, /generate_receipt_for_payment/);
 assert.match(header, /"RECEIPT"/);
 

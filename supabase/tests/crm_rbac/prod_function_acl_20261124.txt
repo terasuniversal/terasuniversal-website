@@ -1,0 +1,139 @@
+# Production iagzkrzeuawaxvacqprk function EXECUTE grantees (excluding postgres/supabase_admin), read-only 2026-11-24, history 171.
+# Format: schema.name(identity args)|grantees ("-" = none; "PUBLIC" = the PUBLIC pseudo-role). pg_trgm functions omitted.
+app.can_insert_sales_activity(p_type text, p_lead_metadata_id uuid, p_opportunity_id uuid, p_quotation_id uuid)|authenticated
+app.can_manage_assessors()|authenticated
+app.can_manage_schedule_assessors()|authenticated
+app.can_manage_schedule_groups()|authenticated
+app.can_manage_staff()|-
+app.can_manage_trainers()|authenticated
+app.can_view_trainers()|authenticated
+app.correct_wah_failed_practical_assessment(p_schedule_id uuid, p_participant_id uuid, p_new_status text, p_reason text, p_evidence_reference text)|authenticated
+app.current_role()|authenticated
+app.duplicate_certificate_with_skill_snapshot(p_source_certificate_id uuid)|authenticated
+app.has_any_module_access(p_modules text[], p_level text)|authenticated
+app.has_min_role(min_role user_role)|authenticated
+app.import_legacy_certificate(p_participant_id uuid, p_course_id uuid, p_certificate jsonb)|authenticated
+app.is_active()|authenticated
+app.is_admin()|authenticated
+app.is_admin_or_trainer()|-
+app.is_editor()|authenticated
+app.is_super_admin()|authenticated
+app.issue_certificate_with_skill_snapshot(p_schedule_id uuid, p_participant_id uuid, p_certificate_number text)|authenticated
+app.issue_wah_certificate_as_super_admin(p_schedule_id uuid, p_participant_id uuid, p_certificate_number text)|authenticated
+app.log_event(p_action audit_action, p_entity_type text, p_entity_id text, p_summary text, p_metadata jsonb)|service_role
+app.next_campaign_number()|authenticated
+app.next_marketing_contact_number()|authenticated
+app.next_quotation_number()|authenticated
+app.reissue_certificate(p_certificate_id uuid, p_event_type text, p_reason text, p_notes jsonb)|authenticated
+app.revoke_certificate(p_certificate_id uuid, p_remarks text)|authenticated
+app.set_certificate_deleted(p_certificate_id uuid, p_deleted boolean)|authenticated
+app.set_certificate_verification_enabled(p_certificate_id uuid, p_enabled boolean)|authenticated
+app.update_certificate_metadata(p_certificate_id uuid, p_expiry_date date, p_remarks text)|authenticated
+app.wah_certificate_holders_on_schedule(p_schedule_id uuid)|authenticated
+app.wah_skill_result_context(p_schedule_id uuid, p_participant_id uuid, OUT is_wah boolean, OUT is_locked boolean)|authenticated service_role
+public.accept_quotation(p_quotation_id uuid)|authenticated
+public.attach_public_registration_toyy_pay_bill(p_attempt_id uuid, p_bill_code text, p_payment_url text)|service_role
+public.begin_public_registration_payment(p_registration_reference text, p_registration_secret text, p_provider text)|service_role
+public.cancel_invoice(p_invoice_id uuid, p_reason text)|authenticated
+public.check_public_rate_limit(p_key text, p_window_seconds integer, p_max_attempts integer)|service_role
+public.clear_password_change_flag(p_forced boolean)|authenticated service_role
+public.convert_lead_to_opportunity(p_lead_metadata_id uuid, p_title text, p_expected_close_date date, p_estimated_value numeric)|authenticated
+public.correct_wah_failed_practical_assessment(p_schedule_id uuid, p_participant_id uuid, p_new_status text, p_reason text, p_evidence_reference text)|authenticated service_role
+public.create_hrdf_claim_for_invoice(p_invoice_id uuid)|authenticated
+public.create_internal_sales_lead(p_contact_name text, p_email text, p_phone text, p_company_name text, p_course_interest text, p_notes text, p_source_channel text, p_campaign_id uuid, p_attribution_notes text)|authenticated
+public.create_invoice_from_quotation(p_quotation_id uuid)|authenticated
+public.create_public_registration(p_schedule_id uuid, p_idempotency_key text, p_registration_secret text, p_attendees jsonb)|service_role
+public.duplicate_certificate_with_skill_snapshot(p_source_certificate_id uuid)|authenticated
+public.expire_public_registrations()|service_role
+public.fail_public_registration_payment_setup(p_attempt_id uuid, p_reason text)|service_role
+public.feedback_anonymous_stats(p_schedule_id uuid)|anon authenticated service_role
+public.feedback_generate_links(p_schedule_id uuid)|anon authenticated service_role
+public.feedback_get_by_token(p_token text)|anon authenticated service_role
+public.feedback_reopen(p_feedback_id uuid)|anon authenticated service_role
+public.feedback_submit(p_token text, p_data jsonb)|anon authenticated service_role
+public.finalize_public_registration_crm(p_registration_id uuid)|authenticated service_role
+public.finalize_public_registration_payment_from_callback(p_attempt_id uuid, p_bill_code text, p_verified_amount numeric, p_provider_transaction_id text, p_callback_received_at timestamp with time zone, p_raw_response jsonb)|service_role
+public.finalize_toyyibpay_payment(p_attempt_id uuid, p_verified_amount numeric, p_provider_transaction_id text, p_raw_response jsonb, p_provider_transaction_time timestamp with time zone, p_callback_received_at timestamp with time zone)|-
+public.finalize_toyyibpay_payment_from_callback(p_attempt_id uuid, p_billcode text, p_verified_amount numeric, p_provider_transaction_id text, p_provider_transaction_time timestamp with time zone, p_callback_received_at timestamp with time zone, p_raw_response jsonb)|service_role
+public.generate_receipt_for_payment(p_payment_id uuid)|authenticated
+public.get_active_toyyibpay_attempt(p_invoice_id uuid)|authenticated
+public.get_my_module_access()|authenticated service_role
+public.get_public_registration_schedule(p_schedule_id uuid)|anon authenticated service_role
+public.get_public_registration_status(p_registration_reference text, p_registration_secret text)|anon authenticated service_role
+public.get_public_upcoming_schedules(p_include_past boolean)|anon authenticated service_role
+public.get_quotation_invoice_summaries(p_quotation_ids uuid[])|authenticated service_role
+public.has_module_access(p_module_key text)|authenticated service_role
+public.has_module_access_level(p_module_key text, p_level text)|authenticated service_role
+public.import_legacy_certificate(p_participant_id uuid, p_course_id uuid, p_certificate jsonb)|authenticated service_role
+public.issue_certificate_with_skill_snapshot(p_schedule_id uuid, p_participant_id uuid, p_certificate_number text)|authenticated
+public.issue_invoice(p_invoice_id uuid)|authenticated
+public.issue_wah_certificate_as_super_admin(p_schedule_id uuid, p_participant_id uuid, p_certificate_number text)|authenticated
+public.legacy_course_map_approve(p_batch_id uuid, p_course_map_id uuid, p_course_id uuid)|authenticated service_role
+public.legacy_import_create_batch(p_source_label text, p_original_filename text, p_source_file_hash text)|authenticated service_role
+public.legacy_import_ingest_rows(p_batch_id uuid, p_rows jsonb)|authenticated service_role
+public.legacy_merge_dry_run(p_batch_id uuid)|authenticated service_role
+public.legacy_merge_execute_row(p_batch_id uuid, p_row_id uuid)|authenticated service_role
+public.legacy_merge_finalize_batch(p_batch_id uuid)|authenticated service_role
+public.legacy_merge_verify_checkpoint(p_batch_id uuid)|authenticated service_role
+public.log_event(p_action audit_action, p_entity_type text, p_entity_id text, p_summary text, p_metadata jsonb)|service_role
+public.log_event_as_service(p_actor_id uuid, p_actor_email text, p_action audit_action, p_entity_type text, p_entity_id text, p_summary text, p_metadata jsonb)|service_role
+public.log_public_registration_payment_event(p_attempt_id uuid, p_event_type text, p_detail jsonb)|service_role
+public.log_toyyibpay_callback_event(p_attempt_id uuid, p_event_type text, p_detail jsonb)|service_role
+public.log_toyyibpay_conflict(p_invoice_id uuid, p_attempt_id uuid, p_conflict_type text)|authenticated
+public.log_toyyibpay_orphan_bill_event(p_invoice_id uuid, p_billcode text, p_compensation_status text, p_detail text)|authenticated service_role
+public.mark_lead_test(p_lead_metadata_id uuid, p_is_test boolean)|authenticated
+public.mark_opportunity_lost(p_opportunity_id uuid, p_reason text)|authenticated
+public.mark_proposal_delivery_status(p_id uuid, p_email_sent boolean, p_sheets_synced boolean)|service_role
+public.mark_public_registration_payment_failed_from_callback(p_attempt_id uuid, p_bill_code text, p_callback_received_at timestamp with time zone, p_reason text)|service_role
+public.mark_toyyibpay_attempt_failed(p_attempt_id uuid, p_reason text, p_callback_received_at timestamp with time zone)|-
+public.mark_toyyibpay_attempt_failed_from_callback(p_attempt_id uuid, p_billcode text, p_callback_received_at timestamp with time zone, p_reason text)|service_role
+public.mark_toyyibpay_attempt_superseded(p_attempt_id uuid)|authenticated
+public.module_access_rank(p_level text)|authenticated service_role
+public.promote_marketing_contact_to_sales(p_contact_id uuid)|authenticated
+public.record_hrdf_payment(p_claim_id uuid, p_amount numeric, p_payment_provider text, p_payment_method text, p_payment_date date, p_payment_reference text, p_notes text)|authenticated
+public.record_manual_payment(p_invoice_id uuid, p_payment_provider text, p_payment_method text, p_amount numeric, p_payment_date date, p_payment_reference text, p_notes text)|-
+public.record_manual_payment(p_invoice_id uuid, p_payment_provider text, p_payment_method text, p_amount numeric, p_payment_date date, p_payment_reference text, p_notes text, p_idempotency_key uuid)|authenticated
+public.record_public_registration_payment_orphan(p_attempt_id uuid, p_bill_code text, p_payment_url text, p_reason text)|service_role
+public.record_toyyibpay_bill(p_invoice_id uuid, p_attempt_id uuid, p_billcode text, p_payment_url text, p_amount numeric)|authenticated
+public.recover_public_registration_payment_claim(p_attempt_id uuid, p_reason text)|service_role
+public.reissue_certificate(p_certificate_id uuid, p_event_type text, p_reason text, p_notes jsonb)|authenticated
+public.reject_quotation(p_quotation_id uuid, p_reason text)|authenticated
+public.resolve_schedule_feedback_participant(p_public_token text, p_identity_number text, p_request_fingerprint_hash text)|service_role
+public.reverse_won_opportunity(p_opportunity_id uuid, p_reason text)|-
+public.revoke_certificate(p_certificate_id uuid, p_remarks text)|authenticated
+public.schedule_group_assessor_conflicts(p_assessor_id uuid, p_schedule_id uuid, p_start_time time without time zone, p_end_time time without time zone, p_exclude_group_id uuid)|authenticated service_role
+public.schedule_group_trainer_conflicts(p_trainer_id uuid, p_schedule_id uuid, p_start_time time without time zone, p_end_time time without time zone, p_exclude_group_id uuid)|authenticated service_role
+public.set_certificate_deleted(p_certificate_id uuid, p_deleted boolean)|authenticated
+public.set_certificate_verification_enabled(p_certificate_id uuid, p_enabled boolean)|authenticated
+public.set_must_change_password(p_user_id uuid, p_value boolean)|authenticated service_role
+public.set_schedule_assessor(p_schedule_id uuid, p_assessor_id uuid)|authenticated service_role
+public.set_staff_module_access(p_user_id uuid, p_modules jsonb)|authenticated service_role
+public.set_updated_at()|service_role
+public.submit_proposal_request(p_company_name text, p_contact_person text, p_job_title text, p_email text, p_phone text, p_industry text, p_category text, p_programme text, p_participants integer, p_location text, p_preferred_month text, p_budget text, p_objectives text, p_notes text)|anon authenticated service_role
+public.submit_public_enquiry(p_name text, p_company text, p_email text, p_phone text, p_enquiry_type text, p_subject text, p_message text, p_source_page text)|anon authenticated service_role
+public.sync_participant_last4()|service_role
+public.teras_photo_next_id()|PUBLIC anon authenticated service_role
+public.transition_hrdf_claim(p_claim_id uuid, p_to_status text, p_payload jsonb)|authenticated
+public.update_certificate_metadata(p_certificate_id uuid, p_expiry_date date, p_remarks text)|authenticated
+public.update_sales_lead_contact(p_lead_metadata_id uuid, p_expected_version integer, p_contact_name text, p_company text, p_email text, p_phone text)|authenticated service_role
+public.update_staff_profile(p_user_id uuid, p_full_name text, p_department staff_department, p_role user_role, p_is_active boolean, p_access_control_enabled boolean)|authenticated service_role
+public.verify_and_log(p_query text, p_method text, p_ip text, p_ua text)|anon authenticated service_role
+public.verify_certificate(input_certificate_no text)|service_role
+public.verify_certificate_by_value(search_value text)|service_role
+public.verify_public_registration_manual_payment(p_registration_reference text, p_registration_secret text, p_amount numeric, p_payment_reference text, p_notes text, p_verifier_id uuid)|authenticated service_role
+public.wah_certificate_holders_on_schedule(p_schedule_id uuid)|authenticated
+# proacl IS NULL on Production (PostgreSQL default: PUBLIC has EXECUTE). The alignment leaves these untouched.
+app.audit_trigger()|NULL
+app.certificates_before_insert()|NULL
+app.create_sales_lead_metadata()|NULL
+app.feedback_action_transition_guard()|NULL
+app.feedback_issue_transition_guard()|NULL
+app.gen_company_id()|NULL
+app.gen_participant_id()|NULL
+app.gen_schedule_code()|NULL
+app.is_admin_or_trainer()|NULL
+app.next_opportunity_number()|NULL
+app.set_updated_at()|NULL
+app.stamp_actor()|NULL
+app.sync_attendance_present()|NULL
+app.sync_schedule_seats()|NULL

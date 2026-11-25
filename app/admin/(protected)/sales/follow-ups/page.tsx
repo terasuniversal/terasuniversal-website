@@ -1,11 +1,10 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { requireRole, requireModuleAccess, hasModuleAccess } from "../../../../../lib/auth/session";
+import { requireRole, requireModuleAccess, hasModuleAccess, isCapabilityRoleEligible } from "../../../../../lib/auth/session";
 import { PageHead, Card, Badge, EmptyState, Pagination, ListToolbar, ReadErrorState } from "../../../../../components/admin/ui";
 import { mytEndOfTodayUtc, type SalesLeadInboxRow } from "../../../../../lib/sales/crm";
 import { clampPage, normalizePage, pageCountFor, pageRange, SALES_QUEUE_PAGE_SIZE } from "../../../../../lib/sales/pagination";
 import { formatMalaysiaDate, formatMalaysiaDateTime } from "../../../../../lib/date-time";
-import { isAdmin } from "../../../../../lib/auth/rbac";
 import { FollowUpInlineForm } from "./FollowUpInlineForm";
 import { isCurrentLeadFollowUp } from "../../../../../lib/sales/active-state";
 
@@ -94,11 +93,11 @@ export default async function FollowUpsPage({
   const lastActivityByLead = new Map<string, any>();
   for (const a of activityRows ?? []) if (!lastActivityByLead.has(a.lead_metadata_id)) lastActivityByLead.set(a.lead_metadata_id, a);
 
-  // Scheduling writes sales_lead_metadata, which only Admins may update (RLS
-  // and setLeadFollowUp's requireRole("admin")), so other roles get the date
-  // read-only instead of a form that would bounce them to No Access. The save
-  // also requires Leads edit access (setLeadFollowUp), so View-only Admins get read-only too.
-  const canSchedule = isAdmin(profile.role) && (await hasModuleAccess("sales_leads", "edit"));
+  // Scheduling writes sales_lead_metadata (RLS: app.can_module('sales_leads', 'edit'); setLeadFollowUp:
+  // requireModuleCapability). Anyone else gets the date read-only instead of a form that would bounce
+  // them to No Access - including View-only staff and Editors on Role Default Access.
+  const leadsCapable = isCapabilityRoleEligible(profile);
+  const canSchedule = leadsCapable && (await hasModuleAccess("sales_leads", "edit"));
   const followUpControl = (l: SalesLeadInboxRow) =>
     canSchedule ? (
       <FollowUpInlineForm leadMetadataId={l.lead_metadata_id} followUpAt={l.follow_up_at} returnTo={returnTo} />
@@ -113,9 +112,9 @@ export default async function FollowUpsPage({
       {sp.feedback === "cleared" && <div className="ta-alert ta-alert-success" role="status">Follow-up cleared.</div>}
       {!canSchedule && (
         <div className="ta-alert ta-alert-info" role="note">
-          {isAdmin(profile.role)
+          {leadsCapable
             ? "You have view-only access to Leads. Changing follow-up dates requires Leads Edit access."
-            : "Only an Admin with Leads Edit access can change follow-up dates."}
+            : "Changing follow-up dates requires Custom Module Access with Leads Edit."}
         </div>
       )}
 

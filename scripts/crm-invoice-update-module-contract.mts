@@ -44,8 +44,8 @@ check("every application writer of invoices rows holds Admin + Invoices edit", (
       writers++;
       const fnStart = t.lastIndexOf("export async function", m.index);
       const body = t.slice(fnStart, m.index);
-      assert.match(body, /requireRole\("admin"\)/, `${f}: requireRole("admin")`);
-      assert.match(body, /requireModuleAccess\("invoices", "edit"\)/, `${f}: requireModuleAccess("invoices", "edit")`);
+      // RBAC: admin, or Finance Staff (Custom-access editor), with Invoices edit - the same rule as app.can_module in invoices_update.
+      assert.match(body, /requireModuleCapability\("invoices", "edit"\)/, `${f}: requireModuleCapability("invoices", "edit")`);
     }
   }
   assert.ok(writers >= 1, "found the invoice draft writer");

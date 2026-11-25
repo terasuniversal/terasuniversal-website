@@ -15,7 +15,7 @@ const checks: Array<[string, boolean]> = [
   ["Sales preset excludes Staff Users", !/SALES_STAFF_PRESET[\s\S]*?moduleKey: "users"/.test(rbac)],
   ["Sales preset excludes training defaults", !/SALES_STAFF_PRESET[\s\S]*?moduleKey: "courses"/.test(rbac)],
   ["Sales preset excludes marketing defaults", !/SALES_STAFF_PRESET[\s\S]*?moduleKey: "marketing"/.test(rbac)],
-  ["Preset application is a button draft action", /type="button"[\s\S]*?applySalesPreset/.test(form)],
+  ["Preset application is a button draft action", /type="button"[\s\S]*?applyPreset\(preset\)/.test(form) && /STAFF_ACCESS_PRESETS/.test(form)],
   ["Preset does not submit until the form is saved", /Nothing is saved until you submit this form/.test(form)],
   ["Preset submits explicit module levels", /name="module_access"/.test(form)],
   ["Existing staff receives stored access levels", /access_level/.test(editPage)],

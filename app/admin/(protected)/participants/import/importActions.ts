@@ -92,6 +92,7 @@ export async function analyzeImport(raw: RawRow[]): Promise<ImportAnalysis> {
  */
 export async function commitImport(raw: RawRow[]): Promise<{ inserted: number; skipped: number; message?: string }> {
   await requireRole("admin");
+  await requireModuleAccess("participants", "edit"); // inserts participants: Participants Edit (RBAC M-09)
   const analysis = await analyzeImport(raw);
   const toInsert = analysis.rows.filter((r) => r.status === "ok").map((r) => r.data!);
   if (toInsert.length === 0) return { inserted: 0, skipped: analysis.summary.total };

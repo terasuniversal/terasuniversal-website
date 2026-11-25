@@ -25,7 +25,7 @@ const files: string[] = [];
 const walk = (dir: string) => { for (const n of readdirSync(dir)) { const p = join(dir, n); if (statSync(p).isDirectory()) walk(p); else if (/\.(ts|tsx)$/.test(n)) files.push(p); } };
 for (const d0 of ["app", "lib", "components"]) walk(join(root, d0));
 const text = new Map(files.map((f) => [f, readFileSync(f, "utf8").replace(/\r\n/g, "\n")]));
-const guards = (t: string) => new Set([...t.matchAll(/(?:requireModuleAccess|hasModuleAccess)\("([a-z_]+)"/g)].map((m) => m[1]));
+const guards = (t: string) => new Set([...t.matchAll(/(?:requireModuleAccess|hasModuleAccess|requireModuleCapability|hasModuleCapability)\("([a-z_]+)"/g)].map((m) => m[1]));
 const readersOf = (table: string) => files.filter((f) => new RegExp(`\\.from\\("${table}"\\)`).test(text.get(f)!));
 const usesServiceRole = (t: string) => /createSupabaseServiceClient\(\)/.test(t);
 const superAdminOnly = (t: string) => /requireRole\("super_admin"\)/.test(t);

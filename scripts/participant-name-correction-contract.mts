@@ -235,7 +235,8 @@ const correct = bodyOf(actions, "export async function correctParticipantName");
 
 await check("contract: admin and participants-module guards run first", () => {
   const role = correct.indexOf('requireRole("admin")');
-  const mod = correct.indexOf('requireModuleAccess("participants")');
+  // RBAC M-09 alignment: the write path needs Participants Edit (stricter than the earlier View-level check).
+  const mod = correct.indexOf('requireModuleAccess("participants", "edit")');
   const parse = correct.indexOf("participantNameCorrectionSchema.safeParse");
   assert.ok(role >= 0 && mod > role && parse > mod);
 });

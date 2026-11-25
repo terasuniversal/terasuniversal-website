@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
-import { requireRole, requireModuleAccess, hasModuleAccess } from "../../../../../../lib/auth/session";
+import { requireRole, requireModuleAccess, hasModuleAccess, hasModuleCapability } from "../../../../../../lib/auth/session";
 import { isAdmin } from "../../../../../../lib/auth/rbac";
 import { PageHead, Card, Badge } from "../../../../../../components/admin/ui";
 import { TaskForm } from "../TaskForm";
@@ -24,6 +24,8 @@ export default async function TaskDetailPage({
   const profile = await requireRole("editor");
   await requireModuleAccess("sales_tasks");
   const canEdit = await hasModuleAccess("sales_tasks", "edit");
+  // Managing others' tasks: admin role (as before) or sales_tasks at Admin level; Editors manage their own.
+  const canManageOthers = (isAdmin(profile.role) || (await hasModuleCapability("sales_tasks", "admin", profile)));
   const { id } = await params;
   const sp = await searchParams;
   const returnContext = normalizeTaskQueueContext(sp);
@@ -35,7 +37,7 @@ export default async function TaskDetailPage({
   if (!task) notFound();
   const t = task as SalesTaskRow;
 
-  const canManage = canEdit && (isAdmin(profile.role) || t.assigned_to === profile.id || t.created_by === profile.id);
+  const canManage = canEdit && (canManageOthers || t.assigned_to === profile.id || t.created_by === profile.id);
   const staff = await loadStaffOptions();
   const staffNames = new Map(staff.map((s) => [s.id, s.full_name]));
 

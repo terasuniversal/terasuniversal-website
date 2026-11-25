@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
-import { requireRole, requireModuleAccess, hasModuleAccess } from "../../../../../../lib/auth/session";
+import { requireRole, requireModuleAccess, hasModuleAccess, isCapabilityRoleEligible } from "../../../../../../lib/auth/session";
 import { isAdmin } from "../../../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, EmptyState, ReadErrorState } from "../../../../../../components/admin/ui";
 import { LeadActivityTimeline } from "../../leads/[id]/LeadActivityTimeline";
@@ -51,8 +51,12 @@ export default async function OpportunityDetailPage({ params, searchParams }: { 
     hasModuleAccess("schedules", "edit"),
     hasModuleAccess("companies", "edit"),
   ]);
+  // Sales actions follow app.can_module (admin, or an Editor with Custom Module Access). Creating schedules and
+  // companies from here still writes Training/Companies tables, whose policies keep the admin role (M-09), so
+  // those two buttons keep the admin check.
   const admin = isAdmin(profile.role);
-  const canManage = admin && canEdit;
+  const salesCapable = isCapabilityRoleEligible(profile);
+  const canManage = salesCapable && canEdit;
   const { notice } = await searchParams;
   const { id } = await params;
   const supabase = await createSupabaseServerClient();
@@ -237,7 +241,7 @@ export default async function OpportunityDetailPage({ params, searchParams }: { 
       <PageHead
         title={opp.title}
         subtitle={`${opp.opportunity_no} — ${opp.company_name ?? "No company on file"}`}
-        action={!quotationsResult.error && admin && canEditQuotations && opp.stage !== "won" && opp.stage !== "lost"
+        action={!quotationsResult.error && salesCapable && canEditQuotations && opp.stage !== "won" && opp.stage !== "lost"
           ? <Link href={`/admin/sales/quotations/new?opportunityId=${opp.id}`} className="ta-btn ta-btn-primary ta-btn-sm">+ Create Quotation</Link>
           : <Link href={`/admin/sales/leads/${opp.lead_metadata_id}`} className="ta-btn ta-btn-outline">View Source Lead</Link>}
         secondaryAction={<Link href="/admin/sales/opportunities" className="ta-btn ta-btn-outline">← Back to Opportunities</Link>}

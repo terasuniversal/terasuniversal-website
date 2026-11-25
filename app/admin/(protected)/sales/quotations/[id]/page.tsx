@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
-import { requireRole, requireModuleAccess, hasModuleAccess } from "../../../../../../lib/auth/session";
-import { isAdmin } from "../../../../../../lib/auth/rbac";
+import { requireRole, requireModuleAccess, hasModuleAccess, isCapabilityRoleEligible } from "../../../../../../lib/auth/session";
 import { PageHead, Card, Badge, EmptyState, ReadErrorState } from "../../../../../../components/admin/ui";
 import { dueDateState, revisionLabel, type SalesActivityRow, type SalesQuotationRow, type SalesQuotationItemRow, type SalesTaskRow } from "../../../../../../lib/sales/crm";
 import { formatMalaysiaDate, formatMalaysiaDateTime } from "../../../../../../lib/date-time";
@@ -29,17 +28,17 @@ export default async function QuotationDetailPage({ params, searchParams }: { pa
     // Links to the opportunity are only rendered when the user can open it (UAT F-U6).
     hasModuleAccess("sales_opportunities"),
   ]);
-  const canManage = isAdmin(profile.role) && canEditQuotations;
-  const canCreateInvoice = isAdmin(profile.role) && canEditInvoices;
-  // Name the exact missing requirement instead of a generic message (UAT F-U9/F-U13): an Admin with
+  // Same rule as app.can_module: admin, or an Editor with Custom Module Access, plus the module's Edit grant.
+  const capable = isCapabilityRoleEligible(profile);
+  const canManage = capable && canEditQuotations;
+  const canCreateInvoice = capable && canEditInvoices;
+  // Name the exact missing requirement instead of a generic message (UAT F-U9/F-U13): staff with
   // Quotations edit but no Invoices edit must not be told that quotation edit access is missing.
-  const statusDeniedReason = !isAdmin(profile.role)
-    ? canEditQuotations
-      ? "Status changes require the Admin role."
-      : "Status changes require the Admin role and Quotations Edit access."
+  const statusDeniedReason = !capable
+    ? "Status changes require Custom Module Access with Quotations Edit."
     : "You have view-only access to Quotations. Status changes require Edit access.";
-  const invoiceDeniedReason = !isAdmin(profile.role)
-    ? "Creating an invoice requires the Admin role and Invoices Edit access."
+  const invoiceDeniedReason = !capable
+    ? "Creating an invoice requires Custom Module Access with Invoices Edit."
     : "Creating an invoice requires Invoices Edit access.";
   const { id } = await params;
   const { notice } = await searchParams;

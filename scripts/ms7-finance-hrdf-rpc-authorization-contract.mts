@@ -143,8 +143,8 @@ for (const f of files) {
       check(`${rel}: ${fn} caller holds the same edit guards as the wrapper`, () => {
         const at = m.index ?? 0;
         const body = t.slice(t.lastIndexOf("\nexport ", at), at);
-        const guards = new Set([...body.matchAll(/requireModuleAccess\("([a-z_]+)", "edit"\)/g)].map((g) => g[1]));
-        for (const mod of RPCS[fn].modules) assert.ok(guards.has(mod), `missing requireModuleAccess("${mod}", "edit")`);
+        const guards = new Set([...body.matchAll(/requireModule(?:Access|Capability)\("([a-z_]+)", "edit"\)/g)].map((g) => g[1]));
+        for (const mod of RPCS[fn].modules) assert.ok(guards.has(mod), `missing requireModuleAccess/requireModuleCapability("${mod}", "edit")`);
       });
     }
   }

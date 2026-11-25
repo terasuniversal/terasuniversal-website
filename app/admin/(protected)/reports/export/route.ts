@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
     const today = new Date().toISOString().slice(0, 10);
     const hc = (t: string, f: (q: any) => any = (q) => q) => f(supabase.from(t).select("*", { count: "exact", head: true }).is("deleted_at", null));
     const [participants, companies, courses, schedules, trainers, certs, upcoming] = await Promise.all([
-      hc("participants"), hc("companies"), hc("courses"), hc("course_schedules"), hc("trainers"),
+      supabase.rpc("get_report_participant_count").then((r: any) => ({ count: r.error ? null : r.data ?? null })), hc("companies"), hc("courses"), hc("course_schedules"), hc("trainers"),
       hc("certificates", (q) => q.eq("status", "valid")),
       hc("course_schedules", (q) => q.gte("start_date", today).not("status", "in", "(cancelled)")),
     ]);
@@ -63,7 +63,13 @@ export async function GET(request: NextRequest) {
   const def = REPORTS[report];
   if (!def) return new NextResponse("Unknown report", { status: 400 });
   const select = def.select ?? def.columns.map(([k]) => k).join(",");
-  const { data, error } = await supabase.from(def.table).select(select).is("deleted_at", null).order(def.order);
+  // Participants come from the minimum-column Reports RPC (RBAC M-07); the other reports read their tables directly.
+  const { data, error } = report === "participants"
+    ? await supabase.rpc("get_report_participants", { p_limit: null }).then((r: any) => ({
+        data: r.data ? [...r.data].sort((a: any, b: any) => String(a.created_at).localeCompare(String(b.created_at))) : r.data,
+        error: r.error,
+      }))
+    : await supabase.from(def.table).select(select).is("deleted_at", null).order(def.order);
   if (error) return new NextResponse(error.message, { status: 500 });
   // Flatten any embedded relation (only schedules carries one today) so column
   // keys like course_name resolve to the related course value; missing/null

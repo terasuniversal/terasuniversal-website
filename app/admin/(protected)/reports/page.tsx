@@ -11,6 +11,11 @@ export const dynamic = "force-dynamic";
 const headCount = (supabase: any, table: string, filters: (q: any) => any = (q) => q) =>
   filters(supabase.from(table).select("*", { count: "exact", head: true }).is("deleted_at", null));
 
+// Participant data reaches Reports only through the two minimum-column RPCs (RBAC M-07): the participants table
+// itself is no longer readable with the reports module alone. Same { count } / { data } shapes as before.
+const participantCount = (supabase: any) =>
+  supabase.rpc("get_report_participant_count").then((r: any) => ({ count: r.error ? null : r.data ?? null, error: r.error }));
+
 export default async function ReportsPage() {
   await requireRole("editor");
   await requireModuleAccess("reports");
@@ -24,7 +29,7 @@ export default async function ReportsPage() {
     partPerMonth, schedPerMonth, certPerMonth, attTrend, topCompanies, topCourses, trainerWorkload,
     latestParticipants, latestCerts, latestCompanies, upcoming, latestAudit,
   ] = await Promise.all([
-    headCount(supabase, "participants"),
+    participantCount(supabase),
     headCount(supabase, "companies"),
     headCount(supabase, "courses"),
     headCount(supabase, "course_schedules"),
@@ -41,7 +46,7 @@ export default async function ReportsPage() {
     supabase.from("v_top_companies").select("*"),
     supabase.from("v_top_courses").select("*"),
     supabase.from("v_trainer_workload").select("*"),
-    supabase.from("participants").select("id, participant_id, full_name, company, status, created_at").is("deleted_at", null).order("created_at", { ascending: false }).limit(5),
+    supabase.rpc("get_report_participants", { p_limit: 5 }),
     supabase.from("certificates").select("id, certificate_number, holder_name, status, issue_date").is("deleted_at", null).order("issue_date", { ascending: false }).limit(5),
     supabase.from("companies").select("id, company_id, company_name, status, created_at").is("deleted_at", null).order("created_at", { ascending: false }).limit(5),
     supabase.from("course_schedules").select("id, start_date, status, capacity, seats_taken, courses(course_name)").gte("start_date", today).is("deleted_at", null).order("start_date").limit(5),

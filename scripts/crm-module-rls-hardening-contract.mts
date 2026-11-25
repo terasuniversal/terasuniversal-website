@@ -144,7 +144,7 @@ type Guard = { module: string; level: string };
 function guardsIn(f: string): Guard[] {
   const out: Guard[] = [];
   const t = text.get(f) ?? (existsSync(f) ? readFileSync(f, "utf8") : "");
-  for (const m of t.matchAll(/(?:requireModuleAccess|hasModuleAccess)\(\s*"([a-z_]+)"(?:\s*,\s*"([a-z]+)")?/g)) out.push({ module: m[1], level: m[2] ?? "view" });
+  for (const m of t.matchAll(/(?:requireModuleAccess|hasModuleAccess|requireModuleCapability|hasModuleCapability)\(\s*"([a-z_]+)"(?:\s*,\s*"([a-z]+)")?/g)) out.push({ module: m[1], level: m[2] ?? (m[0].includes("Capability") ? "edit" : "view") });
   return out;
 }
 function routeGuards(f: string): Guard[] {

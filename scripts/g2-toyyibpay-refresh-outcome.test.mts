@@ -57,6 +57,7 @@ mock.module("next/navigation.js", { namedExports: { redirect: (to: string) => { 
 mock.module(url("lib/auth/session.ts"), {
   namedExports: {
     requireRole: async (min: string) => { state.calls.push(`requireRole:${min}`); return { id: "admin" }; },
+    requireModuleCapability: async (k: string, l: string) => { state.calls.push(`requireModuleCapability:${k}:${l}`); return { id: "admin", role: "admin", is_active: true, access_control_enabled: true }; },
     requireModuleAccess: async (key: string, level: string) => { state.calls.push(`requireModuleAccess:${key}:${level}`); },
   },
 });
@@ -102,7 +103,7 @@ function assertNotSuccess(r: { tone?: string; message?: string }) {
 test("guards run first: admin, then invoices:edit", async () => {
   reset();
   await refresh();
-  assert.deepEqual(state.calls.slice(0, 2), ["requireRole:admin", "requireModuleAccess:invoices:edit"]);
+  assert.deepEqual(state.calls.slice(0, 1), ["requireModuleCapability:invoices:edit"]);
 });
 
 test("attempt load error -> error tone, no ToyyibPay call", async () => {

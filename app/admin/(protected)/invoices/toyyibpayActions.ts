@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient, createSupabaseServiceClient } from "../../../../lib/supabase/server";
-import { requireRole, requireModuleAccess } from "../../../../lib/auth/session";
+import { requireRole, requireModuleCapability } from "../../../../lib/auth/session";
 import { createBill, inactivateBill, ringgitStringToSen, getBillTransactions, parseToyyibpayTransactionDate } from "../../../../lib/payments/toyyibpay";
 import { canonicalSiteOrigin } from "../../../../lib/site-origin";
 import {
@@ -43,8 +43,7 @@ export async function generateToyyibpayPaymentLinkAction(
   _prev: ToyyibpayLinkState,
   _formData: FormData
 ): Promise<ToyyibpayLinkState> {
-  await requireRole("admin");
-  await requireModuleAccess("invoices", "edit");
+  await requireModuleCapability("invoices", "edit");
   const supabase = await createSupabaseServerClient();
 
   // ---------------------------------------------------------------------
@@ -190,7 +189,7 @@ export async function generateToyyibpayPaymentLinkAction(
  * architecture. Those RPCs are revoked from `authenticated` by design
  * (Phase 2C), so this call site uses the service-role client, exactly like
  * the public return page's own justified exception: narrow, server-only,
- * reached only after requireRole("admin") has already run. p_callback_received_at
+ * reached only after requireModuleCapability("invoices", "edit") has already run. p_callback_received_at
  * is null -- this is an admin-triggered recheck, not a real callback arrival,
  * and must never be recorded as one.
  */
@@ -201,8 +200,7 @@ export async function refreshToyyibpayStatusAction(
   _prev: ToyyibpayRefreshState,
   _formData: FormData
 ): Promise<ToyyibpayRefreshState> {
-  await requireRole("admin");
-  await requireModuleAccess("invoices", "edit");
+  await requireModuleCapability("invoices", "edit");
 
   const supabase = await createSupabaseServerClient();
   const { data: attempt, error: attemptError } = await supabase

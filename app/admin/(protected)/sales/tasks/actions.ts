@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { requireRole, requireModuleAccess } from "../../../../../lib/auth/session";
+import { requireRole, requireModuleAccess, hasModuleCapability } from "../../../../../lib/auth/session";
 import { isAdmin } from "../../../../../lib/auth/rbac";
 import { salesTaskSchema, fieldErrors } from "../../../../../lib/validation/schemas";
 import {
@@ -93,7 +93,8 @@ export async function createTask(_prev: TaskFormState, formData: FormData): Prom
   if (parsed.data.due_at && !dueAt) return { errors: { due_at: "Enter a valid due date and time." } };
 
   const assignedTo = parsed.data.assigned_to || null;
-  if (assignedTo && assignedTo !== profile.id && !isAdmin(profile.role)) {
+  // Assigning to someone else = managing others' tasks: admin role (as before) or sales_tasks at Admin level.
+  if (assignedTo && assignedTo !== profile.id && !(isAdmin(profile.role) || (await hasModuleCapability("sales_tasks", "admin", profile)))) {
     return { message: "Assigning a task to another staff member requires Admin access. You can still create it assigned to yourself." };
   }
 
@@ -143,7 +144,7 @@ export async function updateTask(taskId: string, _prev: TaskFormState, formData:
       .is("deleted_at", null)
       .maybeSingle();
     if (readError || !task) return { message: "Task could not be loaded. Refresh and try again." };
-    if (!isAdmin(profile.role) && task.assigned_to !== profile.id && task.created_by !== profile.id) {
+    if (!(isAdmin(profile.role) || (await hasModuleCapability("sales_tasks", "admin", profile))) && task.assigned_to !== profile.id && task.created_by !== profile.id) {
       return { message: "You do not have permission to reschedule this task." };
     }
     if (task.status !== "open" && task.status !== "in_progress") {
@@ -171,7 +172,7 @@ export async function updateTask(taskId: string, _prev: TaskFormState, formData:
   if (parsed.data.due_at && !dueAt) return { errors: { due_at: "Enter a valid due date and time." } };
 
   const assignedTo = parsed.data.assigned_to || null;
-  if (assignedTo && !isAdmin(profile.role)) {
+  if (assignedTo && !(isAdmin(profile.role) || (await hasModuleCapability("sales_tasks", "admin", profile)))) {
     const { data: existing } = await (await createSupabaseServerClient()).from("sales_tasks").select("assigned_to").eq("id", taskId).maybeSingle();
     if (assignedTo !== profile.id && assignedTo !== existing?.assigned_to) {
       return { message: "Reassigning a task to another staff member requires Admin access." };
@@ -239,7 +240,7 @@ export async function setTaskStatus(
     .is("deleted_at", null)
     .maybeSingle();
   if (readError || !task) return { message: "Task could not be loaded. Refresh and try again." };
-  if (!isAdmin(profile.role) && task.assigned_to !== profile.id && task.created_by !== profile.id) {
+  if (!(isAdmin(profile.role) || (await hasModuleCapability("sales_tasks", "admin", profile))) && task.assigned_to !== profile.id && task.created_by !== profile.id) {
     return { message: "You do not have permission to change this task." };
   }
 
@@ -281,10 +282,12 @@ export async function setTaskStatus(
   redirect(taskActionReturnHref(formData, taskId, feedback));
 }
 
-/** Soft-delete — admin+ only, matches sales_tasks_delete RLS. Prefer cancelling a task over deleting it; this exists for genuine mistakes. */
+/** Soft-delete. Admin with Tasks edit (as before) or sales_tasks at Admin level; Sales Staff (Edit) cannot delete
+ * tasks - they cancel them. Prefer cancelling a task over deleting it; this exists for genuine mistakes. */
 export async function deleteTask(taskId: string): Promise<void> {
-  await requireRole("admin");
+  const profile = await requireRole("editor");
   await requireModuleAccess("sales_tasks", "edit");
+  if (!(isAdmin(profile.role) || (await hasModuleCapability("sales_tasks", "admin", profile)))) redirect("/admin/no-access");
   const supabase = await createSupabaseServerClient();
   await supabase.from("sales_tasks").update({ deleted_at: new Date().toISOString() }).eq("id", taskId);
   revalidateTasks();

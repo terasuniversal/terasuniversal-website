@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
-import { requireRole, requireModuleAccess, hasModuleAccess } from "../../../../../../lib/auth/session";
-import { isAdmin, isSuperAdmin } from "../../../../../../lib/auth/rbac";
+import { requireRole, requireModuleAccess, hasModuleAccess, isCapabilityRoleEligible } from "../../../../../../lib/auth/session";
+import { isSuperAdmin } from "../../../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, EmptyState, ReadErrorState } from "../../../../../../components/admin/ui";
 import { FollowUpBadge } from "../../../../../../components/admin/sales/FollowUpBadge";
 import { PRIORITY_LABELS, SOURCE_LABELS, followUpState, type SalesLeadInboxRow, type SalesActivityRow } from "../../../../../../lib/sales/crm";
@@ -82,7 +82,7 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
   const canEdit = await hasModuleAccess("sales_leads", "edit");
   // Adding a task opens /admin/sales/tasks/new, which requires Tasks edit; hide the link otherwise.
   const canAddTask = await hasModuleAccess("sales_tasks", "edit");
-  const canManage = isAdmin(profile.role) && canEdit;
+  const canManage = isCapabilityRoleEligible(profile) && canEdit; // mirrors app.can_module('sales_leads', 'edit')
   const superAdmin = isSuperAdmin(profile.role);
   const { id } = await params;
   const sp = await searchParams;

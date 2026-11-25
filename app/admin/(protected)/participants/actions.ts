@@ -79,7 +79,7 @@ function mapDbError(error: { code?: string; message: string }): ParticipantFormS
 
 export async function createParticipant(_prev: ParticipantFormState, formData: FormData): Promise<ParticipantFormState> {
   await requireRole("admin"); // Editors are read-only.
-  await requireModuleAccess("participants");
+  await requireModuleAccess("participants", "edit"); // writes need Participants Edit (RBAC M-09)
   const parsed = participantSchema.safeParse(readForm(formData));
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
@@ -96,7 +96,7 @@ export async function createParticipant(_prev: ParticipantFormState, formData: F
 
 export async function updateParticipant(id: string, _prev: ParticipantFormState, formData: FormData): Promise<ParticipantFormState> {
   await requireRole("admin");
-  await requireModuleAccess("participants");
+  await requireModuleAccess("participants", "edit"); // writes need Participants Edit (RBAC M-09)
   const parsed = participantSchema.safeParse(readForm(formData));
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
@@ -117,7 +117,7 @@ export async function updateParticipant(id: string, _prev: ParticipantFormState,
  */
 export async function correctParticipantName(id: string, _prev: ParticipantNameCorrectionState, formData: FormData): Promise<ParticipantNameCorrectionState> {
   const profile = await requireRole("admin");
-  await requireModuleAccess("participants");
+  await requireModuleAccess("participants", "edit"); // writes need Participants Edit (RBAC M-09)
   const parsed = participantNameCorrectionSchema.safeParse({
     full_name: String(formData.get("full_name") ?? ""),
     expected_full_name: String(formData.get("expected_full_name") ?? ""),
@@ -157,7 +157,7 @@ export async function correctParticipantName(id: string, _prev: ParticipantNameC
 /** Soft delete — row stays in DB (deleted_at set). */
 export async function softDeleteParticipant(id: string) {
   await requireRole("admin");
-  await requireModuleAccess("participants");
+  await requireModuleAccess("participants", "edit"); // writes need Participants Edit (RBAC M-09)
   const supabase = await createSupabaseServerClient();
   await supabase.from("participants").update({ deleted_at: new Date().toISOString() }).eq("id", id);
   revalidatePath("/admin/participants");
@@ -166,7 +166,7 @@ export async function softDeleteParticipant(id: string) {
 /** Restore a soft-deleted participant. */
 export async function restoreParticipant(id: string) {
   await requireRole("admin");
-  await requireModuleAccess("participants");
+  await requireModuleAccess("participants", "edit"); // writes need Participants Edit (RBAC M-09)
   const supabase = await createSupabaseServerClient();
   await supabase.from("participants").update({ deleted_at: null }).eq("id", id);
   revalidatePath("/admin/participants");
@@ -176,7 +176,7 @@ export async function restoreParticipant(id: string) {
 /** Bulk soft-delete from the list's selection. */
 export async function bulkDeleteParticipants(formData: FormData) {
   await requireRole("admin");
-  await requireModuleAccess("participants");
+  await requireModuleAccess("participants", "edit"); // writes need Participants Edit (RBAC M-09)
   const ids = formData.getAll("ids").map(String).filter(Boolean);
   if (ids.length === 0) return;
   const supabase = await createSupabaseServerClient();
@@ -187,7 +187,7 @@ export async function bulkDeleteParticipants(formData: FormData) {
 /** Bulk restore from the "deleted" view. */
 export async function bulkRestoreParticipants(formData: FormData) {
   await requireRole("admin");
-  await requireModuleAccess("participants");
+  await requireModuleAccess("participants", "edit"); // writes need Participants Edit (RBAC M-09)
   const ids = formData.getAll("ids").map(String).filter(Boolean);
   if (ids.length === 0) return;
   const supabase = await createSupabaseServerClient();
