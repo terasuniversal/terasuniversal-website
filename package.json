@@ -89,6 +89,7 @@
     "test:closeout02-ui": "node --experimental-strip-types scripts/closeout02-ui-contract.mts --mutations",
     "test:doc-print-layout": "node --experimental-strip-types --no-warnings scripts/doc-print-layout.test.mts --mutations",
     "test:doc-quotation-layout": "node --experimental-strip-types --no-warnings scripts/doc-quotation-layout.test.mts --mutations",
+    "test:doc-mobile-print-geometry": "node --experimental-strip-types --no-warnings scripts/doc-mobile-print-geometry.test.mts --mutations",
     "test:ms7-finance-hrdf-rpc-authorization": "node --experimental-strip-types scripts/ms7-finance-hrdf-rpc-authorization-contract.mts ."
   },
   "dependencies": {
