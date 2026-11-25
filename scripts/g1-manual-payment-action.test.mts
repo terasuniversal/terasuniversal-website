@@ -34,6 +34,7 @@ mock.module("next/navigation.js", { namedExports: { redirect: (to: string) => { 
 mock.module(url("lib/auth/session.ts"), {
   namedExports: {
     requireRole: async (min: string) => { state.calls.push(`requireRole:${min}`); return { id: "admin" }; },
+    requireModuleCapability: async (k: string, l: string) => { state.calls.push(`requireModuleCapability:${k}:${l}`); return { id: "admin", role: "admin", is_active: true, access_control_enabled: true }; },
     requireModuleAccess: async (k: string, l: string) => { state.calls.push(`requireModuleAccess:${k}:${l}`); },
   },
 });
@@ -65,7 +66,7 @@ const pay = (f = form()) => actions.recordManualPaymentAction(INVOICE, {}, f);
 test("guards run first", async () => {
   reset();
   await pay();
-  assert.deepEqual(state.calls.slice(0, 2), ["requireRole:admin", "requireModuleAccess:invoices:edit"]);
+  assert.deepEqual(state.calls.slice(0, 1), ["requireModuleCapability:invoices:edit"]);
 });
 
 test("sends the form's key as p_idempotency_key with the existing seven arguments", async () => {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState, type FormEvent } from "react";
-import { DEPARTMENTS, MODULE_CATALOG, SALES_STAFF_PRESET, type ModuleAccessLevel } from "../../../../lib/auth/rbac";
+import { DEPARTMENTS, MODULE_CATALOG, STAFF_ACCESS_PRESETS, type ModuleAccessLevel, type StaffAccessPreset } from "../../../../lib/auth/rbac";
 import { describeEditScope } from "../../../../lib/auth/edit-scope";
 import { inviteStaffAction, updateStaffAction, type StaffActionState } from "./actions";
 import type { Profile, UserRole } from "../../../../lib/supabase/database.types";
@@ -42,7 +42,7 @@ export function StaffUserForm({ profile }: { profile?: StaffFormProfile }) {
   const [levels, setLevels] = useState<Record<string, ModuleAccessLevel>>(
     Object.fromEntries(profile?.moduleAccess.map((item) => [item.moduleKey, accessLevelOrView(item.accessLevel)]) ?? []),
   );
-  const [presetApplied, setPresetApplied] = useState(false);
+  const [presetApplied, setPresetApplied] = useState<string | null>(null);
 
   // Per-module access is chosen explicitly: None removes the module, View/Edit set its level. "Admin" is only
   // offered where it is already saved, so this form can never grant a level that the previous form could not.
@@ -58,13 +58,13 @@ export function StaffUserForm({ profile }: { profile?: StaffFormProfile }) {
   const savedAdminKeys = new Set(profile?.moduleAccess.filter((item) => item.accessLevel === "admin").map((item) => item.moduleKey) ?? []);
   const targetIsAdmin = role === "admin" || role === "super_admin";
 
-  function applySalesPreset() {
-    setDepartment(SALES_STAFF_PRESET.department);
-    setRole(SALES_STAFF_PRESET.role);
+  function applyPreset(preset: StaffAccessPreset) {
+    setDepartment(preset.department);
+    setRole(preset.role);
     setMode("custom");
-    setSelected(SALES_STAFF_PRESET.modules.map((module) => module.moduleKey));
-    setLevels(Object.fromEntries(SALES_STAFF_PRESET.modules.map((module) => [module.moduleKey, module.accessLevel])));
-    setPresetApplied(true);
+    setSelected(preset.modules.map((module) => module.moduleKey));
+    setLevels(Object.fromEntries(preset.modules.map((module) => [module.moduleKey, module.accessLevel])));
+    setPresetApplied(preset.label);
   }
 
   const showsAccessControls = role !== "super_admin";
@@ -114,14 +114,16 @@ export function StaffUserForm({ profile }: { profile?: StaffFormProfile }) {
       <fieldset style={{ border: "1px solid var(--ta-line)", borderRadius: 12, padding: 16 }}>
         <legend style={{ padding: "0 8px", fontWeight: 700 }}>Module Access</legend>
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
-          <button type="button" className="ta-btn ta-btn-outline ta-btn-sm" onClick={applySalesPreset}>
-            {edit ? "Apply Sales Staff preset" : "Use Sales Staff preset"}
-          </button>
+          {STAFF_ACCESS_PRESETS.map((preset) => (
+            <button key={preset.id} type="button" className="ta-btn ta-btn-outline ta-btn-sm" onClick={() => applyPreset(preset)}>
+              {edit ? `Apply ${preset.label} preset` : `Use ${preset.label} preset`}
+            </button>
+          ))}
           <small style={{ color: "var(--ta-muted)" }}>Draft only — review the modules below before saving.</small>
         </div>
         {presetApplied && (
           <p className="ta-card ta-card-pad" role="status" style={{ margin: "0 0 14px", fontSize: 13 }}>
-            Sales Staff draft applied: Editor, Sales, and Custom Module Access are selected. As an Editor, Edit on Leads, Opportunities and Tasks covers everyday work only (create leads, notes, contact corrections, own tasks); status changes, conversions and every quotation action still need an Admin. Nothing is saved until you submit this form.
+            {presetApplied} draft applied: Editor, its department, and Custom Module Access are selected. What Edit allows is listed under each module set to Edit. Nothing is saved until you submit this form.
           </p>
         )}
         {!showsAccessControls ? (
@@ -150,7 +152,7 @@ export function StaffUserForm({ profile }: { profile?: StaffFormProfile }) {
                     const viewOnly = module.key === "hrdf_claims" && !targetIsAdmin;
                     const selectId = `module-level-${module.key}`;
                     // SEC-3: say what Edit really allows for the chosen role, so the label never overstates the server guards.
-                    const scopeNote = current === "edit" ? describeEditScope(role, module.key) : null;
+                    const scopeNote = current === "edit" ? describeEditScope(role, module.key, mode === "custom") : null;
                     const scopeId = `${selectId}-scope`;
                     return (
                       <div key={module.key}>
@@ -184,7 +186,7 @@ export function StaffUserForm({ profile }: { profile?: StaffFormProfile }) {
                   })}
                 </div>
                 <p style={{ color: "var(--ta-muted)", margin: "12px 0 0", fontSize: 13 }}>
-                  Choose None, View or Edit for each module. View is strictly read-only; Edit allows changes within the role&apos;s own limits, listed under each module set to Edit (for example, only Admins can accept quotations). Nothing is saved until you submit this form.
+                  Choose None, View or Edit for each module. View is strictly read-only; Edit allows changes within the role&apos;s own limits, listed under each module set to Edit (for example, only Admins can delete tasks). Nothing is saved until you submit this form.
                 </p>
                 {customWithNoModules && (
                   <p className="ta-error" role="alert" style={{ marginTop: 10, marginBottom: 0 }}>

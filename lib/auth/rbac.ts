@@ -24,6 +24,22 @@ export function hasMinRole(role: UserRole | null | undefined, min: UserRole) {
   return rank(role) <= rank(min);
 }
 
+/**
+ * Role eligibility half of a module capability (application mirror of the
+ * database helper app.can_module, RBAC M-02): admin and super_admin are
+ * eligible; an editor only with Custom Module Access (access_control_enabled =
+ * true). An editor on Role Default Access gets nothing from the editor role
+ * alone, and trainer and below are never eligible. The module grant itself is
+ * still checked by has_module_access_level (requireModuleCapability).
+ */
+export function isCapabilityRoleEligible(
+  profile: { role: UserRole | null; is_active: boolean | null; access_control_enabled?: boolean | null } | null | undefined,
+): boolean {
+  if (!profile || profile.is_active !== true) return false;
+  if (hasMinRole(profile.role, "admin")) return true;
+  return profile.role === "editor" && profile.access_control_enabled === true;
+}
+
 export const isSuperAdmin = (r?: UserRole | null) => r === "super_admin";
 export const isAdmin = (r?: UserRole | null) => hasMinRole(r, "admin");
 export const isEditor = (r?: UserRole | null) => hasMinRole(r, "editor");
@@ -161,10 +177,21 @@ export const SALES_MODULE_KEYS = [
 ] as const;
 
 /**
- * Snapshot used by Staff User Management only. Applying it changes the form
- * draft; it is never a dynamic policy and never synchronizes existing staff.
- * The module keys mirror the live Sales catalog rows, with HRDF deliberately
- * pinned to view for the non-admin Editor profile this preset creates.
+ * Department presets used by Staff User Management only. Applying one changes
+ * the form draft; it is never a dynamic policy and never synchronizes existing
+ * staff. Both create an Editor with Custom Module Access, which is exactly what
+ * app.can_module / requireModuleCapability admit (RBAC hardening, D-05/D-06):
+ *  - Sales Staff: leads, opportunities and quotations at Edit (prepare, send,
+ *    accept/reject quotations; convert leads); own tasks and follow-ups. No
+ *    invoice, payment, receipt, HRDF, Training, content or admin modules.
+ *  - Finance Staff: invoices at Edit (create from an accepted quotation, edit
+ *    drafts, issue, record manual payments, receipts, ToyyibPay link/status,
+ *    cancel); quotations View only (D-05); HRDF View (HRDF edit stays Super
+ *    Admin only and its actions are paused). No Sales write, Training, HR or
+ *    administration modules.
+ * Neither includes "companies": companies_staff_read already lets any editor read
+ * company records for linking/quotations, while the Companies module itself
+ * exposes participant lists (Training Operations data).
  */
 export const SALES_STAFF_PRESET = {
   id: "sales_staff",
@@ -177,13 +204,27 @@ export const SALES_STAFF_PRESET = {
     { moduleKey: "sales_leads", accessLevel: "edit" },
     { moduleKey: "sales_opportunities", accessLevel: "edit" },
     { moduleKey: "sales_quotations", accessLevel: "edit" },
-    { moduleKey: "invoices", accessLevel: "view" },
-    { moduleKey: "hrdf_claims", accessLevel: "view" },
     { moduleKey: "sales_followups", accessLevel: "edit" },
     { moduleKey: "sales_tasks", accessLevel: "edit" },
     { moduleKey: "sales_reports", accessLevel: "view" },
   ],
 } as const satisfies StaffAccessPreset;
+
+export const FINANCE_STAFF_PRESET = {
+  id: "finance_staff",
+  label: "Finance Staff",
+  role: "editor",
+  department: "finance",
+  accessControlEnabled: true,
+  modules: [
+    { moduleKey: "invoices", accessLevel: "edit" },
+    { moduleKey: "sales_quotations", accessLevel: "view" },
+    { moduleKey: "hrdf_claims", accessLevel: "view" },
+    { moduleKey: "sales_reports", accessLevel: "view" },
+  ],
+} as const satisfies StaffAccessPreset;
+
+export const STAFF_ACCESS_PRESETS: readonly StaffAccessPreset[] = [SALES_STAFF_PRESET, FINANCE_STAFF_PRESET];
 
 export const DEPARTMENTS: Array<{ value: StaffDepartment; label: string }> = [
   { value: "sales", label: "Sales" },

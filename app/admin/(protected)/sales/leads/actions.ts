@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { requireRole, requireModuleAccess } from "../../../../../lib/auth/session";
+import { requireRole, requireModuleAccess, requireModuleCapability } from "../../../../../lib/auth/session";
 import { isSuperAdmin } from "../../../../../lib/auth/rbac";
 import { redirect } from "next/navigation";
 import { formatMalaysiaDateTime } from "../../../../../lib/date-time";
@@ -132,8 +132,7 @@ export async function updateLeadStatus(
   _prev: SalesActionState,
   formData: FormData
 ): Promise<SalesActionState> {
-  const profile = await requireRole("admin");
-  await requireModuleAccess("sales_leads", "edit");
+  const profile = await requireModuleCapability("sales_leads", "edit");
   const parsed = salesLeadStatusSchema.safeParse({
     status: formData.get("status"),
     lost_reason: formData.get("lost_reason") ?? "",
@@ -180,8 +179,7 @@ export async function assignLead(
   _prev: SalesActionState,
   formData: FormData
 ): Promise<SalesActionState> {
-  const profile = await requireRole("admin");
-  await requireModuleAccess("sales_leads", "edit");
+  const profile = await requireModuleCapability("sales_leads", "edit");
   const parsed = salesLeadAssignSchema.safeParse({ assigned_to: formData.get("assigned_to") ?? "" });
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
   const assignedTo = parsed.data.assigned_to || null;
@@ -211,8 +209,7 @@ export async function setLeadFollowUp(
   _prev: SalesActionState,
   formData: FormData
 ): Promise<SalesActionState> {
-  const profile = await requireRole("admin");
-  await requireModuleAccess("sales_leads", "edit");
+  const profile = await requireModuleCapability("sales_leads", "edit");
   const parsed = salesLeadFollowUpSchema.safeParse({
     follow_up_at: formData.get("follow_up_at") ?? "",
     priority: formData.get("priority") || undefined,
@@ -261,8 +258,7 @@ export async function updateLeadQualification(
   _prev: SalesActionState,
   formData: FormData
 ): Promise<SalesActionState> {
-  const profile = await requireRole("admin");
-  await requireModuleAccess("sales_leads", "edit");
+  const profile = await requireModuleCapability("sales_leads", "edit");
   const parsed = salesLeadQualificationSchema.safeParse({
     qualification_status: formData.get("qualification_status"),
     reason: formData.get("reason") ?? "",
@@ -302,8 +298,7 @@ export async function updateLeadTemperature(
   _prev: SalesActionState,
   formData: FormData
 ): Promise<SalesActionState> {
-  const profile = await requireRole("admin");
-  await requireModuleAccess("sales_leads", "edit");
+  const profile = await requireModuleCapability("sales_leads", "edit");
   const parsed = salesLeadTemperatureSchema.safeParse({ temperature: formData.get("temperature") ?? "" });
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
   const nextTemperature = parsed.data.temperature || null;
@@ -357,8 +352,7 @@ export async function convertLeadToOpportunity(
   _prev: SalesActionState,
   formData: FormData
 ): Promise<SalesActionState> {
-  await requireRole("admin");
-  await requireModuleAccess("sales_leads", "edit");
+  await requireModuleCapability("sales_leads", "edit");
   const parsed = convertLeadToOpportunitySchema.safeParse({
     title: formData.get("title"),
     expected_close_date: formData.get("expected_close_date") ?? "",

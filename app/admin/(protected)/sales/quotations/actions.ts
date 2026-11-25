@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { requireRole, requireModuleAccess } from "../../../../../lib/auth/session";
+import { requireModuleCapability } from "../../../../../lib/auth/session";
 import { quotationHeaderSchema, quotationRejectSchema, fieldErrors, type QuotationHeaderInput } from "../../../../../lib/validation/schemas";
 import { computeQuotationTotals } from "../../../../../lib/sales/crm";
 import { canonicalizePackageSnapshot, commercialName, type CourseCommercialProfileData, type PackageIncludeSnapshot } from "../../../../../lib/sales/course-commercial";
@@ -91,8 +91,7 @@ export async function createQuotation(
   _prev: SalesActionState,
   formData: FormData
 ): Promise<SalesActionState> {
-  const profile = await requireRole("admin");
-  await requireModuleAccess("sales_quotations", "edit");
+  const profile = await requireModuleCapability("sales_quotations", "edit");
   const parsed = quotationHeaderSchema.safeParse({
     customer_company_name: formData.get("customer_company_name") ?? "",
     customer_contact_name: formData.get("customer_contact_name") ?? "",
@@ -200,8 +199,7 @@ export async function updateQuotationDraft(
   _prev: SalesActionState,
   formData: FormData
 ): Promise<SalesActionState> {
-  await requireRole("admin");
-  await requireModuleAccess("sales_quotations", "edit");
+  await requireModuleCapability("sales_quotations", "edit");
   const parsed = quotationHeaderSchema.safeParse({
     customer_company_name: formData.get("customer_company_name") ?? "",
     customer_contact_name: formData.get("customer_contact_name") ?? "",
@@ -296,8 +294,7 @@ export async function updateQuotationDraft(
  * currently be draft) to prevent accidental repeated "sends".
  */
 export async function markQuotationSent(quotationId: string, _prev: SalesActionState, _formData: FormData): Promise<SalesActionState> {
-  const profile = await requireRole("admin");
-  await requireModuleAccess("sales_quotations", "edit");
+  const profile = await requireModuleCapability("sales_quotations", "edit");
   const supabase = await createSupabaseServerClient();
   const { data: existing } = await supabase.from("sales_quotations").select("status, opportunity_id, quotation_no").eq("id", quotationId).maybeSingle();
   if (!existing) return { message: "Quotation not found." };
@@ -319,8 +316,7 @@ export async function markQuotationSent(quotationId: string, _prev: SalesActionS
 
 /** Task 11: accepted flow — delegates the whole won cascade to accept_quotation(). */
 export async function acceptQuotationAction(quotationId: string, _prev: SalesActionState, _formData: FormData): Promise<SalesActionState> {
-  await requireRole("admin");
-  await requireModuleAccess("sales_quotations", "edit");
+  await requireModuleCapability("sales_quotations", "edit");
   const supabase = await createSupabaseServerClient();
   // Fail closed: a failed read, a missing row or an expired quotation never reaches the RPC.
   const result = await runQuotationAccept(supabase, quotationId);
@@ -333,8 +329,7 @@ export async function acceptQuotationAction(quotationId: string, _prev: SalesAct
 
 /** Task 9: rejection — does not auto-cascade the opportunity/lead (see migration comments). */
 export async function rejectQuotationAction(quotationId: string, _prev: SalesActionState, formData: FormData): Promise<SalesActionState> {
-  await requireRole("admin");
-  await requireModuleAccess("sales_quotations", "edit");
+  await requireModuleCapability("sales_quotations", "edit");
   const parsed = quotationRejectSchema.safeParse({ reason: formData.get("reason") });
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
@@ -358,8 +353,7 @@ export async function rejectQuotationAction(quotationId: string, _prev: SalesAct
  * original superseded last. It is not atomic (see that file).
  */
 export async function createRevision(quotationId: string, _prev: SalesActionState, _formData: FormData): Promise<SalesActionState> {
-  const profile = await requireRole("admin");
-  await requireModuleAccess("sales_quotations", "edit");
+  const profile = await requireModuleCapability("sales_quotations", "edit");
   const supabase = await createSupabaseServerClient();
 
   const result = await runQuotationRevision(supabase, { quotationId, actorId: profile.id });

@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { cache } from "react";
 import { createSupabaseServerClient } from "../supabase/server";
 import type { Profile, UserRole, ModuleAccessLevel } from "../supabase/database.types";
-import { hasMinRole, canViewAttendance, canManageAttendance, canViewAssessment, canManageAssessment, canViewCertificate, canManageCertificate } from "./rbac";
+import { hasMinRole, isCapabilityRoleEligible, canViewAttendance, canManageAttendance, canViewAssessment, canManageAssessment, canViewCertificate, canManageCertificate } from "./rbac";
 
 /**
  * Returns the current staff member's profile (role, status, name) or null.
@@ -122,6 +122,35 @@ export async function requireModuleAccess(
   return profile;
 }
 
+export { isCapabilityRoleEligible };
+
+/**
+ * Capability guard for module-scoped staff operations (RBAC M-02 mirror):
+ * active staff, role-eligible (see isCapabilityRoleEligible), and an explicit
+ * module grant at or above `level` via has_module_access_level - the same rule
+ * the database enforces in app.can_module() for RLS and the internal RPC gates.
+ * It needs no new RPC, so it is safe before or after the DB migrations: for an
+ * admin it is exactly the previous requireRole("admin") + requireModuleAccess
+ * pair, and an Editor admitted here is still rejected by an older database.
+ */
+export async function requireModuleCapability(moduleKey: string, level: ModuleAccessLevel = "edit"): Promise<Profile> {
+  const profile = await requireRole("editor");
+  if (!isCapabilityRoleEligible(profile)) redirect("/admin/no-access");
+  await requireModuleAccess(moduleKey, level);
+  return profile;
+}
+
+/** Non-redirecting form of requireModuleCapability, for button visibility and in-action branches. */
+export async function hasModuleCapability(
+  moduleKey: string,
+  level: ModuleAccessLevel = "edit",
+  profile?: Profile | null,
+): Promise<boolean> {
+  const current = profile ?? (await getCurrentProfile());
+  if (!isCapabilityRoleEligible(current)) return false;
+  return hasModuleAccess(moduleKey, level);
+}
+
 /**
  * Module-access check for Route Handlers (export/download endpoints), which
  * return a 403 response rather than redirecting like `requireModuleAccess`
@@ -148,7 +177,8 @@ export async function hasModuleAccess(
  * Editor in the general hierarchy. `write=true` requires manage rights.
  */
 export async function requireAttendance(write = false): Promise<Profile> {
-  const profile = await requireModuleAccess("attendance");
+  // Writes need Attendance at Edit, the same level the attendance write policies require (RBAC M-09).
+  const profile = await requireModuleAccess("attendance", write ? "edit" : "view");
   const ok = write ? canManageAttendance(profile.role) : canViewAttendance(profile.role);
   if (!ok) redirect("/admin/no-access");
   return profile;
@@ -156,7 +186,8 @@ export async function requireAttendance(write = false): Promise<Profile> {
 
 /** Assessment guard (same role set as attendance). */
 export async function requireAssessment(write = false): Promise<Profile> {
-  const profile = await requireModuleAccess("assessment");
+  // Writes need Assessment at Edit, the same level the assessment write policies require (RBAC M-09).
+  const profile = await requireModuleAccess("assessment", write ? "edit" : "view");
   const ok = write ? canManageAssessment(profile.role) : canViewAssessment(profile.role);
   if (!ok) redirect("/admin/no-access");
   return profile;

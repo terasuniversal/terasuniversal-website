@@ -128,7 +128,7 @@ const flow = { calls: [] as string[], rpcArgs: {} as Record<string, unknown[]> }
 class Redirect extends Error { to: string; constructor(to: string) { super(`redirect:${to}`); this.to = to; } }
 mock.module("next/cache.js", { namedExports: { revalidatePath: () => {} } });
 mock.module("next/navigation.js", { namedExports: { redirect: (to: string) => { throw new Redirect(to); } } });
-mock.module(url("lib/auth/session.ts"), { namedExports: { requireRole: async () => ({ id: "admin" }), requireModuleAccess: async () => {} } });
+mock.module(url("lib/auth/session.ts"), { namedExports: { requireRole: async () => ({ id: "admin" }), requireModuleAccess: async () => {}, requireModuleCapability: async () => ({ id: "admin" }) } });
 mock.module(url("lib/supabase/server.ts"), {
   namedExports: {
     createSupabaseServerClient: async () => ({

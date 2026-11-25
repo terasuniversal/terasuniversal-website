@@ -57,6 +57,7 @@ mock.module("next/navigation.js", { namedExports: { redirect: (to: string) => { 
 mock.module(url("lib/auth/session.ts"), {
   namedExports: {
     requireRole: async (min: string) => { state.calls.push(`requireRole:${min}`); if (state.guardFails) throw new Redirect("/admin/no-access"); return { id: "admin" }; },
+    requireModuleCapability: async (k: string, l: string) => { state.calls.push(`requireModuleCapability:${k}:${l}`); if (state.guardFails) throw new Redirect("/admin/no-access"); return { id: "admin", role: "admin", is_active: true, access_control_enabled: true }; },
     requireModuleAccess: async (key: string, level: string) => { state.calls.push(`requireModuleAccess:${key}:${level}`); },
   },
 });
@@ -90,13 +91,13 @@ const cancel = (f = form()) => actions.cancelInvoiceAction(INVOICE, {}, f);
 const activeAttempt = () => { state.active = { data: { has_active_attempt: true, attempt_id: ATTEMPT, billcode: BILL }, error: null }; };
 const rpcNames = () => state.calls.filter((c) => c.startsWith("rpc:") || c.startsWith("inactivateBill:"));
 
-test("guards run first: admin role and invoices edit, before any read or RPC", async () => {
+test("guards run first: invoices capability (RBAC), before any read or RPC", async () => {
   reset();
   await cancel();
-  assert.deepEqual(state.calls.slice(0, 2), ["requireRole:admin", "requireModuleAccess:invoices:edit"]);
+  assert.deepEqual(state.calls.slice(0, 1), ["requireModuleCapability:invoices:edit"]);
   reset(); state.guardFails = true;
   await assert.rejects(cancel(), Redirect);
-  assert.deepEqual(state.calls, ["requireRole:admin"], "nothing after a failed guard");
+  assert.deepEqual(state.calls, ["requireModuleCapability:invoices:edit"], "nothing after a failed guard");
 });
 
 test("no pending ToyyibPay attempt: cancels exactly as before, no provider call", async () => {

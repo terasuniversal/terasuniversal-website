@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { requireRole, requireModuleAccess } from "../../../../../lib/auth/session";
+import { requireRole, requireModuleAccess, requireModuleCapability } from "../../../../../lib/auth/session";
 import {
   opportunityStageSchema,
   opportunityAssignSchema,
@@ -44,8 +44,7 @@ export async function updateOpportunityStage(
   _prev: SalesActionState,
   formData: FormData
 ): Promise<SalesActionState> {
-  const profile = await requireRole("admin");
-  await requireModuleAccess("sales_opportunities", "edit");
+  const profile = await requireModuleCapability("sales_opportunities", "edit");
   const parsed = opportunityStageSchema.safeParse({ stage: formData.get("stage") });
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
   if (parsed.data.stage === "won" || parsed.data.stage === "lost") {
@@ -78,8 +77,7 @@ export async function assignOpportunity(
   _prev: SalesActionState,
   formData: FormData
 ): Promise<SalesActionState> {
-  const profile = await requireRole("admin");
-  await requireModuleAccess("sales_opportunities", "edit");
+  const profile = await requireModuleCapability("sales_opportunities", "edit");
   const parsed = opportunityAssignSchema.safeParse({ assigned_to: formData.get("assigned_to") ?? "" });
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
   const assignedTo = parsed.data.assigned_to || null;
@@ -110,8 +108,7 @@ export async function setOpportunityExpectedClose(
   _prev: SalesActionState,
   formData: FormData
 ): Promise<SalesActionState> {
-  await requireRole("admin");
-  await requireModuleAccess("sales_opportunities", "edit");
+  await requireModuleCapability("sales_opportunities", "edit");
   const parsed = opportunityExpectedCloseSchema.safeParse({
     expected_close_date: formData.get("expected_close_date") ?? "",
     probability: formData.get("probability") || null,
@@ -139,8 +136,7 @@ export async function markOpportunityLost(
   _prev: SalesActionState,
   formData: FormData
 ): Promise<SalesActionState> {
-  await requireRole("admin");
-  await requireModuleAccess("sales_opportunities", "edit");
+  await requireModuleCapability("sales_opportunities", "edit");
   const parsed = opportunityLostSchema.safeParse({ lost_reason: formData.get("lost_reason") });
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
@@ -223,8 +219,7 @@ export async function searchCompaniesForLink(_prev: CompanyCandidate[], formData
  * confirmation step.
  */
 export async function linkCompany(opportunityId: string, formData: FormData): Promise<void> {
-  const profile = await requireRole("admin");
-  await requireModuleAccess("sales_opportunities", "edit");
+  const profile = await requireModuleCapability("sales_opportunities", "edit");
   const companyId = String(formData.get("company_id") ?? "").trim();
   if (!companyId) return;
 

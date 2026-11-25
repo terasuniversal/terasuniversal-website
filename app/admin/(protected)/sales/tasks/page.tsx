@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { requireRole, requireModuleAccess, hasModuleAccess } from "../../../../../lib/auth/session";
+import { requireRole, requireModuleAccess, hasModuleAccess, hasModuleCapability } from "../../../../../lib/auth/session";
 import { isAdmin } from "../../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, EmptyState, Pagination, ListToolbar, ReadErrorState } from "../../../../../components/admin/ui";
 import { dueDateState, mytEndOfTodayUtc, sanitizeSearchTerm, type SalesTaskRow } from "../../../../../lib/sales/crm";
@@ -63,6 +63,8 @@ export default async function SalesTasksPage({
   const profile = await requireRole("editor");
   await requireModuleAccess("sales_tasks");
   const canEdit = await hasModuleAccess("sales_tasks", "edit");
+  // Managing others' tasks: admin role (as before) or sales_tasks at Admin level; Editors manage their own.
+  const canManageOthers = (isAdmin(profile.role) || (await hasModuleCapability("sales_tasks", "admin", profile)));
   const sp = await searchParams;
   const normalized = normalizeTaskQueueContext(sp);
   const view = normalized.view;
@@ -235,7 +237,7 @@ export default async function SalesTasksPage({
                 </thead>
                 <tbody>
                   {tasks.map((t) => {
-                    const canManage = canEdit && (isAdmin(profile.role) || t.assigned_to === profile.id || t.created_by === profile.id);
+                    const canManage = canEdit && (canManageOthers || t.assigned_to === profile.id || t.created_by === profile.id);
                     return (
                       <tr key={t.id}>
                         <td><TaskTitle task={t} /></td>
@@ -256,7 +258,7 @@ export default async function SalesTasksPage({
 
             <ul className="ta-lead-cards ta-task-cards">
               {tasks.map((t) => {
-                const canManage = canEdit && (isAdmin(profile.role) || t.assigned_to === profile.id || t.created_by === profile.id);
+                const canManage = canEdit && (canManageOthers || t.assigned_to === profile.id || t.created_by === profile.id);
                 return (
                   <li className="ta-card ta-lead-card ta-task-card" key={t.id}>
                     <div className="ta-lead-card-top">

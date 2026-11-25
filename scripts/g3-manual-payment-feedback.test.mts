@@ -49,6 +49,7 @@ mock.module("next/navigation.js", { namedExports: { redirect: (to: string) => { 
 mock.module(url("lib/auth/session.ts"), {
   namedExports: {
     requireRole: async (min: string) => { state.calls.push(`requireRole:${min}`); return { id: "admin" }; },
+    requireModuleCapability: async (k: string, l: string) => { state.calls.push(`requireModuleCapability:${k}:${l}`); return { id: "admin", role: "admin", is_active: true, access_control_enabled: true }; },
     requireModuleAccess: async (k: string, l: string) => { state.calls.push(`requireModuleAccess:${k}:${l}`); },
   },
 });
@@ -272,7 +273,7 @@ test("network interruption: a rejected action becomes unconfirmed; navigation si
 test("guards still run first and the RPC contract is unchanged (eight G1 arguments)", async () => {
   reset();
   await pay();
-  assert.deepEqual(state.calls.slice(0, 2), ["requireRole:admin", "requireModuleAccess:invoices:edit"]);
+  assert.deepEqual(state.calls.slice(0, 1), ["requireModuleCapability:invoices:edit"]);
   assert.deepEqual(state.calls.filter((c) => c.startsWith("rpc:")), ["rpc:get_active_toyyibpay_attempt", "rpc:record_manual_payment"]);
 });
 
@@ -404,7 +405,7 @@ test("A-T16/A-T17 (look-up found): returns evidence to compare, never a confirme
   reset();
   state.paymentLookup = { data: { id: "p9", invoice_id: INVOICE, idempotency_key: KEY, amount: 20, payment_provider: "cash", payment_reference: null, status: "successful" }, error: null };
   const r = await actions.checkManualPaymentAttemptAction(INVOICE, KEY);
-  assert.deepEqual(state.calls.slice(0, 2), ["requireRole:admin", "requireModuleAccess:invoices:edit"], "same guards as recording");
+  assert.deepEqual(state.calls.slice(0, 1), ["requireModuleCapability:invoices:edit"], "same guards as recording");
   assert.deepEqual(state.lookupFilters, [["invoice_id", INVOICE], ["idempotency_key", KEY]], "scoped to this invoice and key");
   assert.equal(r.lookup, "found");
   assert.equal(r.payment, undefined, "no payment field: the look-up alone never settles");

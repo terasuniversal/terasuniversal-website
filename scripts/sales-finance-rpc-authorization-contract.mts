@@ -39,7 +39,8 @@ const text = new Map(files.map((f) => [f, readFileSync(f, "utf8")]));
 function enclosingEditGuards(t: string, at: number): Set<string> {
   const start = t.lastIndexOf("\nexport ", at);
   const body = t.slice(start, at);
-  return new Set([...body.matchAll(/requireModuleAccess\("([a-z_]+)", "edit"\)/g)].map((m) => m[1]));
+  // RBAC: requireModuleCapability(m, "edit") is requireModuleAccess(m, "edit") plus role eligibility, so it is an edit guard too.
+  return new Set([...body.matchAll(/require(?:ModuleAccess|ModuleCapability)\("([a-z_]+)", "edit"\)/g)].map((m) => m[1]));
 }
 function rpcGuards(fn: string): Set<string>[] {
   const out: Set<string>[] = [];
@@ -181,7 +182,8 @@ function guardsOf(f: string): { module: string; level: string }[] {
   const out: { module: string; level: string }[] = [];
   for (const p of [f, join(dirname(f), "page.tsx")]) {
     const t = text.get(p) ?? "";
-    for (const m of t.matchAll(/(?:requireModuleAccess|hasModuleAccess)\(\s*"([a-z_]+)"(?:\s*,\s*"([a-z]+)")?/g)) out.push({ module: m[1], level: m[2] ?? "view" });
+    // requireModuleCapability defaults to "edit" (lib/auth/session.ts); hasModuleCapability likewise.
+    for (const m of t.matchAll(/(requireModuleAccess|hasModuleAccess|requireModuleCapability|hasModuleCapability)\(\s*"([a-z_]+)"(?:\s*,\s*"([a-z]+)")?/g)) out.push({ module: m[2], level: m[3] ?? (/Capability$/.test(m[1]) ? "edit" : "view") });
   }
   return out;
 }

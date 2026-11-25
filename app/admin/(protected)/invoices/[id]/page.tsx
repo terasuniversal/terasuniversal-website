@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { requireRole, requireModuleAccess, hasModuleAccess } from "../../../../../lib/auth/session";
-import { isAdmin } from "../../../../../lib/auth/rbac";
+import { requireRole, requireModuleAccess, hasModuleAccess, isCapabilityRoleEligible } from "../../../../../lib/auth/session";
 import { PageHead, Card, Badge, EmptyState } from "../../../../../components/admin/ui";
 import {
   effectiveInvoiceStatus,
@@ -48,7 +47,8 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
   // Invoice, payment and receipt actions need Invoices edit. HRDF claims are managed outside the CRM (S1), so no
   // HRDF edit right is consulted here.
   const canEditInvoices = await hasModuleAccess("invoices", "edit");
-  const canManage = isAdmin(profile.role) && canEditInvoices;
+  // Same rule as app.can_module('invoices', 'edit'): admin, or an Editor with Custom Module Access, plus Invoices edit.
+  const canManage = isCapabilityRoleEligible(profile) && canEditInvoices;
   const { id } = await params;
   const supabase = await createSupabaseServerClient();
 

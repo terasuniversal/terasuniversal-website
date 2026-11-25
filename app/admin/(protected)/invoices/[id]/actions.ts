@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { requireRole, requireModuleAccess } from "../../../../../lib/auth/session";
+import { requireModuleCapability } from "../../../../../lib/auth/session";
 import { recordHrdfPaymentSchema } from "../../../../../lib/validation/schemas";
 
 function payload(formData: FormData): Record<string, string> {
@@ -25,9 +25,8 @@ function fail(invoiceId: string, message: string): never {
 const HRDF_CLAIM_ACTIONS_ENABLED: boolean = false;
 
 export async function createHrdfClaimAction(invoiceId: string) {
-  await requireRole("admin");
-  await requireModuleAccess("invoices", "edit");
-  await requireModuleAccess("hrdf_claims", "edit"); // creates or settles an HRDF claim, so HRDF edit is needed too
+  await requireModuleCapability("invoices", "edit");
+  await requireModuleCapability("hrdf_claims", "edit"); // creates or settles an HRDF claim, so HRDF edit is needed too
   if (!HRDF_CLAIM_ACTIONS_ENABLED) fail(invoiceId, "hrdf_managed_in_hrdcorp_portal");
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.rpc("create_hrdf_claim_for_invoice", { p_invoice_id: invoiceId });
@@ -38,8 +37,7 @@ export async function createHrdfClaimAction(invoiceId: string) {
 }
 
 export async function transitionHrdfClaimAction(claimId: string, invoiceId: string, formData: FormData) {
-  await requireRole("admin");
-  await requireModuleAccess("hrdf_claims", "edit");
+  await requireModuleCapability("hrdf_claims", "edit");
   if (!HRDF_CLAIM_ACTIONS_ENABLED) fail(invoiceId, "hrdf_managed_in_hrdcorp_portal");
   const supabase = await createSupabaseServerClient();
   const toStatus = String(formData.get("to_status") ?? "");
@@ -55,9 +53,8 @@ export async function transitionHrdfClaimAction(claimId: string, invoiceId: stri
 }
 
 export async function recordHrdfPaymentAction(claimId: string, invoiceId: string, formData: FormData) {
-  await requireRole("admin");
-  await requireModuleAccess("invoices", "edit");
-  await requireModuleAccess("hrdf_claims", "edit"); // creates or settles an HRDF claim, so HRDF edit is needed too
+  await requireModuleCapability("invoices", "edit");
+  await requireModuleCapability("hrdf_claims", "edit"); // creates or settles an HRDF claim, so HRDF edit is needed too
   if (!HRDF_CLAIM_ACTIONS_ENABLED) fail(invoiceId, "hrdf_managed_in_hrdcorp_portal");
   const supabase = await createSupabaseServerClient();
   const parsed = recordHrdfPaymentSchema.safeParse({

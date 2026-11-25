@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { requireRole, requireModuleAccess } from "../../../../lib/auth/session";
+import { requireRole, requireModuleCapability } from "../../../../lib/auth/session";
 import { inactivateBill } from "../../../../lib/payments/toyyibpay";
 import {
   invoiceDraftEditSchema,
@@ -115,8 +115,7 @@ export async function createInvoiceFromQuotationAction(
   _prev: InvoiceActionState,
   _formData: FormData
 ): Promise<InvoiceActionState> {
-  await requireRole("admin");
-  await requireModuleAccess("invoices", "edit");
+  await requireModuleCapability("invoices", "edit");
   const supabase = await createSupabaseServerClient();
 
   const { data: quotation } = await supabase.from("sales_quotations").select("opportunity_id").eq("id", quotationId).maybeSingle();
@@ -139,8 +138,7 @@ export async function updateInvoiceDraft(
   _prev: InvoiceActionState,
   formData: FormData
 ): Promise<InvoiceActionState> {
-  await requireRole("admin");
-  await requireModuleAccess("invoices", "edit");
+  await requireModuleCapability("invoices", "edit");
   const parsed = invoiceDraftEditSchema.safeParse({
     invoice_date: formData.get("invoice_date") ?? "",
     due_date: formData.get("due_date") ?? "",
@@ -185,8 +183,7 @@ export async function updateInvoiceDraft(
 
 /** Task section 9: freezes the invoice — see issue_invoice() for the full validation this delegates to. */
 export async function issueInvoiceAction(invoiceId: string, _prev: InvoiceActionState, _formData: FormData): Promise<InvoiceActionState> {
-  await requireRole("admin");
-  await requireModuleAccess("invoices", "edit");
+  await requireModuleCapability("invoices", "edit");
   const supabase = await createSupabaseServerClient();
 
   const { data: existing } = await supabase.from("invoices").select("opportunity_id, quotation_id").eq("id", invoiceId).maybeSingle();
@@ -198,10 +195,11 @@ export async function issueInvoiceAction(invoiceId: string, _prev: InvoiceAction
 }
 
 /**
- * Task section 10/12: manual payment recording — admin-only. Sales/editor
- * staff have no path to call this: requireRole("admin") redirects to
+ * Task section 10/12: manual payment recording. Only staff holding the invoices
+ * capability (admin, or Finance Staff with Custom Module Access and Invoices
+ * edit) can call this: requireModuleCapability("invoices", "edit") redirects to
  * /admin/no-access before the RPC (which also independently re-checks
- * app.is_admin()) is ever reached.
+ * app.can_module('invoices', 'edit')) is ever reached.
  *
  * Phase 2E fix (MANUAL_PAYMENT_ACTIVE_TOYYIBPAY_ORCHESTRATION_MISSING):
  * before this action ever calls record_manual_payment(), it must resolve
@@ -222,8 +220,7 @@ export async function recordManualPaymentAction(
   _prev: InvoiceActionState,
   formData: FormData
 ): Promise<InvoiceActionState> {
-  await requireRole("admin");
-  await requireModuleAccess("invoices", "edit");
+  await requireModuleCapability("invoices", "edit");
   const parsed = recordManualPaymentSchema.safeParse({
     payment_provider: formData.get("payment_provider"),
     payment_method: formData.get("payment_method") ?? "",
@@ -332,8 +329,7 @@ export async function recordManualPaymentAction(
  * are told to retry the original payment, which can only replay or record it once.
  */
 export async function checkManualPaymentAttemptAction(invoiceId: string, idempotencyKey: string): Promise<InvoiceActionState> {
-  await requireRole("admin");
-  await requireModuleAccess("invoices", "edit");
+  await requireModuleCapability("invoices", "edit");
   if (!IDEMPOTENCY_KEY_RE.test(invoiceId) || !IDEMPOTENCY_KEY_RE.test(idempotencyKey)) {
     return { message: LOOKUP_FAILED_MESSAGE, unconfirmed: true, lookup: "failed" };
   }
@@ -371,8 +367,7 @@ export async function checkManualPaymentAttemptAction(invoiceId: string, idempot
 }
 
 export async function generateReceiptAction(formData: FormData): Promise<never> {
-  await requireRole("admin");
-  await requireModuleAccess("invoices", "edit");
+  await requireModuleCapability("invoices", "edit");
   const paymentId = String(formData.get("payment_id") ?? "").trim();
   if (!/^[0-9a-f-]{36}$/i.test(paymentId)) redirect("/admin/no-access");
 
@@ -396,8 +391,7 @@ export async function generateReceiptAction(formData: FormData): Promise<never> 
  * invoice, the attempt and the bill exactly as they were.
  */
 export async function cancelInvoiceAction(invoiceId: string, _prev: InvoiceActionState, formData: FormData): Promise<InvoiceActionState> {
-  await requireRole("admin");
-  await requireModuleAccess("invoices", "edit");
+  await requireModuleCapability("invoices", "edit");
   const parsed = cancelInvoiceSchema.safeParse({ reason: formData.get("reason") ?? "" });
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 

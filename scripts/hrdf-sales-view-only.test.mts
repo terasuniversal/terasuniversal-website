@@ -22,14 +22,16 @@ assert.match(staffActions, /access_level: requestedLevelByKey\.get\(module_key\)
 assert.match(staffForm, /module\.key === "hrdf_claims"/);
 assert.match(claimsPage, /requireRole\("editor"\)/);
 assert.match(claimsPage, /requireModuleAccess\("hrdf_claims"\)/);
-assert.match(invoicePage, /const canManage = isAdmin\(profile\.role\)/);
+// RBAC: the invoice page's management controls follow the capability rule (admin or Custom-access editor).
+assert.match(invoicePage, /const canManage = isCapabilityRoleEligible\(profile\) && canEditInvoices;/);
 // S1 (Owner 2026-11-22): HRD Corp claims are managed in the HRD Corp portal. The claim card is read-only: it imports
 // no server action and renders no form, and the invoice page passes it no management capability.
 assert.doesNotMatch(claimCard, /from "\.\/actions"/);
 assert.doesNotMatch(claimCard, /<form|<button|action=/);
 assert.doesNotMatch(invoicePage, /canManageHrdf|hasModuleAccess\("hrdf_claims", "edit"\)/);
 // The HRDF actions keep their guards and then refuse, so a direct call cannot reach the RPCs.
-assert.match(invoiceActions, /requireRole\("admin"\)/);
+// RBAC: the HRDF guards are capabilities (HRDF edit stays Super Admin only in practice, D1).
+assert.match(invoiceActions, /requireModuleCapability\("hrdf_claims", "edit"\)/);
 assert.match(invoiceActions, /const HRDF_CLAIM_ACTIONS_ENABLED: boolean = false;/);
 for (const fn of ["createHrdfClaimAction", "transitionHrdfClaimAction", "recordHrdfPaymentAction"]) {
   const body = invoiceActions.slice(invoiceActions.indexOf(`export async function ${fn}(`));

@@ -35,7 +35,8 @@ function functionBlocks(source: string): Map<string, string> {
   return blocks;
 }
 
-const guardCalls = (body: string) => [...body.matchAll(/requireModuleAccess\(([^)]*)\)/g)].map((m) => m[1].trim());
+// requireModuleCapability (RBAC) checks the module level too, plus role eligibility.
+const guardCalls = (body: string) => [...body.matchAll(/requireModule(?:Access|Capability)\(([^)]*)\)/g)].map((m) => m[1].trim());
 
 const ACTION_FILES = [
   "app/admin/(protected)/sales/leads/actions.ts",
@@ -69,14 +70,14 @@ for (const file of ACTION_FILES) {
     check(`${file} ${name}: every module guard requires edit or admin`, () => {
       for (const args of calls) {
         if (allowed.includes(args)) continue;
-        assert.match(args, /^"[a-z_]+", "(edit|admin)"$/, `requireModuleAccess(${args}) would admit View-only users`);
+        assert.match(args, /^"[a-z_]+", "(edit|admin)"$/, `module guard (${args}) would admit View-only users`);
       }
     });
   }
 }
 
 // Every exported action in these files must be guarded, directly or through a shared guard helper.
-const SHARED_GUARDS = /requireModuleAccess\(|requireRegistrationAccess\(|transitionCampaign\(|transitionContactStatus\(/;
+const SHARED_GUARDS = /requireModuleAccess\(|requireModuleCapability\(|requireRegistrationAccess\(|transitionCampaign\(|transitionContactStatus\(/;
 for (const file of ACTION_FILES) {
   const source = read(file);
   for (const [name, body] of functionBlocks(source)) {
@@ -90,29 +91,26 @@ const invoices = functionBlocks(read("app/admin/(protected)/invoices/actions.ts"
 for (const name of ["createInvoiceFromQuotationAction", "updateInvoiceDraft", "issueInvoiceAction", "recordManualPaymentAction", "generateReceiptAction", "cancelInvoiceAction"]) {
   check(`invoices ${name} requires admin role and invoices edit`, () => {
     const body = invoices.get(name) ?? "";
-    assert.match(body, /requireRole\("admin"\)/);
-    assert.match(body, /requireModuleAccess\("invoices", "edit"\)/);
+    assert.match(body, /requireModuleCapability\("invoices", "edit"\)/);
   });
 }
 const toyyibpay = functionBlocks(read("app/admin/(protected)/invoices/toyyibpayActions.ts"));
 for (const name of ["generateToyyibpayPaymentLinkAction", "refreshToyyibpayStatusAction"]) {
   check(`toyyibpay ${name} requires admin role and invoices edit`, () => {
     const body = toyyibpay.get(name) ?? "";
-    assert.match(body, /requireRole\("admin"\)/);
-    assert.match(body, /requireModuleAccess\("invoices", "edit"\)/);
+    assert.match(body, /requireModuleCapability\("invoices", "edit"\)/);
   });
 }
 const hrdf = functionBlocks(read("app/admin/(protected)/invoices/[id]/actions.ts"));
 for (const name of ["createHrdfClaimAction", "recordHrdfPaymentAction"]) {
   check(`HRDF ${name} requires invoices edit and hrdf_claims edit`, () => {
     const body = hrdf.get(name) ?? "";
-    assert.match(body, /requireRole\("admin"\)/);
-    assert.match(body, /requireModuleAccess\("invoices", "edit"\)/);
-    assert.match(body, /requireModuleAccess\("hrdf_claims", "edit"\)/);
+    assert.match(body, /requireModuleCapability\("invoices", "edit"\)/);
+    assert.match(body, /requireModuleCapability\("hrdf_claims", "edit"\)/);
   });
 }
 check("HRDF transitionHrdfClaimAction requires hrdf_claims edit", () => {
-  assert.match(hrdf.get("transitionHrdfClaimAction") ?? "", /requireModuleAccess\("hrdf_claims", "edit"\)/);
+  assert.match(hrdf.get("transitionHrdfClaimAction") ?? "", /requireModuleCapability\("hrdf_claims", "edit"\)/);
 });
 
 // T9: internal registration writes to leads, participants and schedules.
@@ -126,9 +124,12 @@ check("company registration uses the shared registration guard", () => {
 
 // Role floors are preserved, not lowered (spot checks on admin-only actions).
 const leads = functionBlocks(read("app/admin/(protected)/sales/leads/actions.ts"));
-for (const name of ["updateLeadStatus", "assignLead", "setLeadFollowUp", "updateLeadQualification", "updateLeadTemperature", "convertLeadToOpportunity", "markLeadTest"]) {
-  check(`leads ${name} keeps requireRole("admin")`, () => assert.match(leads.get(name) ?? "", /requireRole\("admin"\)/));
+// RBAC: the six lead-management actions need the sales_leads capability (admin, or Sales Staff with Custom access);
+// markLeadTest keeps the admin role (and the database keeps it Super Admin only).
+for (const name of ["updateLeadStatus", "assignLead", "setLeadFollowUp", "updateLeadQualification", "updateLeadTemperature", "convertLeadToOpportunity"]) {
+  check(`leads ${name} requires requireModuleCapability("sales_leads", "edit")`, () => assert.match(leads.get(name) ?? "", /requireModuleCapability\("sales_leads", "edit"\)/));
 }
+check(`leads markLeadTest keeps requireRole("admin")`, () => assert.match(leads.get("markLeadTest") ?? "", /requireRole\("admin"\)/));
 
 // T10: activity writes surface their errors instead of dropping them.
 const ACTIVITY_FILES = [
@@ -204,19 +205,19 @@ for (const [page, key] of Object.entries(EDIT_PAGES)) {
 // ---- UI: read-only pages derive edit rights on the server and gate controls with them -----------
 const UI_GATES: Array<[string, RegExp[]]> = [
   ["sales/leads/page.tsx", [/hasModuleAccess\("sales_leads", "edit"\)/, /canEdit \? <Link href="\/admin\/sales\/leads\/new"/]],
-  ["sales/leads/[id]/page.tsx", [/hasModuleAccess\("sales_leads", "edit"\)/, /canManage = isAdmin\(profile\.role\) && canEdit/, /<fieldset disabled=\{!canEdit\}/, /canEdit=\{canEdit\}/, /access_level === "edit" \|\| m\.access_level === "admin"/]],
+  ["sales/leads/[id]/page.tsx", [/hasModuleAccess\("sales_leads", "edit"\)/, /canManage = isCapabilityRoleEligible\(profile\) && canEdit/, /<fieldset disabled=\{!canEdit\}/, /canEdit=\{canEdit\}/, /access_level === "edit" \|\| m\.access_level === "admin"/]],
   ["sales/leads/[id]/LeadActionsPanel.tsx", [/\{canEdit && \(\s*<Card title="Add Note">/]],
-  ["sales/opportunities/[id]/page.tsx", [/hasModuleAccess\("sales_opportunities", "edit"\)/, /hasModuleAccess\("sales_quotations", "edit"\)/, /hasModuleAccess\("sales_tasks", "edit"\)/, /hasModuleAccess\("schedules", "edit"\)/, /hasModuleAccess\("companies", "edit"\)/, /canManage=\{admin && canEditSchedules\}/, /canCreateCompany=\{admin && canEditCompanies\}/, /admin && canEditQuotations &&/]],
+  ["sales/opportunities/[id]/page.tsx", [/hasModuleAccess\("sales_opportunities", "edit"\)/, /hasModuleAccess\("sales_quotations", "edit"\)/, /hasModuleAccess\("sales_tasks", "edit"\)/, /hasModuleAccess\("schedules", "edit"\)/, /hasModuleAccess\("companies", "edit"\)/, /canManage=\{admin && canEditSchedules\}/, /canCreateCompany=\{admin && canEditCompanies\}/, /salesCapable && canEditQuotations &&/]],
   ["sales/opportunities/[id]/OpportunityActionsPanel.tsx", [/\{canEdit && \(\s*<Card title="Add Note">/, /\{canAddTask && \(\s*<Card title="Tasks">/]],
   ["sales/opportunities/[id]/ClientOnboardingPanel.tsx", [/\{canCreateCompany && \(/]],
-  ["sales/quotations/[id]/page.tsx", [/hasModuleAccess\("sales_quotations", "edit"\)/, /hasModuleAccess\("invoices", "edit"\)/, /canManage = isAdmin\(profile\.role\) && canEditQuotations/, /canCreateInvoice = isAdmin\(profile\.role\) && canEditInvoices/]],
+  ["sales/quotations/[id]/page.tsx", [/hasModuleAccess\("sales_quotations", "edit"\)/, /hasModuleAccess\("invoices", "edit"\)/, /canManage = capable && canEditQuotations/, /canCreateInvoice = capable && canEditInvoices/]],
   ["sales/quotations/[id]/QuotationActionsPanel.tsx", [/\) : canCreateInvoice \? \(/]],
   ["sales/tasks/page.tsx", [/hasModuleAccess\("sales_tasks", "edit"\)/, /canEdit \? <Link href="\/admin\/sales\/tasks\/new"/, /const canManage = canEdit && \(/]],
   ["sales/tasks/[id]/page.tsx", [/hasModuleAccess\("sales_tasks", "edit"\)/, /const canManage = canEdit && \(/]],
-  ["sales/follow-ups/page.tsx", [/canSchedule = isAdmin\(profile\.role\) && \(await hasModuleAccess\("sales_leads", "edit"\)\)/]],
+  ["sales/follow-ups/page.tsx", [/canSchedule = leadsCapable && \(await hasModuleAccess\("sales_leads", "edit"\)\)/]],
   // S1 (Owner 2026-11-22): the HRDF claim card is read-only (claims are managed in the HRD Corp portal); its "no
   // mutation control at all" rule is asserted separately below.
-  ["invoices/[id]/page.tsx", [/hasModuleAccess\("invoices", "edit"\)/, /canManage = isAdmin\(profile\.role\) && canEditInvoices/, /<HrdfClaimCard applicable=\{[^}]*\} claim=\{hrdfClaim\} \/>/, /canManage && <form action=\{generateReceiptAction\}/]],
+  ["invoices/[id]/page.tsx", [/hasModuleAccess\("invoices", "edit"\)/, /canManage = isCapabilityRoleEligible\(profile\) && canEditInvoices/, /<HrdfClaimCard applicable=\{[^}]*\} claim=\{hrdfClaim\} \/>/, /canManage && <form action=\{generateReceiptAction\}/]],
   ["marketing/page.tsx", [/hasModuleAccess\("marketing_contacts", "edit"\)/, /canCreateContact \? <Link/]],
   ["marketing/contacts/page.tsx", [/hasModuleAccess\("marketing_contacts", "edit"\)/]],
   ["marketing/campaigns/page.tsx", [/hasModuleAccess\("marketing_campaigns", "edit"\)/]],

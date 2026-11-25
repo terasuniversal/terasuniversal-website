@@ -41,7 +41,7 @@ const ATTEMPT = "55555555-5555-4555-8555-555555555555";
 const flow = { calls: [] as string[], conflict: [] as unknown[], supersedeFails: false };
 mock.module(url("node_modules/next/cache.js"), { namedExports: { revalidatePath: () => {} } });
 mock.module(url("node_modules/next/navigation.js"), { namedExports: { redirect: () => { throw new Error("unexpected redirect"); } } });
-mock.module(url("lib/auth/session.ts"), { namedExports: { requireRole: async () => ({ id: "admin" }), requireModuleAccess: async () => {} } });
+mock.module(url("lib/auth/session.ts"), { namedExports: { requireRole: async () => ({ id: "admin" }), requireModuleAccess: async () => {}, requireModuleCapability: async () => ({ id: "admin" }) } });
 const client = {
   from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { opportunity_id: null, quotation_id: null }, error: null }) }) }) }),
   rpc: async (name: string, args: unknown) => {

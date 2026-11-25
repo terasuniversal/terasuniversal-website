@@ -42,9 +42,9 @@ function checks(f: Files): Array<[string, () => void]> {
   const unguarded = () => between(mig, "create function public.record_manual_payment_unguarded(", "$body$\n$fn$");
   const wrapper = () => between(mig, "create function public.record_manual_payment(", "$body$\n$fn$");
   return [
-    ["migration is LF-only and its version is the highest in supabase/migrations and > 20261128120000", () => {
+    ["migration is LF-only and its version is the highest pre-RBAC migration (< 20261201100000) and > 20261128120000", () => {
       assert.ok(!f.mig.includes("\r"));
-      const versions = readdirSync(join(repoRoot, "supabase/migrations")).filter((n) => /^\d{14}_/.test(n)).map((n) => n.slice(0, 14)).sort();
+      const versions = readdirSync(join(repoRoot, "supabase/migrations")).filter((n) => /^\d{14}_/.test(n)).map((n) => n.slice(0, 14)).filter((v) => v < "20261201100000").sort();
       assert.equal(versions[versions.length - 1], VERSION);
       assert.ok(VERSION > "20261128120000");
     }],
