@@ -84,6 +84,12 @@
     "test:crm-g1-manual-payment-idempotency": "node --experimental-strip-types scripts/crm-g1-manual-payment-idempotency-contract.mts . --mutations",
     "test:g3-manual-payment-feedback": "node --experimental-transform-types --experimental-test-module-mocks --no-warnings scripts/g3-manual-payment-feedback.test.mts",
     "test:crm-g3-payment-ux": "node --experimental-strip-types scripts/crm-g3-payment-ux-contract.mts --mutations",
+    "test:sec3-edit-scope": "node --experimental-strip-types --no-warnings scripts/sec3-edit-scope-contract.test.mts",
+    "test:s05-duplicate-lead": "node --experimental-strip-types --no-warnings scripts/s05-duplicate-lead.test.mts",
+    "test:closeout02-ui": "node --experimental-strip-types scripts/closeout02-ui-contract.mts --mutations",
+    "test:doc-print-layout": "node --experimental-strip-types --no-warnings scripts/doc-print-layout.test.mts --mutations",
+    "test:doc-quotation-layout": "node --experimental-strip-types --no-warnings scripts/doc-quotation-layout.test.mts --mutations",
+    "test:doc-mobile-print-geometry": "node --experimental-strip-types --no-warnings scripts/doc-mobile-print-geometry.test.mts --mutations",
     "test:ms7-finance-hrdf-rpc-authorization": "node --experimental-strip-types scripts/ms7-finance-hrdf-rpc-authorization-contract.mts ."
   },
   "dependencies": {

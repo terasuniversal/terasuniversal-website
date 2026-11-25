@@ -52,7 +52,9 @@ function checks(f: Files): Array<[string, () => void]> {
     }],
     ["G3-02: every payment field is controlled by state", () => {
       for (const field of ["payment_provider", "payment_method", "amount", "payment_date", "payment_reference", "notes"]) {
-        assert.ok(form.includes(`value={values.${field}} onChange={setValue("${field}")}`), `${field} must be controlled`);
+        // O-1 (CLOSEOUT-02): while locked, the method is shown from the unresolved attempt; it is still controlled.
+        const value = field === "payment_provider" ? "lockedProvider ?? values.payment_provider" : `values.${field}`;
+        assert.ok(form.includes(`value={${value}} onChange={setValue("${field}")}`), `${field} must be controlled`);
       }
       assert.ok(!/name="(?:payment_method|amount|payment_date|payment_reference|notes)"[^>]*defaultValue/.test(form), "no uncontrolled defaults");
     }],
@@ -155,8 +157,11 @@ function checks(f: Files): Array<[string, () => void]> {
       assert.ok(f.lib.includes("That does not prove it failed."));
     }],
     ["R-1: method, amount and reference are locked; a different intent cannot be submitted", () => {
-      assert.ok(form.includes('<select name={detailsLocked ? undefined : "payment_provider"} value={values.payment_provider} onChange={setValue("payment_provider")} required disabled={detailsLocked}'));
-      assert.ok(form.includes('{detailsLocked && <input type="hidden" name="payment_provider" value={values.payment_provider} />}'));
+      assert.ok(form.includes('<select name={detailsLocked ? undefined : "payment_provider"} value={lockedProvider ?? values.payment_provider} onChange={setValue("payment_provider")} required disabled={detailsLocked}'));
+      assert.ok(form.includes('{detailsLocked && <input type="hidden" name="payment_provider" value={lockedProvider ?? values.payment_provider} />}'));
+      // O-1 (CLOSEOUT-02): the locked method comes from the attempt, and the setter refuses locked fields.
+      assert.ok(f.panel.includes("const lockedProvider = detailsLocked && pending ? pending.provider : null;"));
+      assert.ok(f.panel.includes("if (LOCKED_PAYMENT_FIELDS.has(field) && (pendingRef.current !== null || blockedRef.current !== null)) return;"));
       assert.ok(form.includes('inputMode="decimal" value={values.amount} onChange={setValue("amount")} readOnly={detailsLocked}'));
       assert.ok(form.includes('value={values.payment_reference} onChange={setValue("payment_reference")} required={referenceRequired} readOnly={detailsLocked}'));
       assert.ok(f.panel.includes("if (unresolved && manualPaymentIntent(values) !== pendingIntent(unresolved)) {"));

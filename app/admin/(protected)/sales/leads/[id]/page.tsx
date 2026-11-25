@@ -13,6 +13,8 @@ import { ageLabel, daysSinceActivityLabel, qualificationLabel, temperatureLabel,
 import { checkLeadRegistrationEligibility } from "../registration-schedules";
 import { setLeadAttribution } from "../actions";
 import { LeadContactEditSheet } from "./LeadContactEditSheet";
+import { PotentialDuplicateNotice } from "./PotentialDuplicateNotice";
+import { findPotentialDuplicateLeads } from "../../../../../../lib/sales/duplicate-lead";
 import { isContactEditableSource, originalContactFromSource, readLeadContactSnapshot } from "../../../../../../lib/sales/lead-contact";
 import { LEAD_ATTRIBUTION_SOURCE_LABELS, LEAD_ATTRIBUTION_SOURCES, type LeadAttributionRow } from "../../../../../../lib/marketing/crm";
 import type { MarketingContact } from "../../../../../../lib/supabase/database.types";
@@ -155,6 +157,8 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
   const contactEdit = contactEditable && !overlayFailed && editLevelResult?.data === true ? contactSnapshot : null;
   const contactVersion = contactEdit?.version ?? null;
   const originalContact = contactVersion !== null && source ? originalContactFromSource(row.lead_source, source) : null;
+  // S-05: advisory duplicate check through this user's RLS-bound client (v_sales_lead_inbox is security_invoker).
+  const duplicates = await findPotentialDuplicateLeads(supabase, { leadId: row.lead_metadata_id, email: row.email, phone: row.phone });
 
   return (
     <>
@@ -176,6 +180,8 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
         </span>
         {row.lost_reason && <span className="ta-lead-meta-time">Lost reason: {row.lost_reason.replace(/_/g, " ")}</span>}
       </div>
+
+      <PotentialDuplicateNotice matches={duplicates.matches} failed={duplicates.failed} />
 
       <div className="ta-lead-detail-grid">
         <div className="ta-lead-detail-main">

@@ -1,12 +1,12 @@
 import { notFound } from "next/navigation";
 import { requireModuleAccess, requireRole } from "../../../../lib/auth/session";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { PRINT_WHEN_READY_SCRIPT } from "../../../../lib/print-when-ready";
+import { DocumentPrintController } from "../../../../components/admin/documents/DocumentPrintController";
 import { PAYMENT_PROVIDER_LABELS, type InvoiceRow, type InvoiceItemRow, type InvoicePaymentRow } from "../../../../lib/sales/invoices";
 import { DocumentFooter, DocumentHeader } from "../../../../components/admin/documents/DocumentHeader";
 import { COMPANY_DOCUMENT_CONFIG, invoicePaymentTerms, paymentInstructions } from "../../../../lib/documents/company";
 import { parseQuotationTrainingDetails } from "../../../../lib/documents/quotation-training-details";
-import { estimateBlockHeight, paginateMeasuredBlocks } from "../../../../lib/documents/pagination";
+import { INVOICE_LINE, layoutInvoicePages, type InvoiceFinalBlock } from "../../../../lib/documents/invoice-layout";
 
 export const metadata = { title: "Invoice PDF — TERAS UNIVERSAL", robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
@@ -78,22 +78,19 @@ export default async function InvoicePdfPage({ params }: { params: Promise<{ id:
   // invoice as if it had.
   const payments = ((paymentRows ?? []) as InvoicePaymentRow[]).filter((p) => p.status === "successful");
 
-  const finalReserve = 580 + estimateBlockHeight(`${inv.payment_terms ?? ""}\n${inv.notes ?? ""}`, 92, 14, 24) + payments.length * 28;
-  const itemBlocks = items.map((item) => ({
-    id: item.id,
-    value: item,
-    height: estimateBlockHeight([item.course_name_snapshot, item.description, item.package_includes_snapshot?.map((entry) => entry.label).join(" · ")].filter(Boolean).join("\n"), 68, 14, 30),
-  }));
-  const paginationBlocks: Array<{ id: string; height: number; value: InvoiceItemRow | null }> = [
-    ...itemBlocks,
-    { id: "invoice-final-content", value: null, height: finalReserve },
-  ];
-  const itemChunks = paginateMeasuredBlocks(paginationBlocks, {
-    firstPageHeight: Math.max(260, 670 - (training ? 170 : 0)),
-    continuationPageHeight: 820,
-    finalPageReserve: 0,
+  // DOC-3: papers are laid out from calibrated, conservative heights (lib/documents/invoice-layout.ts), so the
+  // number of printed A4 sheets equals pageCount and "Page X of Y". Terms and notes flow across papers line by line.
+  const termsText = [invoicePaymentTerms(inv.due_date, fmtDate), inv.payment_terms?.trim() ?? ""].filter(Boolean).join("\n");
+  const pages = layoutInvoicePages({
+    items,
+    billTo: [inv.billing_name, inv.billing_company, inv.billing_registration_no ? `Reg. No. ${inv.billing_registration_no}` : null, inv.billing_address, inv.training_service_address_snapshot ? `Training / Service Address: ${inv.training_service_address_snapshot}` : null, inv.billing_email, inv.billing_phone],
+    hasTraining: Boolean(training),
+    showTax,
+    paymentCount: payments.length,
+    termsText,
+    notes: inv.notes,
   });
-  const pageCount = itemChunks.length;
+  const pageCount = pages.length;
   const renderItems = (rows: InvoiceItemRow[]) => (
     <table className="inv-pdf-table" style={{ marginBottom: 16 }}>
       <thead>
@@ -109,7 +106,7 @@ export default async function InvoicePdfPage({ params }: { params: Promise<{ id:
       <tbody>
         {rows.map((item) => (
           <tr key={item.id} style={{ borderBottom: "1px solid #eef1f6" }}>
-            <td style={{ padding: "8px 6px" }}><strong>{item.course_name_snapshot || ""}</strong>{item.course_name_snapshot && <br />}{item.description}{item.package_includes_snapshot?.length > 0 && <div style={{ color: "#667085", fontSize: 11, marginTop: 4 }}>Package includes: {item.package_includes_snapshot.map((entry) => String(entry.label ?? "")).filter(Boolean).join(" · ")}</div>}</td>
+            <td style={{ padding: "8px 6px" }}><strong>{item.course_name_snapshot || ""}</strong>{item.course_name_snapshot && <br />}{item.description}{item.package_includes_snapshot?.length > 0 && <div style={{ color: "#667085", fontSize: 11, marginTop: 4, lineHeight: `${INVOICE_LINE.itemPackage}px` }}>Package includes: {item.package_includes_snapshot.map((entry) => String(entry.label ?? "")).filter(Boolean).join(" · ")}</div>}</td>
             <td style={{ padding: "8px 6px", textAlign: "right" }}>{item.quantity}</td>
             <td style={{ padding: "8px 6px", textAlign: "right" }}>{item.unit}</td>
             <td style={{ padding: "8px 6px", textAlign: "right" }}>{fmt(item.unit_price)}</td>
@@ -138,14 +135,19 @@ export default async function InvoicePdfPage({ params }: { params: Promise<{ id:
         .teras-document-meta { display: grid; gap: 5px; margin-top: 10px; color: #667085; font-size: 11px; }
         .teras-document-meta-row { display: grid; grid-template-columns: 1fr auto; gap: 22px; }
         .teras-document-meta-row strong { color: #1a2233; }
-        .inv-pdf-section { margin: 22px 0; padding-top: 10px; border-top: 1px solid #d9e1ea; }
+        /* DOC-3: app/globals.css "body:has(.teras-admin) section { padding-block: 86px }" (specificity 0,1,2) added 172px to
+           every invoice section on screen and in print; two classes (0,2,0) restore the designed spacing. */
+        .inv-pdf-page .inv-pdf-section { margin: 22px 0; padding: 10px 0 0; border-top: 1px solid #d9e1ea; }
         .inv-pdf-section-title { margin: 0 0 8px; color: #0B3A63; font-size: 10px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; }
         .inv-pdf-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px; }
         .inv-pdf-summary > div { padding: 9px 11px; border: 1px solid #e3e9f0; }
         .inv-pdf-summary small { display: block; margin-bottom: 4px; color: #667085; font-size: 10px; text-transform: uppercase; }
         .inv-pdf-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 12px; font-variant-numeric: tabular-nums; }
         .inv-pdf-table th { padding: 8px 6px; background: #0B3A63; color: white; text-align: left; }
-        .inv-pdf-table td { padding: 8px 6px; border-bottom: 1px solid #d9e1ea; vertical-align: top; }
+        .inv-pdf-table td { padding: 8px 6px; border-bottom: 1px solid #d9e1ea; vertical-align: top; line-height: ${INVOICE_LINE.item}px; }
+        .inv-pdf-bill-to { line-height: ${INVOICE_LINE.billTo}px; }
+        .inv-pdf-terms { white-space: pre-wrap; font-size: 12px; line-height: ${INVOICE_LINE.terms}px; }
+        .inv-pdf-notes { white-space: pre-wrap; margin-top: 16px; font-size: 11.5px; line-height: ${INVOICE_LINE.notes}px; color: #667085; }
         .inv-pdf-table th:not(:first-child), .inv-pdf-table td:not(:first-child) { text-align: right; }
         .inv-pdf-table th:first-child, .inv-pdf-table td:first-child { width: 48%; }
         .inv-pdf-table th:nth-child(2), .inv-pdf-table td:nth-child(2) { width: 7%; }
@@ -174,22 +176,26 @@ export default async function InvoicePdfPage({ params }: { params: Promise<{ id:
           .inv-pdf-page { width: 210mm !important; min-height: 297mm !important; padding: 48px 56px 72px !important; box-shadow: none !important; margin: 0 !important; }
           .teras-document-logo { width: 118px; }
           .teras-document-header, .inv-pdf-summary, .inv-pdf-total, .inv-pdf-balance, .inv-pdf-payment-instructions { break-inside: avoid; page-break-inside: avoid; }
-          .inv-pdf-section { margin: 11px 0; padding-top: 6px; }
+          .inv-pdf-page .inv-pdf-section { margin: 11px 0; padding: 6px 0 0; }
           .inv-pdf-table thead { display: table-header-group; }
           .inv-pdf-table tr { break-inside: avoid; page-break-inside: avoid; }
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+          .loading-screen, [data-print-hide] { display: none !important; }
         }
       `}</style>
-      {itemChunks.map((chunk, pageIndex) => {
-        const pageItems = chunk.filter((item): item is InvoiceItemRow => item !== null);
+      <DocumentPrintController paperSelector=".inv-pdf-page" documentLabel="Invoice" verifyA4Fit />
+      {pages.map((page, pageIndex) => {
+        const pageItems = page.items;
         const isFirstPage = pageIndex === 0;
         const isLastPage = pageIndex === pageCount - 1;
         return (
           <div key={pageIndex} className="inv-pdf-page" style={{ width: 794, minHeight: 1123, margin: "0 auto", background: "#fff", boxShadow: "0 0 0 1px rgba(0,0,0,.06)", padding: "48px 56px 72px", boxSizing: "border-box", color: "#1a2233", position: "relative", breakAfter: isLastPage ? "auto" : "page", pageBreakAfter: isLastPage ? "auto" : "always" }}>
             {isFirstPage && <>
               <DocumentHeader type="INVOICE" identity={[{ label: "Invoice No.", value: inv.invoice_no }, { label: "Invoice Date", value: fmtDate(inv.invoice_date) }, { label: "Due Date", value: fmtDate(inv.due_date) }, { label: "Quotation Ref.", value: quotation?.quotation_no ?? "—" }]} />
+            </>}
+            {page.billTo?.mode === "full" && <>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 24, fontSize: 12.5 }}>
-                <div>
+                <div className="inv-pdf-bill-to">
                   <div style={{ fontSize: 11, color: "#667085", textTransform: "uppercase", marginBottom: 4 }}>Bill To</div>
                   <div style={{ fontWeight: 700 }}>{inv.billing_name}</div>
                   {inv.billing_company && <div>{inv.billing_company}</div>}
@@ -200,29 +206,38 @@ export default async function InvoicePdfPage({ params }: { params: Promise<{ id:
                   {inv.billing_phone && <div>{inv.billing_phone}</div>}
                 </div>
               </div>
-              {training && <section className="inv-pdf-section"><h2 className="inv-pdf-section-title">Training / Programme Summary</h2><div className="inv-pdf-summary"><div><small>Programme</small><strong>{training.programme.course_name_snapshot}</strong></div><div><small>Training Dates</small>{training.programme.start_date || "—"} → {training.programme.end_date || "—"}</div><div><small>Venue</small>{training.venue.name || (training.venue.type === "teras_hq" ? "TERAS HQ" : "In-House")}</div><div><small>Participants</small>{training.participants.count} Pax{training.participants.tbc ? " (TBC)" : ""}</div></div></section>}
             </>}
+            {page.billTo?.mode === "lines" && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 24, fontSize: 12.5 }}>
+              <div className="inv-pdf-bill-to">
+                <div style={{ fontSize: 11, color: "#667085", textTransform: "uppercase", marginBottom: 4 }}>{page.billTo.first ? "Bill To" : "Bill To (continued)"}</div>
+                {page.billTo.lines.map((line, lineIndex) => <div key={lineIndex} style={{ fontWeight: page.billTo?.mode === "lines" && page.billTo.first && lineIndex === 0 ? 700 : undefined, whiteSpace: "pre" }}>{line}</div>)}
+              </div>
+            </div>}
+            {page.training && training && <section className="inv-pdf-section"><h2 className="inv-pdf-section-title">Training / Programme Summary</h2><div className="inv-pdf-summary"><div><small>Programme</small><strong>{training.programme.course_name_snapshot}</strong></div><div><small>Training Dates</small>{training.programme.start_date || "—"} → {training.programme.end_date || "—"}</div><div><small>Venue</small>{training.venue.name || (training.venue.type === "teras_hq" ? "TERAS HQ" : "In-House")}</div><div><small>Participants</small>{training.participants.count} Pax{training.participants.tbc ? " (TBC)" : ""}</div></div></section>}
             {!isFirstPage && <div className="inv-pdf-continuation-header"><img className="inv-pdf-continuation-logo" src="/teras-universal-logo.png" alt="TERAS Universal" /><div className="inv-pdf-continuation-title">INVOICE — Continued</div></div>}
             {pageItems.length > 0 && renderItems(pageItems)}
-            {isLastPage && <>
-              <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 24 }}><table style={{ fontSize: 12.5, minWidth: 260 }}><tbody>
+            {page.final.map((block: InvoiceFinalBlock, blockIndex) => {
+              switch (block.kind) {
+                case "totals": return <div key={blockIndex}><div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 24 }}><table style={{ fontSize: 12.5, minWidth: 260 }}><tbody>
                 <tr><td style={{ padding: "3px 0", color: "#667085" }}>Subtotal</td><td style={{ padding: "3px 0", textAlign: "right" }}>{fmt(inv.subtotal)}</td></tr>
                 <tr><td style={{ padding: "3px 0", color: "#667085" }}>Discount</td><td style={{ padding: "3px 0", textAlign: "right" }}>− {fmt(inv.discount_amount)}</td></tr>
                 {showTax && <tr><td style={{ padding: "3px 0", color: "#667085" }}>{taxLabel}</td><td style={{ padding: "3px 0", textAlign: "right" }}>{fmt(inv.tax_amount)}</td></tr>}
                 <tr className="inv-pdf-total"><td style={{ padding: "6px 0", fontWeight: 800 }}>Grand Total</td><td style={{ padding: "6px 0", textAlign: "right", fontWeight: 800 }}>{fmt(inv.grand_total)}</td></tr>
                 <tr><td style={{ padding: "3px 0", color: "#667085" }}>Amount Paid</td><td style={{ padding: "3px 0", textAlign: "right" }}>{fmt(inv.amount_paid)}</td></tr>
                 <tr><td colSpan={2}><div className="inv-pdf-balance"><span>Balance Due</span><span>{fmt(inv.balance_due)}</span></div></td></tr>
-              </tbody></table></div>
-              {payments.length > 0 && <div style={{ marginBottom: 20 }}><div style={{ fontSize: 11, color: "#667085", textTransform: "uppercase", marginBottom: 6 }}>Payments Received</div><table style={{ width: "100%", fontSize: 11.5, borderCollapse: "collapse" }}><tbody>{payments.map((p) => <tr key={p.id} style={{ borderBottom: "1px solid #eef1f6" }}><td style={{ padding: "4px 0" }}>{fmtDate(p.paid_at)}</td><td style={{ padding: "4px 0" }}>{PAYMENT_PROVIDER_LABELS[p.payment_provider]}{p.payment_reference ? ` (${p.payment_reference})` : ""}</td><td style={{ padding: "4px 0", textAlign: "right" }}>{fmt(receivedAmount(p))}</td></tr>)}</tbody></table></div>}
-              <section className="inv-pdf-section"><h2 className="inv-pdf-section-title">Invoice Terms</h2><div style={{ whiteSpace: "pre-wrap", fontSize: 12 }}>{invoicePaymentTerms(inv.due_date, fmtDate)}</div>{inv.payment_terms?.trim() && <div style={{ whiteSpace: "pre-wrap", marginTop: 6, fontSize: 12 }}>{inv.payment_terms.trim()}</div>}</section>
-              <section className="inv-pdf-section"><h2 className="inv-pdf-section-title">Payment Instructions</h2><div className="inv-pdf-payment-instructions"><div className="inv-pdf-payment-qr-column"><img className="inv-pdf-payment-qr" src={COMPANY_DOCUMENT_CONFIG.invoicePaymentQr.assetPath} alt="Official TERAS Universal DuitNow QR for customer payment" /><div className="inv-pdf-payment-qr-label">DuitNow QR<br />Scan to Pay</div></div><div className="inv-pdf-payment-details"><div><small>Bank</small><strong>{COMPANY_DOCUMENT_CONFIG.invoicePaymentQr.bankLabel}</strong></div><div><small>Account Name</small><strong>{COMPANY_DOCUMENT_CONFIG.invoicePaymentQr.accountHolder}</strong></div><div className="inv-pdf-payment-reference"><small>Payment Reference</small>Please use Invoice No. {inv.invoice_no} as your payment reference.</div></div></div></section>
-              {inv.notes && <div style={{ marginTop: 16, fontSize: 11.5, color: "#667085" }}>{inv.notes}</div>}
-            </>}
+              </tbody></table></div></div>;
+                case "payments": return <div key={blockIndex}><div style={{ marginBottom: 20 }}><div style={{ fontSize: 11, color: "#667085", textTransform: "uppercase", marginBottom: 6 }}>Payments Received</div><table style={{ width: "100%", fontSize: 11.5, borderCollapse: "collapse" }}><tbody>{payments.map((p) => <tr key={p.id} style={{ borderBottom: "1px solid #eef1f6" }}><td style={{ padding: "4px 0" }}>{fmtDate(p.paid_at)}</td><td style={{ padding: "4px 0" }}>{PAYMENT_PROVIDER_LABELS[p.payment_provider]}{p.payment_reference ? ` (${p.payment_reference})` : ""}</td><td style={{ padding: "4px 0", textAlign: "right" }}>{fmt(receivedAmount(p))}</td></tr>)}</tbody></table></div></div>;
+                case "terms": return block.first
+                  ? <section key={blockIndex} className="inv-pdf-section"><h2 className="inv-pdf-section-title">Invoice Terms</h2><div className="inv-pdf-terms">{block.lines.join("\n")}</div></section>
+                  : <div key={blockIndex} className="inv-pdf-terms">{block.lines.join("\n")}</div>;
+                case "paymentInstructions": return <div key={blockIndex}><section className="inv-pdf-section"><h2 className="inv-pdf-section-title">Payment Instructions</h2><div className="inv-pdf-payment-instructions"><div className="inv-pdf-payment-qr-column"><img className="inv-pdf-payment-qr" src={COMPANY_DOCUMENT_CONFIG.invoicePaymentQr.assetPath} alt="Official TERAS Universal DuitNow QR for customer payment" /><div className="inv-pdf-payment-qr-label">DuitNow QR<br />Scan to Pay</div></div><div className="inv-pdf-payment-details"><div><small>Bank</small><strong>{COMPANY_DOCUMENT_CONFIG.invoicePaymentQr.bankLabel}</strong></div><div><small>Account Name</small><strong>{COMPANY_DOCUMENT_CONFIG.invoicePaymentQr.accountHolder}</strong></div><div className="inv-pdf-payment-reference"><small>Payment Reference</small>Please use Invoice No. {inv.invoice_no} as your payment reference.</div></div></div></section></div>;
+                case "notes": return <div key={blockIndex} className="inv-pdf-notes">{block.lines.join("\n")}</div>;
+              }
+            })}
             <DocumentFooter documentNumber={inv.invoice_no} customerName={inv.billing_company || inv.billing_name} pageNumber={pageIndex + 1} pageCount={pageCount} />
           </div>
         );
       })}
-      <script dangerouslySetInnerHTML={{ __html: PRINT_WHEN_READY_SCRIPT }} />
     </div>
   );
 }
