@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# DB mutation testing (perl -0 substitutions, so a rule may span lines): each mutant weakens one authorization rule in a COPY of the ten migrations (in memory), applies
-# them in a rolled-back transaction on the fixture and runs the stage-D persona matrix + checks + M-10 matrix. A mutant is KILLED when
+# DB mutation testing (perl -0 substitutions, so a rule may span lines): each mutant weakens one authorization rule in a COPY of the eleven migrations (in memory), applies
+# them in a rolled-back transaction on the fixture and runs the stage-E persona matrix + checks + M-10 + M-11 matrices. A mutant is KILLED when
 # at least one matrix probe or check fails. Usage: bash supabase/tests/crm_rbac/mutations.sh [container]
 set -u; export MSYS_NO_PATHCONV=1
 C=${1:-rbacdev}
@@ -9,8 +9,8 @@ T=supabase/tests/crm_rbac; M=supabase/migrations
 all(){ for f in $(ls $M | grep '^202612'); do cat "$M/$f"; echo; done; }
 run(){ # name, sed-expression applied to the concatenated migrations
   local name=$1 expr=$2 out fails
-  out=$( { echo "begin;"; all | perl -0pe "$expr"; cat $T/10_seed.sql $T/20_matrix.sql $T/30_checks.sql $T/40_m10.sql;
-           echo "select * from rbac_test.run('D');"; echo "select rbac_test.checks('D');"; echo "select * from rbac_test.m10('D');"; echo "rollback;"; } \
+  out=$( { echo "begin;"; all | perl -0pe "$expr"; cat $T/10_seed.sql $T/20_matrix.sql $T/30_checks.sql $T/40_m10.sql $T/50_m11.sql;
+           echo "select * from rbac_test.run('E');"; echo "select rbac_test.checks('E');"; echo "select * from rbac_test.m10('E');"; echo "select * from rbac_test.m11('E');"; echo "rollback;"; } \
          | docker exec -i $C psql -U postgres -h localhost -X -q -v ON_ERROR_STOP=1 -At 2>&1 )
   fails=$(echo "$out" | grep -c -E 'FAIL|ERROR')
   [ "$fails" -gt 0 ] && echo "KILLED   $name ($fails failing lines)" || echo "SURVIVED $name"
@@ -36,3 +36,11 @@ run "M-10 marketing_contacts without the promoted-lead condition" "s/ AND \(EXIS
 run "M-10 marketing_contact_events open to Sales modules" "s/ARRAY\['marketing_contacts'::text\], 'view'::text\)/ARRAY['marketing_contacts'::text, 'sales'::text, 'sales_leads'::text], 'view'::text)/"
 run "M-10 proposal_requests without the editor floor" "s/(create policy proposal_requests_select[^;]*?using \()\(app\.has_min_role\('editor'::public\.user_role\) AND /\1(true AND /s"
 run "M-10 overrides keep sales_reports (blocked by M-10 postcondition)" "s/(create policy sales_lead_contact_overrides_select[^;]*?'sales_followups'::text, )'marketing_contacts'::text/\1'sales_reports'::text, 'marketing_contacts'::text/s"
+# M-11 mutants (each must be caught by the M-11 matrix or by M-11's own pre/postconditions).
+run "M-11 certificates stays role-only" "s/(create policy certificates_select[^;]*?)using \(\(app\.has_min_role\('trainer'::public\.user_role\) AND \( SELECT app\.has_any_module_access\([^;]*?\)\)\);/\1using (app.has_min_role('trainer'::public.user_role));/s"
+run "M-11 certificate list gains sales_quotations (Sales/Finance would read IC)" "s/'participants'::text, 'companies'::text\], 'view'::text\)/'participants'::text, 'companies'::text, 'sales_quotations'::text], 'view'::text)/"
+run "M-11 certificate list gains reports (blocked by M-11 postcondition)" "s/'participants'::text, 'companies'::text\], 'view'::text\)/'participants'::text, 'companies'::text, 'reports'::text], 'view'::text)/"
+run "M-11 verification log opens to participants module" "s/ARRAY\['certificates'::text\], 'view'::text\)/ARRAY['certificates'::text, 'participants'::text], 'view'::text)/"
+run "M-11 verification log without the trainer floor (Custom client account)" "s/(\\\$q\\\$)\(app\.has_min_role\('trainer'::public\.user_role\) AND \( SELECT app\.has_any_module_access\(ARRAY\['certificates'/\1(true AND ( SELECT app.has_any_module_access(ARRAY['certificates'/"
+run "M-11 feedback list gains feedback_issues (Management after transition)" "s/'feedback_responses'::text, 'schedules'::text\], 'view'::text\)/'feedback_responses'::text, 'schedules'::text, 'feedback_issues'::text], 'view'::text)/"
+run "M-11 feedback stays role-only" "s/(create policy participant_feedback_staff_select[^;]*?)using \(\(app\.has_min_role\('editor'::public\.user_role\) AND [^;]*?\);/\1using (( SELECT app.has_min_role('editor'::user_role) AS has_min_role));/s"
