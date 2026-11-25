@@ -397,3 +397,60 @@ gateMigration({
     ["transition_hrdf_claim_unguarded(uuid,text,jsonb)", "if not app.can_module('hrdf_claims', 'edit') then"],
   ].map(([s, to]) => ({ sig: `public.${s}`, from: "if not app.is_admin() then", to })),
 });
+
+// =============================== M-10 (contact PII: staff SELECT by module capability) =========================
+// Released after DB C. Approval: OWNER-CRM-RBAC-M10-20261125.
+const M10_LEAD = ["sales", "sales_leads", "sales_opportunities", "sales_tasks", "sales_followups", "marketing_contacts"];
+const M10_SALES = ["sales", "sales_leads", "sales_opportunities", "sales_tasks", "sales_followups"];
+const M10_LEAD_RULE = `(app.has_min_role('editor'::public.user_role) AND ${HAMA(M10_LEAD, "view")})`;
+const M10_TABLES = ["enquiries", "proposal_requests", "marketing_contacts", "marketing_contact_events", "sales_internal_lead_sources", "sales_lead_contact_overrides"];
+policyMigration({
+  version: "20261201130000", slug: "rbac_m10_contact_pii_select", tag: "m10",
+  header: `-- RBAC M-10 (O-1 follow-up): staff SELECT on lead and marketing contact PII requires a module that renders it.
+-- Before: enquiries, proposal_requests, marketing_contacts and marketing_contact_events were readable by ANY active
+-- editor or admin (app.has_min_role('editor') only), and sales_internal_lead_sources / sales_lead_contact_overrides by
+-- anyone holding one of the Sales modules INCLUDING sales_reports. So every Finance Staff (Sales Reports View) and every
+-- other departmental editor could read names, emails, phone numbers and messages from public forms and marketing.
+-- After (SELECT policies only; every INSERT, UPDATE and DELETE policy is untouched):
+--  * enquiries, proposal_requests, sales_internal_lead_sources, sales_lead_contact_overrides: editor floor AND View on
+--    sales, sales_leads, sales_opportunities, sales_tasks, sales_followups or marketing_contacts (the lead-metadata list
+--    WITHOUT sales_reports). Sales Reports renders only sales_lead_metadata, opportunities and quotations (no contact
+--    columns), so reports keep working; v_sales_lead_inbox is security_invoker and shows no contact columns to a
+--    Sales Reports-only holder.
+--  * marketing_contacts: editor floor AND (View on marketing or marketing_contacts, OR View on a Sales module and the
+--    contact has been promoted to a lead, i.e. a sales_lead_metadata row with lead_source 'marketing_contact').
+--  * marketing_contact_events: editor floor AND marketing_contacts View.
+--  * sales_lead_metadata (no contact columns) is NOT changed: Sales Reports keeps its lead statistics.
+-- Public submissions (submit_public_enquiry, submit_proposal_request, the W9 eBook RPC) are SECURITY DEFINER and not
+-- affected; anon has no policy on these tables before or after; service_role bypasses RLS. No grants change.
+-- Requires 20261201110000 (ordering: released after DB C). Approval: OWNER-CRM-RBAC-M10-20261125.
+
+do $m10_requires$
+begin
+  if to_regprocedure('app.can_module(text,text)') is null or to_regprocedure('app.has_any_module_access(text[],text)') is null then
+    raise exception 'm10_precondition_failed: app.can_module / app.has_any_module_access missing - apply DB B first; nothing changed' using errcode = 'P0001';
+  end if;
+end;
+$m10_requires$;`,
+  changes: [
+    { table: "enquiries", name: "enquiries_select", using: M10_LEAD_RULE, token: "has_any_module_access" },
+    { table: "proposal_requests", name: "proposal_requests_select", using: M10_LEAD_RULE, token: "has_any_module_access" },
+    { table: "sales_internal_lead_sources", name: "sales_internal_lead_sources_select", using: M10_LEAD_RULE, token: "has_any_module_access" },
+    { table: "sales_lead_contact_overrides", name: "sales_lead_contact_overrides_select", using: M10_LEAD_RULE, token: "has_any_module_access" },
+    { table: "marketing_contacts", name: "marketing_contacts_select",
+      using: `(app.has_min_role('editor'::public.user_role) AND (${HAMA(["marketing", "marketing_contacts"], "view")} OR (${HAMA(M10_SALES, "view")} AND (EXISTS ( SELECT 1 FROM public.sales_lead_metadata m WHERE ((m.lead_source = 'marketing_contact'::text) AND (m.source_id = marketing_contacts.id)))))))`,
+      token: "sales_lead_metadata" },
+    { table: "marketing_contact_events", name: "marketing_contact_events_select",
+      using: `(app.has_min_role('editor'::public.user_role) AND ${HAMA(["marketing_contacts"], "view")})`, token: "has_any_module_access" },
+  ],
+  extraPost: `
+  -- Each table keeps RLS and exactly one SELECT-capable policy (no other policy can re-open the rows), and no new rule
+  -- mentions sales_reports.
+  for r in select * from unnest(array[${M10_TABLES.map((t) => `'${t}'`).join(", ")}]) as u(tbl) loop
+    if not (select relrowsecurity from pg_class where oid = ('public.' || r.tbl)::regclass)
+       or (select count(*) from pg_policies p where p.schemaname = 'public' and p.tablename = r.tbl and p.cmd in ('SELECT', 'ALL')) <> 1
+       or exists (select 1 from pg_policies p where p.schemaname = 'public' and p.tablename = r.tbl and p.cmd = 'SELECT' and p.qual like '%sales_reports%') then
+      raise exception 'm10_postcondition_failed: % has RLS off, more than one SELECT policy, or a sales_reports rule', r.tbl using errcode = 'P0001';
+    end if;
+  end loop;`,
+});

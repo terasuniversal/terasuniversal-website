@@ -23,7 +23,7 @@ const ACTIONS: Record<string, [string, string, string?][]> = {
 const UI_FILES = ["sales/follow-ups/page.tsx", "sales/leads/[id]/page.tsx", "sales/opportunities/[id]/page.tsx", "sales/quotations/[id]/page.tsx",
   "sales/tasks/actions.ts", "sales/tasks/page.tsx", "sales/tasks/[id]/page.tsx", "invoices/[id]/page.tsx"];
 const MIGRATIONS = ["20261201100000_rbac_m01", "20261201101000_rbac_m06", "20261201102000_rbac_m07", "20261201103000_rbac_m08", "20261201104000_rbac_m09",
-  "20261201110000_rbac_m02", "20261201111000_rbac_m03", "20261201120000_rbac_m04", "20261201121000_rbac_m05"];
+  "20261201110000_rbac_m02", "20261201111000_rbac_m03", "20261201120000_rbac_m04", "20261201121000_rbac_m05", "20261201130000_rbac_m10"];
 
 type Src = Record<string, string>;
 function load(): Src {
@@ -96,7 +96,7 @@ function checks(s: Src, eligible: typeof isCapabilityRoleEligible, presets = STA
     && ["sales_leads", "sales_opportunities", "sales_tasks", "sales_followups"].every((k) => lvl(fin, k) === "none"));
   c("Staff form offers every preset", /STAFF_ACCESS_PRESETS\.map\(\(preset\) =>/.test(s.form) && /applyPreset\(preset\)/.test(s.form));
   // 6. Migration files.
-  c("nine RBAC migration files present", MIGRATIONS.every((m) => s[m].length > 0));
+  c("ten RBAC migration files present (nine + M-10)", MIGRATIONS.every((m) => s[m].length > 0));
   const all = MIGRATIONS.map((m) => s[m]).join("\n");
   c("no DROP TABLE / DROP COLUMN / TRUNCATE / DELETE FROM in migrations", !/drop\s+table|drop\s+column|truncate|delete\s+from/i.test(all.replace(/^--.*$/gm, "")));
   c("every migration has a fail-closed precondition", MIGRATIONS.every((m) => /precondition_failed/.test(s[m])));
@@ -135,6 +135,26 @@ function checks(s: Src, eligible: typeof isCapabilityRoleEligible, presets = STA
   c("M-09 content/course DELETE need module Admin", ["courses_delete", "news_posts_admin_delete", "faqs_admin_delete", "downloads_admin_delete", "gallery_images_admin_delete", "media_admin_delete"]
     .every((p) => new RegExp(`create policy ${p}[\\s\\S]{0,250}'admin'::text\\)`).test(m09)));
   c("M-09 legacy RPC gates: 7 signatures", (m09.match(/\$q\$if not app\.is_admin\(\) then\$q\$/g) ?? []).length === 7);
+  // M-10: contact PII SELECT by module capability (policies only).
+  const m10 = s["20261201130000_rbac_m10"];
+  const m10Body = m10.replace(/^--.*$/gm, "");
+  const m10Create = (p: string) => (m10Body.match(new RegExp(`create policy ${p} [^;]*;`)) ?? [""])[0];
+  const leadRule = "( SELECT app.has_any_module_access(ARRAY['sales'::text, 'sales_leads'::text, 'sales_opportunities'::text, 'sales_tasks'::text, 'sales_followups'::text, 'marketing_contacts'::text], 'view'::text) AS has_any_module_access)";
+  c("M-10 changes exactly the six contact SELECT policies and nothing else",
+    (m10Body.match(/create policy /g) ?? []).length === 6 && (m10Body.match(/drop policy if exists /g) ?? []).length === 6
+    && ["enquiries_select", "proposal_requests_select", "sales_internal_lead_sources_select", "sales_lead_contact_overrides_select", "marketing_contacts_select", "marketing_contact_events_select"]
+      .every((p) => / as permissive for select to authenticated\n/.test(m10Create(p)))
+    && !/grant |revoke |create (or replace )?function|alter table|for (insert|update|delete|all) /i.test(m10Body));
+  c("M-10 lead-contact tables: editor floor AND Sales modules (no sales_reports)",
+    ["enquiries_select", "proposal_requests_select", "sales_internal_lead_sources_select", "sales_lead_contact_overrides_select"]
+      .every((p) => m10Create(p).includes(`(app.has_min_role('editor'::public.user_role) AND ${leadRule})`) && !m10Create(p).includes("sales_reports")));
+  c("M-10 marketing_contacts: Marketing View, or a Sales module only for contacts promoted to a lead",
+    /ARRAY\['marketing'::text, 'marketing_contacts'::text\][\s\S]*EXISTS \( SELECT 1 FROM public\.sales_lead_metadata m WHERE \(\(m\.lead_source = 'marketing_contact'::text\) AND \(m\.source_id = marketing_contacts\.id\)\)\)/.test(m10Create("marketing_contacts_select"))
+    && !m10Create("marketing_contacts_select").includes("sales_reports"));
+  c("M-10 marketing_contact_events: Marketing Contacts View only",
+    m10Create("marketing_contact_events_select").includes("( SELECT app.has_any_module_access(ARRAY['marketing_contacts'::text], 'view'::text) AS has_any_module_access)"));
+  c("M-10 pins the pre-state, requires DB B and checks one SELECT policy per table",
+    /m10_precondition_failed: policy/.test(m10) && /to_regprocedure\('app\.can_module\(text,text\)'\)/.test(m10) && /m10_postcondition_failed: % has RLS off, more than one SELECT policy/.test(m10));
   return out;
 }
 
@@ -174,6 +194,11 @@ if (process.argv.includes("--mutations")) {
     mut("M-09 participant DELETE at Edit", swap("20261201104000_rbac_m09", /(create policy participants_delete[\s\S]{0,200})'participants'::text, 'admin'::text/, "$1'participants'::text, 'edit'::text")),
     mut("M-05 skips one signature", swap("20261201121000_rbac_m05", /\(\$q\$public\.issue_invoice_unguarded\(uuid\)\$q\$[^\n]*\n/, "")),
     mut("M-03 rewrites existing profiles", swap("20261201111000_rbac_m03", "alter table public.profiles alter column access_control_enabled set default true;", "alter table public.profiles alter column access_control_enabled set default true;\nupdate public.profiles set access_control_enabled = true;")),
+    mut("M-10 overrides keep sales_reports", swap("20261201130000_rbac_m10", /(create policy sales_lead_contact_overrides_select[^;]*?'sales_followups'::text, )/, "$1'sales_reports'::text, ")),
+    mut("M-10 enquiries stays role-only", swap("20261201130000_rbac_m10", /(create policy enquiries_select[^;]*?using )\(\(app\.has_min_role[^;]*;/, "$1(app.has_min_role('editor'::public.user_role));")),
+    mut("M-10 marketing_contacts drops the promoted-lead condition", swap("20261201130000_rbac_m10", / AND \(EXISTS \( SELECT 1 FROM public\.sales_lead_metadata m WHERE \(\(m\.lead_source = 'marketing_contact'::text\) AND \(m\.source_id = marketing_contacts\.id\)\)\)\)/, "")),
+    mut("M-10 adds a grant", swap("20261201130000_rbac_m10", "set local lock_timeout = '5s';", "set local lock_timeout = '5s';\ngrant select on public.enquiries to anon;")),
+    mut("M-10 events open to Sales", swap("20261201130000_rbac_m10", "ARRAY['marketing_contacts'::text], 'view'::text)", "ARRAY['marketing_contacts'::text, 'sales'::text], 'view'::text)")),
   ];
   let killed = 0;
   for (const [n, k] of mutants) { if (k) killed++; console.log(`${k ? "KILLED " : "SURVIVED"} ${n}`); }

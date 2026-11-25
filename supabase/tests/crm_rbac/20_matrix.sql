@@ -2,7 +2,7 @@
 -- fixed in advance. Every probe runs in its own subtransaction that is always rolled back, as the persona
 -- (request.jwt claims + SET LOCAL ROLE authenticated/anon/service_role) - i.e. exactly what PostgREST does for a direct
 -- API call with that user's token. Usage (inside a transaction, after 10_seed.sql): select rbac_test.run('<stage>');
---   stage: S0 (no RBAC migrations) | A (DB A) | B (DB A+B) | C (all nine)
+--   stage: S0 (no RBAC migrations) | A (DB A) | B (DB A+B) | C (all nine) | D (all nine + M-10; same expectations as C)
 -- Expectation codes per persona: A allowed (succeeds, affects/returns >=1) | D denied (authorization error, or 0 rows)
 --   P passes authorization (success or a business-rule error) | N not allowed to succeed (D or business error) | - skip
 \set ON_ERROR_STOP on
@@ -172,7 +172,7 @@ begin
   for c in select * from rbac_test.cases order by id loop
     exp_s := case
       when p_stage = 'S0' then case when c.grp = 'cm' then repeat('-', 16) else c.pre end
-      when p_stage = 'C' then c.post
+      when p_stage in ('C', 'D') then c.post
       when c.grp = 'narrow' then c.post
       when c.grp = 'cm' then case when p_stage = 'B' then c.post else repeat('-', 16) end
       else c.pre end;
