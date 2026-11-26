@@ -516,12 +516,11 @@ function GoldenReferencePageOne({ data, config, navy, gold, qaPreview }: { data:
 }
 
 /**
- * Neutral authentication placeholder — no approved company stamp asset
- * exists (confirmed repo-wide), so this stays deliberately unbranded: no
- * seal wording, no registration numbers, no logo. Double navy/gold ring
- * mirrors the QR plate's offset-hairline frame language one column over, so
- * the two read as siblings rather than one finished element beside one
- * placeholder. Mirrored in lib/certificate-html.ts's stampSeal.
+ * Generic certificate layout. C4 Golden Reference certificates (Erector,
+ * Inspector, WAH) render GoldenReferencePageOne above instead, whose stamp
+ * column is an empty, unbranded gold ring (data-certificate-stamp-area=
+ * "reserved") left for a physical company stamp, because no approved stamp
+ * asset exists; lib/certificate-html.ts mirrors it.
  */
 export function CertificateDocument({ data, config, qaPreview = false }: { data: CertData; config: TemplateConfig; qaPreview?: boolean }) {
   const navy = config.primary_color || "#0B3A63";
