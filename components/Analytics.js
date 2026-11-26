@@ -1,7 +1,7 @@
 "use client";
 
 import Script from "next/script";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { isUntrackedPath, sanitizeAnalyticsUrl, sanitizeReferrer } from "../lib/analytics-privacy";
 
@@ -42,10 +42,17 @@ function ensureGtag() {
 export default function Analytics() {
   const pathname = usePathname();
   const untracked = isUntrackedPath(pathname);
+  // A-1: the tag scripts are rendered only after mount, so a refused consent is known before anything is requested
+  // (server-rendered afterInteractive scripts would otherwise be fetched regardless of the opt-out flag).
+  const [consentChecked, setConsentChecked] = useState(false);
+  const [consentRefused, setConsentRefused] = useState(false);
+  useEffect(() => { setConsentRefused(window.__TERAS_ANALYTICS_CONSENT__ === false); setConsentChecked(true); }, [pathname]);
 
   useEffect(() => {
     if (!analyticsEnabled) return;
     window[`ga-disable-${measurementId}`] = isUntrackedPath(pathname);
+    // A-1: refused or revoked consent switches GA4 off for the rest of the visit (automatic hits included).
+    if (window.__TERAS_ANALYTICS_CONSENT__ === false) window[`ga-disable-${measurementId}`] = true;
     if (!canTrack(pathname)) return;
     ensureGtag();
     const pageLocation = sanitizeAnalyticsUrl(window.location.href);
@@ -70,6 +77,8 @@ export default function Analytics() {
     if (pathname === "/request-proposal/success" && canTrack(pathname)) window.gtag?.("event", "proposal_conversion", { page_path: pathname });
   }, [pathname]);
 
+  // A-1: with consent refused (the existing opt-out flag) neither gtag.js nor gtm.js is requested at all.
+  if (!consentChecked || consentRefused) return null;
   // Nothing is loaded on untracked routes: a full page load there never fetches gtag.js or gtm.js.
   if (untracked || (!analyticsEnabled && !tagManagerEnabled)) return null;
 

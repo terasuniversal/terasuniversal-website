@@ -33,6 +33,9 @@ export async function POST(request) {
     return NextResponse.json({ error: "Invalid request." }, { status: 400, headers: NO_STORE });
   }
   const { siteOrigin, clientKey, deps } = ebookRuntime(request);
+  // W9-LAUNCH-PREP L-B/B1: no approved canonical origin means no verification link can be built safely; fail closed
+  // before DNS, RPC or email.
+  if (!siteOrigin) return NextResponse.json({ error: "temporarily_unavailable" }, { status: 503, headers: NO_STORE });
   const { status, body } = await processEbookRequest({ payload, origin: request.headers.get("origin"), siteOrigin, clientKey }, deps);
   return NextResponse.json(body, { status, headers: NO_STORE });
 }
