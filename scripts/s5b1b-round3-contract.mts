@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { socialMetadata, SOCIAL_IMAGE, TWITTER_IMAGE } from "../lib/social-metadata.js";
 import { revertPublicFirst, PF_CHANGED, PF_ADDED, PF_WITHHELD } from "./public-first-approved.mts";
 import { CONTRACT_BASE, changedSinceBase } from "./contract-base.mts";
+import { approvedRootLoading } from "./w10ux-approved.mts"; // W10-UX-01: root loading boundary moved to /calendar
 
 // S5B-1B Round 3 (owner-approved, local only): hard 404 for unknown industry slugs, per-page social metadata, the
 // V2 bridge on legacy-bodied informational pages, AI-image disclosure and the re-rendered share image.
@@ -21,7 +22,7 @@ check("industries: unknown slugs are rejected by the router; every data slug is 
   const page = read("app/industries/[slug]/page.js");
   assert.match(page, /^export function generateStaticParams\(\) \{ return industries\.map\(\(\{ slug \}\) => \(\{ slug \}\)\); \}$/m);
   assert.match(page, /^export const dynamicParams = false;$/m);
-  assert.equal(read("app/loading.js"), execFileSync("git", ["show", `${CONTRACT_BASE}:app/loading.js`], { cwd: rootPath, encoding: "utf8" }).replace(/\r\n/g, "\n"));
+  assert.equal(approvedRootLoading(root), execFileSync("git", ["show", `${CONTRACT_BASE}:app/loading.js`], { cwd: rootPath, encoding: "utf8" }).replace(/\r\n/g, "\n"));
 });
 
 const SOCIAL = {
