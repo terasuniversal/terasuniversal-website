@@ -15,6 +15,7 @@ export function ScheduleForm({
   schedule,
   courses,
   assessors,
+  trainers = [],
   defaultAssessorId,
   defaultTrainingMode,
   mode,
@@ -27,6 +28,8 @@ export function ScheduleForm({
   assessors: Option[];
   /** Current primary assessor id (edit mode) — the select defaults to it. */
   defaultAssessorId?: string;
+  /** T1: active trainers for the trainer link (course_schedules.trainer_id). */
+  trainers?: Option[];
   defaultTrainingMode?: string;
   mode: "create" | "edit";
   /** Sales CRM Phase 3 — present only when opened via a Won Opportunity's "Create Training Schedule" action. */
@@ -59,7 +62,16 @@ export function ScheduleForm({
             </select>
           </Field>
           <div className="ta-field-row">
-            <Field label="Trainer name" name="trainer_name" hint="Free text until Trainers is normalized" error={e.trainer_name}>
+            <Field label="Trainer" name="trainer_id" hint="Active trainers only. Leave blank if not confirmed yet." error={e.trainer_id}>
+              <select id="trainer_id" name="trainer_id" defaultValue={d.trainer_id ?? ""}>
+                <option value="">— Not assigned —</option>
+                {d.trainer_id && !trainers.some((t) => t.id === d.trainer_id) && (
+                  <option value={d.trainer_id}>{d.trainer_name ? `${d.trainer_name} (current, inactive)` : "Current trainer (inactive)"}</option>
+                )}
+                {trainers.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+              </select>
+            </Field>
+            <Field label="Trainer name" name="trainer_name" hint="Free text kept for older schedules; filled from the trainer when blank" error={e.trainer_name}>
               <input id="trainer_name" name="trainer_name" defaultValue={d.trainer_name ?? ""} />
             </Field>
             <Field label="Venue" name="venue" error={e.venue}>

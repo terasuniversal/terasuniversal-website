@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { requireModuleAccess, requireRole } from "../../../../lib/auth/session";
+import { hasModuleCapability, requireModuleCapability } from "../../../../lib/auth/session";
 import { PageHead, Card, Badge, EmptyState, Pagination } from "../../../../components/admin/ui";
 import { formatMalaysiaDate } from "../../../../lib/date-time";
 import { setAssessorActive } from "./actions";
@@ -15,8 +15,9 @@ export default async function AssessorsPage({
 }: {
   searchParams: Promise<{ page?: string; q?: string; status?: string }>;
 }) {
-  await requireRole("admin");
-  await requireModuleAccess("assessors");
+  // S-1 / T1: assessor identity and contact details need Assessors View (app.can_module, same as assessors_read).
+  const profile = await requireModuleCapability("assessors", "view");
+  const canWrite = await hasModuleCapability("assessors", "edit", profile);
   const sp = await searchParams;
   const page = Math.max(1, Number(sp.page ?? 1));
   const supabase = await createSupabaseServerClient();
@@ -40,7 +41,7 @@ export default async function AssessorsPage({
       <PageHead
         title="Assessors"
         subtitle="Manage the assessor pool and who verifies each training schedule."
-        action={<Link href="/admin/assessors/new" className="ta-btn ta-btn-primary">+ New Assessor</Link>}
+        action={canWrite ? <Link href="/admin/assessors/new" className="ta-btn ta-btn-primary">+ New Assessor</Link> : undefined}
       />
 
       <form className="ta-toolbar" style={{ alignItems: "flex-end" }}>
@@ -87,11 +88,13 @@ export default async function AssessorsPage({
                     </td>
                     <td className="ta-row-actions">
                       <Link href={`/admin/assessors/${a.id}`} className="ta-btn ta-btn-outline ta-btn-sm">View</Link>
-                      <form action={setAssessorActive.bind(null, a.id, !a.is_active)} style={{ display: "inline" }}>
-                        <button type="submit" className="ta-btn ta-btn-outline ta-btn-sm" title={a.is_active ? "Deactivate assessor" : "Activate assessor"}>
-                          {a.is_active ? "Deactivate" : "Activate"}
-                        </button>
-                      </form>
+                      {canWrite && (
+                        <form action={setAssessorActive.bind(null, a.id, !a.is_active)} style={{ display: "inline" }}>
+                          <button type="submit" className="ta-btn ta-btn-outline ta-btn-sm" title={a.is_active ? "Deactivate assessor" : "Activate assessor"}>
+                            {a.is_active ? "Deactivate" : "Activate"}
+                          </button>
+                        </form>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -103,7 +106,7 @@ export default async function AssessorsPage({
             icon="🗒️"
             title="No assessors yet"
             message="Add your first assessor to start assigning assessor verification to training schedules."
-            action={<Link href="/admin/assessors/new" className="ta-btn ta-btn-primary">+ New Assessor</Link>}
+            action={canWrite ? <Link href="/admin/assessors/new" className="ta-btn ta-btn-primary">+ New Assessor</Link> : undefined}
           />
         )}
       </Card>

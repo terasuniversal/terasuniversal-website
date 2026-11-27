@@ -80,7 +80,18 @@ function checks(s: Src, eligible: typeof isCapabilityRoleEligible, presets = STA
   // 5. Presets (least privilege; D-05 / D-06).
   const lvl = (p: any, k: string) => p.modules.find((m: any) => m.moduleKey === k)?.accessLevel ?? "none";
   const sales = presets.find((p) => p.id === "sales_staff"), fin = presets.find((p) => p.id === "finance_staff");
-  c("two presets: Sales Staff + Finance Staff", !!sales && !!fin && presets.length === 2);
+  const tops = presets.find((p) => p.id === "training_ops_staff");
+  c("three presets: Sales Staff + Finance Staff + Training Ops Staff (T1)", !!sales && !!fin && !!tops && presets.length === 3);
+  if (tops) {
+    c("Training Ops Staff: Editor + Custom Module Access, Training Operations department", tops.role === "editor" && tops.accessControlEnabled === true && tops.department === "training_operations");
+    c("Training Ops Staff: no admin level; no Sales/Finance, administration, legacy, templates, content or marketing modules",
+      tops.modules.every((m: any) => m.accessLevel !== "admin") &&
+      !tops.modules.some((m: any) => m.moduleKey.startsWith("sales") || ["invoices", "hrdf_claims", "users", "audit", "system", "backups", "automation",
+        "legacy_import", "certificate_templates", "companies", "news", "faq", "gallery", "media", "company", "marketing", "marketing_contacts", "marketing_campaigns"].includes(m.moduleKey)));
+    c("Training Ops Staff: Training writes Edit; Courses, Certificates, Dashboard, Reports View only (owner T1 matrix)",
+      ["schedules", "participants", "trainers", "assessors", "attendance", "assessment", "downloads", "feedback", "feedback_issues", "feedback_actions"].every((k) => lvl(tops, k) === "edit")
+      && ["courses", "certificates", "dashboard", "reports", "feedback_responses"].every((k) => lvl(tops, k) === "view"));
+  }
   for (const p of [sales, fin]) if (p) {
     c(`${p.id}: Editor + Custom Module Access`, p.role === "editor" && p.accessControlEnabled === true);
     c(`${p.id}: no admin level, no administration/Training/content/marketing/companies modules`,

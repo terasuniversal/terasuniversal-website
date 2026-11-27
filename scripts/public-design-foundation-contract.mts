@@ -8,6 +8,7 @@ import { revertPublicFirst, PF_CHANGED, PF_ADDED, PF_WITHHELD } from "./public-f
 import { revertW4a, W4A_CHANGED } from "./w4a-approved.mts";
 import { W9G3_PROTECTED_ADDED } from "./w9g3-approved.mts"; // W9-G3.3: the two exact W9-G3 API route files
 import { w10uxAdminBoundaryApproved } from "./w10ux-approved.mts"; // CE-1: the one admin loading boundary, content-gated
+import { ft1r1AdminApproved } from "./ft1r1-approved.mts"; // F-T1-r1: the 28 exact Training T1 admin paths, content-gated
 
 // Contract for the scoped public design foundation (Phase S1): components/premium/premium.module.css and fonts.js.
 // Proves the kit cannot reach the admin/CRM shell, certificate pages or the attendance print layout, and that the
@@ -169,7 +170,8 @@ check("protected paths have no changes against the contract base except the S5B-
   const w4aOnly = (path: string) => W4A_CHANGED.includes(path)
     && revertW4a(path, read(path)).replace(/\r\n/g, "\n") === git(["show", `${CONTRACT_BASE}:${path}`]).replace(/\r\n/g, "\n");
   const changed = git(["diff", "--name-only", CONTRACT_BASE, "--", ...PROTECTED]).trim().split("\n").filter(Boolean).filter((path) => !ROUND1_APPROVED.includes(path) && !PF_CHANGED.includes(path) && !w4aOnly(path) && !w10uxAdminBoundaryApproved(new URL("../", import.meta.url), path, CONTRACT_BASE) /* CE-1 exact path */);
-  assert.deepEqual(changed, [], changed.join(", "));
+  const outsideT1 = changed.filter((path) => !ft1r1AdminApproved(new URL("../", import.meta.url), path, CONTRACT_BASE)); /* F-T1-r1 exact paths */
+  assert.deepEqual(outsideT1, [], outsideT1.join(", "));
 });
 check("Round 1: app/layout.js changes only the two JSON-LD email values", () => {
   // Public-First F-5 (canonical origin centralised) is reverted first; only the Round 1 lines may then differ from HEAD.

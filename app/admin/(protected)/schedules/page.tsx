@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { requireModuleAccess, requireRole, hasModuleAccess } from "../../../../lib/auth/session";
+import { requireModuleAccess, requireRole, hasModuleCapability } from "../../../../lib/auth/session";
 import { isAdmin } from "../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, EmptyState, Pagination, StatCard, SvgIcon } from "../../../../components/admin/ui";
 import { duplicateSchedule } from "./actions";
@@ -41,7 +41,8 @@ export default async function SchedulesPage({
   const profile = await requireRole("editor");
   await requireModuleAccess("schedules");
   // Writes need the Admin role and this module's edit access; View keeps the page read-only.
-  const canWrite = isAdmin(profile.role) && (await hasModuleAccess("schedules", "edit"));
+  // T1: Admin, or an Editor with Custom access + Schedules Edit (Training Ops Staff).
+  const canWrite = await hasModuleCapability("schedules", "edit", profile);
   const sp = await searchParams;
   const page = Math.max(1, Number(sp.page ?? 1));
   const supabase = await createSupabaseServerClient();

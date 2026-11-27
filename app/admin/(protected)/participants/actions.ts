@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient, createSupabaseServiceClient } from "../../../../lib/supabase/server";
-import { requireModuleAccess, requireRole } from "../../../../lib/auth/session";
+import { requireModuleAccess, requireModuleCapability, requireRole } from "../../../../lib/auth/session";
+import { isSuperAdmin } from "../../../../lib/auth/rbac";
 import { participantSchema, participantNameCorrectionSchema, fieldErrors } from "../../../../lib/validation/schemas";
 import { normalizeIdentityNumber } from "../../../../lib/identity";
 import { runParticipantNameCorrection } from "../../../../lib/participants/name-correction";
@@ -12,6 +13,15 @@ export type ParticipantFormState = { errors?: Record<string, string>; message?: 
 export type ParticipantNameCorrectionState = { errors?: Record<string, string>; message?: string; saved?: boolean };
 
 const DUPLICATE_IDENTITY_MESSAGE = "A participant with this IC/Passport number already exists.";
+const IDENTITY_LOCKED_MESSAGE = "Only a Super Admin can change this. Ask a Super Admin to correct it.";
+
+// G9-1 (K2): identity details are Super Admin only. The database trigger trg_t1_participant_identity is the real
+// enforcement. For everyone else the edit form shows these fields read-only and does not submit them, so they are
+// neither validated nor written; a request that still carries a changed value is refused field by field.
+const IDENTITY_FIELDS = ["full_name", "ic_passport_no", "date_of_birth", "nationality"] as const;
+const participantNonIdentitySchema = participantSchema.omit({ full_name: true, ic_passport_no: true, date_of_birth: true, nationality: true });
+const sameIdentityValue = (a: unknown, b: unknown) =>
+  String(a ?? "").trim() === String(b ?? "").trim();
 
 /**
  * Pre-check only — a race between two simultaneous submissions can still
@@ -74,12 +84,14 @@ function mapDbError(error: { code?: string; message: string }): ParticipantFormS
     if (error.message.includes("identity") || error.message.includes("ic")) return { errors: { ic_passport_no: DUPLICATE_IDENTITY_MESSAGE } };
     return { errors: { _form: "A duplicate value was detected." } };
   }
+  if (error.code === "42501" && error.message.startsWith("Only a Super Admin can change")) {
+    return { message: "Only a Super Admin can change a participant's name or identity details." };
+  }
   return { message: error.message };
 }
 
 export async function createParticipant(_prev: ParticipantFormState, formData: FormData): Promise<ParticipantFormState> {
-  await requireRole("admin"); // Editors are read-only.
-  await requireModuleAccess("participants", "edit"); // writes need Participants Edit (RBAC M-09)
+  await requireModuleCapability("participants", "edit"); // T1: Admin, or Editor with Custom access + Participants Edit
   const parsed = participantSchema.safeParse(readForm(formData));
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
@@ -95,16 +107,32 @@ export async function createParticipant(_prev: ParticipantFormState, formData: F
 }
 
 export async function updateParticipant(id: string, _prev: ParticipantFormState, formData: FormData): Promise<ParticipantFormState> {
-  await requireRole("admin");
-  await requireModuleAccess("participants", "edit"); // writes need Participants Edit (RBAC M-09)
-  const parsed = participantSchema.safeParse(readForm(formData));
-  if (!parsed.success) return { errors: fieldErrors(parsed.error) };
-
+  const profile = await requireModuleCapability("participants", "edit"); // T1: Admin, or Editor with Custom access + Participants Edit
+  const input = readForm(formData);
   const supabase = await createSupabaseServerClient();
-  if (await findDuplicateIdentity(supabase, parsed.data.ic_passport_no, id)) {
-    return { errors: { ic_passport_no: DUPLICATE_IDENTITY_MESSAGE } };
+  let payload: Record<string, unknown>;
+  if (!isSuperAdmin(profile.role)) {
+    const parsed = participantNonIdentitySchema.safeParse(input);
+    if (!parsed.success) return { errors: fieldErrors(parsed.error) };
+    const { data: current, error: loadError } = await supabase
+      .from("participants").select("full_name, ic_passport_no, date_of_birth, nationality").eq("id", id).single();
+    if (loadError || !current) return { message: "The participant could not be loaded. Nothing was saved." };
+    const errors: Record<string, string> = {};
+    for (const field of IDENTITY_FIELDS) {
+      if (formData.has(field) && !sameIdentityValue(input[field], current[field])) errors[field] = IDENTITY_LOCKED_MESSAGE;
+    }
+    if (Object.keys(errors).length) return { errors };
+    payload = toPayload(parsed.data);
+    for (const field of IDENTITY_FIELDS) delete payload[field];
+  } else {
+    const parsed = participantSchema.safeParse(input);
+    if (!parsed.success) return { errors: fieldErrors(parsed.error) };
+    if (await findDuplicateIdentity(supabase, parsed.data.ic_passport_no, id)) {
+      return { errors: { ic_passport_no: DUPLICATE_IDENTITY_MESSAGE } };
+    }
+    payload = toPayload(parsed.data);
   }
-  const { error } = await supabase.from("participants").update(toPayload(parsed.data)).eq("id", id);
+  const { error } = await supabase.from("participants").update(payload).eq("id", id);
   if (error) return mapDbError(error);
   revalidatePath("/admin/participants");
   revalidatePath(`/admin/participants/${id}`);
@@ -116,8 +144,7 @@ export async function updateParticipant(id: string, _prev: ParticipantFormState,
  * (see lib/participants/name-correction.ts). Same guards as the full edit.
  */
 export async function correctParticipantName(id: string, _prev: ParticipantNameCorrectionState, formData: FormData): Promise<ParticipantNameCorrectionState> {
-  const profile = await requireRole("admin");
-  await requireModuleAccess("participants", "edit"); // writes need Participants Edit (RBAC M-09)
+  const profile = await requireRole("super_admin"); // G9-1 (K2): name corrections are Super Admin only
   const parsed = participantNameCorrectionSchema.safeParse({
     full_name: String(formData.get("full_name") ?? ""),
     expected_full_name: String(formData.get("expected_full_name") ?? ""),

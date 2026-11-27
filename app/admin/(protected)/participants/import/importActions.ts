@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { requireModuleAccess, requireRole } from "../../../../../lib/auth/session";
+import { requireModuleCapability } from "../../../../../lib/auth/session";
 import { participantImportRowSchema } from "../../../../../lib/validation/schemas";
 import { normalizeIdentityNumber } from "../../../../../lib/identity";
 
@@ -40,8 +40,8 @@ function normaliseDate(d?: string) {
  * per-row status + summary for the preview screen. Invalid rows are skipped.
  */
 export async function analyzeImport(raw: RawRow[]): Promise<ImportAnalysis> {
-  await requireRole("admin");
-  await requireModuleAccess("participants");
+  // T1: the preview is the first step of an insert, so it needs the same capability as commitImport.
+  await requireModuleCapability("participants", "edit");
   const supabase = await createSupabaseServerClient();
 
   // Existing ICs (live rows) for duplicate detection.
@@ -91,8 +91,7 @@ export async function analyzeImport(raw: RawRow[]): Promise<ImportAnalysis> {
  * entry summarising the import.
  */
 export async function commitImport(raw: RawRow[]): Promise<{ inserted: number; skipped: number; message?: string }> {
-  await requireRole("admin");
-  await requireModuleAccess("participants", "edit"); // inserts participants: Participants Edit (RBAC M-09)
+  await requireModuleCapability("participants", "edit"); // T1: Admin, or Editor with Custom access + Participants Edit
   const analysis = await analyzeImport(raw);
   const toInsert = analysis.rows.filter((r) => r.status === "ok").map((r) => r.data!);
   if (toInsert.length === 0) return { inserted: 0, skipped: analysis.summary.total };

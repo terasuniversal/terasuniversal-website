@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { requireModuleAccess, requireRole } from "../../../../../lib/auth/session";
+import { hasModuleCapability, requireModuleCapability } from "../../../../../lib/auth/session";
 import { PageHead, Card, Badge, EmptyState } from "../../../../../components/admin/ui";
 import { formatMalaysiaDateTime } from "../../../../../lib/date-time";
 import { setAssessorActive } from "../actions";
@@ -10,8 +10,8 @@ export const metadata = { title: "Assessor — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
 
 export default async function AssessorDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  await requireRole("admin");
-  await requireModuleAccess("assessors");
+  const profile = await requireModuleCapability("assessors", "view");
+  const canWrite = await hasModuleCapability("assessors", "edit", profile);
   const { id } = await params;
   const supabase = await createSupabaseServerClient();
 
@@ -35,12 +35,14 @@ export default async function AssessorDetailPage({ params }: { params: Promise<{
         action={
           <div style={{ display: "flex", gap: 8 }}>
             <Link href="/admin/assessors" className="ta-btn ta-btn-outline">← Back</Link>
-            <Link href={`/admin/assessors/${id}/edit`} className="ta-btn ta-btn-primary">Edit</Link>
-            <form action={setAssessorActive.bind(null, id, !assessor.is_active)}>
-              <button type="submit" className="ta-btn ta-btn-outline">
-                {assessor.is_active ? "Deactivate" : "Activate"}
-              </button>
-            </form>
+            {canWrite && <Link href={`/admin/assessors/${id}/edit`} className="ta-btn ta-btn-primary">Edit</Link>}
+            {canWrite && (
+              <form action={setAssessorActive.bind(null, id, !assessor.is_active)}>
+                <button type="submit" className="ta-btn ta-btn-outline">
+                  {assessor.is_active ? "Deactivate" : "Activate"}
+                </button>
+              </form>
+            )}
           </div>
         }
       />

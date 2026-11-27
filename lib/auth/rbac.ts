@@ -46,9 +46,11 @@ export const isEditor = (r?: UserRole | null) => hasMinRole(r, "editor");
 export const isTrainer = (r?: UserRole | null) => r === "trainer";
 
 /**
- * Attendance access. Trainers (who sit below Editor in the general
- * hierarchy) get explicit attendance rights: read + write. Editors read
- * only; Admin/Super Admin full.
+ * Attendance access by ROLE. Trainers (who sit below Editor in the general
+ * hierarchy) get explicit attendance rights: read + write; Admin/Super Admin
+ * full. An Editor writes only through a module capability (Custom access +
+ * Attendance Edit, e.g. Training Ops Staff, T1) -- requireAttendance(true)
+ * adds that branch via isCapabilityRoleEligible.
  */
 export const canViewAttendance = (r?: UserRole | null) => isEditor(r) || isTrainer(r);
 export const canManageAttendance = (r?: UserRole | null) => isAdmin(r) || isTrainer(r);
@@ -224,7 +226,41 @@ export const FINANCE_STAFF_PRESET = {
   ],
 } as const satisfies StaffAccessPreset;
 
-export const STAFF_ACCESS_PRESETS: readonly StaffAccessPreset[] = [SALES_STAFF_PRESET, FINANCE_STAFF_PRESET];
+/**
+ * Training Ops Staff (OWNER-TRAINING-T1-20261125): an Editor with Custom Module Access who runs Training
+ * Operations centrally (no Trainer or Assessor accounts). Edit on schedules, enrolments, participants, trainers,
+ * assessors, attendance, draft assessments, training resources and participant feedback; View on the Training
+ * dashboard, reports, courses (restricted course editing is not safely enforceable yet, so Courses stays View) and
+ * certificates (issuance and corrections stay Super Admin / Admin). No Admin-level grant, so DELETE, archive/restore
+ * (Admin role floor, T1-b), assessment finalisation (Super Admin), WAH corrections, public registrations, users,
+ * CEO Dashboard and HRDF stay out of reach. No Sales or Finance module.
+ */
+export const TRAINING_OPS_STAFF_PRESET = {
+  id: "training_ops_staff",
+  label: "Training Ops Staff",
+  role: "editor",
+  department: "training_operations",
+  accessControlEnabled: true,
+  modules: [
+    { moduleKey: "dashboard", accessLevel: "view" },
+    { moduleKey: "reports", accessLevel: "view" },
+    { moduleKey: "courses", accessLevel: "view" },
+    { moduleKey: "schedules", accessLevel: "edit" },
+    { moduleKey: "participants", accessLevel: "edit" },
+    { moduleKey: "trainers", accessLevel: "edit" },
+    { moduleKey: "assessors", accessLevel: "edit" },
+    { moduleKey: "attendance", accessLevel: "edit" },
+    { moduleKey: "assessment", accessLevel: "edit" },
+    { moduleKey: "certificates", accessLevel: "view" },
+    { moduleKey: "downloads", accessLevel: "edit" },
+    { moduleKey: "feedback", accessLevel: "edit" },
+    { moduleKey: "feedback_responses", accessLevel: "view" },
+    { moduleKey: "feedback_issues", accessLevel: "edit" },
+    { moduleKey: "feedback_actions", accessLevel: "edit" },
+  ],
+} as const satisfies StaffAccessPreset;
+
+export const STAFF_ACCESS_PRESETS: readonly StaffAccessPreset[] = [SALES_STAFF_PRESET, FINANCE_STAFF_PRESET, TRAINING_OPS_STAFF_PRESET];
 
 export const DEPARTMENTS: Array<{ value: StaffDepartment; label: string }> = [
   { value: "sales", label: "Sales" },
@@ -262,6 +298,9 @@ export function canAccessModule(
   // has_module_access_level(), whose explicit branch evaluates the assignment
   // independently of the catalog role floor.
   if (moduleKey === "hrdf_claims" && accessControlEnabled) return hasExplicitModule;
+  // Assessors (catalog floor admin) is likewise valid as an explicit Custom assignment for an Editor (Training Ops
+  // Staff, T1): assessors_read / can_manage_assessors use app.can_module, which honours the explicit grant.
+  if (moduleKey === "assessors" && accessControlEnabled && role === "editor") return hasExplicitModule;
   if (!hasMinRole(role, min)) return false;
   if (!accessControlEnabled) return true;
   return hasExplicitModule;

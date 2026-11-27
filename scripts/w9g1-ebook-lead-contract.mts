@@ -12,6 +12,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { revertW9g1, W9G1_CHANGED, W9G1_ADDED } from "./w9g1-approved.mts";
 import { revertW9g3 } from "./w9g3-approved.mts";
+import { revertFt1r1Schemas } from "./ft1r1-approved.mts"; // F-T1-r1: T1's two schemas.ts named edits, content-gated, undone first
 
 const root = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const read = (p: string) => readFileSync(path.join(root, p), "utf8").replace(/\r\n/g, "\n");
@@ -45,7 +46,7 @@ check("scope: exactly the four approved files carry W9-G1 named edits", () => {
 });
 check("integrity: reverting the named edits restores each file exactly (nothing else changed)", () => {
   // W9-G3 (owner-approved) later edited the page and the stylesheet; its named edits are undone first.
-  for (const [p, hash] of Object.entries(BEFORE)) assert(sha256(revertW9g1(p, revertW9g3(p, read(p)))) === hash, p);
+  for (const [p, hash] of Object.entries(BEFORE)) assert(sha256(revertW9g1(p, revertW9g3(p, revertFt1r1Schemas(new URL("../", import.meta.url), p, read(p))))) === hash, p);
 });
 check("unchanged: preview gate, release facts, promo, Privacy Notice (EN/BM), sitemap, robots", () => {
   for (const [p, hash] of Object.entries(UNCHANGED)) assert(sha256(read(p)) === hash, p);

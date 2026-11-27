@@ -70,6 +70,8 @@ function runAll(src: Sources, table: Table): string[] {
   const guards = new Map(FILES.map((f) => [f, parseGuards(src[f])]));
   for (const [moduleKey, actions] of Object.entries(table)) {
     for (const action of actions) {
+      // Training Operations entries (T1) are verified by scripts/t1-training-ops-contract.test.mts.
+      if (!FILES.includes(action.source.file)) continue;
       check(`${moduleKey}: "${action.label}" mirrors ${action.source.file}#${action.source.fn}`, () => {
         const g = guards.get(action.source.file)?.get(action.source.fn);
         assert.ok(g, `exported action ${action.source.fn} not found in ${action.source.file}`);

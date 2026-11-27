@@ -179,7 +179,9 @@ export async function hasModuleAccess(
 export async function requireAttendance(write = false): Promise<Profile> {
   // Writes need Attendance at Edit, the same level the attendance write policies require (RBAC M-09).
   const profile = await requireModuleAccess("attendance", write ? "edit" : "view");
-  const ok = write ? canManageAttendance(profile.role) : canViewAttendance(profile.role);
+  // T1: a write is a module capability (Admin, or an Editor with Custom access + Attendance Edit, e.g. Training Ops
+  // Staff), or the unchanged Trainer branch -- the same two branches as the attendance write policies.
+  const ok = write ? canManageAttendance(profile.role) || isCapabilityRoleEligible(profile) : canViewAttendance(profile.role);
   if (!ok) redirect("/admin/no-access");
   return profile;
 }
@@ -188,7 +190,8 @@ export async function requireAttendance(write = false): Promise<Profile> {
 export async function requireAssessment(write = false): Promise<Profile> {
   // Writes need Assessment at Edit, the same level the assessment write policies require (RBAC M-09).
   const profile = await requireModuleAccess("assessment", write ? "edit" : "view");
-  const ok = write ? canManageAssessment(profile.role) : canViewAssessment(profile.role);
+  // T1: same two branches as the assessment write policies (module capability, or the Trainer branch).
+  const ok = write ? canManageAssessment(profile.role) || isCapabilityRoleEligible(profile) : canViewAssessment(profile.role);
   if (!ok) redirect("/admin/no-access");
   return profile;
 }

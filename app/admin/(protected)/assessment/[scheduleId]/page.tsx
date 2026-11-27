@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { requireModuleAccess, requireAssessment } from "../../../../../lib/auth/session";
-import { canManageAssessment, canManageCertificate, isAdmin, isEditor, isSuperAdmin } from "../../../../../lib/auth/rbac";
+import { hasModuleAccess, requireModuleAccess, requireAssessment } from "../../../../../lib/auth/session";
+import { canManageAssessment, canManageCertificate, isCapabilityRoleEligible, isEditor, isSuperAdmin } from "../../../../../lib/auth/rbac";
 import { isWahCourse } from "../../../../../lib/certificates/wah-failed-hold";
 import { PageHead, Card, Badge, EmptyState, StatCard } from "../../../../../components/admin/ui";
 import { AssessmentTable, type AsmRow } from "../AssessmentTable";
@@ -21,7 +21,9 @@ export default async function AssessSchedulePage({
 }) {
   await requireModuleAccess("assessment");
   const profile = await requireAssessment(false);
-  const canManage = canManageAssessment(profile.role);
+  // T1: same branches as requireAssessment(true) -- module capability (e.g. Training Ops Staff) or the Trainer
+  // branch -- plus Assessment Edit, so a View-only grant never shows controls the server rejects.
+  const canManage = (canManageAssessment(profile.role) || isCapabilityRoleEligible(profile)) && (await hasModuleAccess("assessment", "edit"));
   const superAdmin = isSuperAdmin(profile.role);
   // Certificate Generator card: only shown when the viewer can actually reach
   // /admin/certificates/generate/[scheduleId] (that route itself gates on
@@ -81,7 +83,7 @@ export default async function AssessSchedulePage({
 
   const { data: asm } = await supabase
     .from("assessments")
-    .select("id, participant_id, assessment_type, theory_score, practical_score, theory_result, practical_result, result, competency_status, remarks, locked")
+    .select("id, participant_id, assessment_type, theory_score, practical_score, theory_result, practical_result, result, competency_status, remarks, locked, evidence_assessor_id, evidence_reference")
     .eq("schedule_id", scheduleId)
     .is("deleted_at", null);
   const byParticipant = new Map<string, any>((asm ?? []).map((a: any): [string, any] => [a.participant_id, a]));
@@ -100,6 +102,40 @@ export default async function AssessSchedulePage({
     skillsByParticipant.set(row.participant_id, m);
   }
 
+  // T1 evidence: the Assessors a result may be attributed to -- active, and assigned to this schedule
+  // (schedule_assessors) or to the participant's own group. Same rule as app.t1_assert_assessment_evidence.
+  // Needs Assessors View to read names (S-1); without it the list is empty and the database still decides.
+  const { data: scheduleAssessorRows, error: scheduleAssessorError } = await supabase
+    .from("schedule_assessors")
+    .select("assessor_id")
+    .eq("schedule_id", scheduleId);
+  if (scheduleAssessorError) console.error("assessment: schedule_assessors query failed", { scheduleId, error: scheduleAssessorError.message });
+  const scheduleAssessorIds = ((scheduleAssessorRows ?? []) as { assessor_id: string }[]).map((row) => row.assessor_id);
+  const groupAssessorById = new Map(groups.map((g) => [g.id, g.assessor_id ?? null]));
+  const evidenceAssessorIds = Array.from(new Set([
+    ...scheduleAssessorIds,
+    ...groups.map((g) => g.assessor_id).filter((id): id is string => Boolean(id)),
+    ...((asm ?? []) as { evidence_assessor_id: string | null }[]).map((a) => a.evidence_assessor_id).filter((id): id is string => Boolean(id)),
+  ]));
+  const assessorById = new Map<string, { id: string; full_name: string; is_active: boolean }>();
+  if (evidenceAssessorIds.length > 0) {
+    const { data: assessorRows, error: assessorError } = await supabase
+      .from("assessors")
+      .select("id, full_name, is_active")
+      .in("id", evidenceAssessorIds);
+    if (assessorError) console.error("assessment: assessors query failed", { scheduleId, error: assessorError.message });
+    for (const row of (assessorRows ?? []) as { id: string; full_name: string; is_active: boolean }[]) assessorById.set(row.id, row);
+  }
+  const evidenceOptionsFor = (groupId: string | null) => {
+    const ids = new Set(scheduleAssessorIds);
+    const groupAssessor = groupId ? groupAssessorById.get(groupId) : null;
+    if (groupAssessor) ids.add(groupAssessor);
+    return [...ids]
+      .map((id) => assessorById.get(id))
+      .filter((a): a is { id: string; full_name: string; is_active: boolean } => Boolean(a?.is_active))
+      .map((a) => ({ id: a.id, name: a.full_name }));
+  };
+
   const rows: AsmRow[] = rosterFiltered.map((r: any) => {
     const a = byParticipant.get(r.participant_id);
     return {
@@ -114,6 +150,10 @@ export default async function AssessSchedulePage({
       competency_status: a?.competency_status ?? null,
       remarks: a?.remarks ?? null,
       locked: a?.locked ?? false,
+      evidence_assessor_id: a?.evidence_assessor_id ?? null,
+      evidence_assessor_name: a?.evidence_assessor_id ? assessorById.get(a.evidence_assessor_id)?.full_name ?? null : null,
+      evidence_reference: a?.evidence_reference ?? null,
+      evidence_options: evidenceOptionsFor(r.schedule_group_id ?? null),
       participant: r.participants,
       skills: skillsByParticipant.get(r.participant_id) ?? {},
     };
@@ -141,6 +181,8 @@ export default async function AssessSchedulePage({
               ? "Assessment was not changed because one or more selected assessments are locked."
               : assessmentError === "unauthorized_unlock"
                 ? "Only an active Super Admin can unlock assessments."
+                : assessmentError === "invalid_evidence"
+                  ? "Assessment was not saved. Select the Assessor who assessed the participant (active and assigned to this schedule or group) and enter an evidence reference of 3 to 200 characters."
                 : assessmentError === "invalid_group"
                   ? "Assessment was not changed because the group context is invalid or no longer matches the schedule."
                   : assessmentError === "invalid_input"
@@ -237,7 +279,7 @@ export default async function AssessSchedulePage({
             canViewParticipants={canViewParticipants}
             groupId={selection && selection !== UNGROUPED ? selection.id : selection === UNGROUPED ? UNGROUPED : null}
             protectFailed={isWahCourse(s.course_id)}
-            canCorrectFailed={isAdmin(profile.role)}
+            canCorrectFailed={superAdmin}
           />
         ) : rosterFiltered.length === 0 && (roster ?? []).length > 0 ? (
           <EmptyState icon="📝" message="No participants assigned to this group yet." />

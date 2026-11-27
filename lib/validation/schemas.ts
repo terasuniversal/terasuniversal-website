@@ -83,6 +83,9 @@ export const scheduleSchema = z
   .object({
     course_id: z.string().uuid("Select a course"),
     trainer_name: z.string().trim().max(160).optional().or(z.literal("")),
+    // T1: optional link to a trainer record (app.t1_guard_schedule_trainer requires it to be active when set or
+    // changed). trainer_name stays free text for legacy schedules and display.
+    trainer_id: z.string().trim().uuid("Select an active trainer").optional().or(z.literal("")),
     venue: z.string().trim().max(200).optional().or(z.literal("")),
     training_mode: z.string().trim().max(40).optional().or(z.literal("")),
     start_date: z.string().date("Enter a valid start date"),
@@ -170,6 +173,15 @@ export const wahFailedCorrectionSchema = z.object({
   evidence_reference: z.string().trim().min(3, "Enter a reference to the retained training evidence.").max(200),
 });
 export type WahFailedCorrectionInput = z.infer<typeof wahFailedCorrectionSchema>;
+
+// T1 assessment accountability: the qualified Assessor who actually assessed the participant (public.assessors,
+// active and assigned to the schedule or the participant's group) and a reference to the retained evidence. Limits
+// mirror app.t1_assert_assessment_evidence, which re-checks them (and the assignment) in the database.
+export const assessmentEvidenceSchema = z.object({
+  evidence_assessor_id: z.string().trim().uuid("Select the Assessor who assessed this participant."),
+  evidence_reference: z.string().trim().min(3, "Enter an evidence reference of at least 3 characters.").max(200),
+});
+export type AssessmentEvidenceInput = z.infer<typeof assessmentEvidenceSchema>;
 
 // Public contact lead capture (ContactForm.js homepage widget +
 // ContactEnquiryForm.js on /contact). subject/enquiryType option lists

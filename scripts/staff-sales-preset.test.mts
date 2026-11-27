@@ -1,6 +1,10 @@
 import { readFile } from "node:fs/promises";
 
 const rbac = await readFile("lib/auth/rbac.ts", "utf8");
+// T1: the Training Ops Staff preset (after the Sales one) legitimately lists courses, so the training-defaults
+// check reads only the Sales preset object.
+const salesStart = rbac.indexOf("export const SALES_STAFF_PRESET");
+const salesPreset = rbac.slice(salesStart, rbac.indexOf("} as const satisfies StaffAccessPreset;", salesStart));
 const form = await readFile("app/admin/(protected)/users/StaffUserForm.tsx", "utf8");
 const actions = await readFile("app/admin/(protected)/users/actions.ts", "utf8");
 const editPage = await readFile("app/admin/(protected)/users/[id]/page.tsx", "utf8");
@@ -13,7 +17,7 @@ const checks: Array<[string, boolean]> = [
   ["Sales preset includes explicit HRDF view", /moduleKey: "hrdf_claims", accessLevel: "view"/.test(rbac)],
   ["Sales preset has no admin module level", !/SALES_STAFF_PRESET[\s\S]*?accessLevel: "admin"/.test(rbac)],
   ["Sales preset excludes Staff Users", !/SALES_STAFF_PRESET[\s\S]*?moduleKey: "users"/.test(rbac)],
-  ["Sales preset excludes training defaults", !/SALES_STAFF_PRESET[\s\S]*?moduleKey: "courses"/.test(rbac)],
+  ["Sales preset excludes training defaults", salesStart >= 0 && !/moduleKey: "courses"/.test(salesPreset)],
   ["Sales preset excludes marketing defaults", !/SALES_STAFF_PRESET[\s\S]*?moduleKey: "marketing"/.test(rbac)],
   ["Preset application is a button draft action", /type="button"[\s\S]*?applyPreset\(preset\)/.test(form) && /STAFF_ACCESS_PRESETS/.test(form)],
   ["Preset does not submit until the form is saved", /Nothing is saved until you submit this form/.test(form)],

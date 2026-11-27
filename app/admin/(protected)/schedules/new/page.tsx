@@ -1,9 +1,9 @@
-import { requireModuleAccess, requireRole } from "../../../../../lib/auth/session";
+import { requireModuleCapability } from "../../../../../lib/auth/session";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { PageHead } from "../../../../../components/admin/ui";
 import { ScheduleForm } from "../ScheduleForm";
 import { createSchedule } from "../actions";
-import { loadCourseOptions, loadAssessorOptions } from "../options";
+import { loadCourseOptions, loadAssessorOptions, loadTrainerOptions } from "../options";
 import { getAutomationSettings } from "../../automation/actions";
 
 export const metadata = { title: "New Schedule — TERAS UNIVERSAL Admin" };
@@ -30,13 +30,13 @@ export default async function NewSchedulePage({
     notes?: string;
   }>;
 }) {
-  await requireRole("admin");
-  await requireModuleAccess("schedules", "edit");
+  await requireModuleCapability("schedules", "edit");
   const sp = await searchParams;
-  const [courses, settings, assessorOptions] = await Promise.all([
+  const [courses, settings, assessorOptions, trainerOptions] = await Promise.all([
     loadCourseOptions(),
     getAutomationSettings(),
     loadAssessorOptions(),
+    loadTrainerOptions(),
   ]);
 
   let handoff: { opportunityId: string; quotationId?: string; opportunityNo?: string; quotationNo?: string } | undefined;
@@ -74,6 +74,7 @@ export default async function NewSchedulePage({
         action={createSchedule}
         courses={courses}
         assessors={assessorOptions}
+        trainers={trainerOptions}
         mode="create"
         defaultTrainingMode={settings.default_training_mode}
         schedule={prefill}

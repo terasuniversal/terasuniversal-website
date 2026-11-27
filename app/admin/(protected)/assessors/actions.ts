@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { requireModuleAccess, requireRole } from "../../../../lib/auth/session";
+import { requireModuleCapability } from "../../../../lib/auth/session";
 import { assessorSchema, fieldErrors } from "../../../../lib/validation/schemas";
 
 export type AssessorFormState = { errors?: Record<string, string>; message?: string };
@@ -50,12 +50,9 @@ function mapErr(error: { code?: string; message: string }): AssessorFormState {
 }
 
 async function guard() {
-  const profile = await requireRole("admin");
-  // Write-level module gate: legacy admin passes via catalog fallback;
-  // explicit-access admins need the assessors module at 'admin' level. Mirrors
-  // the RLS write policies (app.can_manage_assessors).
-  await requireModuleAccess("assessors", "admin");
-  return profile;
+  // T1: Admin, or an Editor with Custom access + Assessors Edit (Training Ops Staff).
+  // Mirrors the RLS write policies (app.can_manage_assessors = app.can_module('assessors', 'edit')).
+  return requireModuleCapability("assessors", "edit");
 }
 
 export async function createAssessor(_prev: AssessorFormState, formData: FormData): Promise<AssessorFormState> {

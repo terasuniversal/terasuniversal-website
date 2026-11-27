@@ -14,10 +14,13 @@ export function AssessmentScheduleActions({
 }) {
   return (
     <>
-      <MutationForm action={lockAssessments.bind(null, scheduleId)} pendingLabel="Locking…" idleLabel="Lock all assessed">
-        {assessmentIds.map((id) => <input key={id} type="hidden" name="ids" value={id} />)}
-        <MutationSubmitButton className="ta-btn ta-btn-outline ta-btn-sm">🔒 Lock all assessed</MutationSubmitButton>
-      </MutationForm>
+      {/* T1: finalising (locking) is Super Admin only; Training Ops Staff prepare drafts. */}
+      {isSuperAdmin && (
+        <MutationForm action={lockAssessments.bind(null, scheduleId)} pendingLabel="Locking…" idleLabel="Lock all assessed">
+          {assessmentIds.map((id) => <input key={id} type="hidden" name="ids" value={id} />)}
+          <MutationSubmitButton className="ta-btn ta-btn-outline ta-btn-sm">🔒 Lock all assessed</MutationSubmitButton>
+        </MutationForm>
+      )}
       {isSuperAdmin && (
         <MutationForm action={unlockAssessments.bind(null, scheduleId)} pendingLabel="Unlocking…" idleLabel="Unlock all">
           {assessmentIds.map((id) => <input key={id} type="hidden" name="ids" value={id} />)}

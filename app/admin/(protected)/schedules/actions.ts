@@ -3,7 +3,7 @@
 import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { requireModuleAccess, requireRole } from "../../../../lib/auth/session";
+import { requireModuleAccess, requireModuleCapability, requireRole } from "../../../../lib/auth/session";
 import { scheduleSchema, scheduleGroupSchema, fieldErrors } from "../../../../lib/validation/schemas";
 import { ACTIVITY_UNSAVED_NOTICE, withNotice } from "../../../../lib/sales/activity-notice";
 import { courseCatalog } from "../../../../data/courseCatalog";
@@ -49,6 +49,7 @@ function readForm(formData: FormData) {
   return {
     course_id: v("course_id"),
     trainer_name: v("trainer_name"),
+    trainer_id: v("trainer_id"),
     venue: v("venue"),
     training_mode: v("training_mode"),
     start_date: v("start_date"),
@@ -76,13 +77,37 @@ function clean(data: any) {
   // exam_date is a nullable `date` column and, unlike start_date/end_date, is
   // genuinely optional -- a blank submission must clear it to NULL, not send
   // an empty string (which Postgres rejects for a date column).
-  for (const k of ["trainer_name", "venue", "training_mode", "exam_date", "start_time", "end_time", "notes", "source_opportunity_id", "source_quotation_id"]) {
+  for (const k of ["trainer_name", "trainer_id", "venue", "training_mode", "exam_date", "start_time", "end_time", "notes", "source_opportunity_id", "source_quotation_id"]) {
     if (!out[k]) out[k] = null;
   }
   // assessor_id is not a course_schedules column — it is stored relationally
   // in schedule_assessors (see applyAssessorAssignment below).
   delete out.assessor_id;
   return out;
+}
+
+/**
+ * T1 trainer identity: a chosen trainer must be active (friendly message here; app.t1_guard_schedule_trainer
+ * enforces it in the database). The free-text trainer_name is kept; when it is blank it takes the trainer's name so
+ * existing pages and exports that read trainer_name keep working. Nothing is guessed from a free-text name.
+ * An unchanged trainer_id on edit is not re-validated (a trainer deactivated later stays on old schedules).
+ */
+async function resolveTrainer(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  payload: { trainer_id: string | null; trainer_name: string | null },
+  previousTrainerId: string | null = null,
+): Promise<string | null> {
+  if (!payload.trainer_id || payload.trainer_id === previousTrainerId) return null;
+  const { data: trainer, error } = await supabase
+    .from("trainers")
+    .select("id, full_name, status, deleted_at")
+    .eq("id", payload.trainer_id)
+    .maybeSingle();
+  if (error) return "The trainer could not be checked. Please try again.";
+  const t = trainer as { full_name: string | null; status: string | null; deleted_at: string | null } | null;
+  if (!t || t.deleted_at || t.status !== "active") return "Selected trainer is not active or no longer exists.";
+  if (!payload.trainer_name) payload.trainer_name = t.full_name;
+  return null;
 }
 
 // TRAINER CONFLICT CHECK DEFERRED UNTIL TRAINERS ARE NORMALIZED.
@@ -97,14 +122,15 @@ function clean(data: any) {
 // stopgap; wait for a real trainers table.
 
 export async function createSchedule(_prev: ScheduleFormState, formData: FormData): Promise<ScheduleFormState> {
-  const profile = await requireRole("admin"); // Editors are read-only.
-  await requireModuleAccess("schedules", "edit");
+  const profile = await requireModuleCapability("schedules", "edit"); // T1: Admin, or Editor with Custom access (Training Ops Staff)
   const parsed = scheduleSchema.safeParse(readForm(formData));
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
   const supabase = await createSupabaseServerClient();
   const { assessor_id, ...scheduleData } = parsed.data;
   const payload = clean(scheduleData);
+  const trainerError = await resolveTrainer(supabase, payload);
+  if (trainerError) return { errors: { trainer_id: trainerError } };
   const { data: created, error } = await supabase
     .from("course_schedules")
     .insert(payload)
@@ -169,15 +195,17 @@ export async function createSchedule(_prev: ScheduleFormState, formData: FormDat
 }
 
 export async function updateSchedule(id: string, _prev: ScheduleFormState, formData: FormData): Promise<ScheduleFormState> {
-  await requireRole("admin");
-  await requireModuleAccess("schedules", "edit");
+  await requireModuleCapability("schedules", "edit"); // T1: Admin, or Editor with Custom access (Training Ops Staff)
   const parsed = scheduleSchema.safeParse(readForm(formData));
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
   const supabase = await createSupabaseServerClient();
-  const { data: previousSchedule } = await supabase.from("course_schedules").select("course_id").eq("id", id).maybeSingle();
+  const { data: previousSchedule } = await supabase.from("course_schedules").select("course_id, trainer_id").eq("id", id).maybeSingle();
   const { assessor_id, ...scheduleData } = parsed.data;
-  const { error } = await supabase.from("course_schedules").update(clean(scheduleData)).eq("id", id);
+  const payload = clean(scheduleData);
+  const trainerError = await resolveTrainer(supabase, payload, (previousSchedule as { trainer_id: string | null } | null)?.trainer_id ?? null);
+  if (trainerError) return { errors: { trainer_id: trainerError } };
+  const { error } = await supabase.from("course_schedules").update(payload).eq("id", id);
   if (error) return { message: error.message };
   // Assignment is atomic via RPC; on failure the schedule update is already
   // committed, so surface the partial-success error on the edit form.
@@ -191,18 +219,19 @@ export async function updateSchedule(id: string, _prev: ScheduleFormState, formD
 
 /** Duplicate — clone core fields; reset status to open, no enrollments. */
 export async function duplicateSchedule(id: string) {
-  await requireRole("admin");
-  await requireModuleAccess("schedules", "edit");
+  await requireModuleCapability("schedules", "edit"); // T1: Admin, or Editor with Custom access (Training Ops Staff)
   const supabase = await createSupabaseServerClient();
   const { data: src } = await supabase.from("course_schedules").select("*").eq("id", id).single();
   if (!src) return;
   const s: any = src;
-  await supabase.from("course_schedules").insert({
-    course_id: s.course_id, trainer_name: s.trainer_name, venue: s.venue,
+  const { error: duplicateError } = await supabase.from("course_schedules").insert({
+    course_id: s.course_id, trainer_name: s.trainer_name, trainer_id: s.trainer_id ?? null, venue: s.venue,
     training_mode: s.training_mode, start_date: s.start_date, end_date: s.end_date,
     start_time: s.start_time, end_time: s.end_time, capacity: s.capacity,
     notes: s.notes, status: "open", is_published: false,
   });
+  // e.g. the source's trainer was deactivated since (app.t1_guard_schedule_trainer): nothing is created.
+  if (duplicateError) console.error("duplicateSchedule: insert failed", { code: duplicateError.code });
   revalidatePath("/admin/schedules");
   await revalidatePublicScheduleViews(supabase, [s.course_id]);
 }
@@ -266,8 +295,7 @@ export async function restoreSchedule(id: string) {
  * silently as a side effect.
  */
 export async function assignParticipants(scheduleId: string, _prev: ScheduleFormState, formData: FormData): Promise<ScheduleFormState> {
-  await requireRole("admin");
-  await requireModuleAccess("schedules", "edit");
+  await requireModuleCapability("schedules", "edit"); // T1: Admin, or Editor with Custom access (Training Ops Staff)
   const ids = formData.getAll("participant_ids").map(String).filter(Boolean);
   if (ids.length === 0) return {};
   const supabase = await createSupabaseServerClient();
@@ -353,8 +381,7 @@ export async function assignParticipants(scheduleId: string, _prev: ScheduleForm
 /** "Remove" cancels the enrollment rather than deleting it, so registration
  * history survives and the participant can be re-enrolled later. */
 export async function removeParticipant(scheduleId: string, assignmentId: string) {
-  await requireRole("admin");
-  await requireModuleAccess("schedules", "edit");
+  await requireModuleCapability("schedules", "edit"); // T1: Admin, or Editor with Custom access (Training Ops Staff)
   const supabase = await createSupabaseServerClient();
 
   // Same read-only-after-merge rule as assignParticipants -- an ordinary
@@ -413,9 +440,8 @@ async function applyAssessorAssignment(
  *  Signature matches the useActionState form pattern (reads assessor_id from
  *  the submitted form). */
 export async function setScheduleAssessor(scheduleId: string, _prev: ScheduleFormState, formData: FormData): Promise<ScheduleFormState> {
-  await requireRole("admin");
-  await requireModuleAccess("schedules", "admin");
-  await requireModuleAccess("assessors");
+  await requireModuleCapability("schedules", "edit"); // T1: mirrors app.can_manage_schedule_assessors()
+  await requireModuleCapability("assessors", "view");
   const assessorId = String(formData.get("assessor_id") ?? "").trim();
   const supabase = await createSupabaseServerClient();
   const err = await applyAssessorAssignment(supabase, scheduleId, assessorId);
@@ -461,8 +487,7 @@ function conflictMessage(kind: "trainer" | "assessor", rows: { group_name: strin
  * constraint.
  */
 export async function createGroup(scheduleId: string, _prev: GroupFormState, formData: FormData): Promise<GroupFormState> {
-  await requireRole("admin");
-  await requireModuleAccess("schedules", "edit");
+  await requireModuleCapability("schedules", "edit"); // T1: Admin, or Editor with Custom access (Training Ops Staff)
   const parsed = scheduleGroupSchema.safeParse({
     name: String(formData.get("name") ?? "").trim(),
     trainer_id: String(formData.get("trainer_id") ?? "").trim(),
@@ -528,8 +553,7 @@ export async function createGroup(scheduleId: string, _prev: GroupFormState, for
  *  validation + conflict checks as createGroup, excluding the group's own
  *  row from the overlap comparison. */
 export async function updateGroup(scheduleId: string, groupId: string, _prev: GroupFormState, formData: FormData): Promise<GroupFormState> {
-  await requireRole("admin");
-  await requireModuleAccess("schedules", "edit");
+  await requireModuleCapability("schedules", "edit"); // T1: Admin, or Editor with Custom access (Training Ops Staff)
   const parsed = scheduleGroupSchema.safeParse({
     name: String(formData.get("name") ?? "").trim(),
     trainer_id: String(formData.get("trainer_id") ?? "").trim(),
@@ -605,8 +629,7 @@ export async function updateGroup(scheduleId: string, groupId: string, _prev: Gr
  * existing assessor_error pattern on this same page.
  */
 export async function removeGroup(scheduleId: string, groupId: string) {
-  await requireRole("admin");
-  await requireModuleAccess("schedules", "edit");
+  await requireModuleCapability("schedules", "edit"); // T1: Admin, or Editor with Custom access (Training Ops Staff)
   const supabase = await createSupabaseServerClient();
   const { count } = await supabase
     .from("schedule_participants")
@@ -629,8 +652,7 @@ export async function removeGroup(scheduleId: string, groupId: string) {
  * column comment in the migration for why a column, not a mapping table).
  */
 export async function assignParticipantGroup(scheduleId: string, assignmentId: string, _prev: GroupFormState, formData: FormData): Promise<GroupFormState> {
-  await requireRole("admin");
-  await requireModuleAccess("schedules", "edit");
+  await requireModuleCapability("schedules", "edit"); // T1: Admin, or Editor with Custom access (Training Ops Staff)
   const groupId = String(formData.get("schedule_group_id") ?? "").trim();
   const supabase = await createSupabaseServerClient();
 

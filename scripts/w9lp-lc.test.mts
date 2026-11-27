@@ -12,6 +12,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { approvedAdminLoading, approvedRootLoading, revertW10ux, revertW10uxFoundation, w10uxAdminBoundaryApproved, W10UX_ADMIN, W10UX_FOUNDATION, W10UX_FROM, W10UX_TO } from "./w10ux-approved.mts";
+import { revertFt1r1Foundation } from "./ft1r1-approved.mts"; // F-T1-r1 is later than CE-1: undone first
 
 const root = new URL("../", import.meta.url);
 const rootPath = fileURLToPath(root);
@@ -78,14 +79,14 @@ test("L-C named edits fail closed: a copy, a missing edit, a doubled edit or an 
 });
 
 test("CE-1: reverting the three named edits restores the foundation contract at HEAD exactly (LF and CRLF)", () => {
-  const now = read(W10UX_FOUNDATION);
+  const now = revertFt1r1Foundation(read(W10UX_FOUNDATION));
   assert.equal(revertW10uxFoundation(now), atMain(W10UX_FOUNDATION).replace(/\r\n/g, "\n"));
   assert.equal(revertW10uxFoundation(now.replace(/\n/g, "\r\n")), atMain(W10UX_FOUNDATION).replace(/\r\n/g, "\n").replace(/\n/g, "\r\n"));
   assert.equal((now.match(/w10uxAdminBoundaryApproved/g) || []).length, 3, "used only in the import and the two protected-path filters");
 });
 
 test("CE-1 named edits fail closed: missing, doubled or altered edits are refused", () => {
-  const now = read(W10UX_FOUNDATION);
+  const now = revertFt1r1Foundation(read(W10UX_FOUNDATION));
   assert.throws(() => revertW10uxFoundation(atMain(W10UX_FOUNDATION)), /not found exactly once/);
   assert.throws(() => revertW10uxFoundation(now + now), /not found exactly once/);
   assert.throws(() => revertW10uxFoundation(now.replace("/* CE-1 exact path */);", "/* CE-1 exact path */ || true);")), /not found exactly once/);
