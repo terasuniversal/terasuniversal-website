@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient, createSupabaseServiceClient } from "../../../../lib/supabase/server";
-import { requireModuleAccess, requireRole } from "../../../../lib/auth/session";
+import { requireModuleAccess, requireModuleCapability, requireRole } from "../../../../lib/auth/session";
 import { participantSchema, participantNameCorrectionSchema, fieldErrors } from "../../../../lib/validation/schemas";
 import { normalizeIdentityNumber } from "../../../../lib/identity";
 import { runParticipantNameCorrection } from "../../../../lib/participants/name-correction";
@@ -78,8 +78,7 @@ function mapDbError(error: { code?: string; message: string }): ParticipantFormS
 }
 
 export async function createParticipant(_prev: ParticipantFormState, formData: FormData): Promise<ParticipantFormState> {
-  await requireRole("admin"); // Editors are read-only.
-  await requireModuleAccess("participants", "edit"); // writes need Participants Edit (RBAC M-09)
+  await requireModuleCapability("participants", "edit"); // T1: Admin, or Editor with Custom access + Participants Edit
   const parsed = participantSchema.safeParse(readForm(formData));
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
@@ -95,8 +94,7 @@ export async function createParticipant(_prev: ParticipantFormState, formData: F
 }
 
 export async function updateParticipant(id: string, _prev: ParticipantFormState, formData: FormData): Promise<ParticipantFormState> {
-  await requireRole("admin");
-  await requireModuleAccess("participants", "edit"); // writes need Participants Edit (RBAC M-09)
+  await requireModuleCapability("participants", "edit"); // T1: Admin, or Editor with Custom access + Participants Edit
   const parsed = participantSchema.safeParse(readForm(formData));
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
@@ -116,8 +114,7 @@ export async function updateParticipant(id: string, _prev: ParticipantFormState,
  * (see lib/participants/name-correction.ts). Same guards as the full edit.
  */
 export async function correctParticipantName(id: string, _prev: ParticipantNameCorrectionState, formData: FormData): Promise<ParticipantNameCorrectionState> {
-  const profile = await requireRole("admin");
-  await requireModuleAccess("participants", "edit"); // writes need Participants Edit (RBAC M-09)
+  const profile = await requireModuleCapability("participants", "edit"); // T1: Admin, or Editor with Custom access + Participants Edit
   const parsed = participantNameCorrectionSchema.safeParse({
     full_name: String(formData.get("full_name") ?? ""),
     expected_full_name: String(formData.get("expected_full_name") ?? ""),

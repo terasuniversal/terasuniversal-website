@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { requireRole, requireModuleAccess } from "../../../../lib/auth/session";
+import { requireRole, requireModuleAccess, hasModuleCapability } from "../../../../lib/auth/session";
 import { isAdmin } from "../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, EmptyState, Pagination, Avatar } from "../../../../components/admin/ui";
 import { formatMalaysiaDate } from "../../../../lib/date-time";
@@ -17,7 +17,7 @@ export default async function TrainersPage({
 }) {
   const profile = await requireRole("editor");
   await requireModuleAccess("trainers");
-  const canWrite = isAdmin(profile.role);
+  const canWrite = await hasModuleCapability("trainers", "edit", profile);
   const sp = await searchParams;
   const page = Math.max(1, Number(sp.page ?? 1));
   const deletedView = sp.deleted === "1";

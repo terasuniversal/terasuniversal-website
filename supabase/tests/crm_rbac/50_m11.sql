@@ -73,7 +73,7 @@ declare
   i int; exp_s text; e text; got text; res text; grid text; np int := 0; nf int := 0;
 begin
   for c in select * from rbac_test.m11_cases order by id loop
-    exp_s := case when p_stage = 'E' then c.post else c.pre end;
+    exp_s := case when p_stage in ('E', 'F') then c.post else c.pre end;
     grid := '';
     for i in 1..23 loop
       e := substr(exp_s, i, 1);

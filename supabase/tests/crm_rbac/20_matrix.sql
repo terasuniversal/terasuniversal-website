@@ -172,7 +172,7 @@ begin
   for c in select * from rbac_test.cases order by id loop
     exp_s := case
       when p_stage = 'S0' then case when c.grp = 'cm' then repeat('-', 16) else c.pre end
-      when p_stage in ('C', 'D', 'E') then c.post
+      when p_stage in ('C', 'D', 'E', 'F') then c.post
       when c.grp = 'narrow' then c.post
       when c.grp = 'cm' then case when p_stage = 'B' then c.post else repeat('-', 16) end
       else c.pre end;

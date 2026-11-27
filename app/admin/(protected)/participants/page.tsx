@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { requireModuleAccess, requireRole } from "../../../../lib/auth/session";
+import { hasModuleCapability, requireModuleAccess, requireRole } from "../../../../lib/auth/session";
 import { isAdmin } from "../../../../lib/auth/rbac";
 import { PageHead, Card, EmptyState, Pagination } from "../../../../components/admin/ui";
 import { ParticipantTable, type Row } from "./ParticipantTable";
@@ -26,7 +26,9 @@ export default async function ParticipantsPage({
 }) {
   const profile = await requireRole("editor"); // read allowed for all staff
   await requireModuleAccess("participants");
-  const canWrite = isAdmin(profile.role);
+  // T1: create/import need the Participants Edit capability; bulk archive/restore keep the Admin-role floor.
+  const canWrite = await hasModuleCapability("participants", "edit", profile);
+  const canArchive = canWrite && isAdmin(profile.role);
   const sp = await searchParams;
   const page = Math.max(1, Number(sp.page ?? 1));
   const deletedView = sp.deleted === "1";
@@ -114,7 +116,7 @@ export default async function ParticipantsPage({
 
       <Card>
         {rows && rows.length > 0 ? (
-          <ParticipantTable rows={rows as Row[]} canWrite={canWrite} deletedView={deletedView} />
+          <ParticipantTable rows={rows as Row[]} canWrite={canArchive} deletedView={deletedView} />
         ) : (
           <EmptyState icon="👥" message={deletedView ? "No deleted participants." : "No participants found. Add or import to get started."} />
         )}

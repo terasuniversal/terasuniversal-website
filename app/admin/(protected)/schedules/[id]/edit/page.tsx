@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
-import { requireModuleAccess, requireRole } from "../../../../../../lib/auth/session";
+import { requireModuleCapability } from "../../../../../../lib/auth/session";
 import { PageHead, Card } from "../../../../../../components/admin/ui";
 import { ScheduleForm } from "../../ScheduleForm";
 import { GroupsPanel } from "../../GroupsPanel";
@@ -11,8 +11,7 @@ export const metadata = { title: "Edit Schedule — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
 
 export default async function EditSchedulePage({ params }: { params: Promise<{ id: string }> }) {
-  await requireModuleAccess("schedules", "edit");
-  await requireRole("admin");
+  await requireModuleCapability("schedules", "edit");
   const { id } = await params;
   const supabase = await createSupabaseServerClient();
   const { data: schedule } = await supabase.from("course_schedules").select("*, courses(course_name)").eq("id", id).single();
@@ -78,7 +77,7 @@ export default async function EditSchedulePage({ params }: { params: Promise<{ i
   return (
     <>
       <PageHead title="Edit Schedule" subtitle={`${schedule.schedule_code ?? ""} · ${(schedule as any).courses?.course_name ?? ""}`} />
-      <ScheduleForm action={boundUpdate} schedule={schedule} courses={courses} assessors={assessorOptions} defaultAssessorId={defaultAssessorId} mode="edit" />
+      <ScheduleForm action={boundUpdate} schedule={schedule} courses={courses} assessors={assessorOptions} trainers={trainerOptions} defaultAssessorId={defaultAssessorId} mode="edit" />
 
       <div style={{ maxWidth: 820, marginTop: 18 }}>
         <Card title="Training Groups">

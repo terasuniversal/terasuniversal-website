@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { requireModuleAccess, requireRole } from "../../../../../lib/auth/session";
+import { hasModuleCapability, requireModuleAccess, requireRole } from "../../../../../lib/auth/session";
 import { isAdmin } from "../../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, EmptyState } from "../../../../../components/admin/ui";
 import { softDeleteParticipant, restoreParticipant } from "../actions";
@@ -26,7 +26,8 @@ export default async function ViewParticipantPage({
 }) {
   await requireModuleAccess("participants");
   const profile = await requireRole("editor");
-  const canWrite = isAdmin(profile.role);
+  const canWrite = await hasModuleCapability("participants", "edit", profile);
+  const canArchive = canWrite && isAdmin(profile.role);
   const { id } = await params;
   const supabase = await createSupabaseServerClient();
 
@@ -61,12 +62,12 @@ export default async function ViewParticipantPage({
           <div style={{ display: "flex", gap: 8 }}>
             <Link href="/admin/participants" className="ta-btn ta-btn-outline">← Back</Link>
             {canWrite && !isDeleted && <Link href={`/admin/participants/${id}/edit`} className="ta-btn ta-btn-primary">Edit</Link>}
-            {canWrite && !isDeleted && (
+            {canArchive && !isDeleted && (
               <form action={softDeleteParticipant.bind(null, id)}>
                 <button className="ta-btn ta-btn-danger" type="submit">Delete</button>
               </form>
             )}
-            {canWrite && isDeleted && (
+            {canArchive && isDeleted && (
               <form action={restoreParticipant.bind(null, id)}>
                 <button className="ta-btn ta-btn-gold" type="submit">Restore</button>
               </form>

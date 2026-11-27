@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../lib/supabase/server";
-import { requireRole, requireModuleAccess } from "../../../../lib/auth/session";
+import { requireRole, requireModuleAccess, requireModuleCapability } from "../../../../lib/auth/session";
 import { trainerSchema, fieldErrors } from "../../../../lib/validation/schemas";
 
 export type TrainerFormState = { errors?: Record<string, string>; message?: string };
@@ -51,8 +51,7 @@ function mapErr(error: { code?: string; message: string }): TrainerFormState {
 }
 
 export async function createTrainer(_prev: TrainerFormState, formData: FormData): Promise<TrainerFormState> {
-  await requireRole("admin"); // Editors are read-only.
-  await requireModuleAccess("trainers");
+  await requireModuleCapability("trainers", "edit"); // T1: mirrors app.can_manage_trainers()
   const parsed = trainerSchema.safeParse(readForm(formData));
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
   const supabase = await createSupabaseServerClient();
@@ -63,8 +62,7 @@ export async function createTrainer(_prev: TrainerFormState, formData: FormData)
 }
 
 export async function updateTrainer(id: string, _prev: TrainerFormState, formData: FormData): Promise<TrainerFormState> {
-  await requireRole("admin");
-  await requireModuleAccess("trainers");
+  await requireModuleCapability("trainers", "edit"); // T1: mirrors app.can_manage_trainers()
   const parsed = trainerSchema.safeParse(readForm(formData));
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
   const supabase = await createSupabaseServerClient();

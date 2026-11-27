@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { requireRole, requireModuleAccess } from "../../../../../lib/auth/session";
+import { requireRole, requireModuleAccess, hasModuleCapability } from "../../../../../lib/auth/session";
 import { isAdmin } from "../../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, EmptyState, StatCard } from "../../../../../components/admin/ui";
 import { softDeleteTrainer, restoreTrainer } from "../actions";
@@ -16,7 +16,8 @@ function Detail({ label, value }: { label: string; value: any }) {
 export default async function TrainerProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const profile = await requireRole("editor");
   await requireModuleAccess("trainers");
-  const canWrite = isAdmin(profile.role);
+  const canWrite = await hasModuleCapability("trainers", "edit", profile);
+  const canArchive = canWrite && isAdmin(profile.role);
   const { id } = await params;
   const supabase = await createSupabaseServerClient();
 
@@ -47,8 +48,8 @@ export default async function TrainerProfilePage({ params }: { params: Promise<{
             <Link href="/admin/trainers" className="ta-btn ta-btn-outline">← Back</Link>
             <a href={`/admin/trainers/export?format=profile&id=${id}`} target="_blank" rel="noreferrer" className="ta-btn ta-btn-outline">📄 Profile (PDF)</a>
             {canWrite && !isDeleted && <Link href={`/admin/trainers/${id}/edit`} className="ta-btn ta-btn-primary">Edit</Link>}
-            {canWrite && !isDeleted && <form action={softDeleteTrainer.bind(null, id)}><button className="ta-btn ta-btn-danger" type="submit">Delete</button></form>}
-            {canWrite && isDeleted && <form action={restoreTrainer.bind(null, id)}><button className="ta-btn ta-btn-gold" type="submit">Restore</button></form>}
+            {canArchive && !isDeleted && <form action={softDeleteTrainer.bind(null, id)}><button className="ta-btn ta-btn-danger" type="submit">Delete</button></form>}
+            {canArchive && isDeleted && <form action={restoreTrainer.bind(null, id)}><button className="ta-btn ta-btn-gold" type="submit">Restore</button></form>}
           </div>
         }
       />

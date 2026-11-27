@@ -56,8 +56,9 @@ const ACTION_FILES = [
 // Read-only exports and read-only lookups that legitimately stay at view.
 const VIEW_ALLOWED: Record<string, string[]> = {
   "app/admin/(protected)/sales/opportunities/actions.ts:searchCompaniesForLink": ['"sales_opportunities"'],
-  // Choosing an assessor reads the assessor list; the schedule write itself needs schedules "admin".
-  "app/admin/(protected)/schedules/actions.ts:setScheduleAssessor": ['"assessors"'],
+  // Choosing an assessor reads the assessor list; the schedule write itself needs Schedules Edit capability
+  // (T1: mirrors app.can_manage_schedule_assessors = Schedules Edit + Assessors View).
+  "app/admin/(protected)/schedules/actions.ts:setScheduleAssessor": ['"assessors", "view"'],
 };
 
 for (const file of ACTION_FILES) {
@@ -197,7 +198,8 @@ const EDIT_PAGES: Record<string, string> = {
 for (const [page, key] of Object.entries(EDIT_PAGES)) {
   check(`${page} requires ${key} edit`, () => {
     const source = read(P + page);
-    assert.match(source, new RegExp(`requireModuleAccess\\("${key}", "edit"\\)`));
+    // T1: Training pages use requireModuleCapability(key, "edit") -- the same module level plus role eligibility.
+    assert.match(source, new RegExp(`requireModule(?:Access|Capability)\\("${key}", "edit"\\)`));
     assert.doesNotMatch(source, new RegExp(`requireModuleAccess\\("${key}"\\)`), "no view-level guard may remain on a create/edit page");
   });
 }
@@ -225,8 +227,9 @@ const UI_GATES: Array<[string, RegExp[]]> = [
   ["marketing/campaigns/[id]/page.tsx", [/hasModuleAccess\("marketing_campaigns", "edit"\)/, /\{canEdit && nextAction && \(/]],
   ["companies/page.tsx", [/canWrite = isAdmin\(profile\.role\) && \(await hasModuleAccess\("companies", "edit"\)\)/]],
   ["companies/[id]/page.tsx", [/canWrite = isAdmin\(profile\.role\) && \(await hasModuleAccess\("companies", "edit"\)\)/]],
-  ["schedules/page.tsx", [/canWrite = isAdmin\(profile\.role\) && \(await hasModuleAccess\("schedules", "edit"\)\)/]],
-  ["schedules/[id]/page.tsx", [/canWrite = isAdmin\(profile\.role\) && canEditSchedules/, /canAssignAssessor = isAdmin\(profile\.role\) && canAdminSchedules/, /\{canAssignAssessor && \(\s*<Card title="Primary Assessor">/]],
+  // T1 (OWNER-TRAINING-T1-20261125): schedule writes follow the Schedules Edit capability; archive keeps the Admin role.
+  ["schedules/page.tsx", [/canWrite = await hasModuleCapability\("schedules", "edit", profile\)/]],
+  ["schedules/[id]/page.tsx", [/hasModuleCapability\("schedules", "edit", profile\)/, /canArchive = canWrite && isAdmin\(profile\.role\)/, /canAssignAssessor = canWrite && canViewAssessors/, /\{canAssignAssessor && \(\s*<Card title="Primary Assessor">/]],
 ];
 for (const [page, patterns] of UI_GATES) {
   check(`${page} gates mutation controls on edit access`, () => {

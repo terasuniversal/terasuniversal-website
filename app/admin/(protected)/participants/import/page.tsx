@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireModuleAccess, requireRole } from "../../../../../lib/auth/session";
+import { requireModuleCapability } from "../../../../../lib/auth/session";
 import { PageHead } from "../../../../../components/admin/ui";
 import { ImportClient } from "./ImportClient";
 
@@ -21,8 +21,7 @@ export default async function ImportParticipantsPage({
 }: {
   searchParams: Promise<{ scheduleId?: string; scheduleCode?: string }>;
 }) {
-  await requireRole("admin"); // Editors are read-only.
-  await requireModuleAccess("participants");
+  await requireModuleCapability("participants", "edit");
   const sp = await searchParams;
   return (
     <>

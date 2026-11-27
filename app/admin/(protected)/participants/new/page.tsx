@@ -1,4 +1,4 @@
-import { requireModuleAccess, requireRole } from "../../../../../lib/auth/session";
+import { requireModuleCapability } from "../../../../../lib/auth/session";
 import { PageHead } from "../../../../../components/admin/ui";
 import { ParticipantForm } from "../ParticipantForm";
 import { createParticipant } from "../actions";
@@ -8,8 +8,7 @@ export const metadata = { title: "Add Participant — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
 
 export default async function NewParticipantPage() {
-  await requireRole("admin"); // Editors are read-only.
-  await requireModuleAccess("participants");
+  await requireModuleCapability("participants", "edit");
   const [schedules, companies] = await Promise.all([loadScheduleOptions(), loadCompanyOptions()]);
   return (
     <>

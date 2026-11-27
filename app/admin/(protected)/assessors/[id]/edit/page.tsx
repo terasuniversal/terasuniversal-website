@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { requireModuleAccess, requireRole } from "../../../../../../lib/auth/session";
+import { requireModuleCapability } from "../../../../../../lib/auth/session";
 import { PageHead } from "../../../../../../components/admin/ui";
 import { AssessorForm } from "../../AssessorForm";
 import { updateAssessor } from "../../actions";
@@ -9,8 +9,7 @@ export const metadata = { title: "Edit Assessor — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
 
 export default async function EditAssessorPage({ params }: { params: Promise<{ id: string }> }) {
-  await requireRole("admin");
-  await requireModuleAccess("assessors");
+  await requireModuleCapability("assessors", "edit");
   const { id } = await params;
   const supabase = await createSupabaseServerClient();
   const { data: assessor } = await supabase.from("assessors").select("*").eq("id", id).single();

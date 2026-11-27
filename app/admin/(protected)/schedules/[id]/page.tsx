@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { requireModuleAccess, requireRole, hasModuleAccess } from "../../../../../lib/auth/session";
+import { requireModuleAccess, requireRole, hasModuleCapability } from "../../../../../lib/auth/session";
 import { isAdmin, canManageCertificate } from "../../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, EmptyState } from "../../../../../components/admin/ui";
 import { AssignParticipants } from "../AssignParticipants";
@@ -24,14 +24,15 @@ export default async function ScheduleDetailsPage({
 }) {
   await requireModuleAccess("schedules");
   const profile = await requireRole("editor");
-  // Writes need the Admin role and this module's edit access; View keeps the page read-only.
-  const [canEditSchedules, canAdminSchedules] = await Promise.all([
-    hasModuleAccess("schedules", "edit"),
-    hasModuleAccess("schedules", "admin"),
+  // T1: everyday writes need the Schedules Edit capability (Admin, or Editor with Custom access);
+  // View keeps the page read-only. Archive keeps the Admin-role floor (app.t1_guard_soft_delete).
+  const [canWrite, canViewAssessors] = await Promise.all([
+    hasModuleCapability("schedules", "edit", profile),
+    hasModuleCapability("assessors", "view", profile),
   ]);
-  const canWrite = isAdmin(profile.role) && canEditSchedules;
-  // setScheduleAssessor requires schedules admin-level access, so the assessor control does too.
-  const canAssignAssessor = isAdmin(profile.role) && canAdminSchedules;
+  const canArchive = canWrite && isAdmin(profile.role);
+  // setScheduleAssessor mirrors app.can_manage_schedule_assessors(): Schedules Edit + Assessors View.
+  const canAssignAssessor = canWrite && canViewAssessors;
   // Certificate Generation card: only shown when the viewer can actually
   // reach /admin/certificates/generate/[scheduleId] (that route itself gates
   // on requireCertificate(true) -> canManageCertificate, i.e. admin+) --
@@ -130,7 +131,7 @@ export default async function ScheduleDetailsPage({
               <>
                 <form action={duplicateSchedule.bind(null, id)}><button className="ta-btn ta-btn-outline">Duplicate</button></form>
                 <Link href={`/admin/schedules/${id}/edit`} className="ta-btn ta-btn-primary">Edit</Link>
-                <form action={softDeleteSchedule.bind(null, id)}><button className="ta-btn ta-btn-danger">Delete</button></form>
+                {canArchive && <form action={softDeleteSchedule.bind(null, id)}><button className="ta-btn ta-btn-danger">Delete</button></form>}
               </>
             )}
           </div>

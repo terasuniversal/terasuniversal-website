@@ -233,12 +233,12 @@ function bodyOf(text: string, signature: string) {
 const actions = await source("../app/admin/(protected)/participants/actions.ts");
 const correct = bodyOf(actions, "export async function correctParticipantName");
 
-await check("contract: admin and participants-module guards run first", () => {
-  const role = correct.indexOf('requireRole("admin")');
-  // RBAC M-09 alignment: the write path needs Participants Edit (stricter than the earlier View-level check).
-  const mod = correct.indexOf('requireModuleAccess("participants", "edit")');
+await check("contract: the Participants Edit capability guard runs first", () => {
+  // T1 (OWNER-TRAINING-T1-20261125): Admin, or an Editor with Custom access + Participants Edit (Training Ops Staff);
+  // requireModuleCapability checks the role eligibility and the module level in one guard (M-09 level unchanged).
+  const guard = correct.indexOf('requireModuleCapability("participants", "edit")');
   const parse = correct.indexOf("participantNameCorrectionSchema.safeParse");
-  assert.ok(role >= 0 && mod > role && parse > mod);
+  assert.ok(guard >= 0 && parse > guard && !correct.includes('requireRole("editor")'));
 });
 
 await check("security: the service-role audit client is created only after guards and validation, and before any write", () => {

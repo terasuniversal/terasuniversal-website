@@ -5,7 +5,8 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { insights } from "../data/insights.js";
-import { changedSinceBase } from "./contract-base.mts";
+import { CONTRACT_BASE, changedSinceBase } from "./contract-base.mts";
+import { ft1r1S6Approved } from "./ft1r1-approved.mts"; // F-T1-r1: the 11 exact T1 supabase/ paths, content-gated
 
 // S6 (owner-approved, local only): News & Articles on the existing /insights system, the gated /ebook local preview
 // with a mocked request journey, course discovery fixes and navigation. This contract proves the safeguards: the
@@ -132,7 +133,7 @@ check("protected areas untouched by S6: registration, payments, verify, feedback
     "?? app/api/ebook/route.js",
     // W9-G3 (owner-approved): the eBook verify and download APIs, 404 unless TERAS_EBOOK_PUBLIC is "on" (checked above).
     "?? app/api/ebook/verify/route.js", "?? app/api/ebook/download/route.js"]);
-  for (const line of changed.split("\n").filter(Boolean)) assert.ok(allowed.has(line), line);
+  for (const line of changed.split("\n").filter(Boolean)) assert.ok(allowed.has(line) || ft1r1S6Approved(root, line, CONTRACT_BASE) /* F-T1-r1 exact paths */, line);
 });
 
 console.log(failures ? `\n${failures} semakan GAGAL` : "\nSemua semakan LULUS");

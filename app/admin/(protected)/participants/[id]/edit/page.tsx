@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
-import { requireModuleAccess, requireRole } from "../../../../../../lib/auth/session";
+import { requireModuleCapability } from "../../../../../../lib/auth/session";
 import { PageHead } from "../../../../../../components/admin/ui";
 import { ParticipantForm } from "../../ParticipantForm";
 import { updateParticipant } from "../../actions";
@@ -10,8 +10,7 @@ export const metadata = { title: "Edit Participant — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
 
 export default async function EditParticipantPage({ params }: { params: Promise<{ id: string }> }) {
-await requireModuleAccess("participants");
-  await requireRole("admin"); // Editors are read-only.
+await requireModuleCapability("participants", "edit");
   const { id } = await params;
   const supabase = await createSupabaseServerClient();
   const { data: participant } = await supabase.from("participants").select("*").eq("id", id).single();

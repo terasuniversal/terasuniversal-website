@@ -7,7 +7,7 @@ import { createSupabaseServerClient } from "../../../../lib/supabase/server";
 import { requireModuleAccess, requireAssessment, requireRole } from "../../../../lib/auth/session";
 import { getCurrentProfile } from "../../../../lib/auth/session";
 import { isSuperAdmin } from "../../../../lib/auth/rbac";
-import { participantSkillResultSchema, wahFailedCorrectionSchema } from "../../../../lib/validation/schemas";
+import { assessmentEvidenceSchema, participantSkillResultSchema, wahFailedCorrectionSchema } from "../../../../lib/validation/schemas";
 import { isWahCourse } from "../../../../lib/certificates/wah-failed-hold";
 import { UNGROUPED } from "../../../../lib/scheduleGroupContext";
 import type { MutationState } from "../../../../components/admin/MutationForm";
@@ -15,7 +15,7 @@ import type { MutationState } from "../../../../components/admin/MutationForm";
 const RESULT = z.enum(["pending", "pass", "fail"]);
 const COMPETENCY = z.enum(["pending_review", "competent", "not_yet_competent"]);
 const TYPE = z.enum(["theory", "practical", "combined"]);
-type AssessmentFailure = "invalid_input" | "invalid_enrollment" | "assessment_locked" | "unauthorized_unlock" | "invalid_group" | "database_error";
+type AssessmentFailure = "invalid_input" | "invalid_enrollment" | "assessment_locked" | "unauthorized_unlock" | "invalid_group" | "invalid_evidence" | "database_error";
 const score = z
   .union([z.literal(""), z.coerce.number().min(0).max(100)])
   .transform((v) => (v === "" ? null : v));
@@ -26,6 +26,24 @@ function mutationFailure(scheduleId: string, reason: AssessmentFailure, groupId?
   if (groupId && groupId !== UNGROUPED) params.set("group", groupId);
   redirect(`/admin/assessment/${scheduleId}?${params.toString()}`);
 }
+
+type EvidencePayload = { evidence_assessor_id?: string; evidence_reference?: string };
+
+/**
+ * T1 accountability: the actual qualified Assessor and an evidence reference. Required for everyone except a
+ * Super Admin, who may still correct a legacy row without evidence -- and then the stored evidence is left
+ * untouched (an empty payload, never a null overwrite). The database (app.t1_assert_assessment_evidence)
+ * re-checks the values and that the Assessor is active and assigned to this schedule or the participant's group.
+ */
+function readEvidence(formData: FormData, superAdmin: boolean): EvidencePayload | null {
+  const raw = { evidence_assessor_id: String(formData.get("evidence_assessor_id") ?? ""), evidence_reference: String(formData.get("evidence_reference") ?? "") };
+  if (superAdmin && raw.evidence_assessor_id.trim() === "" && raw.evidence_reference.trim() === "") return {};
+  const parsed = assessmentEvidenceSchema.safeParse(raw);
+  return parsed.success ? parsed.data : null;
+}
+
+/** 23514 from the T1 evidence check (or the enrollment check, already verified above) -> a specific message. */
+const failureFor = (code: string | undefined): AssessmentFailure => (code === "23514" ? "invalid_evidence" : "database_error");
 
 async function requireActiveEnrollment(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
@@ -91,6 +109,8 @@ export async function updateAssessment(scheduleId: string, _prev: MutationState,
       remarks: String(formData.get("remarks") ?? ""),
     });
   if (!parsed.success) mutationFailure(scheduleId, "invalid_input");
+  const evidence = readEvidence(formData, isSuperAdmin(profile.role));
+  if (!evidence) mutationFailure(scheduleId, "invalid_evidence");
 
   const supabase = await createSupabaseServerClient();
   await requireActiveEnrollment(supabase, scheduleId, [participantId], null);
@@ -117,11 +137,13 @@ export async function updateAssessment(scheduleId: string, _prev: MutationState,
       competency_status: parsed.data.competency_status || null,
       remarks: parsed.data.remarks || null,
       assessed_at: new Date().toISOString().slice(0, 10),
+      // Data-entry staff; the database forces this to the signed-in user for non-Super-Admin writes (T1).
       assessor_id: profile.id,
+      ...evidence,
     },
     { onConflict: "schedule_id,participant_id" }
   );
-  if (error) mutationFailure(scheduleId, "database_error");
+  if (error) mutationFailure(scheduleId, failureFor(error.code));
   revalidatePath(`/admin/assessment/${scheduleId}`);
   return { message: "Assessment saved." };
 }
@@ -156,11 +178,14 @@ export async function updateAssessment(scheduleId: string, _prev: MutationState,
  * view" -- the DB round-trip re-derives every fact this action needs.
  */
 export async function bulkUpdateResult(scheduleId: string, groupId: string | typeof UNGROUPED | null, _prev: MutationState, formData: FormData): Promise<MutationState> {
-  await requireAssessment(true);
+  const profile = await requireAssessment(true);
   await requireModuleAccess("assessment");
   const ids = Array.from(new Set(formData.getAll("ids").map(String).filter(Boolean)));
   const result = RESULT.safeParse(formData.get("result"));
   if (ids.length === 0 || !result.success) mutationFailure(scheduleId, "invalid_input", groupId);
+  // One Assessor + evidence reference for the whole selection; the database checks the assignment per row.
+  const evidence = readEvidence(formData, isSuperAdmin(profile.role));
+  if (!evidence) mutationFailure(scheduleId, "invalid_evidence", groupId);
   const supabase = await createSupabaseServerClient();
 
   // Validate the requested group actually belongs to this schedule before
@@ -198,21 +223,22 @@ export async function bulkUpdateResult(scheduleId: string, groupId: string | typ
   const competency = result.data === "pass" ? "competent" : result.data === "fail" ? "not_yet_competent" : "pending_review";
   const { error } = await supabase
     .from("assessments")
-    .update({ result: result.data, competency_status: competency })
+    .update({ result: result.data, competency_status: competency, ...evidence })
     .eq("schedule_id", scheduleId)
     .in("id", ids);
-  if (error) mutationFailure(scheduleId, "database_error", groupId);
+  if (error) mutationFailure(scheduleId, failureFor(error.code), groupId);
   revalidatePath(`/admin/assessment/${scheduleId}`);
   return { message: "Results updated." };
 }
 
-/** Lock rows (selected or all) — prevents further edits until unlocked. */
+/**
+ * Lock (finalise) rows, selected or all -- prevents further edits until unlocked. T1: Super Admin only; Training
+ * Ops Staff prepare and edit drafts. app.t1_guard_assessment_accountability enforces the same in the database.
+ */
 export async function lockAssessments(scheduleId: string, _prev: MutationState, formData: FormData): Promise<MutationState> {
-  await requireAssessment(true);
-  await requireModuleAccess("assessment");
+  const profile = await requireRole("super_admin");
+  await requireModuleAccess("assessment", "edit");
   const ids = formData.getAll("ids").map(String).filter(Boolean);
-  const profile = await getCurrentProfile();
-  if (!profile) mutationFailure(scheduleId, "database_error");
   const supabase = await createSupabaseServerClient();
   const { data: rows, error: rowsError } = await supabase
     .from("assessments")
@@ -306,10 +332,12 @@ export async function updateParticipantSkillResults(
   _prev: SkillsFormState,
   formData: FormData
 ): Promise<SkillsFormState> {
-  const profile = await requireAssessment(true); // same guard as updateAssessment: admin+trainer
+  const profile = await requireAssessment(true); // same guard as updateAssessment: capability or Trainer branch
   await requireModuleAccess("assessment");
   const participantId = String(formData.get("participant_id") ?? "");
   if (!participantId) return { error: "Missing participant." };
+  const evidence = readEvidence(formData, isSuperAdmin(profile.role));
+  if (!evidence) return { error: "Select the Assessor who assessed this participant and enter an evidence reference (3 to 200 characters)." };
 
   const supabase = await createSupabaseServerClient();
 
@@ -381,7 +409,7 @@ export async function updateParticipantSkillResults(
   );
 
   const nowIso = new Date().toISOString();
-  const rows: { schedule_id: string; participant_id: string; area: SkillArea; status: string; assessed_by: string; assessed_at: string; deleted_at: null }[] = [];
+  const rows: ({ schedule_id: string; participant_id: string; area: SkillArea; status: string; assessed_by: string; assessed_at: string; deleted_at: null } & EvidencePayload)[] = [];
   let submittedCount = 0;
   for (const area of SKILL_AREAS) {
     const raw = formData.get(area);
@@ -400,7 +428,7 @@ export async function updateParticipantSkillResults(
       return { error: "This Skills Record was changed by someone else. Reload the page and check it. Nothing was saved." };
     }
     // deleted_at: an upsert over a soft-deleted row would otherwise stay hidden.
-    rows.push({ schedule_id: scheduleId, participant_id: participantId, area, status, assessed_by: profile.id, assessed_at: nowIso, deleted_at: null });
+    rows.push({ schedule_id: scheduleId, participant_id: participantId, area, status, assessed_by: profile.id, assessed_at: nowIso, deleted_at: null, ...evidence });
   }
   if (submittedCount === 0) return { error: "Nothing to save." };
   if (rows.length === 0) return { message: "No changes to save." };
@@ -408,14 +436,20 @@ export async function updateParticipantSkillResults(
   const { error } = await supabase
     .from("participant_skill_results")
     .upsert(rows, { onConflict: "schedule_id,participant_id,area" });
-  if (error) return { error: "Skills record could not be saved. No change was confirmed. Please try again." };
+  if (error) {
+    return {
+      error: error.code === "23514"
+        ? "Skills record was not saved: the selected Assessor must be active and assigned to this schedule or group, with an evidence reference."
+        : "Skills record could not be saved. No change was confirmed. Please try again.",
+    };
+  }
 
   revalidatePath(`/admin/assessment/${scheduleId}`);
   return { message: "Skills record saved." };
 }
 
 /**
- * Admin-only correction of a recorded WAH Failed Practical Assessment. The
+ * Super-Admin-only correction of a recorded WAH Failed Practical Assessment. The
  * reason and evidence reference are written to audit_logs by the database
  * function, in the same transaction as the change. The evidence itself stays
  * outside this system; only a reference to it is stored.
@@ -425,7 +459,7 @@ export async function correctWahFailedPracticalAssessment(
   _prev: SkillsFormState,
   formData: FormData
 ): Promise<SkillsFormState> {
-  await requireRole("admin");
+  await requireRole("super_admin"); // T1 owner matrix: WAH corrections are Super Admin only (DB function unchanged)
   await requireModuleAccess("assessment");
   const parsed = wahFailedCorrectionSchema.safeParse({
     schedule_id: scheduleId,

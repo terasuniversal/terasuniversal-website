@@ -20,6 +20,12 @@ export interface AsmRow {
   competency_status: string | null;
   remarks: string | null;
   locked: boolean;
+  /** T1: actual qualified Assessor (public.assessors) and evidence reference; null on legacy rows. */
+  evidence_assessor_id: string | null;
+  evidence_assessor_name: string | null;
+  evidence_reference: string | null;
+  /** Active Assessors assigned to this schedule or this participant's group (the only valid choices). */
+  evidence_options: { id: string; name: string }[];
   participant: { participant_id: string; full_name: string; company: string | null } | null;
   /** Participant Skills Record (Phase 2B) -- keyed by area, missing key means "not_recorded". */
   skills: Record<string, string>;
@@ -55,13 +61,41 @@ const SKILL_STATUS_OPTIONS: Record<string, string[]> = {
 };
 
 /**
+ * T1 evidence inputs, shared by the row, mobile, skills and bulk forms. Required for everyone except a Super Admin
+ * (who may correct a legacy row without evidence); the server action and the database re-check both values.
+ */
+function EvidenceFields({ options, assessorId, reference, required, compact = false }: { options: { id: string; name: string }[]; assessorId: string | null; reference: string | null; required: boolean; compact?: boolean }) {
+  const labelStyle = compact ? { display: "flex", gap: 5, alignItems: "center" } as const : undefined;
+  return (
+    <>
+      <label style={labelStyle}>
+        <span>Assessor{required ? "" : " (optional)"}</span>
+        <select name="evidence_assessor_id" defaultValue={assessorId ?? ""} required={required} style={inp} aria-label="Assessor who assessed">
+          <option value="">{options.length === 0 ? "No active assessor assigned" : "Select assessor"}</option>
+          {options.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+        </select>
+      </label>
+      <label style={labelStyle}>
+        <span>Evidence ref.{required ? "" : " (optional)"}</span>
+        <input name="evidence_reference" defaultValue={reference ?? ""} required={required} minLength={3} maxLength={200} placeholder="Assessment sheet / file no." style={inp} aria-label="Evidence reference" />
+      </label>
+    </>
+  );
+}
+
+function EvidenceNote({ row }: { row: AsmRow }) {
+  if (!row.evidence_assessor_id && !row.evidence_reference) return null;
+  return <div style={{ color: "var(--ta-muted)", fontSize: 11 }}>Assessed by {row.evidence_assessor_name ?? "an assessor"}{row.evidence_reference ? ` · Ref. ${row.evidence_reference}` : ""}</div>;
+}
+
+/**
  * Compact "Participant Skills Record" strip rendered as a second row under
  * each participant. Reuses the participant's existing assessment `locked`
  * state as the sole edit gate (see actions.ts's updateParticipantSkillResults
  * doc comment) -- no separate lock UI for participant_skill_results.locked
  * in this phase.
  */
-function SkillsRow({ scheduleId, row, editable, colSpan, protectFailed, canCorrectFailed }: { scheduleId: string; row: AsmRow; editable: boolean; colSpan: number; protectFailed: boolean; canCorrectFailed: boolean }) {
+function SkillsRow({ scheduleId, row, editable, colSpan, protectFailed, canCorrectFailed, evidenceRequired }: { scheduleId: string; row: AsmRow; editable: boolean; colSpan: number; protectFailed: boolean; canCorrectFailed: boolean; evidenceRequired: boolean }) {
   const [state, formAction, pending] = useActionState<SkillsFormState, FormData>(
     updateParticipantSkillResults.bind(null, scheduleId),
     {}
@@ -86,6 +120,7 @@ function SkillsRow({ scheduleId, row, editable, colSpan, protectFailed, canCorre
                 </select>
               </label>
             ))}
+            <EvidenceFields options={row.evidence_options} assessorId={row.evidence_assessor_id} reference={row.evidence_reference} required={evidenceRequired} compact />
             <button type="submit" className="ta-btn ta-btn-outline ta-btn-sm" disabled={pending}>
               {pending ? "Saving…" : "Save"}
             </button>
@@ -104,7 +139,7 @@ function SkillsRow({ scheduleId, row, editable, colSpan, protectFailed, canCorre
           </div>
         )}
         {failedProtected && editable && !canCorrectFailed && (
-          <div style={{ marginTop: 6, fontSize: 11, color: "var(--ta-muted)" }}>Recorded Failed. Only an Admin can correct this result.</div>
+          <div style={{ marginTop: 6, fontSize: 11, color: "var(--ta-muted)" }}>Recorded Failed. Only a Super Admin can correct this result.</div>
         )}
         {failedProtected && editable && canCorrectFailed && <FailedCorrectionForm scheduleId={scheduleId} participantId={row.participant_id} />}
       </td>
@@ -190,6 +225,8 @@ export function AssessmentTable({
     ? rows.filter((r) => (r.participant?.full_name + " " + r.participant?.participant_id + " " + (r.participant?.company ?? "")).toLowerCase().includes(q.toLowerCase()))
     : rows;
   const selectableIds = filtered.map((r) => r.id).filter((id): id is string => id !== null);
+  // Bulk: any Assessor valid for at least one row; the database rejects the batch if one row does not match.
+  const bulkEvidenceOptions = Array.from(new Map(rows.flatMap((r) => r.evidence_options).map((o) => [o.id, o])).values());
   const allChecked = selectableIds.length > 0 && selectableIds.every((id) => selected.has(id));
   const toggle = (id: string) => setSelected((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const toggleAll = () => setSelected(allChecked ? new Set() : new Set(selectableIds));
@@ -217,12 +254,15 @@ export function AssessmentTable({
             <select name="result" value={bulkResult} onChange={(e) => setBulkResult(e.target.value)} style={selStyle}>
               {RESULTS.map((s) => <option key={s} value={s}>{label(s)}</option>)}
             </select>
+            <EvidenceFields options={bulkEvidenceOptions} assessorId={null} reference={null} required={!isSuperAdmin} compact />
             <MutationSubmitButton>Set result</MutationSubmitButton>
           </MutationForm>
-          <MutationForm action={lockAssessments.bind(null, scheduleId)} pendingLabel="Locking…" idleLabel="Lock">
-            {[...selected].map((id) => <input key={id} type="hidden" name="ids" value={id} />)}
-            <MutationSubmitButton className="ta-btn ta-btn-outline ta-btn-sm">🔒 Lock</MutationSubmitButton>
-          </MutationForm>
+          {isSuperAdmin && (
+            <MutationForm action={lockAssessments.bind(null, scheduleId)} pendingLabel="Locking…" idleLabel="Lock">
+              {[...selected].map((id) => <input key={id} type="hidden" name="ids" value={id} />)}
+              <MutationSubmitButton className="ta-btn ta-btn-outline ta-btn-sm">🔒 Lock</MutationSubmitButton>
+            </MutationForm>
+          )}
           {isSuperAdmin && (
             <MutationForm action={unlockAssessments.bind(null, scheduleId)} pendingLabel="Unlocking…" idleLabel="Unlock">
               {[...selected].map((id) => <input key={id} type="hidden" name="ids" value={id} />)}
@@ -296,6 +336,9 @@ export function AssessmentTable({
                           {COMPETENCIES.map((s) => <option key={s} value={s}>{label(s)}</option>)}
                         </select>
                         <input name="remarks" defaultValue={r.remarks ?? ""} placeholder="Remarks" style={inp} aria-label="Remarks" />
+                        <div style={{ gridColumn: "1 / -2", display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", fontSize: 11 }}>
+                          <EvidenceFields options={r.evidence_options} assessorId={r.evidence_assessor_id} reference={r.evidence_reference} required={!isSuperAdmin} compact />
+                        </div>
                         <MutationSubmitButton>Save</MutationSubmitButton>
                       </MutationForm>
                     </td>
@@ -312,6 +355,7 @@ export function AssessmentTable({
                             </>
                           )}
                         </div>
+                        <EvidenceNote row={r} />
                       </td>
                       <td>{r.theory_score ?? "—"}<div style={{ marginTop: 4 }}><Badge status={r.theory_result} /></div></td>
                       <td>{r.practical_score ?? "—"}<div style={{ marginTop: 4 }}><Badge status={r.practical_result} /></div></td>
@@ -323,7 +367,7 @@ export function AssessmentTable({
                     </>
                   )}
                 </tr>
-                <SkillsRow scheduleId={scheduleId} row={r} editable={editable} colSpan={totalCols} protectFailed={protectFailed} canCorrectFailed={canCorrectFailed} />
+                <SkillsRow scheduleId={scheduleId} row={r} editable={editable} colSpan={totalCols} protectFailed={protectFailed} canCorrectFailed={canCorrectFailed} evidenceRequired={!isSuperAdmin} />
                 </Fragment>
               );
             })}
@@ -377,6 +421,7 @@ export function AssessmentTable({
                       <label><span>Overall Result</span><select name="result" defaultValue={r.result} aria-label={`Overall result for ${participantName}`}>{RESULTS.map((s) => <option key={s} value={s}>{label(s)}</option>)}</select></label>
                       <label><span>Competency</span><select name="competency_status" defaultValue={r.competency_status ?? ""} aria-label={`Competency for ${participantName}`}><option value="">— (not applicable)</option>{COMPETENCIES.map((s) => <option key={s} value={s}>{label(s)}</option>)}</select></label>
                       <label className="ta-assessment-mobile-remarks"><span>Remarks</span><input name="remarks" defaultValue={r.remarks ?? ""} placeholder="Remarks" aria-label={`Remarks for ${participantName}`} /></label>
+                      <EvidenceFields options={r.evidence_options} assessorId={r.evidence_assessor_id} reference={r.evidence_reference} required={!isSuperAdmin} />
                       <MutationSubmitButton>Save</MutationSubmitButton>
                     </MutationForm>
                   ) : (
@@ -388,6 +433,7 @@ export function AssessmentTable({
                       <div><dt>Overall Result</dt><dd><Badge status={r.result} /></dd></div>
                       <div><dt>Competency</dt><dd>{r.competency_status ? <Badge status={r.competency_status} /> : "—"}</dd></div>
                       <div className="ta-assessment-mobile-remarks"><dt>Remarks</dt><dd>{r.remarks ?? "—"}</dd></div>
+                      {(r.evidence_assessor_id || r.evidence_reference) && <div className="ta-assessment-mobile-remarks"><dt>Assessor / evidence</dt><dd>{r.evidence_assessor_name ?? "—"}{r.evidence_reference ? ` · Ref. ${r.evidence_reference}` : ""}</dd></div>}
                       {r.locked && <div className="ta-assessment-mobile-locked" role="status">🔒 This assessment is locked and read-only.</div>}
                     </dl>
                   )}

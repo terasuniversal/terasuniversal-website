@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
-import { requireModuleAccess, requireAttendance } from "../../../../../lib/auth/session";
-import { canManageAttendance } from "../../../../../lib/auth/rbac";
+import { hasModuleAccess, requireModuleAccess, requireAttendance } from "../../../../../lib/auth/session";
+import { canManageAttendance, isCapabilityRoleEligible } from "../../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, EmptyState, StatCard } from "../../../../../components/admin/ui";
 import { AttendanceTable, type AttRow } from "../AttendanceTable";
 import { AttendanceScheduleActions } from "./AttendanceScheduleActions";
@@ -20,7 +20,9 @@ export default async function TakeAttendancePage({
 }) {
   await requireModuleAccess("attendance");
   const profile = await requireAttendance(false);
-  const canManage = canManageAttendance(profile.role);
+  // T1: same branches as requireAttendance(true) -- module capability (e.g. Training Ops Staff) or the Trainer
+  // branch -- plus Attendance Edit, so a View-only grant never shows controls the server rejects.
+  const canManage = (canManageAttendance(profile.role) || isCapabilityRoleEligible(profile)) && (await hasModuleAccess("attendance", "edit"));
   const { scheduleId } = await params;
   const { date, group: requestedGroup, attendance_error: attendanceError } = await searchParams;
   const supabase = await createSupabaseServerClient();
