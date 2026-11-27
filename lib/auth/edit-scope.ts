@@ -9,7 +9,8 @@ import type { UserRole } from "../supabase/database.types";
  *  - "capability": requireModuleCapability(module, "edit") — Admin, or an Editor with Custom Module Access and Edit
  *                  on the module (RBAC hardening; an Editor on Role Default access never gets these from the role);
  *  - "admin":      Admin (requireRole("admin") or an explicit Admin check inside the action);
- *  - "super_admin": Super Admin only (T1: assessment finalisation, unlock, WAH corrections).
+ *  - "super_admin": Super Admin only (T1: assessment finalisation, unlock, WAH corrections; K2 G9-1: participant name
+ *                  and identity details).
  * Staff User Management shows this table so the label "Edit" never promises more than the server allows (SEC-3).
  *
  * This file only DESCRIBES authorization; it grants nothing. Each entry names the exported server action it mirrors,
@@ -99,7 +100,7 @@ export const EDIT_SCOPE: Readonly<Record<string, readonly EditScopeAction[]>> = 
   ],
   participants: [
     part("Create and edit participants", "capability", "createParticipant"),
-    part("Correct participant names", "capability", "correctParticipantName"),
+    part("Correct participant names", "super_admin", "correctParticipantName"),
     { label: "Import participants (CSV)", requires: "capability", source: { file: "participants/import/importActions.ts", fn: "commitImport" } },
     part("Archive or restore participants", "admin", "softDeleteParticipant"),
   ],

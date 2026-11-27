@@ -65,8 +65,8 @@ log "--- F1-a / F2 audit, refusal and RPC checks (62_t1_f1f2.sql) at F"
 { echo "begin;"; mig $REL $DBF; cat $T/10_seed.sql $T/20_matrix.sql $T/30_checks.sql $T/40_m10.sql $T/50_m11.sql $T/60_t1.sql $T/62_t1_f1f2.sql; echo "rollback;"; } \
   | q 2>&1 | grep -E 'CHECK (PASS|FAIL)|ERROR' | sed -E 's/^(psql:[^ ]* )?NOTICE: +//' > "$OUT/f1f2_F.txt"
 cat "$OUT/f1f2_F.txt" | tee -a "$OUT/run.log" > /dev/null
-n_f=$(grep -c '^CHECK PASS' "$OUT/f1f2_F.txt"); [ "$n_f" -eq 27 ] && ! grep -qE '^(CHECK FAIL|ERROR)' "$OUT/f1f2_F.txt" \
-  && log "PASS F1-a/F2/C1-b checks: $n_f/27" || log "FAIL F1-a/F2/C1-b checks ($n_f/27 passed; see f1f2_F.txt)"
+n_f=$(grep -c '^CHECK PASS' "$OUT/f1f2_F.txt"); [ "$n_f" -eq 58 ] && ! grep -qE '^(CHECK FAIL|ERROR)' "$OUT/f1f2_F.txt" \
+  && log "PASS F1-a/F2/C1-b + K2 checks: $n_f/58" || log "FAIL F1-a/F2/C1-b + K2 checks ($n_f/58 passed; see f1f2_F.txt)"
 
 log "--- exact rollback"
 { echo "begin;"; mig $REL; fp; echo "rollback;"; } | q -F'|' 2>/dev/null | grep -E "$FPRE" > "$OUT/fp_E.txt"

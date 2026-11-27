@@ -51,6 +51,44 @@ values ((select id from rbac_test.ids where k = 't1f_s'), (select id from rbac_t
 insert into public.assessments (schedule_id, participant_id, result, remarks)
 values ((select id from rbac_test.ids where k = 't1f_s'), (select id from rbac_test.ids where k = 'conc_pa'), 'pending', 'race');
 insert into rbac_test.ids select 'conc_a8', id from public.assessments where participant_id = (select id from rbac_test.ids where k = 'conc_pa');
+-- K2 race fixtures: i7..i9 on the C4 schedule; a WAH schedule with a complete Skills Record (Production WAH config).
+do $k2conc$
+declare v_s uuid := (select id from rbac_test.ids where k = 'c4_s'); v_p uuid; i int; v_tpl uuid; v_ws uuid;
+begin
+  perform rbac_test.claims('AN');
+  for i in 7..9 loop
+    insert into public.participants (full_name, status) values ('RBAC K2 I' || i, 'registered') returning id into v_p;
+    insert into public.schedule_participants (schedule_id, participant_id, registration_status) values (v_s, v_p, 'registered');
+    insert into public.attendance (schedule_id, participant_id, session_date, attendance_status) values (v_s, v_p, current_date - 1, 'present');
+    insert into public.assessments (schedule_id, participant_id, result, competency_status, theory_score, practical_score)
+    values (v_s, v_p, 'pass', 'competent', 80, 85);
+    insert into rbac_test.ids values ('r4_i' || i, v_p);
+  end loop;
+  insert into public.certificate_templates (name, orientation, paper_size, config, is_active, is_default)
+  values ('K2 conc WAH template', 'landscape', 'A4', '{"design_variant": "working_at_height_certificate", "signature_url": "https://example.invalid/sig.png"}'::jsonb, true, false)
+  returning id into v_tpl;
+  update public.courses set certificate_generation_enabled = true, certificate_template_id = v_tpl, assessment_required = false,
+         competency_required = false, attendance_min_percent = 100 where id = '963b1f6b-4c15-4833-90da-21aa0af0f544';
+  insert into public.course_schedules (course_id, start_date, end_date, capacity, trainer_name, venue, status, branch_id)
+  select '963b1f6b-4c15-4833-90da-21aa0af0f544', current_date - 2, current_date - 2, 10, 'K2 WAH Trainer', 'K2 Venue', 'completed', branch_id
+  from public.course_schedules where id = v_s returning id into v_ws;
+  insert into public.schedule_assessors (schedule_id, assessor_id, is_primary) values (v_ws, (select id from rbac_test.ids where k = 'c4_a'), true);
+  insert into public.participants (full_name, ic_passport_no, status) values ('RBAC K2 WAH', 'SYNTH-K2C-W1', 'registered') returning id into v_p;
+  insert into public.schedule_participants (schedule_id, participant_id, registration_status) values (v_ws, v_p, 'registered');
+  insert into public.attendance (schedule_id, participant_id, session_date, attendance_status) values (v_ws, v_p, current_date - 2, 'present');
+  insert into public.participant_skill_results (schedule_id, participant_id, area, status)
+  select v_ws, v_p, x.area, x.st from (values ('theory_session', 'completed'), ('practical_training', 'completed'),
+    ('safety_awareness', 'completed'), ('practical_assessment', 'passed')) x(area, st);
+  insert into rbac_test.ids values ('k2_ws', v_ws), ('k2_wp', v_p);
+end;
+$k2conc$;
+-- K2 restore race fixture: i9 holds certificate R4C-0090, soft-deleted (the replacement is issued during the race)
+begin;
+select rbac_test.claims('SA');
+set local role authenticated;
+select count(*) from public.issue_certificate_with_skill_snapshot((select id from rbac_test.ids where k = 'c4_s'), (select id from rbac_test.ids where k = 'r4_i9'), 'R4C-0090');
+select app.set_certificate_deleted((select id from public.certificates where certificate_number = 'R4C-0090'), true);
+commit;
 SQL
 } | qd -q > "$OUT/conc_setup.txt" 2>&1 || { log "FAIL setup (see conc_setup.txt)"; q -c "drop database if exists $DB;"; exit 1; }
 log "setup: $DB built from S0 + all thirteen migrations + seeds (committed)"
@@ -91,7 +129,7 @@ race "F1-a race: SA lock commits first -> TO Undo refused after waiting" commit 
   "update public.assessments set locked = true, locked_at = now(), locked_by = auth.uid() where participant_id = $(I t1f_p9)" \
   "delete from public.attendance where id = $(I t1f_at9)" 'Attendance of a finalised participant'
 
-# ---- r4: certificate issuance (D-A1 guard part), D-A2 race, deadlock robustness, C4-HOLD residual
+# ---- r4: certificate issuance (D-A1 guard part), D-A2 race, deadlock robustness; K2: RA2, WAH, restore, issuer order
 CS="$(I c4_s)"
 EVC="evidence_assessor_id = $(I c4_a), evidence_reference = 'SHEET-RACE'"
 issue(){ echo "select count(*) from public.issue_certificate_with_skill_snapshot($CS, $(I "$1"), '$2')"; }
@@ -136,15 +174,31 @@ st=$(cstate r4_i5)
 if echo "$st" | grep -qE "status=present result=pass locked=true|status=absent result=pass locked=false"; then
   log "PASS deadlock/lock-order robustness: final state consistent ($st; A: $(grep -o -m1 -E 'deadlock detected|COMMIT|ERROR:[^.]*' "$f.A.txt" | head -1); B: $(grep -o -m1 -E 'deadlock detected|finalised participant|UPDATE [0-9]|ERROR:[^.]*' "$f.B.txt" | head -1))"
 else log "FAIL deadlock/lock-order robustness: inconsistent final state ($st)"; fi
-# Documented residual (D-A1 C4 part is HOLD): a Training write that STARTS before the issuer locks the schedule.
+# K2-a (RA2 closed): a Training write that STARTS before the issuer now finishes first and the issuer sees it.
 f="$OUT/race_c4_hold"
 { echo "begin; select rbac_test.claims('TO'); set local role authenticated;"; echo "delete from public.attendance where participant_id = $(I r4_i6) and schedule_id = $CS;"; echo "select pg_sleep(3);"; echo "commit;"; } | qd > "$f.A.txt" 2>&1 &
 pa=$!
 { echo "set lock_timeout = '15s'; begin; select pg_sleep(1); select rbac_test.claims('SA'); set local role authenticated;"; echo "$(issue r4_i6 R4C-0006);"; echo "commit;"; } | qd > "$f.B.txt" 2>&1 &
 pb=$!; wait $pa; wait $pb
 st=$(cstate r4_i6)
-if echo "$st" | grep -q "cert=1 att=0"; then log "LIMIT C4-HOLD residual reproduced (Training Undo first, issuer reads eligibility before locking): $st"
-else log "NOTE C4-HOLD residual not reproduced this run: $st"; fi
+if echo "$st" | grep -q "cert=0 att=0" && grep -q "Not eligible" "$f.B.txt"; then log "PASS K2-a RA2 closed: Training Undo first -> issuer waits, then refuses (Not eligible): $st"
+else log "FAIL K2-a RA2 still open: $st (B: $(tr '\n' ' ' < "$f.B.txt" | cut -c1-140))"; fi
+# K2-a WAH: Training Ops records the practical assessment as Failed (evidence given) while the Super Admin issues WAH.
+WS="$(I k2_ws)"; WP="$(I k2_wp)"
+race2 "K2-a WAH: TO Failed first -> WAH issuance waits, then refuses" TO \
+  "update public.participant_skill_results set status = 'failed', evidence_assessor_id = $(I c4_a), evidence_reference = 'SHEET-RACE' where schedule_id = $WS and participant_id = $WP and area = 'practical_assessment'" SA \
+  "select count(*) from public.issue_wah_certificate_as_super_admin($WS, $WP, 'R4C-W001')" 'Skills Record is not complete'
+st=$(qd -c "select 'wahcert=' || count(*) from public.certificates where participant_id = $WP and deleted_at is null and status <> 'revoked'" 2>&1)
+[ "$st" = "wahcert=0" ] && log "PASS K2-a WAH: no certificate issued over a Failed result ($st)" || log "FAIL K2-a WAH: $st"
+# K2-b: a restore that starts while a replacement is being issued waits and is refused.
+race2 "K2-b: replacement issuance first -> restore waits, then refuses" SA "$(issue r4_i9 R4C-0091)" SA \
+  "select app.set_certificate_deleted((select id from public.certificates where certificate_number = 'R4C-0090'), false)" 'CERTIFICATE_RESTORE_CONFLICT'
+st=$(qd -c "select string_agg(certificate_number || '=' || (deleted_at is null)::text, ',' order by certificate_number) from public.certificates where participant_id = $(I r4_i9)" 2>&1)
+[ "$st" = "R4C-0090=false,R4C-0091=true" ] && log "PASS K2-b: one active certificate after the race ($st)" || log "FAIL K2-b state: $st"
+# K2-a: two Super Admin sessions issue for two participants of one schedule: serialised, both succeed, no deadlock.
+race2 "K2-a: concurrent issuance on one schedule serialises" SA "$(issue r4_i7 R4C-0007)" SA "$(issue r4_i8 R4C-0008)" '^1$'
+st=$(qd -c "select count(*) from public.certificates where certificate_number in ('R4C-0007', 'R4C-0008') and deleted_at is null" 2>&1)
+if [ "$st" = "2" ] && ! cat "$OUT"/race_K2_a__concurrent_issuance*.txt | grep -q 'deadlock'; then log "PASS K2-a: both certificates issued, no deadlock ($st)"; else log "FAIL K2-a concurrent issuance ($st)"; fi
 
 # final state: the raced rows are locked and the protected attendance row still exists
 st=$(qd -c "select (select locked from public.participant_skill_results where id = $(I conc_k))::text || ',' ||

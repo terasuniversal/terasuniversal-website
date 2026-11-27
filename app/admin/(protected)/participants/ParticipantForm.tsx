@@ -13,33 +13,55 @@ export function ParticipantForm({
   schedules,
   companies = [],
   mode,
+  identityLocked = false,
 }: {
   action: (prev: ParticipantFormState, fd: FormData) => Promise<ParticipantFormState>;
   participant?: any;
   schedules: Option[];
   companies?: Option[];
   mode: "create" | "edit";
+  /** G9-1 (K2): edit by a non-Super Admin. Identity fields are shown read-only and, having no name, are not submitted. */
+  identityLocked?: boolean;
 }) {
   const [state, formAction, pending] = useActionState<ParticipantFormState, FormData>(action, {});
   const e = state.errors ?? {};
   const d = participant ?? {};
+  const locked = mode === "edit" && identityLocked;
+  const lockedStyle = { background: "var(--ta-bg)", cursor: "not-allowed" };
 
   return (
     <form action={formAction} className="ta-form" style={{ maxWidth: 820 }}>
       {(state.message || e._form) && <div className="ta-alert ta-alert-error">{state.message || e._form}</div>}
 
       <h3 style={{ fontSize: 15, margin: "4px 0" }}>Personal Details</h3>
+      {locked && (
+        <div className="ta-alert ta-alert-info" role="note" id="identity-locked-note">
+          Name, IC / Passport, nationality and date of birth are read-only. Only a Super Admin can correct them. Your other changes will be saved.
+        </div>
+      )}
       <div className="ta-field-row">
         <Field label="Full name *" name="full_name" error={e.full_name}>
-          <input id="full_name" name="full_name" defaultValue={d.full_name ?? ""} required />
+          {locked ? (
+            <input id="full_name" value={d.full_name ?? ""} readOnly aria-readonly="true" aria-describedby="identity-locked-note" style={lockedStyle} />
+          ) : (
+            <input id="full_name" name="full_name" defaultValue={d.full_name ?? ""} required />
+          )}
         </Field>
         <Field label="IC / Passport No. *" name="ic_passport_no" error={e.ic_passport_no}>
-          <input id="ic_passport_no" name="ic_passport_no" defaultValue={d.ic_passport_no ?? ""} required />
+          {locked ? (
+            <input id="ic_passport_no" value={d.ic_passport_no ?? ""} readOnly aria-readonly="true" aria-describedby="identity-locked-note" style={lockedStyle} />
+          ) : (
+            <input id="ic_passport_no" name="ic_passport_no" defaultValue={d.ic_passport_no ?? ""} required />
+          )}
         </Field>
       </div>
       <div className="ta-field-row">
-        <Field label="Nationality" name="nationality">
-          <input id="nationality" name="nationality" defaultValue={d.nationality ?? "Malaysian"} />
+        <Field label="Nationality" name="nationality" error={e.nationality}>
+          {locked ? (
+            <input id="nationality" value={d.nationality ?? ""} readOnly aria-readonly="true" aria-describedby="identity-locked-note" style={lockedStyle} />
+          ) : (
+            <input id="nationality" name="nationality" defaultValue={d.nationality ?? "Malaysian"} />
+          )}
         </Field>
         <Field label="Gender" name="gender">
           <select id="gender" name="gender" defaultValue={d.gender ?? ""}>
@@ -51,7 +73,11 @@ export function ParticipantForm({
       </div>
       <div className="ta-field-row">
         <Field label="Date of birth" name="date_of_birth" error={e.date_of_birth}>
-          <input id="date_of_birth" name="date_of_birth" type="date" defaultValue={d.date_of_birth ?? ""} />
+          {locked ? (
+            <input id="date_of_birth" type="date" value={d.date_of_birth ?? ""} readOnly aria-readonly="true" aria-describedby="identity-locked-note" style={lockedStyle} />
+          ) : (
+            <input id="date_of_birth" name="date_of_birth" type="date" defaultValue={d.date_of_birth ?? ""} />
+          )}
         </Field>
         <Field label="Registration date" name="registration_date">
           <input id="registration_date" name="registration_date" type="date" defaultValue={d.registration_date ?? ""} />

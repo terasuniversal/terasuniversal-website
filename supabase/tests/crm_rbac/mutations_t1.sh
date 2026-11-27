@@ -11,8 +11,12 @@ A=$M/20261201150000_training_t1_access.sql; B=$M/20261201151000_training_t1_iden
 q(){ docker exec -i $C psql -U postgres -h localhost -X -q -v ON_ERROR_STOP=1 -At "$@"; }
 rel(){ local v f; for v in $REL; do f=$(ls $M | grep "^${v}_"); [ "$v" = 20261201121000 ] && [ -n "${M05_FILE:-}" ] && { cat "$M05_FILE"; echo; continue; }; cat "$M/$f"; echo; done; }
 run_f(){ # $1 = T1-a file, $2 = T1-b file
+  # Built into a file first: when a mutant aborts the migration early, psql exits and a pipe writer could block on
+  # Windows (no SIGPIPE) once the remaining input exceeds the pipe buffer.
+  local in="$TMP/run_f_input.sql"
   { echo "begin;"; rel; cat "$1"; echo; cat "$2"; echo; cat $T/10_seed.sql $T/20_matrix.sql $T/30_checks.sql $T/40_m10.sql $T/50_m11.sql $T/60_t1.sql
-    echo "select * from rbac_test.t1('F');"; cat $T/62_t1_f1f2.sql; echo "rollback;"; } | q 2>&1; }
+    echo "select * from rbac_test.t1('F');"; cat $T/62_t1_f1f2.sql; echo "rollback;"; } > "$in"
+  q < "$in" 2>&1; rm -f "$in"; }
 TMP="$OUT/mut_tmp"; mkdir -p "$TMP"; : > "$OUT/mutations.log"
 base_out=$(run_f "$A" "$B"); base=$(echo "$base_out" | grep -o 'TOTAL T1 F pass=[0-9]* fail=[0-9]*')
 echo "baseline: $base; F1-a/F2 checks: $(echo "$base_out" | grep -c 'CHECK PASS') pass, $(echo "$base_out" | grep -c 'CHECK FAIL') fail" | tee -a "$OUT/mutations.log"
@@ -106,6 +110,59 @@ mutant "D-A2: assessment finalisation check removed" B "  if not v_super and app
 mutant "D-A2: Admin exempted from the assessment finalisation check" B "  if not v_super and app.t1_participant_finalised(new.schedule_id, new.participant_id) then" "  if not v_super and not app.is_admin() and app.t1_participant_finalised(new.schedule_id, new.participant_id) then"
 mutant_conc "D-A1 guard: schedule FOR SHARE removed (issuance not awaited)" "  perform 1 from public.course_schedules s where s.id = p_schedule_id for share;" "  perform 1;"
 mutant "C1-b: attendance_undo reservation removed from app.log_event" B "  if p_entity_type = 'attendance_undo' then" "  if false then"
+# ---- K2 mutants (Owner GO D4, 27 Nov). A concurrency mutant that removes a lock must also drop the K2 lock-order
+# postcondition (otherwise the migration aborts and the race test is never reached), so mutant_conc2 applies two edits.
+POST_OLD="    raise exception 't1b_postcondition_failed: K2 certificate lock order / restore guard missing' using errcode = 'P0001';"
+POST_NEW="    null; -- mutant: K2 lock-order postcondition disabled"
+mutant_conc2(){ # name, old1, new1, old2, new2
+  local name=$1 dst="$TMP/conc_$(basename "$B")"
+  O1="$2" N1="$3" O2="$4" N2="$5" python -I -c 'import os,sys
+s=open(sys.argv[1],encoding="utf8").read()
+for o,n in ((os.environ["O1"],os.environ["N1"]),(os.environ["O2"],os.environ["N2"])):
+    assert s.count(o)>=1, "pattern not found"; s=s.replace(o,n)
+pre=s.split("do $t1b_post$")[1]
+open(sys.argv[2],"w",encoding="utf8",newline="\n").write(s)' "$B" "$dst" || { echo "NOT APPLIED - $name" | tee -a "$OUT/mutations.log"; return; }
+  T1B_FILE="$dst" bash $T/conc_t1.sh "$C" "$TMP/conc_mut" > /dev/null 2>&1
+  if grep -q '^FAIL setup' "$TMP/conc_mut/conc.log"; then echo "NOT TESTED (setup failed) - $name" | tee -a "$OUT/mutations.log"
+  elif grep -q '^FAIL' "$TMP/conc_mut/conc.log"; then echo "killed (concurrency: $(grep -m1 -o '^FAIL [^(]*' "$TMP/conc_mut/conc.log")) - $name" | tee -a "$OUT/mutations.log"
+  else echo "SURVIVED (concurrency) - $name" | tee -a "$OUT/mutations.log"; fi
+  rm -f "$dst"
+}
+mutant_conc2 "K2-a: issuer reads eligibility before locking (RA2 reopened)" \
+  "  perform 1 from public.course_schedules cs where cs.id = p_schedule_id for update;
+
+  select * into v_elig" "
+  select * into v_elig" "$POST_OLD" "$POST_NEW"
+mutant_conc2 "K2-a: WAH wrapper authorizes before locking" \
+  "  perform 1 from public.course_schedules cs where cs.id = p_schedule_id for update;
+
+  perform app.authorize_wah_first_issuance(" "
+  perform app.authorize_wah_first_issuance(" "$POST_OLD" "$POST_NEW"
+mutant_conc2 "K2-b: restore does not take the schedule lock" \
+  "      perform 1 from public.course_schedules s where s.id = v_cert.schedule_id for update;" "      perform 1;" "$POST_OLD" "$POST_NEW"
+mutant "K2-a: early issuer lock removed (postcondition must abort)" B \
+  "  perform 1 from public.course_schedules cs where cs.id = p_schedule_id for update;
+
+  select * into v_elig" "
+  select * into v_elig"
+mutant "K2-b: restore conflict check removed" B "    if exists (
+         select 1 from public.certificates c
+         where c.id <> v_cert.id" "    if false and exists (
+         select 1 from public.certificates c
+         where c.id <> v_cert.id"
+mutant "K2-b: participant-level WAH scope removed" B "
+       or (app.is_wah_legacy_target(v_cert.course_id, v_cert.course_name)
+           and app.wah_participant_holds_certificate(v_cert.participant_id)) then" " then"
+mutant "G9-1: identity guard disabled" B "  if new.full_name is distinct from old.full_name
+     or new.ic_passport_no" "  if false and new.full_name is distinct from old.full_name
+     or new.ic_passport_no"
+mutant "G9-1: exemption widened from Super Admin to Admin" B "  if auth.uid() is null or app.is_super_admin() then
+    return new;" "  if auth.uid() is null or app.is_admin() then
+    return new;"
+mutant "G9-1: name no longer guarded" B "  if new.full_name is distinct from old.full_name
+     or new.ic_passport_no" "  if new.ic_passport_no"
+mutant "G9-1: derived identity_last4 treated as a change (false positive)" B \
+  " and new.identity_last4 is distinct from nullif(v_last4, ''))" ")"
 rm -rf "$TMP"
 k=$(grep -c '^killed' "$OUT/mutations.log"); n=$(grep -c ' - ' "$OUT/mutations.log")
 echo "# T1 DB mutations: $k/$n killed" | tee -a "$OUT/mutations.log"

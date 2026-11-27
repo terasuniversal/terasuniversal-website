@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../lib/supabase/server";
 import { hasModuleCapability, requireModuleAccess, requireRole } from "../../../../../lib/auth/session";
-import { isAdmin } from "../../../../../lib/auth/rbac";
+import { isAdmin, isSuperAdmin } from "../../../../../lib/auth/rbac";
 import { PageHead, Card, Badge, EmptyState } from "../../../../../components/admin/ui";
 import { softDeleteParticipant, restoreParticipant } from "../actions";
 import { NameCorrectionCard } from "./NameCorrectionCard";
@@ -98,7 +98,7 @@ export default async function ViewParticipantPage({
             </div>
           </Card>
 
-          {canWrite && !isDeleted && <NameCorrectionCard participantId={id} currentFullName={p.full_name ?? ""} />}
+          {isSuperAdmin(profile.role) && !isDeleted && <NameCorrectionCard participantId={id} currentFullName={p.full_name ?? ""} />}
 
           <Card title="Employment Information">
             <div className="ta-card-pad">

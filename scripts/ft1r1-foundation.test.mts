@@ -1,5 +1,5 @@
 /**
- * F-T1-r1 (PROPOSAL, local only) tests: the content-gated foundation-contract exception for the 28 Training T1 admin
+ * F-T1-r1 (PROPOSAL, local only) tests: the content-gated foundation-contract exception for the 29 Training T1 admin
  * paths. Valid both without T1 (every path is then simply not exempt) and with the exact T1 content (every path exempt).
  * Run: node --experimental-transform-types --no-warnings --test scripts/ft1r1-foundation.test.mts
  */
@@ -24,7 +24,7 @@ test("F-T1-r1: the pinned baseline resolves to exactly b7ea35f2 and fails closed
   for (const bad of ["HEAD", "b7ea35f2", "0".repeat(40), FT1R1_PIN.replace(/.$/, "0"), ""]) assert.equal(ft1r1Baseline(root, bad), null, bad);
 });
 
-test("F-T1-r1: the manifest is pinned by SHA-256, declares the baseline and lists exactly 28 status-M admin paths", () => {
+test("F-T1-r1: the manifest is pinned by SHA-256, declares the baseline and lists exactly 29 status-M admin paths", () => {
   assert.equal(sha(read(FT1R1_MANIFEST)), FT1R1_MANIFEST_SHA256);
   const m = ft1r1Manifest(root);
   assert.ok(m, "manifest accepted");
@@ -38,7 +38,7 @@ test("F-T1-r1: the manifest is pinned by SHA-256, declares the baseline and list
   assert.equal(ft1r1Manifest(root, "0".repeat(40)), null, "manifest bound to the pinned baseline");
 });
 
-test("F-T1-r1: each of the 28 paths is exempt exactly when its content is the approved T1 content", () => {
+test("F-T1-r1: each of the 29 paths is exempt exactly when its content is the approved T1 content", () => {
   const m = ft1r1Manifest(root)!;
   for (const [p, e] of m) {
     const exact = existsSync(join(rootPath, p)) && sha(read(p)) === e.approved_sha256;

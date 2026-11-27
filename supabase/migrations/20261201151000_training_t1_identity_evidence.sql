@@ -29,16 +29,23 @@
 --      D-A3: the schedule / participant of an assessment or skill result can never be changed (every role, including
 --            Super Admin and server sessions); a result belongs to one participant and a new one is recorded instead.
 --      D-A1 (guard part only): the finalisation check first takes FOR SHARE on the schedule row, so a write waits for a
---            certificate issuance that already holds FOR UPDATE on it and then sees the committed certificate. The
---            issuer itself still reads eligibility before locking (C4, HOLD): a write that STARTS before the issuer
---            locks the schedule can still race it; that order is closed only by the deferred C4 change.
+--            certificate issuance that already holds FOR UPDATE on it and then sees the committed certificate.
+--  * K2 (Owner GO D4, 27 Nov):
+--      K2-a (D-A1 C4 part, RA2): the certificate issuer and the WAH wrapper now lock the schedule BEFORE reading
+--            eligibility, so a Training write that started first finishes first and is seen (no stale issuance).
+--      K2-b: restoring a soft-deleted certificate takes the issuance locks and is refused when another active
+--            certificate exists for the participant in the same scope (schedule; course for schedule-less rows;
+--            any active WAH certificate for the person, as the WAH issuance rule).
+--      K2-c (G9-1): full_name, ic_passport_no, identity_no, identity_last4, date_of_birth and nationality can be
+--            changed only by a Super Admin or a server session; every other signed-in writer is refused (42501).
 --      C1-b: the Undo audit row is written directly (not through log_event) and app.log_event refuses the reserved
 --            entity type attendance_undo, so no caller of log_event can forge one. Other log_event uses are unchanged.
 --  * T1-a lets Training Ops Staff update schedules, enrolments, participants and trainers; soft delete / restore
 --    (deleted_at) keeps its previous floor: the Admin role (app.is_admin()). Archiving an assessment or a skill
 --    result (an indirect DELETE) needs the Admin role too; re-recording a previously archived skill area is allowed.
 -- Not changed: scoring, thresholds, competency rules, the WAH guards and correction RPC (exempted by the same
--- transaction marker they already use), certificate eligibility/issuance, /verify, the existing integrity trigger.
+-- transaction marker they already use), certificate eligibility rules and issuance output, /verify, the existing
+-- integrity trigger.
 -- Service-role / migration sessions (auth.uid() is null) are not affected, as with the existing guards.
 
 do $t1b_requires$
@@ -54,6 +61,17 @@ begin
   if (select md5(p.prosrc) from pg_proc p where p.oid = to_regprocedure('app.log_event(audit_action,text,text,text,jsonb)'))
      is distinct from 'd1622882268761f00421605e26882ebd' then
     raise exception 't1b_precondition_failed: app.log_event body is not the reviewed pre-state - nothing changed' using errcode = 'P0001';
+  end if;
+  -- K2: the three C4 functions replaced below must be the reviewed pre-state (Production 27 Nov = fixture).
+  if (select md5(p.prosrc) from pg_proc p where p.oid = to_regprocedure('app.issue_certificate_with_skill_snapshot(uuid,uuid,text)'))
+       is distinct from '70e92cb2f028c2c24dd7de1a02f8ce03'
+     or (select md5(p.prosrc) from pg_proc p where p.oid = to_regprocedure('app.issue_wah_certificate_as_super_admin(uuid,uuid,text)'))
+       is distinct from '2bf2d4ae74fe3cc601cf00b45ff1a487'
+     or (select md5(p.prosrc) from pg_proc p where p.oid = to_regprocedure('app.set_certificate_deleted(uuid,boolean)'))
+       is distinct from '9412568e7baf3663835cdf30003ceedb'
+     or to_regprocedure('app.wah_participant_holds_certificate(uuid)') is null
+     or to_regprocedure('app.is_wah_legacy_target(uuid,text)') is null then
+    raise exception 't1b_precondition_failed: K2 certificate functions are not the reviewed pre-state - nothing changed' using errcode = 'P0001';
   end if;
   if exists (select 1 from information_schema.columns where table_schema = 'public'
                and ((table_name = 'course_schedules' and column_name = 'trainer_id')
@@ -394,7 +412,353 @@ begin
 end;
 $function$;
 
+-- ---------------------------------------------------------------- K2 (Owner GO D4, 27 Nov): C4 lock order + G9-1
+-- K2-a: the certificate issuer and the WAH issuance wrapper lock the schedule row before reading eligibility (RA2).
+--       Function bodies are the reviewed pre-state (pinned above) plus one lock statement each.
+CREATE OR REPLACE FUNCTION app.issue_certificate_with_skill_snapshot(p_schedule_id uuid, p_participant_id uuid, p_certificate_number text DEFAULT NULL::text)
+ RETURNS TABLE(id uuid, verification_token text)
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'app', 'extensions'
+ SET "TimeZone" TO 'Asia/Kuala_Lumpur'
+AS $function$
+declare
+  v_elig public.v_certificate_eligibility%rowtype;
+  v_schedule public.course_schedules%rowtype;
+  v_course public.courses%rowtype;
+  v_participant public.participants%rowtype;
+  v_branch public.certificate_branches%rowtype;
+  v_cert_id uuid;
+  v_token text;
+  v_area text;
+  v_status text;
+  v_score numeric;
+  v_notes text;
+  v_src_id uuid;
+  v_group_id uuid;
+  v_group_name text;
+  v_trainer_id uuid;
+  v_trainer_name text;
+  v_assessor_id uuid;
+  v_assessor_name text;
+  v_template_name text;
+  v_template_config jsonb := '{}'::jsonb;
+  v_signature_reference text;
+  v_design_variant text;
+begin
+  if not app.is_active() or not app.is_admin() or not public.has_module_access_level('certificates', 'admin') then
+    raise exception 'Not authorized to issue certificates.' using errcode = '42501';
+  end if;
+
+  -- K2-a (RA2): take the schedule lock BEFORE reading eligibility. Training writes take FOR SHARE on this row
+  -- (app.t1_participant_finalised), so a write that is still running finishes first and the eligibility read below
+  -- (a new statement) sees it; a write that starts later waits for this issuance and then sees the certificate.
+  perform 1 from public.course_schedules cs where cs.id = p_schedule_id for update;
+
+  select * into v_elig
+  from public.v_certificate_eligibility
+  where schedule_id = p_schedule_id and participant_id = p_participant_id;
+  if not found or not v_elig.eligible then
+    raise exception 'Not eligible: %', coalesce(v_elig.ineligibility_reason, 'no_eligibility_row') using errcode = 'P0001';
+  end if;
+
+  select cs.* into v_schedule from public.course_schedules cs where cs.id = p_schedule_id and cs.deleted_at is null for update;
+  select co.* into v_course from public.courses co where co.id = v_schedule.course_id and co.deleted_at is null;
+  select p.* into v_participant from public.participants p where p.id = p_participant_id;
+
+  if v_schedule.branch_id is null then
+    raise exception 'Certificate issuing branch is not configured.' using errcode = 'P0001';
+  end if;
+  select b.* into v_branch
+  from public.certificate_branches b
+  where b.id = v_schedule.branch_id and b.is_active;
+  if not found then
+    raise exception 'Certificate issuing branch is inactive or missing.' using errcode = 'P0001';
+  end if;
+
+  -- Effective trainer: active group assignment first, schedule free-text fallback.
+  select sp.schedule_group_id, g.name, g.trainer_id, t.full_name
+    into v_group_id, v_group_name, v_trainer_id, v_trainer_name
+  from public.schedule_participants sp
+  join public.schedule_groups g on g.id = sp.schedule_group_id
+    and g.schedule_id = p_schedule_id and g.deleted_at is null
+  left join public.trainers t on t.id = g.trainer_id
+  where sp.schedule_id = p_schedule_id
+    and sp.participant_id = p_participant_id
+    and sp.deleted_at is null
+  limit 1;
+  if v_trainer_name is null then
+    v_trainer_name := nullif(btrim(v_schedule.trainer_name), '');
+    v_trainer_id := null;
+  end if;
+  if v_trainer_name is null then
+    raise exception 'Effective trainer is not configured.' using errcode = 'P0001';
+  end if;
+
+  -- Effective assessor: group override, otherwise the schedule primary assessor.
+  if v_group_id is not null then
+    select g.assessor_id, a.full_name into v_assessor_id, v_assessor_name
+    from public.schedule_groups g
+    left join public.assessors a on a.id = g.assessor_id
+    where g.id = v_group_id and g.assessor_id is not null;
+  end if;
+  if v_assessor_id is null then
+    select sa.assessor_id, a.full_name into v_assessor_id, v_assessor_name
+    from public.schedule_assessors sa
+    join public.assessors a on a.id = sa.assessor_id
+    where sa.schedule_id = p_schedule_id and sa.is_primary = true
+    order by sa.assigned_at nulls last, sa.created_at
+    limit 1;
+  end if;
+
+  -- Signature-URL fallback CASE preserved verbatim from Production's
+  -- existing, currently-live function body -- including its
+  -- 'working_at_height_certificate' branch. This is pre-existing, already-
+  -- deployed code being carried forward unchanged, not new WAH dispatch
+  -- logic: this migration creates no WAH course, template, or trigger
+  -- branch, so this CASE arm can never actually be reached by anything
+  -- this migration adds. Removing it would be an unrelated, unnecessary
+  -- edit to code this migration isn't meant to touch (Codex C4C-2D review
+  -- finding #7, independently verified: this is the only Inspector/WAH-
+  -- adjacent string anywhere in this file, and it's inert, inherited code,
+  -- not an activation).
+  select t.name, t.config, t.config->>'design_variant',
+    coalesce(t.config->>'signature_url',
+      case t.config->>'design_variant'
+        when 'standard_scaffold_certificate' then '/signatures/director-signature-v2.png'
+        when 'professional_scaffold_erection_skills' then '/signatures/director-signature.png'
+        when 'working_at_height_certificate' then '/signatures/director-signature.png'
+        else null
+      end)
+  into v_template_name, v_template_config, v_design_variant, v_signature_reference
+  from public.certificate_templates t
+  where t.id = v_elig.certificate_template_id
+    and t.is_active and t.deleted_at is null;
+  if not found or v_template_name is null then
+    raise exception 'Certificate template resolution is not deterministic.' using errcode = 'P0001';
+  end if;
+
+  -- C4 Wave1 Erector safety guard, scoped to exactly the 3 real Erector
+  -- course IDs -- new in this migration. No Inspector/WAH course ID
+  -- appears here.
+  if v_elig.course_id in (
+    '2a78decf-6997-4626-a7cc-a1a23a110cf8'::uuid,
+    '904293c4-8792-41d7-8744-42143887e577'::uuid,
+    'b9c737b8-8a97-4c91-91ee-c65dc5982ca7'::uuid
+  ) then
+    if v_template_config->>'design_variant' is distinct from 'standard_scaffold_certificate' then
+      raise exception 'C4_WAVE1_DESIGN_VARIANT_INVALID' using errcode = 'P0001';
+    end if;
+  end if;
+
+  insert into public.certificates (
+    participant_id, schedule_id, course_id, template_id,
+    certificate_number, holder_name, participant_name, participant_code_snapshot, company_snapshot,
+    identity_no, identity_last4,
+    course_name, course_code, schedule_code, exam_date,
+    training_start_date, training_end_date, venue, trainer_name,
+    branch_id, branch_code, branch_name, branch_address,
+    effective_assessor_name, status, issue_date, issued_by
+  ) values (
+    p_participant_id, p_schedule_id, v_elig.course_id, v_elig.certificate_template_id,
+    p_certificate_number, v_elig.holder_name, v_elig.holder_name, coalesce(v_participant.participant_id, v_participant.participant_code), v_participant.company,
+    nullif(btrim(v_participant.ic_passport_no), ''),
+    case
+      when length(regexp_replace(v_participant.ic_passport_no, '[^0-9A-Za-z]', '', 'g')) >= 4
+        then upper(right(regexp_replace(v_participant.ic_passport_no, '[^0-9A-Za-z]', '', 'g'), 4))
+      else null
+    end,
+    v_elig.course_name, v_course.course_code, v_schedule.schedule_code, v_schedule.exam_date,
+    v_schedule.start_date, v_schedule.end_date, v_schedule.venue, v_trainer_name,
+    v_branch.id, v_branch.branch_code, v_branch.branch_name, v_branch.display_address,
+    v_assessor_name, 'valid', current_date, auth.uid()
+  ) returning certificates.id, certificates.verification_token into v_cert_id, v_token;
+
+  update public.certificates set verification_url = '/verify/' || v_token where certificates.id = v_cert_id;
+
+  foreach v_area in array array['theory_session', 'practical_training', 'safety_awareness', 'practical_assessment'] loop
+    select psr.status, psr.score, psr.notes, psr.id into v_status, v_score, v_notes, v_src_id
+    from public.participant_skill_results psr
+    where psr.schedule_id = p_schedule_id and psr.participant_id = p_participant_id
+      and psr.area = v_area and psr.deleted_at is null;
+    insert into public.certificate_skill_results (certificate_id, area, status, score, notes, source_skill_result_id)
+    values (
+      v_cert_id,
+      v_area,
+      case
+        when v_area = 'practical_assessment' then case when v_status = 'passed' then 'passed' when v_status = 'failed' then 'failed' else 'not_recorded' end
+        else case when v_status = 'completed' then 'completed' else 'not_recorded' end
+      end,
+      v_score, v_notes, v_src_id
+    );
+    v_status := null; v_score := null; v_notes := null; v_src_id := null;
+  end loop;
+
+  insert into public.certificate_skill_results (certificate_id, area, status)
+  values (v_cert_id, 'attendance_requirement', case when v_elig.attendance_satisfied is null then 'not_recorded' when v_elig.attendance_satisfied then 'met' else 'not_met' end);
+
+  insert into public.certificate_issuance_snapshots (
+    certificate_id, snapshot_version, renderer_version, holder_name, identity_no, identity_last4,
+    company_snapshot, participant_code_snapshot, course_name, course_code, schedule_code, training_start_date, training_end_date,
+    exam_date, venue, branch_id, branch_code, branch_name, branch_address,
+    trainer_name, effective_trainer_id, effective_assessor_id, effective_assessor_name,
+    group_id, group_name, assessment_result, competency_status, issue_date,
+    template_id, template_name, template_config, signature_reference,
+    verification_metadata, render_payload, created_by
+  )
+  select v_cert_id, 2, 'certificate_renderer_v1', c.holder_name, c.identity_no, c.identity_last4,
+    c.company_snapshot, c.participant_code_snapshot, c.course_name, c.course_code, c.schedule_code, c.training_start_date, c.training_end_date,
+    c.exam_date, c.venue, c.branch_id, c.branch_code, c.branch_name, c.branch_address,
+    c.trainer_name, v_trainer_id, v_assessor_id, v_assessor_name,
+    v_group_id, v_group_name, v_elig.result, v_elig.competency_status, c.issue_date,
+    c.template_id, v_template_name, coalesce(v_template_config, '{}'::jsonb), v_signature_reference,
+    jsonb_build_object('certificate_number', c.certificate_number, 'verification_token', c.verification_token,
+      'verification_path', c.verification_url, 'verification_enabled', c.verification_enabled,
+      'public_verification_enabled', c.public_verification_enabled),
+    jsonb_build_object('certificate_number', c.certificate_number, 'holder_name', c.holder_name,
+      'identity_no', c.identity_no, 'participant_code_snapshot', c.participant_code_snapshot, 'company_snapshot', c.company_snapshot, 'course_name', c.course_name,
+      'course_code', c.course_code, 'schedule_code', c.schedule_code, 'training_start_date', c.training_start_date,
+      'training_end_date', c.training_end_date, 'exam_date', c.exam_date, 'venue', c.venue,
+      'branch_code', c.branch_code, 'branch_name', c.branch_name, 'branch_address', c.branch_address,
+      'trainer_name', c.trainer_name, 'effective_assessor_name', c.effective_assessor_name,
+      'assessment_result', v_elig.result, 'competency_status', v_elig.competency_status,
+      'issue_date', c.issue_date, 'skills_record', coalesce((select jsonb_agg(jsonb_build_object('area', s.area, 'status', s.status, 'score', s.score, 'notes', s.notes) order by s.area) from public.certificate_skill_results s where s.certificate_id = c.id), '[]'::jsonb)),
+    auth.uid()
+  from public.certificates c where c.id = v_cert_id;
+
+  return query select v_cert_id, v_token;
+end;
+$function$;
+
+CREATE OR REPLACE FUNCTION app.issue_wah_certificate_as_super_admin(p_schedule_id uuid, p_participant_id uuid, p_certificate_number text DEFAULT NULL::text)
+ RETURNS TABLE(id uuid, verification_token text)
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog'
+AS $function$
+declare
+  v_uid uuid := auth.uid();
+  v_is_super_admin boolean;
+begin
+  select (p.role::text = 'super_admin' and p.is_active) into v_is_super_admin
+  from public.profiles p
+  where p.id = v_uid;
+  if v_uid is null or v_is_super_admin is not true then
+    raise exception 'WAH_SUPER_ADMIN_REQUIRED: only the active Super Admin can issue Working at Height certificates.'
+      using errcode = '42501';
+  end if;
+
+  -- K2-a (RA2): lock the schedule before the authorization reads eligibility and the Skills Record. Lock order is
+  -- schedule row, then the WAH authorization advisory lock, then (inside the issuer) the same schedule row again.
+  perform 1 from public.course_schedules cs where cs.id = p_schedule_id for update;
+
+  perform app.authorize_wah_first_issuance(
+    p_schedule_id, p_participant_id, 5, 'SUPER_ADMIN_CRM:' || v_uid::text);
+
+  if app.wah_participant_holds_certificate(p_participant_id) then
+    raise exception 'WAH_ALREADY_CERTIFIED: this participant already holds an active Working at Height certificate.'
+      using errcode = 'P0001';
+  end if;
+
+  return query
+    select s.id, s.verification_token
+    from app.issue_certificate_with_skill_snapshot(p_schedule_id, p_participant_id, p_certificate_number) s;
+end;
+$function$;
+
+-- K2-b: restoring a soft-deleted certificate takes the issuance locks and refuses a second active certificate.
+CREATE OR REPLACE FUNCTION app.set_certificate_deleted(p_certificate_id uuid, p_deleted boolean)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'app', 'extensions'
+AS $function$
+declare
+  v_actor uuid := auth.uid();
+  v_cert public.certificates%rowtype;
+begin
+  if v_actor is null or not app.is_active() or not app.is_admin()
+    or not public.has_module_access_level('certificates', 'admin') then
+    raise exception 'Not authorized to change certificate deletion state.' using errcode = '42501';
+  end if;
+  select * into v_cert from public.certificates where id = p_certificate_id;
+  if not found then
+    raise exception 'Certificate not found.' using errcode = 'P0002';
+  end if;
+  if not p_deleted then
+    -- K2-b: restoring re-activates a certificate, so it takes the same locks as issuance, in the same order (schedule
+    -- row first; the participant row for a certificate without a schedule; the WAH authorization lock for WAH).
+    if v_cert.schedule_id is not null then
+      perform 1 from public.course_schedules s where s.id = v_cert.schedule_id for update;
+    else
+      perform 1 from public.participants p where p.id = v_cert.participant_id for no key update;
+    end if;
+    if app.is_wah_legacy_target(v_cert.course_id, v_cert.course_name) then
+      perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('wah_issuance_authorization'));
+    end if;
+  end if;
+  select * into v_cert from public.certificates where id = p_certificate_id for update;
+  if not found then
+    raise exception 'Certificate not found.' using errcode = 'P0002';
+  end if;
+  if not p_deleted and v_cert.deleted_at is not null and v_cert.status <> 'revoked' then
+    -- Another active certificate in the same scope wins; history and /verify of every row are left as they are.
+    if exists (
+         select 1 from public.certificates c
+         where c.id <> v_cert.id and c.deleted_at is null and c.status <> 'revoked'
+           and c.participant_id = v_cert.participant_id
+           and ((v_cert.schedule_id is not null and c.schedule_id = v_cert.schedule_id)
+             or (v_cert.schedule_id is null and c.schedule_id is null
+                 and coalesce(c.course_id::text, c.course_name) is not distinct from coalesce(v_cert.course_id::text, v_cert.course_name))))
+       or (app.is_wah_legacy_target(v_cert.course_id, v_cert.course_name)
+           and app.wah_participant_holds_certificate(v_cert.participant_id)) then
+      raise exception 'CERTIFICATE_RESTORE_CONFLICT: another active certificate already exists for this participant and certification; revoke it or keep this one deleted.'
+        using errcode = 'P0001';
+    end if;
+  end if;
+  update public.certificates
+  set deleted_at = case when p_deleted then now() else null end
+  where id = p_certificate_id;
+end;
+$function$;
+
+-- K2-c (G9-1): name and identity details are Super Admin only (and server sessions); INSERT is unchanged.
+create or replace function app.t1_guard_participant_identity()
+returns trigger
+language plpgsql
+security definer
+set search_path to 'public'
+as $function$
+declare
+  v_clean text;
+  v_last4 text;
+begin
+  -- Server sessions (service role, migrations: auth.uid() is null) and the Super Admin are not restricted.
+  if auth.uid() is null or app.is_super_admin() then
+    return new;
+  end if;
+  -- identity_last4 is derived by participants_sync_last4 (it runs first); only a value it would not produce is a change.
+  v_clean := regexp_replace(coalesce(new.identity_no, ''), '[^0-9A-Za-z]', '', 'g');
+  v_last4 := case when btrim(coalesce(new.identity_no, '')) <> '' and length(v_clean) >= 4 then upper(right(v_clean, 4))
+                  else upper(right(regexp_replace(coalesce(old.identity_last4, ''), '[^0-9A-Za-z]', '', 'g'), 4)) end;
+  if new.full_name is distinct from old.full_name
+     or new.ic_passport_no is distinct from old.ic_passport_no
+     or new.identity_no is distinct from old.identity_no
+     or new.date_of_birth is distinct from old.date_of_birth
+     or new.nationality is distinct from old.nationality
+     or (new.identity_last4 is distinct from old.identity_last4 and new.identity_last4 is distinct from nullif(v_last4, '')) then
+    raise exception using errcode = '42501',
+      message = 'Only a Super Admin can change a participant''s name or identity details (use Participant Details Correction)';
+  end if;
+  return new;
+end;
+$function$;
+
+create trigger trg_t1_participant_identity before update on public.participants
+  for each row execute function app.t1_guard_participant_identity();
+
 revoke all on function app.t1_guard_schedule_trainer() from public, anon, authenticated;
+revoke all on function app.t1_guard_participant_identity() from public, anon, authenticated;
 revoke all on function app.t1_guard_result_archive() from public, anon, authenticated;
 revoke all on function app.t1_guard_assessment_accountability() from public, anon, authenticated;
 revoke all on function app.t1_guard_skill_result_accountability() from public, anon, authenticated;
@@ -403,8 +767,23 @@ revoke all on function app.t1_guard_attendance_finalised() from public, anon, au
 
 do $t1b_post$
 begin
-  if (select count(*) from pg_trigger where not tgisinternal and tgname like 'trg_t1_%') <> 10 then
-    raise exception 't1b_postcondition_failed: expected 10 T1 triggers' using errcode = 'P0001';
+  if (select count(*) from pg_trigger where not tgisinternal and tgname like 'trg_t1_%') <> 11 then
+    raise exception 't1b_postcondition_failed: expected 11 T1 triggers' using errcode = 'P0001';
+  end if;
+  -- K2-a: in both issuers the schedule lock comes before the eligibility / authorization read.
+  if (select position('for update' in p.prosrc) = 0
+            or position('for update' in p.prosrc) > position('from public.v_certificate_eligibility' in p.prosrc)
+       from pg_proc p where p.oid = 'app.issue_certificate_with_skill_snapshot(uuid,uuid,text)'::regprocedure)
+     or (select position('for update' in p.prosrc) = 0
+            or position('for update' in p.prosrc) > position('authorize_wah_first_issuance' in p.prosrc)
+       from pg_proc p where p.oid = 'app.issue_wah_certificate_as_super_admin(uuid,uuid,text)'::regprocedure)
+     or position('CERTIFICATE_RESTORE_CONFLICT' in (select p.prosrc from pg_proc p where p.oid = 'app.set_certificate_deleted(uuid,boolean)'::regprocedure)) = 0 then
+    raise exception 't1b_postcondition_failed: K2 certificate lock order / restore guard missing' using errcode = 'P0001';
+  end if;
+  if has_function_privilege('authenticated', 'app.t1_guard_participant_identity()', 'execute')
+     or not has_function_privilege('authenticated', 'app.issue_certificate_with_skill_snapshot(uuid,uuid,text)', 'execute')
+     or not has_function_privilege('authenticated', 'app.set_certificate_deleted(uuid,boolean)', 'execute') then
+    raise exception 't1b_postcondition_failed: K2 grants changed' using errcode = 'P0001';
   end if;
   if has_function_privilege('authenticated', 'app.t1_participant_finalised(uuid,uuid)', 'execute')
      or has_function_privilege('anon', 'app.t1_participant_finalised(uuid,uuid)', 'execute')

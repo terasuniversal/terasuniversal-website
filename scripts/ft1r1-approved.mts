@@ -1,6 +1,6 @@
 /**
  * F-T1-r1 (PROPOSAL, local only; requires a separate Owner decision before use): the public-design-foundation contract
- * exempts exactly the 28 app/admin/(protected) files that CRM Training T1 (OWNER-TRAINING-T1-20261125) modifies, and
+ * exempts exactly the 29 app/admin/(protected) files that CRM Training T1 (OWNER-TRAINING-T1-20261125) modifies, and
  * only while each file's content is exactly the approved T1 content. This is the CE-1 pattern applied to a fixed list:
  *   - no wildcard, no directory entry, no new / deleted / renamed file: only status "M" paths listed in the manifest;
  *   - the manifest (scripts/ft1r1-admin-manifest.json) is pinned by SHA-256 and must declare the pinned baseline;
@@ -18,11 +18,12 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const FT1R1_PIN = "b7ea35f2cf7bcf53ede34cbbf477bb85d5251d85";
-// One CRM manifest for all 42 paths (F-T1-r1_42_PATHS_r4.json, baseline b7ea35f2); each contract uses only its own entries.
+// One CRM manifest for all 43 paths (F-T1-r1_43_PATHS_r6_OPTB.json, baseline b7ea35f2); each contract uses only its own entries.
+// r6 (Owner Option B, 2026-11-27) adds exactly one foundation path: app/admin/(protected)/participants/ParticipantForm.tsx.
 export const FT1R1_MANIFEST = "scripts/ft1r1-manifest.json";
-export const FT1R1_MANIFEST_SHA256 = "27e02a40fe43db26ac2aab340a441284e040d9b6fc46836c7f53649abc4cda34";
-export const FT1R1_COUNT = 28; // foundation entries
-export const FT1R1_TOTAL = 42;
+export const FT1R1_MANIFEST_SHA256 = "088745a0cac9657cc2647ff489741a2937a0431699932a057c1d1886dfcef6e4";
+export const FT1R1_COUNT = 29; // foundation entries
+export const FT1R1_TOTAL = 43;
 const PREFIX = "app/admin/(protected)/";
 const HEX40 = /^[0-9a-f]{40}$/;
 const HEX64 = /^[0-9a-f]{64}$/;
@@ -51,7 +52,7 @@ export function ft1r1Manifest(root: URL, pin: string = FT1R1_PIN): Map<string, E
     if (sha256(text) !== FT1R1_MANIFEST_SHA256) return null;
     const m = JSON.parse(text);
     if (m.baseline !== pin || m.count !== FT1R1_TOTAL || !Array.isArray(m.files) || m.files.length !== FT1R1_TOTAL) return null;
-    if (m.by_contract?.foundation !== 28 || m.by_contract?.w9g1 !== 1 || m.by_contract?.s6 !== 13) return null;
+    if (m.by_contract?.foundation !== FT1R1_COUNT || m.by_contract?.w9g1 !== 1 || m.by_contract?.s6 !== 13) return null;
     const out = new Map<string, Entry>();
     for (const e of (m.files as (Entry & { contract: string })[]).filter((x) => /^public-design-foundation-contract /.test(x.contract))) {
       const ok = typeof e.path === "string" && e.path.startsWith(PREFIX) && !/[*?\\]|\.\.|\/\/|\/$/.test(e.path)
@@ -65,7 +66,7 @@ export function ft1r1Manifest(root: URL, pin: string = FT1R1_PIN): Map<string, E
 }
 
 /**
- * True only for one of the 28 approved paths whose current content is exactly the approved T1 content, whose
+ * True only for one of the 29 approved paths whose current content is exactly the approved T1 content, whose
  * pinned-baseline blob is the declared base, AND whose blob at the contract base being compared against is that same
  * declared base. The last condition keeps the exception to exactly the T1 delta: against an older contract base, any
  * earlier change to the same file is still reported exactly as it was before (the path is then not exempted).
@@ -86,7 +87,7 @@ export function ft1r1AdminApproved(root: URL, path: string, base: string, pin: s
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
-// Owner GO F-T1-r1 42 paths: 14 more T1 paths in two more Website contracts.
+// Owner GO F-T1-r1 43 paths (r6): 14 more T1 paths in two more Website contracts.
 //   lib/validation/schemas.ts   -> scripts/w9g1-ebook-lead-contract.mts (named-edit integrity, BEFORE pin)
 //   13 supabase/ paths          -> scripts/s6-content-contract.mts (protected areas: Supabase)
 // Same rules: manifest pinned by SHA-256 and bound to the pinned baseline; exact paths; content-gated; fail closed.

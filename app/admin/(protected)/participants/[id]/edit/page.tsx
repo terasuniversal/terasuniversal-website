@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "../../../../../../lib/supabase/server";
 import { requireModuleCapability } from "../../../../../../lib/auth/session";
+import { isSuperAdmin } from "../../../../../../lib/auth/rbac";
 import { PageHead } from "../../../../../../components/admin/ui";
 import { ParticipantForm } from "../../ParticipantForm";
 import { updateParticipant } from "../../actions";
@@ -10,7 +11,7 @@ export const metadata = { title: "Edit Participant — TERAS UNIVERSAL Admin" };
 export const dynamic = "force-dynamic";
 
 export default async function EditParticipantPage({ params }: { params: Promise<{ id: string }> }) {
-await requireModuleCapability("participants", "edit");
+  const profile = await requireModuleCapability("participants", "edit");
   const { id } = await params;
   const supabase = await createSupabaseServerClient();
   const { data: participant } = await supabase.from("participants").select("*").eq("id", id).single();
@@ -20,7 +21,14 @@ await requireModuleCapability("participants", "edit");
   return (
     <>
       <PageHead title="Edit Participant" subtitle={`${participant.participant_id} · ${participant.full_name}`} />
-      <ParticipantForm action={boundUpdate} participant={participant} schedules={schedules} companies={companies} mode="edit" />
+      <ParticipantForm
+        action={boundUpdate}
+        participant={participant}
+        schedules={schedules}
+        companies={companies}
+        mode="edit"
+        identityLocked={!isSuperAdmin(profile.role)}
+      />
     </>
   );
 }

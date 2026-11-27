@@ -233,12 +233,12 @@ function bodyOf(text: string, signature: string) {
 const actions = await source("../app/admin/(protected)/participants/actions.ts");
 const correct = bodyOf(actions, "export async function correctParticipantName");
 
-await check("contract: the Participants Edit capability guard runs first", () => {
-  // T1 (OWNER-TRAINING-T1-20261125): Admin, or an Editor with Custom access + Participants Edit (Training Ops Staff);
-  // requireModuleCapability checks the role eligibility and the module level in one guard (M-09 level unchanged).
-  const guard = correct.indexOf('requireModuleCapability("participants", "edit")');
+await check("contract: the Super Admin guard runs first (K2 G9-1: name corrections are Super Admin only)", () => {
+  // K2 (Owner GO D4): the database trigger trg_t1_participant_identity refuses name/identity changes by anyone but a
+  // Super Admin or a server session; the action mirrors it so the card never promises a save the database refuses.
+  const guard = correct.indexOf('requireRole("super_admin")');
   const parse = correct.indexOf("participantNameCorrectionSchema.safeParse");
-  assert.ok(guard >= 0 && parse > guard && !correct.includes('requireRole("editor")'));
+  assert.ok(guard >= 0 && parse > guard && !correct.includes('requireRole("editor")') && !correct.includes("requireModuleCapability("));
 });
 
 await check("security: the service-role audit client is created only after guards and validation, and before any write", () => {
@@ -281,16 +281,48 @@ await check("contract: the action reads only full_name and expected_full_name an
   assert.doesNotMatch(correct, /\.from\("participants"\)/, "all writes go through the gated helper");
 });
 
-await check("contract: createParticipant and updateParticipant still use the full participantSchema", () => {
+await check("contract: createParticipant and Super Admin updateParticipant still use the full participantSchema", () => {
   assert.match(bodyOf(actions, "export async function createParticipant"), /participantSchema\.safeParse\(readForm\(formData\)\)/);
-  assert.match(bodyOf(actions, "export async function updateParticipant"), /participantSchema\.safeParse\(readForm\(formData\)\)/);
+  const upd = bodyOf(actions, "export async function updateParticipant");
+  assert.match(upd, /const input = readForm\(formData\);/);
+  const elseAt = upd.indexOf("} else {");
+  assert.ok(elseAt > 0 && upd.indexOf("participantSchema.safeParse(input)", elseAt) > elseAt, "Super Admin branch validates the full schema");
+  assert.ok(upd.indexOf("findDuplicateIdentity", elseAt) > elseAt, "Super Admin branch keeps the duplicate IC check");
+});
+
+await check("contract: full edit cannot change identity details unless Super Admin (K2 G9-1, Option B)", () => {
+  const upd = bodyOf(actions, "export async function updateParticipant");
+  const branch = upd.indexOf("if (!isSuperAdmin(profile.role))");
+  const partial = upd.indexOf("participantNonIdentitySchema.safeParse(input)");
+  const refuse = upd.indexOf("formData.has(field) && !sameIdentityValue(input[field], current[field])");
+  const strip = upd.indexOf("delete payload[field]");
+  const write = upd.indexOf('.update(payload)');
+  assert.ok(branch > 0 && partial > branch && refuse > partial && strip > refuse && write > strip,
+    "non-Super-Admin branch validates without identity, refuses a submitted changed identity value, strips identity fields, then writes");
+  assert.match(actions, /const IDENTITY_FIELDS = \["full_name", "ic_passport_no", "date_of_birth", "nationality"\] as const;/);
+  assert.match(actions, /participantSchema\.omit\(\{ full_name: true, ic_passport_no: true, date_of_birth: true, nationality: true \}\)/);
+});
+
+const form = await source("../app/admin/(protected)/participants/ParticipantForm.tsx");
+const editPage = await source("../app/admin/(protected)/participants/[id]/edit/page.tsx");
+await check("ui: non-Super-Admin edit shows identity fields read-only, unnamed, with a notice (K2 G9-1, Option B)", () => {
+  assert.match(form, /const locked = mode === "edit" && identityLocked;/);
+  assert.match(editPage, /identityLocked=\{!isSuperAdmin\(profile\.role\)\}/);
+  for (const f of ["full_name", "ic_passport_no", "nationality", "date_of_birth"]) {
+    const ro = new RegExp(`<input id="${f}"[^>]*readOnly[^>]*/>`).exec(form);
+    assert.ok(ro, `${f} has a read-only variant`);
+    assert.doesNotMatch(ro[0], /\bname=/, `${f} read-only variant is not submitted`);
+    assert.match(form, new RegExp(`<input id="${f}" name="${f}"`), `${f} stays editable for create and Super Admin`);
+  }
+  assert.match(form, /Only a Super Admin can correct them\. Your other changes will be saved\./);
+  assert.doesNotMatch(editPage, /will not be saved/);
 });
 
 const page = await source("../app/admin/(protected)/participants/[id]/page.tsx");
 const card = await source("../app/admin/(protected)/participants/[id]/NameCorrectionCard.tsx");
 
-await check("ui: card is shown only to admins on non-deleted participants", () => {
-  assert.match(page, /\{canWrite && !isDeleted && <NameCorrectionCard /);
+await check("ui: card is shown only to the Super Admin on non-deleted participants (K2 G9-1)", () => {
+  assert.match(page, /\{isSuperAdmin\(profile\.role\) && !isDeleted && <NameCorrectionCard /);
 });
 
 await check("ui: card submits only the name and the expected name, and warns about issued certificates", () => {
